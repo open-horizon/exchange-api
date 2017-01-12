@@ -1,0 +1,22 @@
+#!/bin/bash -e
+
+# Replace the variables in the dockerfile template with their values from the environment
+
+if [ "$#" -lt 2 ]; then
+  echo "Usage: $0 template_fname variables..."
+  exit 1
+fi
+
+TEMPLATE=$1
+P="$(dirname $TEMPLATE)"
+FNAME="$(basename $TEMPLATE .tmpl)"
+DEST="$P/$FNAME"
+shift
+
+# cp "$TEMPLATE" "$DEST"
+
+# for v in ${@:2}; do
+for name in $*; do
+  # replace the name of the variable with the value of the variable
+  sed -i "s|##${name}##|${!name}|g" "$DEST"
+done

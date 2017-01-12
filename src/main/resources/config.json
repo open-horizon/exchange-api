@@ -1,0 +1,46 @@
+// Default config file for Horizon Exchange. This file is bundled in the exchange api jar file.
+// To run the exchange svr with different values, copy this to /etc/horizon/exchange/config.json.
+// In your version of the config file, you only have to set what you want to override.
+{
+	"api": {
+		"limits": {
+			"maxDevices": 1000,		// maximum number of devices 1 user is allowed to create
+			"maxAgbots": 1000,		// maximum number of agbots 1 user is allowed to create
+			"maxAgreements": 100	// maximum number of agreements 1 user is allowed to create
+		},
+		"specRef": {
+			"prefix": "https://bluehorizon.network/documentation/",
+			"suffix": "-device-api"
+		},
+		"objStoreTmpls": {
+			"prefix": "https://tor01.objectstorage.softlayer.net/v1/AUTH_bd05f276-e42f-4fa1-b7b3-780e8544769f",
+			"microDir": "microservice-templates",
+			"workloadDir": "workload-templates",
+			"suffix": ".json"
+		},
+		"db": {
+			"driverClass": "org.postgresql.Driver",
+			"jdbcUrl": "jdbc:postgresql://sl-us-dal-9-portal.2.dblayer.com:10869/compose",		// the back-end db the exchange uses
+			"user": "admin",
+			"password": "",			// set this in your own version of this config file
+			"minPoolSize": 1,
+			"acquireIncrement": 1,
+			"maxPoolSize": 50
+		},
+		"smtp": {		// set all of these in your own version of this config file
+			"host": "",		// the SMTP relay svr the exchange uses to send reset pw emails
+			"user": "",
+			"password": ""
+		},
+		"logging": {
+			"level": ""		// default level is INFO. For possible values, see http://logback.qos.ch/apidocs/ch/qos/logback/classic/Level.html
+		},
+		"microservices": {
+			"disable": true		// when disabled, the microservices templates will not be retrieved and returned for PUT /devices/{id}
+		},
+		"root": {
+			"password": "",			// set this in your own version of this config file
+			"email": ""
+		}
+	}
+}

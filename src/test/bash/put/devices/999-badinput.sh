@@ -37,5 +37,6 @@ curl -# -w "%{http_code}" -X PUT -H 'Content-Type: application/json' -H 'Accept:
     }
   ],
   "msgEndPoint": "whisper-id",
-  "softwareVersions": {"horizon": "3.2.1"}
+  "softwareVersions": {"horizon": "3.2.1"},
+  "publicKey": "DEF"
 }' $EXCHANGE_URL_ROOT/v1/devices/999 | $parse

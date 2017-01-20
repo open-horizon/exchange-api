@@ -23,7 +23,8 @@ object BaseAccess extends Enumeration {
     ADMIN,
     RESET_PW,
     AGREEMENT_CONFIRM,
-    DATA_HEARTBEAT
+    DATA_HEARTBEAT,
+    SEND_MSG
     = Value
 }
 import BaseAccess._
@@ -38,6 +39,7 @@ object Access extends Enumeration {
     WRITE_MY_DEVICES,
     READ_ALL_DEVICES,
     WRITE_ALL_DEVICES,
+    SEND_MSG_TO_DEVICE,
     CREATE_AGBOT,       //TODO: remove this, we should not distinguish between create and write
     READ_MY_AGBOTS,
     WRITE_MY_AGBOTS,
@@ -45,13 +47,15 @@ object Access extends Enumeration {
     WRITE_ALL_AGBOTS,
     AGBOT_AGREEMENT_DATA_HEARTBEAT,
     AGBOT_AGREEMENT_CONFIRM,
+    SEND_MSG_TO_AGBOT,
     CREATE_USER,       //TODO: remove this, we should not distinguish between create and write
     CREATE_SUPERUSER,       //TODO: remove this, it does not even make sense
     READ_ALL_USERS,
     WRITE_ALL_USERS,
     RESET_USER_PW,
     ADMIN,
-    ALL
+    ALL,
+    NONE        // should not be put in any role below
     = Value
   // val ALL = Set(READ_MYSELF, WRITE_MYSELF, CREATE_DEVICE, READ_MY_DEVICES, WRITE_MY_DEVICES, READ_ALL_DEVICES, WRITE_ALL_DEVICES, CREATE_AGBOT, READ_MY_AGBOTS, WRITE_MY_AGBOTS, READ_ALL_AGBOTS, WRITE_ALL_AGBOTS, CREATE_USER, READ_ALL_USERS, WRITE_ALL_USERS)
 }
@@ -62,8 +66,8 @@ object Role {
   val ANONYMOUS = Set(Access.CREATE_USER, Access.RESET_USER_PW)
   val USER = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.RESET_USER_PW, Access.CREATE_DEVICE, Access.READ_MY_DEVICES, Access.WRITE_MY_DEVICES, Access.READ_ALL_DEVICES, Access.CREATE_AGBOT, Access.READ_MY_AGBOTS, Access.WRITE_MY_AGBOTS, Access.AGBOT_AGREEMENT_DATA_HEARTBEAT, Access.AGBOT_AGREEMENT_CONFIRM, Access.READ_ALL_AGBOTS)
   val SUPERUSER = Set(Access.ALL)
-  val DEVICE = Set(Access.READ_MYSELF, Access.WRITE_MYSELF)
-  val AGBOT = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.AGBOT_AGREEMENT_DATA_HEARTBEAT, Access.AGBOT_AGREEMENT_CONFIRM, Access.READ_ALL_DEVICES)
+  val DEVICE = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.SEND_MSG_TO_AGBOT)
+  val AGBOT = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.AGBOT_AGREEMENT_DATA_HEARTBEAT, Access.AGBOT_AGREEMENT_CONFIRM, Access.READ_ALL_DEVICES, Access.SEND_MSG_TO_DEVICE)
   def hasAuthorization(role: Set[Access], access: Access): Boolean = { role.contains(Access.ALL) || role.contains(access) }
   def isSuperUser(username: String): Boolean = return username == "root"    // only checks the username, does not verify the pw
 }
@@ -437,13 +441,14 @@ trait AuthenticationSupport extends ScalatraBase {
   def deviceHasAuthorization(id: String, idToAccess: String, baseAccess: BaseAccess): Boolean = {
     var access: Access = Access.READ_MYSELF
     if (id == idToAccess) access = if (baseAccess == BaseAccess.READ) Access.READ_MYSELF else Access.WRITE_MYSELF
+    else if (baseAccess == BaseAccess.SEND_MSG) access = Access.SEND_MSG_TO_AGBOT
     else access = if (baseAccess == BaseAccess.READ) Access.READ_ALL_DEVICES else Access.WRITE_ALL_DEVICES
     return Role.hasAuthorization(Role.DEVICE, access)
   }
 
   /** Returns true if this authenticated agbot id has access to the specified device object */
   def agbotHasAuthorizationToDevice(id: String, idToAccess: String, baseAccess: BaseAccess): Boolean = {
-    val access = if (baseAccess == BaseAccess.READ) Access.READ_ALL_DEVICES else Access.WRITE_ALL_DEVICES
+    val access = if (baseAccess == BaseAccess.READ) Access.READ_ALL_DEVICES else if (baseAccess == BaseAccess.WRITE) Access.WRITE_ALL_DEVICES else Access.NONE
     return Role.hasAuthorization(Role.AGBOT, access)
   }
 
@@ -453,6 +458,7 @@ trait AuthenticationSupport extends ScalatraBase {
     if (id == idToAccess && baseAccess == BaseAccess.DATA_HEARTBEAT) access = Access.AGBOT_AGREEMENT_DATA_HEARTBEAT
     else if (baseAccess == BaseAccess.AGREEMENT_CONFIRM) access = Access.AGBOT_AGREEMENT_CONFIRM       // the implementation of the rest method only searches the agbot agreements owned by the same user
     else if (id == idToAccess) access = if (baseAccess == BaseAccess.READ) Access.READ_MYSELF else Access.WRITE_MYSELF
+    else if (baseAccess == BaseAccess.SEND_MSG) access = Access.SEND_MSG_TO_DEVICE
     else access = if (baseAccess == BaseAccess.READ) Access.READ_ALL_AGBOTS else Access.WRITE_ALL_AGBOTS
     return Role.hasAuthorization(Role.AGBOT, access)
   }
@@ -487,6 +493,13 @@ trait AuthenticationSupport extends ScalatraBase {
     halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
   }
 
+  /** Validates creds as device id/token. */
+  def validateDeviceId(baseAccess: BaseAccess): Creds = {
+    val creds = credentialsAndLog()
+    if (isAuthenticatedDevice(creds)) if (deviceHasAuthorization(creds.id, "", baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
+    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+  }
+
   /** Validates creds, and then validates access to the specified device. */
   def validateAccessToDevice(baseAccess: BaseAccess, id: String): Creds = {
     val creds = credentialsAndLog()
@@ -496,11 +509,18 @@ trait AuthenticationSupport extends ScalatraBase {
     halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
   }
 
-  /** Validates creds as either user/pw or agbot id/token, and then validates access the specified agbot. */
+  /** Validates creds as either user/pw or agbot id/token, and then validates access to the specified agbot. */
   def validateUserOrAgbotId(baseAccess: BaseAccess, id: String): Creds = {
     val creds = credentialsAndLog()
     if (isAuthenticatedUser(creds)) if (userHasAuthorizationToAgbot(creds.id, id, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
     if (isAuthenticatedAgbot(creds)) if (agbotHasAuthorization(creds.id, id, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
+    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+  }
+
+  /** Validates creds as agbot id/token. */
+  def validateAgbotId(baseAccess: BaseAccess): Creds = {
+    val creds = credentialsAndLog()
+    if (isAuthenticatedAgbot(creds)) if (agbotHasAuthorization(creds.id, "", baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
     halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
   }
 

@@ -151,6 +151,32 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
+  // =========== POST /admin/initnewtables ===============================
+  val postAdminInitNewTables =
+    (apiOperation[ApiResponse]("postAdminInitNewTables")
+      summary "Creates the schema for the new tables in this version"
+      notes "Creates the tables, that are new in this exchange version, with the necessary schema in the Exchange DB. Can only be run by the root user."
+      parameters(
+        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  /** Handles POST /admin/initnewtables. */
+  post("/admin/initnewtables", operation(postAdminInitNewTables)) ({
+    validateRoot(BaseAccess.ADMIN)
+    val resp = response
+    db.run(ExchangeApiTables.createNewTables.transactionally.asTry).map({ xs =>
+      logger.debug("POST /admin/initnewtables result: "+xs.toString)
+      xs match {
+        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, "new tables initialized successfully")
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "new tables not initialized: "+t.toString)
+      }
+    })
+  })
+
   // =========== GET /admin/dropdb/token ===============================
   val getDropdbToken =
     (apiOperation[AdminDropdbTokenResponse]("getDropdbToken")
@@ -191,12 +217,38 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("POST /admin/dropdb result: "+xs.toString)
       xs match {
         case Success(v) => AuthCache.devices.removeAll     // i think we could just let the cache catch up over time, but seems better to clear it out now
-          // AuthCache.users.removeAll
-          // AuthCache.agbots.removeAll
+          AuthCache.users.removeAll
+          AuthCache.agbots.removeAll
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "db deleted successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "db not completely deleted: "+t.toString)
+      }
+    })
+  })
+
+  // =========== POST /admin/dropnewtables ===============================
+  val postAdminDropNewTables =
+    (apiOperation[ApiResponse]("postAdminDropNewTables")
+      summary "Deletes the tables that are new in this version"
+      notes "Deletes the tables from the Exchange DB that are new in this version. **Warning: this will delete the data too!** Can only be run by the root user."
+      parameters(
+        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("The token received from GET /admin/dropdb/token. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  /** Handles POST /admin/dropnewtables. */
+  post("/admin/dropnewtables", operation(postAdminDropNewTables)) ({
+    validateRoot(BaseAccess.ADMIN)
+    val resp = response
+    db.run(ExchangeApiTables.deleteNewTables.transactionally.asTry).map({ xs =>
+      logger.debug("POST /admin/dropnewtables result: "+xs.toString)
+      xs match {
+        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, "new tables deleted successfully")
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "new tables not completely deleted: "+t.toString)
       }
     })
   })
@@ -240,6 +292,68 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           // ApiResponse(ApiResponseType.OK, "db tables dumped and schemas migrated, now load tables using POST /admin/loadtables")    //TODO:
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "db tables not migrated: "+t.toString)
+      }
+    })
+  })
+
+  // =========== POST /admin/upgradedb ===============================
+  val postAdminUpgradeDb =
+    (apiOperation[ApiResponse]("postAdminUpgradeDb")
+      summary "Upgrades the DB schema"
+      notes "Updates (alters) the schemas of the db tables as necessary (w/o losing any data). Can only be run by the root user."
+      parameters(
+        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  /** Handles POST /admin/upgradedb. */
+  post("/admin/upgradedb", operation(postAdminUpgradeDb)) ({
+    validateRoot(BaseAccess.ADMIN)
+    val resp = response
+
+    // Assemble the list of db actions to: alter schema of existing tables, and create tables that are new in this version
+    val dbActions = DBIO.seq(ExchangeApiTables.alterTables, ExchangeApiTables.createNewTables)
+
+    // This should stop performing the actions if any of them fail. Currently intentionally not running it all as a transaction
+    db.run(dbActions.asTry).map({ xs =>
+      logger.debug("POST /admin/upgradedb result: "+xs.toString)
+      xs match {
+        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, "db table schemas upgraded successfully")
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db table schemas not upgraded: "+t.toString)
+      }
+    })
+  })
+
+  // =========== POST /admin/unupgradedb ===============================
+  val postAdminUnupgradeDb =
+    (apiOperation[ApiResponse]("postAdminUnupgradeDb")
+      summary "Undoes the upgrades of the DB schema"
+      notes "Undoes the updates (alters) of the schemas of the db tables in case we need to fix the upgradedb code and try it again. Can only be run by the root user."
+      parameters(
+        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  /** Handles POST /admin/unupgradedb. */
+  post("/admin/unupgradedb", operation(postAdminUnupgradeDb)) ({
+    validateRoot(BaseAccess.ADMIN)
+    val resp = response
+
+    // Assemble the list of db actions to: delete tables that are new in this version, and unalter schema changes made to existing tables
+    val dbActions = DBIO.seq(ExchangeApiTables.deleteNewTables, ExchangeApiTables.unAlterTables)
+
+    // This should stop performing the actions if any of them fail. Currently intentionally not running it all as a transaction
+    db.run(dbActions.asTry).map({ xs =>
+      logger.debug("POST /admin/unupgradedb result: "+xs.toString)
+      xs match {
+        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, "db table schemas unupgraded successfully")
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db table schemas not unupgraded: "+t.toString)
       }
     })
   })

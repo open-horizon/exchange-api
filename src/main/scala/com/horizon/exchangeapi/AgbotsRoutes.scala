@@ -24,7 +24,11 @@ import com.horizon.exchangeapi.tables._
 case class GetAgbotsResponse(agbots: Map[String,Agbot], lastIndex: Int)
 
 /** Input format for PUT /agbots/<agbot-id> */
-case class PutAgbotsRequest(token: String, name: String, msgEndPoint: String) {
+case class PutAgbotsRequest(token: String, name: String, msgEndPoint: String, publicKey: String) {
+  def validate = {
+    if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))
+  }
+
   /* Puts this entry in the database */
   def copyToTempDb(id: String, owner: String) = {
     var tok = if (token == "") "" else Password.hash(token)
@@ -35,16 +39,16 @@ case class PutAgbotsRequest(token: String, name: String, msgEndPoint: String) {
         if (owner == "" || Role.isSuperUser(owner)) own = agbot.owner
       case None => ;
     }
-    val dbAgbot = new Agbot(tok, name, own, msgEndPoint, ApiTime.nowUTC)
+    val dbAgbot = new Agbot(tok, name, own, msgEndPoint, ApiTime.nowUTC, publicKey)
     TempDb.agbots.put(id, dbAgbot)
     if (token != "") AuthCache.agbots.put(Creds(id, token))    // the token passed in to the cache should be the non-hashed one
   }
 
   /** Get the db queries to insert or update the agbot */
-  def getDbUpsert(id: String, owner: String): DBIO[_] = AgbotRow(id, token, name, owner, msgEndPoint, ApiTime.nowUTC).upsert
+  def getDbUpsert(id: String, owner: String): DBIO[_] = AgbotRow(id, token, name, owner, msgEndPoint, ApiTime.nowUTC, publicKey).upsert
 
   /** Get the db queries to update the agbot */
-  def getDbUpdate(id: String, owner: String): DBIO[_] = AgbotRow(id, token, name, owner, msgEndPoint, ApiTime.nowUTC).update
+  def getDbUpdate(id: String, owner: String): DBIO[_] = AgbotRow(id, token, name, owner, msgEndPoint, ApiTime.nowUTC, publicKey).update
 }
 
 
@@ -84,6 +88,13 @@ case class PostAgreementsConfirmRequest(agreementId: String) {
     return agreementMap.get(agreementId).get.state != ""
   }
 }
+
+
+/** Input body for POST /agbots/{id}/msgs */
+case class PostAgbotsMsgsRequest(message: String)
+
+/** Response for GET /agbots/{id}/msgs */
+case class GetAgbotMsgsResponse(messages: List[AgbotMsg], lastIndex: Int)
 
 
 /** Implementation for all of the /agbots routes */
@@ -190,7 +201,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 {
   "token": "abc",       // agbot token, set by user when adding this agbot. When the agbot is running this to update the agbot it can set this to the empty string
   "name": "agbot3",         // agbot name that you pick
-  "msgEndPoint": "whisper-id"    // msg service endpoint id for this agbot to be contacted by agbots
+  "msgEndPoint": "whisper-id",    // msg service endpoint id for this agbot to be contacted by agbots, empty string to use the built-in Exchange msg service
+  "publicKey"      // used by devices to encrypt msgs sent to this agbot using the built-in Exchange msg service
 }
 ```"""
       parameters(
@@ -211,6 +223,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val creds = validateUserOrAgbotId(baseAccess, id)
     val agbot = try { parse(request.body).extract[PutAgbotsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    agbot.validate
     val owner = if (isAuthenticatedUser(creds)) creds.id else ""
     if (ExchConfig.getBoolean("api.db.memoryDb")) {
       if (baseAccess == BaseAccess.CREATE && TempDb.agbots.filter(d => d._2.owner == owner).size >= ExchConfig.getInt("api.limits.maxAgbots")) {    // make sure they are not trying to overrun the exchange svr by creating a ton of agbots
@@ -464,15 +477,50 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     }
   })
 
+  // =========== DELETE /agbots/{id}/agreements ===============================
+  val deleteAgbotAllAgreement =
+    (apiOperation[ApiResponse]("deleteAgbotAllAgreement")
+      summary "Deletes all agreements of a agbot"
+      notes "Deletes all of the current agreements of a agbot from the exchange DB. Can be run by the owning user or the agbot."
+      parameters(
+        Parameter("id", DataType.String, Option[String]("ID of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
+        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  /** Handles DELETE /agbots/{id}/agreements. */
+  delete("/agbots/:id/agreements", operation(deleteAgbotAllAgreement)) ({
+    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
+    validateUserOrAgbotId(BaseAccess.WRITE, id)
+    val resp = response
+    db.run(AgbotAgreementsTQ.getAgreements(id).delete.asTry).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/agreements result: "+xs.toString)
+      xs match {
+        case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
+            val numDeleted = v.toString.toInt
+            if (numDeleted > 0) {
+              resp.setStatus(HttpCode.DELETED)
+              ApiResponse(ApiResponseType.OK, "agbot agreements deleted")
+            } else {
+              resp.setStatus(HttpCode.NOT_FOUND)
+              ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for agbot '"+id+"' found")
+            }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from agbot agreements delete: "+e) }    // the specific exception is NumberFormatException
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreements for agbot '"+id+"' not deleted: "+t.toString)
+        }
+    })
+  })
+
   // =========== DELETE /agbots/{id}/agreements/{agid} ===============================
   val deleteAgbotAgreement =
     (apiOperation[ApiResponse]("deleteAgbotAgreement")
       summary "Deletes an agreement of a agbot"
       notes "Deletes an agreement of a agbot from the exchange DB. Can be run by the owning user or the agbot."
       parameters(
-        Parameter("id", DataType.String, Option[String]("ID of the agreement to be deleted."), paramType = ParamType.Path),
+        Parameter("id", DataType.String, Option[String]("ID of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
         Parameter("agid", DataType.String, Option[String]("ID of the agreement to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agreement. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       )
 
@@ -727,6 +775,123 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         })
       }
     }
+  })
+
+  // =========== POST /agbots/{id}/msgs ===============================
+  val postAgbotsMsgs =
+    (apiOperation[ApiResponse]("postAgbotsMsgs")
+      summary "Sends a msg from an agbot to a device"
+      notes """Sends a msg from an agbot to a device. The agbot must 1st sign the msg (with its private key) and then encrypt the msg (with the device's public key). Can be run by any agbot. The **request body** structure:
+
+```
+{
+  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs"     // msg to be sent to the device
+}
+```
+      """
+      parameters(
+        Parameter("id", DataType.String, Option[String]("ID of the device to send a msg to."), paramType = ParamType.Path),
+        // Agbot id/token must be in the header
+        Parameter("body", DataType[PostAgbotsMsgsRequest],
+          Option[String]("Signed/encrypted message to send to the device. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+        )
+      )
+  val postAgbotsMsgs2 = (apiOperation[PostAgbotsMsgsRequest]("postAgbotsMsgs2") summary("a") notes("a"))
+
+  /** Handles POST /agbots/{id}/msgs. */
+  post("/agbots/:id/msgs", operation(postAgbotsMsgs)) ({
+    val agbotId = params("id")
+    val creds = validateDeviceId(BaseAccess.SEND_MSG)
+    val devId = creds.id
+    val msg = try { parse(request.body).extract[PostAgbotsMsgsRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    val resp = response
+    // get the device publicKey and then write the agbotmsgs row, all in the same db.run thread
+    //TODO: remove msgs whose TTL is past
+    db.run(DevicesTQ.getPublicKey(devId).result.flatMap({ xs =>
+      logger.debug("POST /agbots/"+agbotId+"/msgs publickey result: "+xs.toString)
+      val agbotPubKey = xs.head   //TODO: handle error of not getting publicKey (less likely) or it is empty string (more likely)
+      AgbotMsgRow(0, agbotId, devId, agbotPubKey, msg.message, ApiTime.nowUTC).insert.asTry
+    })).map({ xs =>
+      logger.debug("POST /agbots/"+agbotId+"/msgs write row result: "+xs.toString)
+      xs match {
+        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, "agbot msg inserted")    //TODO: return the msg id
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+agbotId+"' msg not inserted: "+t.toString)
+        }
+    })
+  })
+
+  /* ====== GET /agbots/{id}/msgs ================================ */
+  val getAgbotMsgs =
+    (apiOperation[GetAgbotMsgsResponse]("getAgbotMsgs")
+      summary("Returns all msgs sent to this agbot")
+      notes("""Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.
+
+**Notes about the response format:**
+
+- **The format may change in the future.**
+- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      parameters(
+        Parameter("id", DataType.String, Option[String]("ID of the agbot."), paramType=ParamType.Query),
+        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  /** Handles GET /agbots/{id}/msgs. Normally called by the user to see all msgs of this agbot. */
+  get("/agbots/:id/msgs", operation(getAgbotMsgs)) ({
+    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
+    validateUserOrAgbotId(BaseAccess.READ, id)
+    val resp = response
+    //TODO: remove msgs whose TTL is past
+    db.run(AgbotMsgsTQ.getMsgs(id).result).map({ list =>
+      logger.debug("GET /agbots/"+id+"/msgs result size: "+list.size)
+      logger.trace("GET /agbots/"+id+"/msgs result: "+list.toString)
+      val listSorted = list.sortWith(_.msgId < _.msgId)
+      val msgs = new ListBuffer[AgbotMsg]
+      if (listSorted.size > 0) for (m <- listSorted) { msgs += m.toAgbotMsg }
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      GetAgbotMsgsResponse(msgs.toList, 0)
+    })
+  })
+
+  // =========== DELETE /agbots/{id}/msgs/{msgid} ===============================
+  val deleteAgbotMsg =
+    (apiOperation[ApiResponse]("deleteAgbotMsg")
+      summary "Deletes an msg of a agbot"
+      notes "Deletes an msg that was sent to a agbot. This should be done by the agbot after each msg is read. Can be run by the owning user or the agbot."
+      parameters(
+        Parameter("id", DataType.String, Option[String]("ID of the agbot to be deleted."), paramType = ParamType.Path),
+        Parameter("msgid", DataType.String, Option[String]("ID of the msg to be deleted."), paramType = ParamType.Path),
+        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  /** Handles DELETE /agbots/{id}/msgs/{msgid}. */
+  delete("/agbots/:id/msgs/:msgid", operation(deleteAgbotMsg)) ({
+    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
+    val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "msgid must be an integer: "+e)) }    // the specific exception is NumberFormatException
+    validateUserOrAgbotId(BaseAccess.WRITE, id)
+    val resp = response
+    db.run(AgbotMsgsTQ.getMsg(id,msgId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/msgs/"+msgId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
+            val numDeleted = v.toString.toInt
+            if (numDeleted > 0) {
+              resp.setStatus(HttpCode.DELETED)
+              ApiResponse(ApiResponseType.OK, "agbot msg deleted")
+            } else {
+              resp.setStatus(HttpCode.NOT_FOUND)
+              ApiResponse(ApiResponseType.NOT_FOUND, "msg '"+msgId+"' for agbot '"+id+"' not found")
+            }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from agbot msg delete: "+e) }    // the specific exception is NumberFormatException
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "msg '"+msgId+"' for agbot '"+id+"' not deleted: "+t.toString)
+        }
+    })
   })
 
 }

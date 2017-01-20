@@ -72,7 +72,7 @@ case class PostSearchDevicesRequest(desiredMicroservices: List[MicroserviceSearc
       } }
       if (microsResp.length > 0) {
         // at least 1 micro from this device matched, so add this device to the response list
-        devicesResp = devicesResp :+ DeviceResponse(id, d.name, microsResp, d.msgEndPoint)
+        devicesResp = devicesResp :+ DeviceResponse(id, d.name, microsResp, d.msgEndPoint, d.publicKey)
       }
     }
     // return the search result to the rest client
@@ -80,15 +80,16 @@ case class PostSearchDevicesRequest(desiredMicroservices: List[MicroserviceSearc
   }
 }
 
-case class DeviceResponse(id: String, name: String, microservices: List[Microservice], msgEndPoint: String)
+case class DeviceResponse(id: String, name: String, microservices: List[Microservice], msgEndPoint: String, publicKey: String)
 case class PostSearchDevicesResponse(devices: List[DeviceResponse], lastIndex: Int)
 
 /** Input format for PUT /devices/<device-id> */
-case class PutDevicesRequest(token: String, name: String, registeredMicroservices: List[Microservice], msgEndPoint: String, softwareVersions: Map[String,String]) {
+case class PutDevicesRequest(token: String, name: String, registeredMicroservices: List[Microservice], msgEndPoint: String, softwareVersions: Map[String,String], publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Halts the request with an error msg if the user input is invalid. */
   def validate = {
+    if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))
     for (m <- registeredMicroservices) {
       if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
       m.validate match {
@@ -108,7 +109,7 @@ case class PutDevicesRequest(token: String, name: String, registeredMicroservice
         if (owner == "" || Role.isSuperUser(owner)) own = dev.owner     // if an update is being done by root, do not make it owned by root
       case None => if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "password must be non-blank when creating a device"))
     }
-    val dbDevice = new Device(tok, name, own, registeredMicroservices, msgEndPoint, softwareVersions, ApiTime.nowUTC)
+    val dbDevice = new Device(tok, name, own, registeredMicroservices, msgEndPoint, softwareVersions, ApiTime.nowUTC, publicKey)
     TempDb.devices.put(id, dbDevice)
     if (token != "") AuthCache.devices.put(Creds(id, token))    // the token passed in to the cache should be the non-hashed one
     // TempDb.devices = List(dbDevice) ++ TempDb.devices.filter(d => d.id != id)    // add the device to our list, removing any devices with the same id
@@ -117,7 +118,7 @@ case class PutDevicesRequest(token: String, name: String, registeredMicroservice
   /** Get the db queries to insert or update all parts of the device */
   def getDbUpsert(id: String, owner: String): DBIO[_] = {
     // Accumulate the actions in a list, starting with the action to insert/update the device itself
-    val actions = ListBuffer[DBIO[_]](DeviceRow(id, token, name, owner, msgEndPoint, write(softwareVersions), ApiTime.nowUTC).upsert)
+    val actions = ListBuffer[DBIO[_]](DeviceRow(id, token, name, owner, msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).upsert)
     val microsUrls = MutableSet[String]()    // the url attribute of the micros we are creating, so we can delete everthing else for this device
     val propsIds = MutableSet[String]()    // the propId attribute of the props we are creating, so we can delete everthing else for this device
     // Now add actions to insert/update the device's micros and props
@@ -139,7 +140,7 @@ case class PutDevicesRequest(token: String, name: String, registeredMicroservice
   /** Get the db queries to update all parts of the device. This is run, instead of getDbUpsert(), when it is a device doing it,
    * because we can't let a device create new devices. */
   def getDbUpdate(id: String, owner: String): DBIO[_] = {
-    val actions = ListBuffer[DBIO[_]](DeviceRow(id, token, name, owner, msgEndPoint, write(softwareVersions), ApiTime.nowUTC).update)
+    val actions = ListBuffer[DBIO[_]](DeviceRow(id, token, name, owner, msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).update)
     val microsUrls = MutableSet[String]()    // the url attribute of the micros we are updating, so we can delete everthing else for this device
     val propsIds = MutableSet[String]()    // the propId attribute of the props we are updating, so we can delete everthing else for this device
     for (m <- registeredMicroservices) {
@@ -211,6 +212,13 @@ case class PutDeviceAgreementRequest(microservice: String, state: String) {
   def toDeviceAgreement = DeviceAgreement(microservice, state, ApiTime.nowUTC)
   def toDeviceAgreementRow(deviceId: String, agId: String) = DeviceAgreementRow(agId, deviceId, microservice, state, ApiTime.nowUTC)
 }
+
+
+/** Input body for POST /devices/{id}/msgs */
+case class PostDevicesMsgsRequest(message: String)
+
+/** Response for GET /devices/{id}/msgs */
+case class GetDeviceMsgsResponse(messages: List[DeviceMsg], lastIndex: Int)
 
 
 /** Implementation for all of the /devices routes */
@@ -441,13 +449,14 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           "name": "arch",         // must at least include arch and version properties
           "value": "arm",         // should always be a string (even for boolean and int). Use "*" for wildcard
           "propType": "string",   // valid types: string, list, version, boolean, int, or wildcard
-          "op": "="               // =, <=, >=, or in (must use the same op as the agbot search)
+          "op": "="               // =, greater-than-or-equal-symbols, less-than-or-equal-symbols, or in (must use the same op as the agbot search)
         }
       ]
     }
   ],
-  "msgEndPoint": "whisper-id",    // msg service endpoint id for this device to be contacted by agbots
-  "softwareVersions": {"horizon": "1.2.3"}      // various software versions on the device
+  "msgEndPoint": "whisper-id",    // msg service endpoint id for this device to be contacted by agbots, empty string to use the built-in Exchange msg service
+  "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the device
+  "publicKey"      // used by agbots to encrypt msgs sent to this device using the built-in Exchange msg service
 }
 ```
 
@@ -776,15 +785,50 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     }
   })
 
+  // =========== DELETE /devices/{id}/agreements ===============================
+  val deleteDeviceAllAgreement =
+    (apiOperation[ApiResponse]("deleteDeviceAllAgreement")
+      summary "Deletes all agreements of a device"
+      notes "Deletes all of the current agreements of a device from the exchange DB. Can be run by the owning user or the device."
+      parameters(
+        Parameter("id", DataType.String, Option[String]("ID of the device for which the agreement is to be deleted."), paramType = ParamType.Path),
+        Parameter("token", DataType.String, Option[String]("Token of the device. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  /** Handles DELETE /devices/{id}/agreements. */
+  delete("/devices/:id/agreements", operation(deleteDeviceAllAgreement)) ({
+    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
+    validateUserOrDeviceId(BaseAccess.WRITE, id)
+    val resp = response
+    db.run(DeviceAgreementsTQ.getAgreements(id).delete.asTry).map({ xs =>
+      logger.debug("DELETE /devices/"+id+"/agreements result: "+xs.toString)
+      xs match {
+        case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
+            val numDeleted = v.toString.toInt
+            if (numDeleted > 0) {
+              resp.setStatus(HttpCode.DELETED)
+              ApiResponse(ApiResponseType.OK, "device agreements deleted")
+            } else {
+              resp.setStatus(HttpCode.NOT_FOUND)
+              ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for device '"+id+"' found")
+            }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from device agreements delete: "+e) }    // the specific exception is NumberFormatException
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreements for device '"+id+"' not deleted: "+t.toString)
+        }
+    })
+  })
+
   // =========== DELETE /devices/{id}/agreements/{agid} ===============================
   val deleteDeviceAgreement =
     (apiOperation[ApiResponse]("deleteDeviceAgreement")
       summary "Deletes an agreement of a device"
       notes "Deletes an agreement of a device from the exchange DB. Can be run by the owning user or the device."
       parameters(
-        Parameter("id", DataType.String, Option[String]("ID of the agreement to be deleted."), paramType = ParamType.Path),
+        Parameter("id", DataType.String, Option[String]("ID of the device for which the agreement is to be deleted."), paramType = ParamType.Path),
         Parameter("agid", DataType.String, Option[String]("ID of the agreement to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agreement. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        Parameter("token", DataType.String, Option[String]("Token of the device. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       )
 
@@ -821,6 +865,123 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           }
       })
     }
+  })
+
+  // =========== POST /devices/{id}/msgs ===============================
+  val postDevicesMsgs =
+    (apiOperation[ApiResponse]("postDevicesMsgs")
+      summary "Sends a msg from an agbot to a device"
+      notes """Sends a msg from an agbot to a device. The agbot must 1st sign the msg (with its private key) and then encrypt the msg (with the device's public key). Can be run by any agbot. The **request body** structure:
+
+```
+{
+  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs"     // msg to be sent to the device
+}
+```
+      """
+      parameters(
+        Parameter("id", DataType.String, Option[String]("ID of the device to send a msg to."), paramType = ParamType.Path),
+        // Agbot id/token must be in the header
+        Parameter("body", DataType[PostDevicesMsgsRequest],
+          Option[String]("Signed/encrypted message to send to the device. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+        )
+      )
+  val postDevicesMsgs2 = (apiOperation[PostDevicesMsgsRequest]("postDevicesMsgs2") summary("a") notes("a"))
+
+  /** Handles POST /devices/{id}/msgs. */
+  post("/devices/:id/msgs", operation(postDevicesMsgs)) ({
+    val devId = params("id")
+    val creds = validateAgbotId(BaseAccess.SEND_MSG)
+    val agbotId = creds.id
+    val msg = try { parse(request.body).extract[PostDevicesMsgsRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    val resp = response
+    // get the agbot publicKey and then write the devmsgs row, all in the same db.run thread
+    //TODO: remove msgs whose TTL is past
+    db.run(AgbotsTQ.getPublicKey(agbotId).result.flatMap({ xs =>
+      logger.debug("POST /devices/"+devId+"/msgs publickey result: "+xs.toString)
+      val agbotPubKey = xs.head   //TODO: handle error of not getting publicKey (less likely) or it is empty string (more likely)
+      DeviceMsgRow(0, devId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC).insert.asTry
+    })).map({ xs =>
+      logger.debug("POST /devices/"+devId+"/msgs write row result: "+xs.toString)
+      xs match {
+        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, "device msg inserted")    //TODO: return the msg id
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "device '"+devId+"' msg not inserted: "+t.toString)
+        }
+    })
+  })
+
+  /* ====== GET /devices/{id}/msgs ================================ */
+  val getDeviceMsgs =
+    (apiOperation[GetDeviceMsgsResponse]("getDeviceMsgs")
+      summary("Returns all msgs sent to this device")
+      notes("""Returns all msgs that have been sent to this device. They will be returned in the order they were sent. All msgs that have been sent to this device will be returned, unless the device has deleted some, or some are past their TTL. Can be run by a user or the device.
+
+**Notes about the response format:**
+
+- **The format may change in the future.**
+- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      parameters(
+        Parameter("id", DataType.String, Option[String]("ID of the device."), paramType=ParamType.Query),
+        Parameter("token", DataType.String, Option[String]("Token of the device. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  /** Handles GET /devices/{id}/msgs. Normally called by the user to see all msgs of this device. */
+  get("/devices/:id/msgs", operation(getDeviceMsgs)) ({
+    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
+    validateUserOrDeviceId(BaseAccess.READ, id)
+    val resp = response
+    //TODO: remove msgs whose TTL is past
+    db.run(DeviceMsgsTQ.getMsgs(id).result).map({ list =>
+      logger.debug("GET /devices/"+id+"/msgs result size: "+list.size)
+      logger.trace("GET /devices/"+id+"/msgs result: "+list.toString)
+      val listSorted = list.sortWith(_.msgId < _.msgId)
+      val msgs = new ListBuffer[DeviceMsg]
+      if (listSorted.size > 0) for (m <- listSorted) { msgs += m.toDeviceMsg }
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      GetDeviceMsgsResponse(msgs.toList, 0)
+    })
+  })
+
+  // =========== DELETE /devices/{id}/msgs/{msgid} ===============================
+  val deleteDeviceMsg =
+    (apiOperation[ApiResponse]("deleteDeviceMsg")
+      summary "Deletes an msg of a device"
+      notes "Deletes an msg that was sent to a device. This should be done by the device after each msg is read. Can be run by the owning user or the device."
+      parameters(
+        Parameter("id", DataType.String, Option[String]("ID of the device to be deleted."), paramType = ParamType.Path),
+        Parameter("msgid", DataType.String, Option[String]("ID of the msg to be deleted."), paramType = ParamType.Path),
+        Parameter("token", DataType.String, Option[String]("Token of the device. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  /** Handles DELETE /devices/{id}/msgs/{msgid}. */
+  delete("/devices/:id/msgs/:msgid", operation(deleteDeviceMsg)) ({
+    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
+    val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "msgid must be an integer: "+e)) }    // the specific exception is NumberFormatException
+    validateUserOrDeviceId(BaseAccess.WRITE, id)
+    val resp = response
+    db.run(DeviceMsgsTQ.getMsg(id,msgId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /devices/"+id+"/msgs/"+msgId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
+            val numDeleted = v.toString.toInt
+            if (numDeleted > 0) {
+              resp.setStatus(HttpCode.DELETED)
+              ApiResponse(ApiResponseType.OK, "device msg deleted")
+            } else {
+              resp.setStatus(HttpCode.NOT_FOUND)
+              ApiResponse(ApiResponseType.NOT_FOUND, "msg '"+msgId+"' for device '"+id+"' not found")
+            }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from device msg delete: "+e) }    // the specific exception is NumberFormatException
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "msg '"+msgId+"' for device '"+id+"' not deleted: "+t.toString)
+        }
+    })
   })
 
 }

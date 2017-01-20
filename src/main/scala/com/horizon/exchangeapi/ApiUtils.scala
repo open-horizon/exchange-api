@@ -41,7 +41,7 @@ object TempDb {
         Prop("agreementProtocols","ExchangeManualTest","list","in"),
         Prop("version","1.0.0","version","in")))
     ),
-    "whisper id", Map("horizon"->"1.2.3")).copyToTempDb("1", "bp")
+    "whisper id", Map("horizon"->"1.2.3"), "ABC").copyToTempDb("1", "bp")
 
   var agbots = new MutableHashMap[String,Agbot]()      // key is agbot id
 

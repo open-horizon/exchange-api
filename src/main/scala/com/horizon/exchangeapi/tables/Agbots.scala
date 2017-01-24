@@ -65,6 +65,21 @@ object AgbotsTQ {
   def getLastHeartbeat(id: String) = rows.filter(_.id === id).map(_.lastHeartbeat)
   def getPublicKey(id: String) = rows.filter(_.id === id).map(_.publicKey)
 
+  /** Returns a query for the specified agbot attribute value. Returns null if an invalid attribute name is given. */
+  def getAttribute(id: String, attrName: String): Query[_,_,Seq] = {
+    val filter = rows.filter(_.id === id)
+    // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
+    return attrName match {
+      case "token" => filter.map(_.token)
+      case "name" => filter.map(_.name)
+      case "owner" => filter.map(_.owner)
+      case "msgEndPoint" => filter.map(_.msgEndPoint)
+      case "lastHeartbeat" => filter.map(_.lastHeartbeat)
+      case "publicKey" => filter.map(_.publicKey)
+      case _ => null
+    }
+  }
+
   /** Returns the actions to delete the agbot and the agreements that reference it */
   def getDeleteActions(id: String): DBIO[_] = DBIO.seq(
       // now with all the foreign keys set up correctly and onDelete=cascade, the db will automatically delete these associated rows

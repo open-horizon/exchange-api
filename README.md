@@ -75,6 +75,12 @@ services in the exchange.
 
 - The properties used for advertising and searching should always have its value element be a string. For example the memory property value should be `"300"` instead of `300`. This is because scalatra is automatically converting the json to scala data structures, and i don't know how to have the data structures that vary in type.
 
+## Changes Between v1.21.0 and v1.22.0 (not done yet)
+
+- Added DELETE /devices/{id}/agreements and DELETE /agbots/{id}/agreements to delete all of the agreements of a device/agbot
+- Added GET /(devices|agbots)/{id}?attribute={attrname} to get a single attribute of the device/agbot resource
+- Added PATCH /(devices|agbots)/{id} to set a single attribute of the device/agbot resource
+
 ## Changes Between v1.20.0 and v1.21.0
 
 - adjusted debug logging to be more helpful and less verbose

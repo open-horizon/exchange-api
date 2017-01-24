@@ -26,6 +26,7 @@ import collection.JavaConversions.enumerationAsScalaIterator
 
 /** Output format for GET /devices */
 case class GetDevicesResponse(devices: Map[String,Device], lastIndex: Int)
+case class GetDeviceAttributeResponse(attribute: String, value: String)
 
 /** Input for POST /search/devices */
 case class PostSearchDevicesRequest(desiredMicroservices: List[MicroserviceSearch], secondsStale: Int, propertiesToReturn: List[String], startIndex: Int, numEntries: Int) {
@@ -115,7 +116,7 @@ case class PutDevicesRequest(token: String, name: String, registeredMicroservice
     // TempDb.devices = List(dbDevice) ++ TempDb.devices.filter(d => d.id != id)    // add the device to our list, removing any devices with the same id
   }
 
-  /** Get the db queries to insert or update all parts of the device */
+  /** Get the db actions to insert or update all parts of the device */
   def getDbUpsert(id: String, owner: String): DBIO[_] = {
     // Accumulate the actions in a list, starting with the action to insert/update the device itself
     val actions = ListBuffer[DBIO[_]](DeviceRow(id, token, name, owner, msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).upsert)
@@ -137,7 +138,7 @@ case class PutDevicesRequest(token: String, name: String, registeredMicroservice
     DBIO.seq(actions.toList: _*)      // convert the list of actions to a DBIO seq
   }
 
-  /** Get the db queries to update all parts of the device. This is run, instead of getDbUpsert(), when it is a device doing it,
+  /** Get the db actions to update all parts of the device. This is run, instead of getDbUpsert(), when it is a device doing it,
    * because we can't let a device create new devices. */
   def getDbUpdate(id: String, owner: String): DBIO[_] = {
     val actions = ListBuffer[DBIO[_]](DeviceRow(id, token, name, owner, msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).update)
@@ -188,6 +189,27 @@ case class PutDevicesRequest(token: String, name: String, registeredMicroservice
       resp.put(m.url, response.body)
     }
     resp.toMap
+  }
+}
+
+case class PatchDevicesRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String]) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  /** Returns a tuple of the db action to update parts of the device, and the attribute name being updated. */
+  def getDbUpdate(id: String): (DBIO[_],String) = {
+    val tok = token match { case Some(token) if token != "" => if (Password.isHashed(token)) token else Password.hash(token); case _ => "" }
+    val swVersions = softwareVersions match { case Some(swv) if swv != "" => write(softwareVersions); case _ => "" }
+    val lastHeartbeat = ApiTime.nowUTC
+    //todo: support updating more than 1 attribute
+    // find the 1st non-blank attribute and create a db action to update it for this device
+    if (tok != "")  return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, tok, lastHeartbeat)), "token")
+    else if (swVersions != "") return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat)).update((id, swVersions, lastHeartbeat)), "softwareVersions")
+    else {
+      name match { case Some(name) if name != "" => return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name, lastHeartbeat)), "name"); case _ => ; }
+      msgEndPoint match { case Some(msgEndPoint) if msgEndPoint != "" => return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint, lastHeartbeat)), "msgEndPoint"); case _ => ; }
+      publicKey match { case Some(publicKey) if publicKey != "" => return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey, lastHeartbeat)), "publicKey"); case _ => ; }
+      return (null, null)
+    }
   }
 }
 
@@ -311,45 +333,51 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("id", DataType.String, Option[String]("ID of the device."), paramType=ParamType.Query),
-        Parameter("token", DataType.String, Option[String]("Token of the device. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        Parameter("token", DataType.String, Option[String]("Token of the device. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified, and it must be 1 of the direct attributes of the device resource (not of the microservices). If not specified, the entire device resource (including microservices) will be returned."), paramType=ParamType.Query, required=false)
         )
       )
 
   /** Handles GET /devices/{id}. Normally called by the device to verify his own entry after a reboot. */
   get("/devices/:id", operation(getOneDevice)) ({
-    // logger.info("GET /devices/"+params("id"))
-    // println(request.parameters)
-    // println(params("id"))
     val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
     val creds = validateAccessToDevice(BaseAccess.READ, id)
     val superUser = isSuperUser(creds)
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      var devices = TempDb.devices.toMap.filter(d => d._1 == id)
-      if (!superUser) devices = devices.mapValues(d => {val d2 = d.copy; d2.token = "********"; d2})
-      if (!devices.contains(id)) status_=(HttpCode.NOT_FOUND)
-      GetDevicesResponse(devices, 0)
-    } else {
-      val resp = response
+    val resp = response
+    params.get("attribute") match {
+      case Some(attribute) => ; // Only returning 1 attr of the device
+        val q = DevicesTQ.getAttribute(id, attribute)
+        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Device attribute name '"+attribute+"' is not an attribute of the device resource."))
+        db.run(q.result).map({ list =>
+          logger.trace("GET /devices/"+id+" attribute result: "+list.toString)
+          if (list.size > 0) {
+            GetDeviceAttributeResponse(attribute, list.head.toString)
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "not found")     // validateAccessToDevice() will return ApiResponseType.NOT_FOUND to the client so do that here for consistency
+          }
+        })
 
-      // The devices, microservices, and properties tables all combine to form the Device object, so we do joins to get them all.
-      // Note: joinLeft is necessary here so that if no micros exist for a device, we still get the device (and likewise for the micro if no props exist).
-      //    This means m and p below are wrapped in Option because sometimes they may not always be there
-      val q = for {
-        // (((d, m), p), s) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId) joinLeft SoftwareVersionsTQ.rows on (_._1._1.id === _.deviceId)
-        ((d, m), p) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
-        if d.id === id
-      } yield (d, m, p)
+      case None => ;  // Return the whole device, including the microservices
+        // The devices, microservices, and properties tables all combine to form the Device object, so we do joins to get them all.
+        // Note: joinLeft is necessary here so that if no micros exist for a device, we still get the device (and likewise for the micro if no props exist).
+        //    This means m and p below are wrapped in Option because sometimes they may not always be there
+        val q = for {
+          // (((d, m), p), s) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId) joinLeft SoftwareVersionsTQ.rows on (_._1._1.id === _.deviceId)
+          ((d, m), p) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
+          if d.id === id
+        } yield (d, m, p)
 
-      db.run(q.result).map({ list =>
-        logger.trace("GET /devices/"+id+" result: "+list.toString)
-        if (list.size > 0) {
-          val devices = DevicesTQ.parseJoin(superUser, list)
-          GetDevicesResponse(devices, 0)
-        } else {
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "not found")     // in the memoryDb case above, validateAccessToDevice() will return ApiResponseType.NOT_FOUND to the client so do that here for consistency
-        }
-      })
+        db.run(q.result).map({ list =>
+          logger.trace("GET /devices/"+id+" result: "+list.toString)
+          if (list.size > 0) {
+            val devices = DevicesTQ.parseJoin(superUser, list)
+            GetDevicesResponse(devices, 0)
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "not found")     // validateAccessToDevice() will return ApiResponseType.NOT_FOUND to the client so do that here for consistency
+          }
+        })
     }
   })
 
@@ -513,6 +541,58 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         }
       })
     }
+  })
+
+  // =========== PATCH /devices/{id} ===============================
+  val patchDevices =
+    (apiOperation[Map[String,String]]("patchDevices")
+      summary "Partially updates a device"
+      notes """Updates some attributes of a device (RPi) in the exchange DB. This can be called by the user or the device. The **request body** structure can include **1 of these attributes**:
+
+```
+{
+  "token": "abc",       // device token, set by user when adding this device.
+  "name": "rpi3",         // device name that you pick
+  "msgEndPoint": "whisper-id",    // msg service endpoint id for this device to be contacted by agbots, empty string to use the built-in Exchange msg service
+  "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the device
+  "publicKey"      // used by agbots to encrypt msgs sent to this device using the built-in Exchange msg service
+}
+```
+
+**Notes about the response format:**
+
+- **The format may change in the future.**
+- **Due to a swagger bug, the format shown below is incorrect. Run the PATCH method to see the response format instead.**"""
+      parameters(
+        Parameter("id", DataType.String, Option[String]("ID of the device to be updated."), paramType = ParamType.Path),
+        Parameter("token", DataType.String, Option[String]("Token of the device. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PatchDevicesRequest],
+          Option[String]("Device object that contains attributes to updated in, the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+        )
+      )
+  val patchDevices2 = (apiOperation[PatchDevicesRequest]("patchDevices2") summary("a") notes("a"))  // for some bizarre reason, the PatchDevicesRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  /** Handles PATCH /device/{id}. Must be called by user to add device, normally called by device to update itself. */
+  patch("/devices/:id", operation(patchDevices)) ({
+    val id = params("id")
+    val creds = validateUserOrDeviceId(BaseAccess.WRITE, id)
+    val device = try { parse(request.body).extract[PatchDevicesRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    logger.trace("PATCH /devices/"+id+" input: "+device.toString)
+    val resp = response
+    val (action, attrName) = device.getDbUpdate(id)
+    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid device attribute specified"))
+    db.run(action.transactionally.asTry).map({ xs =>
+      logger.debug("PATCH /devices/"+id+" result: "+xs.toString)
+      xs match {
+        case Success(v) => device.token match { case Some(tok) if (tok != "") => AuthCache.devices.put(Creds(id, tok)); case _ => ; }    // the token passed in to the cache should be the non-hashed one
+          resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of device '"+id+"' updated")
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "device '"+id+"' not inserted or updated: "+t.toString)
+      }
+    })
   })
 
 /*

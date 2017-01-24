@@ -22,6 +22,7 @@ import com.horizon.exchangeapi.tables._
 
 /** Output format for GET /agbots */
 case class GetAgbotsResponse(agbots: Map[String,Agbot], lastIndex: Int)
+case class GetAgbotAttributeResponse(attribute: String, value: String)
 
 /** Input format for PUT /agbots/<agbot-id> */
 case class PutAgbotsRequest(token: String, name: String, msgEndPoint: String, publicKey: String) {
@@ -49,6 +50,25 @@ case class PutAgbotsRequest(token: String, name: String, msgEndPoint: String, pu
 
   /** Get the db queries to update the agbot */
   def getDbUpdate(id: String, owner: String): DBIO[_] = AgbotRow(id, token, name, owner, msgEndPoint, ApiTime.nowUTC, publicKey).update
+}
+
+case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], publicKey: Option[String]) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  /** Returns a tuple of the db action to update parts of the agbot, and the attribute name being updated. */
+  def getDbUpdate(id: String): (DBIO[_],String) = {
+    val tok = token match { case Some(token) if token != "" => if (Password.isHashed(token)) token else Password.hash(token); case _ => "" }
+    val lastHeartbeat = ApiTime.nowUTC
+    //todo: support updating more than 1 attribute
+    // find the 1st non-blank attribute and create a db action to update it for this agbot
+    if (tok != "")  return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, tok, lastHeartbeat)), "token")
+    else {
+      name match { case Some(name) if name != "" => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name, lastHeartbeat)), "name"); case _ => ; }
+      msgEndPoint match { case Some(msgEndPoint) if msgEndPoint != "" => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint, lastHeartbeat)), "msgEndPoint"); case _ => ; }
+      publicKey match { case Some(publicKey) if publicKey != "" => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey, lastHeartbeat)), "publicKey"); case _ => ; }
+      return (null, null)
+    }
+  }
 }
 
 
@@ -164,30 +184,39 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("id", DataType.String, Option[String]("ID of the agbot."), paramType=ParamType.Query),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire device resource (including microservices) will be returned."), paramType=ParamType.Query, required=false)
         )
       )
 
-  /** Handles GET /agbots/{id}. Normally called by the agbot to verify his own entry after a reboot. */
+  /** Handles GET /agbots/{id}. Normally called by the agbot to verify its own entry after a reboot. */
   get("/agbots/:id", operation(getOneAgbot)) ({
-    // logger.info("GET /agbots/"+params("id"))
     val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
     val creds = validateUserOrAgbotId(BaseAccess.READ, id)
     val superUser = isSuperUser(creds)
     val resp = response
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      var agbots = TempDb.agbots.toMap.filter(a => a._1 == id)
-      if (!isSuperUser(creds)) agbots = agbots.mapValues(a => {val a2 = a.copy; a2.token = "********"; a2})
-      if (!agbots.contains(id)) status_=(HttpCode.NOT_FOUND)
-      GetAgbotsResponse(agbots, 0)
-    } else {
-      db.run(AgbotsTQ.getAgbot(id).result).map({ list =>
-        logger.debug("GET /agbots/"+id+" result: "+list.toString)
-        val agbots = new MutableHashMap[String,Agbot]
-        if (list.size > 0) for (a <- list) agbots.put(a.id, a.toAgbot(superUser))
-        else resp.setStatus(HttpCode.NOT_FOUND)
-        GetAgbotsResponse(agbots.toMap, 0)
-      })
+    params.get("attribute") match {
+      case Some(attribute) => ; // Only returning 1 attr of the agbot
+        val q = AgbotsTQ.getAttribute(id, attribute)
+        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Agbot attribute name '"+attribute+"' is not an attribute of the agbot resource."))
+        db.run(q.result).map({ list =>
+          logger.trace("GET /agbots/"+id+" attribute result: "+list.toString)
+          if (list.size > 0) {
+            GetAgbotAttributeResponse(attribute, list.head.toString)
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "not found")     // validateAccessToAgbot() will return ApiResponseType.NOT_FOUND to the client so do that here for consistency
+          }
+        })
+
+      case None => ;  // Return the whole agbot, including the microservices
+        db.run(AgbotsTQ.getAgbot(id).result).map({ list =>
+          logger.debug("GET /agbots/"+id+" result: "+list.toString)
+          val agbots = new MutableHashMap[String,Agbot]
+          if (list.size > 0) for (a <- list) agbots.put(a.id, a.toAgbot(superUser))
+          else resp.setStatus(HttpCode.NOT_FOUND)
+          GetAgbotsResponse(agbots.toMap, 0)
+        })
     }
   })
 
@@ -250,6 +279,57 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         }
       })
     }
+  })
+
+  // =========== PATCH /agbots/{id} ===============================
+  val patchAgbots =
+    (apiOperation[Map[String,String]]("patchAgbots")
+      summary "Partially updates an agbot"
+      notes """Updates some attributes of an agbot in the exchange DB. This can be called by the user or the agbot. The **request body** structure can include **1 of these attributes**:
+
+```
+{
+  "token": "abc",       // agbot token, set by user when adding this agbot.
+  "name": "rpi3",         // agbot name that you pick
+  "msgEndPoint": "whisper-id",    // msg service endpoint id for this agbot to be contacted by agbots, empty string to use the built-in Exchange msg service
+  "publicKey"      // used by agbots to encrypt msgs sent to this agbot using the built-in Exchange msg service
+}
+```
+
+**Notes about the response format:**
+
+- **The format may change in the future.**
+- **Due to a swagger bug, the format shown below is incorrect. Run the PATCH method to see the response format instead.**"""
+      parameters(
+        Parameter("id", DataType.String, Option[String]("ID of the agbot to be updated."), paramType = ParamType.Path),
+        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PatchAgbotsRequest],
+          Option[String]("Agbot object that contains attributes to updated in, the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+        )
+      )
+  val patchAgbots2 = (apiOperation[PatchAgbotsRequest]("patchAgbots2") summary("a") notes("a"))  // for some bizarre reason, the PatchAgbotsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  /** Handles PATCH /agbot/{id}. Must be called by user to add agbot, normally called by agbot to update itself. */
+  patch("/agbots/:id", operation(patchAgbots)) ({
+    val id = params("id")
+    val creds = validateUserOrAgbotId(BaseAccess.WRITE, id)
+    val agbot = try { parse(request.body).extract[PatchAgbotsRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    logger.trace("PATCH /agbots/"+id+" input: "+agbot.toString)
+    val resp = response
+    val (action, attrName) = agbot.getDbUpdate(id)
+    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid agbot attribute specified"))
+    db.run(action.transactionally.asTry).map({ xs =>
+      logger.debug("PATCH /agbots/"+id+" result: "+xs.toString)
+      xs match {
+        case Success(v) => agbot.token match { case Some(tok) if (tok != "") => AuthCache.agbots.put(Creds(id, tok)); case _ => ; }    // the token passed in to the cache should be the non-hashed one
+          resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of agbot '"+id+"' updated")
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+id+"' not inserted or updated: "+t.toString)
+      }
+    })
   })
 
   // =========== DELETE /agbots/{id} ===============================

@@ -57,17 +57,19 @@ case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEn
 
   /** Returns a tuple of the db action to update parts of the agbot, and the attribute name being updated. */
   def getDbUpdate(id: String): (DBIO[_],String) = {
-    val tok = token match { case Some(token) if token != "" => if (Password.isHashed(token)) token else Password.hash(token); case _ => "" }
     val lastHeartbeat = ApiTime.nowUTC
     //todo: support updating more than 1 attribute
-    // find the 1st non-blank attribute and create a db action to update it for this agbot
-    if (tok != "")  return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, tok, lastHeartbeat)), "token")
-    else {
-      name match { case Some(name) if name != "" => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name, lastHeartbeat)), "name"); case _ => ; }
-      msgEndPoint match { case Some(msgEndPoint) if msgEndPoint != "" => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint, lastHeartbeat)), "msgEndPoint"); case _ => ; }
-      publicKey match { case Some(publicKey) if publicKey != "" => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey, lastHeartbeat)), "publicKey"); case _ => ; }
-      return (null, null)
+    // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
+    token match {
+      case Some(token) => if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token can not be set to the empty string"))
+        val tok = if (Password.isHashed(token)) token else Password.hash(token)
+        return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, tok, lastHeartbeat)), "token")
+      case _ => ;
     }
+    name match { case Some(name) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name, lastHeartbeat)), "name"); case _ => ; }
+    msgEndPoint match { case Some(msgEndPoint) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint, lastHeartbeat)), "msgEndPoint"); case _ => ; }
+    publicKey match { case Some(publicKey) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey, lastHeartbeat)), "publicKey"); case _ => ; }
+    return (null, null)
   }
 }
 
@@ -401,16 +403,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       db.run(AgbotsTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry).map({ xs =>
         logger.debug("POST /agbots/"+id+"/heartbeat result: "+xs.toString)
         xs match {
-          case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
-              val numUpdated = v.toString.toInt
-              if (numUpdated > 0) {
+          case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
                 resp.setStatus(HttpCode.POST_OK)
                 ApiResponse(ApiResponseType.OK, "agbot updated")
               } else {
                 resp.setStatus(HttpCode.NOT_FOUND)
                 ApiResponse(ApiResponseType.NOT_FOUND, "agbot '"+id+"' not found")
               }
-            } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from agbot update: "+e) }    // the specific exception is NumberFormatException
           case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+id+"' not updated: "+t.toString)
         }
@@ -576,16 +575,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     db.run(AgbotAgreementsTQ.getAgreements(id).delete.asTry).map({ xs =>
       logger.debug("DELETE /agbots/"+id+"/agreements result: "+xs.toString)
       xs match {
-        case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
-            val numDeleted = v.toString.toInt
-            if (numDeleted > 0) {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
               resp.setStatus(HttpCode.DELETED)
               ApiResponse(ApiResponseType.OK, "agbot agreements deleted")
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
               ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for agbot '"+id+"' found")
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from agbot agreements delete: "+e) }    // the specific exception is NumberFormatException
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreements for agbot '"+id+"' not deleted: "+t.toString)
         }
@@ -891,15 +887,21 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     //TODO: remove msgs whose TTL is past
     db.run(DevicesTQ.getPublicKey(devId).result.flatMap({ xs =>
       logger.debug("POST /agbots/"+agbotId+"/msgs publickey result: "+xs.toString)
-      val agbotPubKey = xs.head   //TODO: handle error of not getting publicKey (less likely) or it is empty string (more likely)
-      AgbotMsgRow(0, agbotId, devId, agbotPubKey, msg.message, ApiTime.nowUTC).insert.asTry
+      val devicePubKey = xs.head
+      if (devicePubKey != "") AgbotMsgRow(0, agbotId, devId, devicePubKey, msg.message, ApiTime.nowUTC).insert.asTry
+      else DBIO.failed(new Throwable("Invalid Input: the message sender must have their public key registered with the Exchange")).asTry
     })).map({ xs =>
       logger.debug("POST /agbots/"+agbotId+"/msgs write row result: "+xs.toString)
       xs match {
         case Success(v) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "agbot msg inserted")    //TODO: return the msg id
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+agbotId+"' msg not inserted: "+t.toString)
+          ApiResponse(ApiResponseType.OK, "agbot msg "+v+" inserted")
+        case Failure(t) => if (t.getMessage.startsWith("Invalid Input:")) {
+            resp.setStatus(HttpCode.BAD_INPUT)
+            ApiResponse(ApiResponseType.BAD_INPUT, "agbot '"+agbotId+"' msg not inserted: "+t.getMessage)
+          } else {
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+agbotId+"' msg not inserted: "+t.toString)
+          }
         }
     })
   })
@@ -958,16 +960,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     db.run(AgbotMsgsTQ.getMsg(id,msgId).delete.asTry).map({ xs =>
       logger.debug("DELETE /agbots/"+id+"/msgs/"+msgId+" result: "+xs.toString)
       xs match {
-        case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
-            val numDeleted = v.toString.toInt
-            if (numDeleted > 0) {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
               resp.setStatus(HttpCode.DELETED)
               ApiResponse(ApiResponseType.OK, "agbot msg deleted")
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
               ApiResponse(ApiResponseType.NOT_FOUND, "msg '"+msgId+"' for agbot '"+id+"' not found")
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from agbot msg delete: "+e) }    // the specific exception is NumberFormatException
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "msg '"+msgId+"' for agbot '"+id+"' not deleted: "+t.toString)
         }

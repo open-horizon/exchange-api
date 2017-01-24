@@ -121,10 +121,11 @@ object AgbotAgreementsTQ {
 case class AgbotAgreement(workload: String, state: String, lastUpdated: String, dataLastReceived: String)
 
 
+/** The agbotmsgs table holds the msgs sent to agbots by devices */
 case class AgbotMsgRow(msgId: Int, agbotId: String, deviceId: String, devicePubKey: String, message: String, timeSent: String) {
   def toAgbotMsg = AgbotMsg(msgId, deviceId, devicePubKey, message, timeSent)
 
-  def insert: DBIO[_] = (AgbotMsgsTQ.rows += this)
+  def insert: DBIO[_] = ((AgbotMsgsTQ.rows returning AgbotMsgsTQ.rows.map(_.msgId)) += this)  // inserts the row and returns the msgId of the new row
   def upsert: DBIO[_] = AgbotMsgsTQ.rows.insertOrUpdate(this)    // do not think we need this
 }
 

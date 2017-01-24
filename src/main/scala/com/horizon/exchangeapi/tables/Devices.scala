@@ -200,10 +200,11 @@ class AgreementsHash(tempDbDevicesAgreements: MutableHashMap[String,MutableHashM
 }
 
 
+/** The devmsgs table holds the msgs sent to devices by agbots */
 case class DeviceMsgRow(msgId: Int, deviceId: String, agbotId: String, agbotPubKey: String, message: String, timeSent: String) {
   def toDeviceMsg = DeviceMsg(msgId, agbotId, agbotPubKey, message, timeSent)
 
-  def insert: DBIO[_] = (DeviceMsgsTQ.rows += this)
+  def insert: DBIO[_] = ((DeviceMsgsTQ.rows returning DeviceMsgsTQ.rows.map(_.msgId)) += this)  // inserts the row and returns the msgId of the new row
   def upsert: DBIO[_] = DeviceMsgsTQ.rows.insertOrUpdate(this)    // do not think we need this
 }
 

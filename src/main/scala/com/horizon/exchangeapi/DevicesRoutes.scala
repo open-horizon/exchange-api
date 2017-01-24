@@ -197,19 +197,24 @@ case class PatchDevicesRequest(token: Option[String], name: Option[String], msgE
 
   /** Returns a tuple of the db action to update parts of the device, and the attribute name being updated. */
   def getDbUpdate(id: String): (DBIO[_],String) = {
-    val tok = token match { case Some(token) if token != "" => if (Password.isHashed(token)) token else Password.hash(token); case _ => "" }
-    val swVersions = softwareVersions match { case Some(swv) if swv != "" => write(softwareVersions); case _ => "" }
     val lastHeartbeat = ApiTime.nowUTC
     //todo: support updating more than 1 attribute
     // find the 1st non-blank attribute and create a db action to update it for this device
-    if (tok != "")  return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, tok, lastHeartbeat)), "token")
-    else if (swVersions != "") return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat)).update((id, swVersions, lastHeartbeat)), "softwareVersions")
-    else {
-      name match { case Some(name) if name != "" => return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name, lastHeartbeat)), "name"); case _ => ; }
-      msgEndPoint match { case Some(msgEndPoint) if msgEndPoint != "" => return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint, lastHeartbeat)), "msgEndPoint"); case _ => ; }
-      publicKey match { case Some(publicKey) if publicKey != "" => return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey, lastHeartbeat)), "publicKey"); case _ => ; }
-      return (null, null)
+    token match {
+      case Some(token) => if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token can not be set to the empty string"))
+        val tok = if (Password.isHashed(token)) token else Password.hash(token)
+        return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, tok, lastHeartbeat)), "token")
+      case _ => ;
     }
+    softwareVersions match {
+      case Some(swv) => val swVersions = if (swv != "") write(softwareVersions) else ""
+        return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat)).update((id, swVersions, lastHeartbeat)), "softwareVersions")
+      case _ => ;
+    }
+    name match { case Some(name) => return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name, lastHeartbeat)), "name"); case _ => ; }
+    msgEndPoint match { case Some(msgEndPoint) => return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint, lastHeartbeat)), "msgEndPoint"); case _ => ; }
+    publicKey match { case Some(publicKey) => return ((for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey, lastHeartbeat)), "publicKey"); case _ => ; }
+    return (null, null)
   }
 }
 
@@ -664,14 +669,9 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       db.run(DevicesTQ.getDeleteActions(id).transactionally.asTry).map({ xs =>
         logger.debug("DELETE /devices/"+id+" result: "+xs.toString)
         xs match {
-          case Success(v) => ;
-            // try {
-            //   val numDeleted = xs.toString.toInt  <- with a seq of actions we do not get the results of each action anyway
-            //   if (numDeleted > 0) {
-            AuthCache.devices.remove(id)
+          case Success(v) => AuthCache.devices.remove(id)  // not checking the num deleted because with a seq of actions we do not get the results of each action anyway
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, "device deleted from the exchange")
-            // } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from device delete: "+e) }    // the specific exception is NumberFormatException
           case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, "device '"+id+"' not deleted: "+t.toString)
           }
@@ -709,16 +709,13 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       db.run(DevicesTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry).map({ xs =>
         logger.debug("POST /devices/"+id+"/heartbeat result: "+xs.toString)
         xs match {
-          case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
-              val numUpdated = v.toString.toInt
-              if (numUpdated > 0) {
+          case Success(v) => if (v > 0) {       // there were no db errors, but determine if it actually found it or not
                 resp.setStatus(HttpCode.POST_OK)
                 ApiResponse(ApiResponseType.OK, "device updated")
               } else {
                 resp.setStatus(HttpCode.NOT_FOUND)
                 ApiResponse(ApiResponseType.NOT_FOUND, "device '"+id+"' not found")
               }
-            } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from device update: "+e) }    // the specific exception is NumberFormatException
           case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, "device '"+id+"' not updated: "+t.toString)
           }
@@ -884,16 +881,13 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     db.run(DeviceAgreementsTQ.getAgreements(id).delete.asTry).map({ xs =>
       logger.debug("DELETE /devices/"+id+"/agreements result: "+xs.toString)
       xs match {
-        case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
-            val numDeleted = v.toString.toInt
-            if (numDeleted > 0) {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
               resp.setStatus(HttpCode.DELETED)
               ApiResponse(ApiResponseType.OK, "device agreements deleted")
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
               ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for device '"+id+"' found")
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from device agreements delete: "+e) }    // the specific exception is NumberFormatException
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreements for device '"+id+"' not deleted: "+t.toString)
         }
@@ -930,16 +924,13 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       db.run(DeviceAgreementsTQ.getAgreement(id,agId).delete.asTry).map({ xs =>
         logger.debug("DELETE /devices/"+id+"/agreements/"+agId+" result: "+xs.toString)
         xs match {
-          case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
-              val numDeleted = v.toString.toInt
-              if (numDeleted > 0) {
+          case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
                 resp.setStatus(HttpCode.DELETED)
                 ApiResponse(ApiResponseType.OK, "device agreement deleted")
               } else {
                 resp.setStatus(HttpCode.NOT_FOUND)
                 ApiResponse(ApiResponseType.NOT_FOUND, "agreement '"+agId+"' for device '"+id+"' not found")
               }
-            } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from device agreement delete: "+e) }    // the specific exception is NumberFormatException
           case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agId+"' for device '"+id+"' not deleted: "+t.toString)
           }
@@ -981,15 +972,21 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     //TODO: remove msgs whose TTL is past
     db.run(AgbotsTQ.getPublicKey(agbotId).result.flatMap({ xs =>
       logger.debug("POST /devices/"+devId+"/msgs publickey result: "+xs.toString)
-      val agbotPubKey = xs.head   //TODO: handle error of not getting publicKey (less likely) or it is empty string (more likely)
-      DeviceMsgRow(0, devId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC).insert.asTry
+      val agbotPubKey = xs.head
+      if (agbotPubKey != "") DeviceMsgRow(0, devId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC).insert.asTry
+      else DBIO.failed(new Throwable("Invalid Input: the message sender must have their public key registered with the Exchange")).asTry
     })).map({ xs =>
       logger.debug("POST /devices/"+devId+"/msgs write row result: "+xs.toString)
       xs match {
         case Success(v) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "device msg inserted")    //TODO: return the msg id
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "device '"+devId+"' msg not inserted: "+t.toString)
+          ApiResponse(ApiResponseType.OK, "device msg "+v+" inserted")
+        case Failure(t) => if (t.getMessage.startsWith("Invalid Input:")) {
+            resp.setStatus(HttpCode.BAD_INPUT)
+            ApiResponse(ApiResponseType.BAD_INPUT, "device '"+devId+"' msg not inserted: "+t.getMessage)
+          } else {
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, "device '"+devId+"' msg not inserted: "+t.toString)
+          }
         }
     })
   })
@@ -1048,16 +1045,13 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     db.run(DeviceMsgsTQ.getMsg(id,msgId).delete.asTry).map({ xs =>
       logger.debug("DELETE /devices/"+id+"/msgs/"+msgId+" result: "+xs.toString)
       xs match {
-        case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
-            val numDeleted = v.toString.toInt
-            if (numDeleted > 0) {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
               resp.setStatus(HttpCode.DELETED)
               ApiResponse(ApiResponseType.OK, "device msg deleted")
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
               ApiResponse(ApiResponseType.NOT_FOUND, "msg '"+msgId+"' for device '"+id+"' not found")
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from device msg delete: "+e) }    // the specific exception is NumberFormatException
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "msg '"+msgId+"' for device '"+id+"' not deleted: "+t.toString)
         }

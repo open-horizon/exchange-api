@@ -80,6 +80,7 @@ services in the exchange.
 - Added DELETE /devices/{id}/agreements and DELETE /agbots/{id}/agreements to delete all of the agreements of a device/agbot
 - Added GET /(devices|agbots)/{id}?attribute={attrname} to get a single attribute of the device/agbot resource
 - Added PATCH /(devices|agbots)/{id} to set a single attribute of the device/agbot resource
+- Added POST devices/{device-id}/msgs (to send/create a msg), GET devices/{device-id}/msgs (to ready your msgs), and DELETE devices/{device-id}/msgs/{msg-id}. Also added the same methods for agbots.
 
 ## Changes Between v1.20.0 and v1.21.0
 

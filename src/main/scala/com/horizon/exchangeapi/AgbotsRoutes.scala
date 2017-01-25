@@ -856,20 +856,20 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   // =========== POST /agbots/{id}/msgs ===============================
   val postAgbotsMsgs =
     (apiOperation[ApiResponse]("postAgbotsMsgs")
-      summary "Sends a msg from an agbot to a device"
-      notes """Sends a msg from an agbot to a device. The agbot must 1st sign the msg (with its private key) and then encrypt the msg (with the device's public key). Can be run by any agbot. The **request body** structure:
+      summary "Sends a msg from a device to a agbot"
+      notes """Sends a msg from a device to a agbot. The device must 1st sign the msg (with its private key) and then encrypt the msg (with the agbots's public key). Can be run by any device. The **request body** structure:
 
 ```
 {
-  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs"     // msg to be sent to the device
+  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs"     // msg to be sent to the agbot
 }
 ```
       """
       parameters(
-        Parameter("id", DataType.String, Option[String]("ID of the device to send a msg to."), paramType = ParamType.Path),
-        // Agbot id/token must be in the header
+        Parameter("id", DataType.String, Option[String]("ID of the agbot to send a msg to."), paramType = ParamType.Path),
+        // Device id/token must be in the header
         Parameter("body", DataType[PostAgbotsMsgsRequest],
-          Option[String]("Signed/encrypted message to send to the device. See details in the Implementation Notes above."),
+          Option[String]("Signed/encrypted message to send to the agbot. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
       )

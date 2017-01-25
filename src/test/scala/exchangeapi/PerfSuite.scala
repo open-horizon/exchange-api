@@ -33,7 +33,7 @@ class PerfSuite extends FunSuite {
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
   def createAgbot = {
-    val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", "whisper-id")
+    val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", "whisper-id", "ABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)

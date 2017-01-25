@@ -292,7 +292,7 @@ trait AuthenticationSupport extends ScalatraBase {
           case R1(basicAuthStr) => val basicAuthStr2 = if (basicAuthStr.contains(":")) basicAuthStr else new String(Base64.getDecoder.decode(basicAuthStr), "utf-8")
             val R2 = """^\s*(\S*):(\S*)\s*$""".r      // decode() seems to add a newline at the end
             basicAuthStr2 match {
-              case R2(id,tok) => /*println("id="+id+",tok="+tok+".");*/ Creds(id,tok)
+              case R2(id,tok) => /*logger.trace("id="+id+",tok="+tok+".");*/ Creds(id,tok)
               case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials format: "+basicAuthStr2))
             }
           case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "if the Authorization field in the header is specified, only Basic auth is currently supported"))

@@ -198,7 +198,7 @@ case class PatchDevicesRequest(token: Option[String], name: Option[String], msgE
   /** Returns a tuple of the db action to update parts of the device, and the attribute name being updated. */
   def getDbUpdate(id: String): (DBIO[_],String) = {
     val lastHeartbeat = ApiTime.nowUTC
-    //todo: support updating more than 1 attribute
+    //todo: support updating more than 1 attribute, but i think slick does not support dynamic db field names
     // find the 1st non-blank attribute and create a db action to update it for this device
     token match {
       case Some(token) => if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token can not be set to the empty string"))
@@ -242,7 +242,7 @@ case class PutDeviceAgreementRequest(microservice: String, state: String) {
 
 
 /** Input body for POST /devices/{id}/msgs */
-case class PostDevicesMsgsRequest(message: String)
+case class PostDevicesMsgsRequest(message: String, ttl: Int)
 
 /** Response for GET /devices/{id}/msgs */
 case class GetDeviceMsgsResponse(messages: List[DeviceMsg], lastIndex: Int)
@@ -288,7 +288,6 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
    */
   get("/devices", operation(getDevices)) ({
     // try {    // this try/catch does not get us much more than what scalatra does by default
-    // logger.info("GET /devices")
     // I think the request member is of type org.eclipse.jetty.server.Request, which implements interfaces javax.servlet.http.HttpServletRequest and javax.servlet.ServletRequest
     val creds = validateAccessToDevice(BaseAccess.READ, "*")
     val superUser = isSuperUser(creds)
@@ -300,7 +299,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     } else {
       // The devices, microservices, and properties tables all combine to form the Device object, so we do joins to get them all.
       // Note: joinLeft is necessary here so that if no micros exist for a device, we still get the device (and likewise for the micro if no props exist).
-      //    This means m and p below are wrapped in Option because sometimes they may not always be there
+      //    This means m and p below are wrapped in Option because they may not always be there
       var q = for {
         // ((d, m), p) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on ( (dm, p) => { dm._1.id === p.deviceId && dm._2.map(_.url) === p.msUrl } )
         ((d, m), p) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
@@ -308,14 +307,8 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
       // add filters
       params.get("idfilter").foreach(id => { if (id.contains("%")) q = q.filter(_._1.id like id) else q = q.filter(_._1.id === id) })
-      params.get("name").foreach(name => { /*logger.debug("name="+name+".");*/ if (name.contains("%")) q = q.filter(_._1.name like name) else q = q.filter(_._1.name === name) })
-      params.get("owner").foreach(owner => { /*logger.debug("owner="+owner+".");*/ if (owner.contains("%")) q = q.filter(_._1.owner like owner) else q = q.filter(_._1.owner === owner) })
-      // params.get("name") match {
-      //   case Some(name) => logger.debug("name="+name+".")
-      //     if (name.contains("%")) q = q.filter(_._1.name like name)
-      //     else q = q.filter(_._1.name === name)
-      //   case _ => ;
-      // }
+      params.get("name").foreach(name => { if (name.contains("%")) q = q.filter(_._1.name like name) else q = q.filter(_._1.name === name) })
+      params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_._1.owner like owner) else q = q.filter(_._1.owner === owner) })
 
       db.run(q.result).map({ list =>
         logger.debug("GET /devices result size: "+list.size)
@@ -427,7 +420,6 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles POST /search/devices. Normally called by the agbot to search for available devices. */
   post("/search/devices", operation(postSearchDevices)) ({
-    // logger.info("POST /search/devices")
     validateAccessToDevice(BaseAccess.READ, "*")
     val searchProps = try { parse(request.body).extract[PostSearchDevicesRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
@@ -441,13 +433,13 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       // Narrow down the db query results as much as possible with db selects, then searchProps.matchesDbResults will do the rest
       val q = for {
         ((d, m), p) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
-        //TODO: filter out more devices that will not match  if d.id === id
       } yield (d, m, p)
+      //TODO: filter out more devices that will not match, using something like q.filter()
 
       db.run(q.result).map({ list =>
         logger.debug("POST /search/devices result size: "+list.size)
         // logger.trace("POST /search/devices result: "+list.toString)
-        // if (list.size > 0) {
+        // if (list.size > 0) {   <-- can not do this until we move to flatMap
         val devices = DevicesTQ.parseJoin(false, list)
         //TODO: change this to flatMap within the original db.run(). I think that is the more proper way.
         db.run(DeviceAgreementsTQ.getAgreementsWithState.result).map({ agList =>
@@ -456,7 +448,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         })
         // } else {
         //   resp.setStatus(HttpCode.NOT_FOUND)
-        //   ApiResponse(ApiResponseType.NOT_FOUND, "not found")     // in the memoryDb case above, validateAccessToDevice() will return ApiResponseType.NOT_FOUND to the client so do that here for consistency
+        //   ApiResponse(ApiResponseType.NOT_FOUND, "not found")
         // }
       })
     }
@@ -946,7 +938,8 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
 ```
 {
-  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs"     // msg to be sent to the device
+  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs",    // msg to be sent to the device
+  "ttl": 86400       // time-to-live of this msg, in seconds
 }
 ```
       """
@@ -968,12 +961,14 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val msg = try { parse(request.body).extract[PostDevicesMsgsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
-    // get the agbot publicKey and then write the devmsgs row, all in the same db.run thread
-    //TODO: remove msgs whose TTL is past
-    db.run(AgbotsTQ.getPublicKey(agbotId).result.flatMap({ xs =>
-      logger.debug("POST /devices/"+devId+"/msgs publickey result: "+xs.toString)
+    // Remove msgs whose TTL is past, then get the agbot publicKey, then write the devmsgs row, all in the same db.run thread
+    db.run(DeviceMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
+      logger.debug("POST /devices/"+devId+"/msgs delete expired result: "+xs.toString)
+      AgbotsTQ.getPublicKey(agbotId).result
+    }).flatMap({ xs =>
+      logger.debug("POST /devices/"+devId+"/msgs agbot publickey result: "+xs.toString)
       val agbotPubKey = xs.head
-      if (agbotPubKey != "") DeviceMsgRow(0, devId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC).insert.asTry
+      if (agbotPubKey != "") DeviceMsgRow(0, devId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
       else DBIO.failed(new Throwable("Invalid Input: the message sender must have their public key registered with the Exchange")).asTry
     })).map({ xs =>
       logger.debug("POST /devices/"+devId+"/msgs write row result: "+xs.toString)
@@ -1012,8 +1007,11 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
     validateUserOrDeviceId(BaseAccess.READ, id)
     val resp = response
-    //TODO: remove msgs whose TTL is past
-    db.run(DeviceMsgsTQ.getMsgs(id).result).map({ list =>
+    // Remove msgs whose TTL is past, and then get the msgs for this device
+    db.run(DeviceMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
+      logger.debug("GET /devices/"+id+"/msgs delete expired result: "+xs.toString)
+      DeviceMsgsTQ.getMsgs(id).result
+    })).map({ list =>
       logger.debug("GET /devices/"+id+"/msgs result size: "+list.size)
       logger.trace("GET /devices/"+id+"/msgs result: "+list.toString)
       val listSorted = list.sortWith(_.msgId < _.msgId)

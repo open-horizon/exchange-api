@@ -520,7 +520,21 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     // logger.info("GET /admin/gettest")
     validateUser(BaseAccess.ADMIN, "")
     val resp = response
+    // ApiResponse(ApiResponseType.OK, "Now: "+ApiTime.nowUTC+", Then: "+ApiTime.pastUTC(100)+".")
+    val ttl = 2 * 86400
+    val oldestTime = ApiTime.pastUTC(ttl)
+    val q = DeviceMsgsTQ.rows.filter(_.timeSent < oldestTime)
+    db.run(q.result).map({ list =>
+      logger.debug("GET /admin/gettest result size: "+list.size)
+      logger.trace("GET /admin/gettest result: "+list.toString)
+      val listSorted = list.sortWith(_.msgId < _.msgId)
+      val msgs = new ListBuffer[DeviceMsg]
+      if (listSorted.size > 0) for (m <- listSorted) { msgs += m.toDeviceMsg }
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      GetDeviceMsgsResponse(msgs.toList, 0)
+    })
 
+    /*
     // val prop = Prop("arch", "arm", "string", "in")
     val propList = List(Prop("arch", "arm", "string", "in"),Prop("memory","300","int",">="),Prop("version","1.0.0","version","in"),Prop("dataVerification","true","boolean","="))
     // val sw = Map[String,String]("a" -> "b", "c" -> "d")
@@ -539,7 +553,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     resp.setStatus(HttpCode.POST_OK)
     ApiResponse(ApiResponseType.OK, "successful")
 
-    /*
     // db.run(UsersTQ.getUser("bp").result).flatMap[ApiResponse]({ x =>
     db.run(UsersTQ.getUser("bp").result).map({ x =>
       println(x)

@@ -160,6 +160,12 @@ object ApiTime {
   /** Returns now in UTC string format */
   def nowUTC = ZonedDateTime.now.withZoneSameInstant(ZoneId.of("UTC")).toString
 
+  /** Return UTC format of the time n seconds ago */
+  def pastUTC(secondsAgo: Int) = ZonedDateTime.now.minusSeconds(secondsAgo).withZoneSameInstant(ZoneId.of("UTC")).toString
+
+  /** Return UTC format of the time n seconds from now */
+  def futureUTC(secondsFromNow: Int) = ZonedDateTime.now.plusSeconds(secondsFromNow).withZoneSameInstant(ZoneId.of("UTC")).toString
+
   /** Returns now in epoch seconds */
   def nowSeconds: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
 

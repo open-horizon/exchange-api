@@ -988,7 +988,17 @@ class DevicesSuite extends FunSuite {
 
   /** Send a msg from agbot1 to device1 */
   test("POST /devices/"+deviceId+"/msgs") {
-    val input = PostDevicesMsgsRequest("{msg1 from agbot1 to device1}")
+    val input = PostDevicesMsgsRequest("{msg1 from agbot1 to device1}", 300)
+    val response = Http(URL+"/devices/"+deviceId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val resp = parse(response.body).extract[ApiResponse]
+    assert(resp.code === ApiResponseType.OK)
+  }
+
+  /** Send a msg from agbot1 to device1 with a very short ttl so it will expire */
+  test("POST /devices/"+deviceId+"/msgs - short ttl") {
+    val input = PostDevicesMsgsRequest("{msg1 from agbot1 to device1 with 1 second ttl}", 1)
     val response = Http(URL+"/devices/"+deviceId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -998,7 +1008,7 @@ class DevicesSuite extends FunSuite {
 
   /** Send a 2nd msg from agbot1 to device1 */
   test("POST /devices/"+deviceId+"/msgs - 2nd msg") {
-    val input = PostDevicesMsgsRequest("{msg2 from agbot1 to device1}")
+    val input = PostDevicesMsgsRequest("{msg2 from agbot1 to device1}", 300)
     val response = Http(URL+"/devices/"+deviceId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -1008,7 +1018,7 @@ class DevicesSuite extends FunSuite {
 
   /** Send a msg from agbot2 to device1 */
   test("POST /devices/"+deviceId+"/msgs - from agbot2") {
-    val input = PostDevicesMsgsRequest("{msg1 from agbot2 to device1}")
+    val input = PostDevicesMsgsRequest("{msg1 from agbot2 to device1}", 300)
     val response = Http(URL+"/devices/"+deviceId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -1018,7 +1028,7 @@ class DevicesSuite extends FunSuite {
 
   /** Send a msg from agbot2 to device2 */
   test("POST /devices/"+deviceId2+"/msgs - from agbot2 to device2") {
-    val input = PostDevicesMsgsRequest("{msg1 from agbot2 to device2}")
+    val input = PostDevicesMsgsRequest("{msg1 from agbot2 to device2}", 300)
     val response = Http(URL+"/devices/"+deviceId2+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -1028,6 +1038,7 @@ class DevicesSuite extends FunSuite {
 
   /** Get msgs for device1 */
   test("GET /devices/"+deviceId+"/msgs") {
+    Thread.sleep(1100)    // delay 1.1 seconds so 1 of the msgs will expire
     val response = Http(URL+"/devices/"+deviceId+"/msgs").method("get").headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -1084,7 +1095,17 @@ class DevicesSuite extends FunSuite {
 
   /** Send a msg from device1 to agbot1 */
   test("POST /agbots/"+agbotId+"/msgs") {
-    val input = PostAgbotsMsgsRequest("{msg1 from device1 to agbot1}")
+    val input = PostAgbotsMsgsRequest("{msg1 from device1 to agbot1}", 300)
+    val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val resp = parse(response.body).extract[ApiResponse]
+    assert(resp.code === ApiResponseType.OK)
+  }
+
+  /** Send a msg from device1 to agbot1 with a very short ttl so it will expire */
+  test("POST /agbots/"+agbotId+"/msgs - short ttl") {
+    val input = PostAgbotsMsgsRequest("{msg1 from device1 to agbot1 with 1 second ttl}", 1)
     val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -1094,7 +1115,7 @@ class DevicesSuite extends FunSuite {
 
   /** Send a 2nd msg from device1 to agbot1 */
   test("POST /agbots/"+agbotId+"/msgs - 2nd msg") {
-    val input = PostAgbotsMsgsRequest("{msg2 from device1 to agbot1}")
+    val input = PostAgbotsMsgsRequest("{msg2 from device1 to agbot1}", 300)
     val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -1104,7 +1125,7 @@ class DevicesSuite extends FunSuite {
 
   /** Send a msg from device2 to agbot1 */
   test("POST /agbots/"+agbotId+"/msgs - from device2") {
-    val input = PostAgbotsMsgsRequest("{msg1 from device2 to agbot1}")
+    val input = PostAgbotsMsgsRequest("{msg1 from device2 to agbot1}", 300)
     val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -1114,7 +1135,7 @@ class DevicesSuite extends FunSuite {
 
   /** Send a msg from device2 to agbot2 */
   test("POST /agbots/"+agbotId2+"/msgs - from device2 to agbot2") {
-    val input = PostAgbotsMsgsRequest("{msg1 from device2 to agbot2}")
+    val input = PostAgbotsMsgsRequest("{msg1 from device2 to agbot2}", 300)
     val response = Http(URL+"/agbots/"+agbotId2+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -1124,6 +1145,7 @@ class DevicesSuite extends FunSuite {
 
   /** Get msgs for agbot1 */
   test("GET /agbots/"+agbotId+"/msgs") {
+    Thread.sleep(1100)    // delay 1.1 seconds so 1 of the msgs will expire
     val response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)

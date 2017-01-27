@@ -113,7 +113,7 @@ case class PostAgreementsConfirmRequest(agreementId: String) {
 
 
 /** Input body for POST /agbots/{id}/msgs */
-case class PostAgbotsMsgsRequest(message: String)
+case class PostAgbotsMsgsRequest(message: String, ttl: Int)
 
 /** Response for GET /agbots/{id}/msgs */
 case class GetAgbotMsgsResponse(messages: List[AgbotMsg], lastIndex: Int)
@@ -861,7 +861,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
 ```
 {
-  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs"     // msg to be sent to the agbot
+  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs",     // msg to be sent to the agbot
+  "ttl": 86400       // time-to-live of this msg, in seconds
 }
 ```
       """
@@ -883,12 +884,14 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val msg = try { parse(request.body).extract[PostAgbotsMsgsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
-    // get the device publicKey and then write the agbotmsgs row, all in the same db.run thread
-    //TODO: remove msgs whose TTL is past
-    db.run(DevicesTQ.getPublicKey(devId).result.flatMap({ xs =>
-      logger.debug("POST /agbots/"+agbotId+"/msgs publickey result: "+xs.toString)
+    // Remove msgs whose TTL is past, then get the device publicKey, then write the agbotmsgs row, all in the same db.run thread
+    db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
+      logger.debug("POST /agbots/"+agbotId+"/msgs delete expired result: "+xs.toString)
+      DevicesTQ.getPublicKey(devId).result
+    }).flatMap({ xs =>
+      logger.debug("POST /agbots/"+agbotId+"/msgs device publickey result: "+xs.toString)
       val devicePubKey = xs.head
-      if (devicePubKey != "") AgbotMsgRow(0, agbotId, devId, devicePubKey, msg.message, ApiTime.nowUTC).insert.asTry
+      if (devicePubKey != "") AgbotMsgRow(0, agbotId, devId, devicePubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
       else DBIO.failed(new Throwable("Invalid Input: the message sender must have their public key registered with the Exchange")).asTry
     })).map({ xs =>
       logger.debug("POST /agbots/"+agbotId+"/msgs write row result: "+xs.toString)
@@ -927,8 +930,11 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
     validateUserOrAgbotId(BaseAccess.READ, id)
     val resp = response
-    //TODO: remove msgs whose TTL is past
-    db.run(AgbotMsgsTQ.getMsgs(id).result).map({ list =>
+    // Remove msgs whose TTL is past, and then get the msgs for this agbot
+    db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
+      logger.debug("GET /agbots/"+id+"/msgs delete expired result: "+xs.toString)
+      AgbotMsgsTQ.getMsgs(id).result
+    })).map({ list =>
       logger.debug("GET /agbots/"+id+"/msgs result size: "+list.size)
       logger.trace("GET /agbots/"+id+"/msgs result: "+list.toString)
       val listSorted = list.sortWith(_.msgId < _.msgId)

@@ -81,6 +81,7 @@ services in the exchange.
 - Added GET /(devices|agbots)/{id}?attribute={attrname} to get a single attribute of the device/agbot resource
 - Added PATCH /(devices|agbots)/{id} to set a single attribute of the device/agbot resource
 - Added POST devices/{device-id}/msgs (to send/create a msg), GET devices/{device-id}/msgs (to read your msgs), and DELETE devices/{device-id}/msgs/{msg-id}. Also added the same methods for agbots.
+- Fixed POST /admin/dropdb to not delete the root user from the authentication cache, so you have credentials to run POST /admin/initdb
 
 ## Changes Between v1.20.0 and v1.21.0
 

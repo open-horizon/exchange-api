@@ -69,7 +69,8 @@ object Role {
   val DEVICE = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.SEND_MSG_TO_AGBOT)
   val AGBOT = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.AGBOT_AGREEMENT_DATA_HEARTBEAT, Access.AGBOT_AGREEMENT_CONFIRM, Access.READ_ALL_DEVICES, Access.SEND_MSG_TO_DEVICE)
   def hasAuthorization(role: Set[Access], access: Access): Boolean = { role.contains(Access.ALL) || role.contains(access) }
-  def isSuperUser(username: String): Boolean = return username == "root"    // only checks the username, does not verify the pw
+  def superUser = "root"
+  def isSuperUser(username: String): Boolean = return username == superUser    // only checks the username, does not verify the pw
 }
 
 case class Creds(id: String, token: String) {     // id and token are generic names and their values can actually be username and password
@@ -109,7 +110,7 @@ object AuthCache {
     def _init(credList: Seq[(String,String,String)], skipRoot: Boolean = false): Unit = {
       for ((id,token,owner) <- credList) {
         val tokens: Tokens = if (Password.isHashed(token)) Tokens("", token) else Tokens(token, Password.hash(token))
-        if (!(skipRoot && id == "root")) _put(id, tokens)     // Note: ExchConfig.createRoot(db) already puts root in the auth cache and we do not want a race condition
+        if (!(skipRoot && Role.isSuperUser(id))) _put(id, tokens)     // Note: ExchConfig.createRoot(db) already puts root in the auth cache and we do not want a race condition
         if (whichTable != "users" && owner != "") _putOwner(id, owner)
       }
     }
@@ -237,7 +238,15 @@ object AuthCache {
     def removeOwner(id: String) = { _removeOwner(id) }
 
     /** Removes all user/id, pw/token pairs from this cache. */
-    def removeAll = { _clear }
+    def removeAll = {
+      val rootTokens = if (whichTable == "users") _get(Role.superUser) else None     // have to preserve the root user or they can not do anything after this
+      _clear
+      rootTokens match {
+        case Some(tokens) => _put(Role.superUser, tokens)
+        case None => ;
+      }
+      removeAllOwners
+    }
     def removeAllOwners = { _clearOwners }
 
     /** Low-level functions to lock on the hashmap */
@@ -272,7 +281,8 @@ trait AuthenticationSupport extends ScalatraBase {
   def credentialsAndLog(anonymousOk: Boolean = false): Creds = {
     val creds = credentials(anonymousOk)
     val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
-    logger.info("User or id "+userOrId+" from "+request.getRemoteAddr+" running "+request.getMethod+" "+request.getPathInfo)
+    val clientIp = request.header("X-Forwarded-For").orElse(Option(request.getRemoteAddr)).get      // haproxy inserts the real client ip into the header for us
+    logger.info("User or id "+userOrId+" from "+clientIp+" running "+request.getMethod+" "+request.getPathInfo)
     if (isDbMigration && !Role.isSuperUser(creds.id)) halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied - in the process of DB migration"))
     return creds
   }

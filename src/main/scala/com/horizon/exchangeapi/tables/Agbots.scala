@@ -122,8 +122,8 @@ case class AgbotAgreement(workload: String, state: String, lastUpdated: String, 
 
 
 /** The agbotmsgs table holds the msgs sent to agbots by devices */
-case class AgbotMsgRow(msgId: Int, agbotId: String, deviceId: String, devicePubKey: String, message: String, timeSent: String) {
-  def toAgbotMsg = AgbotMsg(msgId, deviceId, devicePubKey, message, timeSent)
+case class AgbotMsgRow(msgId: Int, agbotId: String, deviceId: String, devicePubKey: String, message: String, timeSent: String, timeExpires: String) {
+  def toAgbotMsg = AgbotMsg(msgId, deviceId, devicePubKey, message, timeSent, timeExpires)
 
   def insert: DBIO[_] = ((AgbotMsgsTQ.rows returning AgbotMsgsTQ.rows.map(_.msgId)) += this)  // inserts the row and returns the msgId of the new row
   def upsert: DBIO[_] = AgbotMsgsTQ.rows.insertOrUpdate(this)    // do not think we need this
@@ -136,7 +136,8 @@ class AgbotMsgs(tag: Tag) extends Table[AgbotMsgRow](tag, "agbotmsgs") {
   def devicePubKey = column[String]("devicepubkey")
   def message = column[String]("message")
   def timeSent = column[String]("timesent")
-  def * = (msgId, agbotId, deviceId, devicePubKey, message, timeSent) <> (AgbotMsgRow.tupled, AgbotMsgRow.unapply)
+  def timeExpires = column[String]("timeexpires")
+  def * = (msgId, agbotId, deviceId, devicePubKey, message, timeSent, timeExpires) <> (AgbotMsgRow.tupled, AgbotMsgRow.unapply)
   def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def device = foreignKey("device_fk", deviceId, DevicesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -146,7 +147,7 @@ object AgbotMsgsTQ {
 
   def getMsgs(agbotId: String) = rows.filter(_.agbotId === agbotId)  // this is that agbots msg mailbox
   def getMsg(agbotId: String, msgId: Int) = rows.filter( r => {r.agbotId === agbotId && r.msgId === msgId} )
-  // def getMsgsExpired = rows.filter(_.state =!= "")
+  def getMsgsExpired = rows.filter(_.timeExpires < ApiTime.nowUTC)
 }
 
-case class AgbotMsg(msgId: Int, deviceId: String, devicePubKey: String, message: String, timeSent: String)
+case class AgbotMsg(msgId: Int, deviceId: String, devicePubKey: String, message: String, timeSent: String, timeExpires: String)

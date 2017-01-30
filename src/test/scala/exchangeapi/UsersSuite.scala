@@ -60,10 +60,7 @@ class UsersSuite extends FunSuite {
     deleteAllUsers
   }
 
-  ExchConfig.load
-  val usingPersistence = !ExchConfig.getBoolean("api.db.memoryDb")
-  // println("UsersSuite: usingPersistence: "+usingPersistence)
-    // Get the number of existing users so we can later check the number we added
+  // Get the number of existing users so we can later check the number we added
   test("GET number of existing users") {
     val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(ROOTAUTH).asString
     // info("code: "+response.code+", response.body: "+response.body)

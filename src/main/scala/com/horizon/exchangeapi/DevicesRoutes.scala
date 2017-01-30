@@ -43,13 +43,13 @@ case class PostSearchDevicesRequest(desiredMicroservices: List[MicroserviceSearc
   /** Returns the micorservices that match the search criteria */
   def matches(devices: Map[String,Device], agHash: AgreementsHash)(implicit logger: Logger): PostSearchDevicesResponse = {
     // Build a hash of the current number of agreements for each device and microservice, so we can check them quickly
-    // val agHash = new AgreementsHash()
-    logger.trace(agHash.agHash.toString)
+    // logger.trace(agHash.agHash.toString)
 
     // loop thru the existing devices and microservices in the DB
     //todo: should probably make this more FP style
     var devicesResp: List[DeviceResponse] = List()
-    for ((id,d) <- devices; if !ApiTime.isSecondsStale(d.lastHeartbeat,secondsStale) ) {
+    // for ((id,d) <- devices; if !ApiTime.isSecondsStale(d.lastHeartbeat,secondsStale) ) {   <-- the db query now filters out stale devices
+    for ((id,d) <- devices) {
       var microsResp: List[Microservice] = List()
       for (m <- d.registeredMicroservices) { breakable {
         // do not even bother checking this against the search criteria if this micro is already at its agreement limit
@@ -424,34 +424,41 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val searchProps = try { parse(request.body).extract[PostSearchDevicesRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     searchProps.validate
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      status_=(HttpCode.POST_OK)
-      searchProps.matches(TempDb.devices.toMap, new AgreementsHash(TempDb.devicesAgreements))
-    } else {
       logger.debug("/search/devices criteria: "+searchProps.desiredMicroservices.toString)
       val resp = response
       // Narrow down the db query results as much as possible with db selects, then searchProps.matchesDbResults will do the rest
-      val q = for {
+      var q = for {
         ((d, m), p) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
       } yield (d, m, p)
-      //TODO: filter out more devices that will not match, using something like q.filter()
+      // Also filter out devices that are too stale (have not heartbeated recently)
+      if (searchProps.secondsStale > 0) q = q.filter(_._1.lastHeartbeat >= ApiTime.pastUTC(searchProps.secondsStale))
 
-      db.run(q.result).map({ list =>
-        logger.debug("POST /search/devices result size: "+list.size)
-        // logger.trace("POST /search/devices result: "+list.toString)
-        // if (list.size > 0) {   <-- can not do this until we move to flatMap
-        val devices = DevicesTQ.parseJoin(false, list)
-        //TODO: change this to flatMap within the original db.run(). I think that is the more proper way.
-        db.run(DeviceAgreementsTQ.getAgreementsWithState.result).map({ agList =>
-          resp.setStatus(HttpCode.POST_OK)
-          searchProps.matches(devices, new AgreementsHash(agList))
-        })
-        // } else {
-        //   resp.setStatus(HttpCode.NOT_FOUND)
-        //   ApiResponse(ApiResponseType.NOT_FOUND, "not found")
-        // }
+    var agHash: AgreementsHash = null
+    db.run(DeviceAgreementsTQ.getAgreementsWithState.result.flatMap({ agList =>
+      logger.debug("POST /search/devices aglist result size: "+agList.size)
+      logger.trace("POST /search/devices aglist result: "+agList.toString)
+      agHash = new AgreementsHash(agList)
+      q.result      // queue up our device/ms/prop query next
+    })).map({ list =>
+      logger.debug("POST /search/devices result size: "+list.size)
+      // logger.trace("POST /search/devices result: "+list.toString)
+      // logger.trace("POST /search/devices agHash: "+agHash.agHash.toString)
+      if (list.size > 0) resp.setStatus(HttpCode.POST_OK)   //todo: this check only works if there are no devices at all
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      val devices = DevicesTQ.parseJoin(false, list)
+      searchProps.matches(devices, agHash)
+    })
+
+    /* old way...
+    db.run(q.result).map({ list =>
+      logger.debug("POST /search/devices result size: "+list.size)
+      val devices = DevicesTQ.parseJoin(false, list)
+      db.run(DeviceAgreementsTQ.getAgreementsWithState.result).map({ agList =>
+        resp.setStatus(HttpCode.POST_OK)
+        searchProps.matches(devices, new AgreementsHash(agList))
       })
-    }
+    })
+    */
   })
 
   // =========== PUT /devices/{id} ===============================
@@ -824,7 +831,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles PUT /devices/{id}/agreements/{agid}. Normally called by device to add/update itself. */
   put("/devices/:id/agreements/:agid", operation(putDeviceAgreement)) ({
-    // logger.info("PUT /devices/"+params("id")+"/agreements/"+params("agid"))
+    //todo: keep a running total of agreements for each MS so we can search quickly for available MSs
     val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
     val agId = params("agid")
     validateUserOrDeviceId(BaseAccess.WRITE, id)

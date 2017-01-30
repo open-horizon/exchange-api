@@ -256,31 +256,31 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     agbot.validate
     val owner = if (isAuthenticatedUser(creds)) creds.id else ""
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      if (baseAccess == BaseAccess.CREATE && TempDb.agbots.filter(d => d._2.owner == owner).size >= ExchConfig.getInt("api.limits.maxAgbots")) {    // make sure they are not trying to overrun the exchange svr by creating a ton of agbots
-        status_=(HttpCode.ACCESS_DENIED)
-        ApiResponse(ApiResponseType.ACCESS_DENIED, "can not create more than "+ExchConfig.getInt("api.limits.maxAgbots")+ " agbots")
-      } else {
-        agbot.copyToTempDb(id, owner)
-        if (baseAccess == BaseAccess.CREATE && owner != "") logger.info("User '"+owner+"' created agbot '"+id+"'.")
-        status_=(HttpCode.PUT_OK)
-        ApiResponse(ApiResponseType.OK, "agbot added or updated")
+    val resp = response
+    db.run(AgbotsTQ.getNumOwned(owner).result.flatMap({ xs =>
+      logger.debug("POST /agbots/"+id+" num owned: "+xs)
+      val numOwned = xs
+      val maxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
+      if (numOwned <= maxAgbots || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
+        val action = if (owner == "") agbot.getDbUpdate(id, owner) else agbot.getDbUpsert(id, owner)
+        action.asTry
       }
-    } else {   // persistence
-      //TODO: check they haven't created too many agbots using Await.result
-      val resp = response
-      val action = if (owner == "") agbot.getDbUpdate(id, owner) else agbot.getDbUpsert(id, owner)
-      db.run(action.asTry).map({ xs =>
-        logger.debug("PUT /agbots/"+id+" result: "+xs.toString)
-        xs match {
-          case Success(v) => if (agbot.token != "") AuthCache.agbots.put(Creds(id, agbot.token))    // the token passed in to the cache should be the non-hashed one
-            resp.setStatus(HttpCode.PUT_OK)
-            ApiResponse(ApiResponseType.OK, "agbot added or updated")
-          case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+      else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxAgbots+ " agbots")).asTry
+    })).map({ xs =>
+      logger.debug("PUT /agbots/"+id+" result: "+xs.toString)
+      xs match {
+        case Success(v) => if (agbot.token != "") AuthCache.agbots.put(Creds(id, agbot.token))    // the token passed in to the cache should be the non-hashed one
+          resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "agbot added or updated")
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+            resp.setStatus(HttpCode.ACCESS_DENIED)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, "agbot '"+id+"' not inserted or updated: "+t.getMessage)
+          } else {
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+id+"' not inserted or updated: "+t.toString)
-        }
-      })
-    }
+          }
+      }
+    })
   })
 
   // =========== PATCH /agbots/{id} ===============================

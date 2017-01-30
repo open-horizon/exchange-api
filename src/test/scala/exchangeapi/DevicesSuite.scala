@@ -59,7 +59,6 @@ class DevicesSuite extends FunSuite {
   val agbotId2 = "9941"      // need to use a different id than AgbotsSuite.scala, because all of the suites run concurrently
   val agbotToken2 = agbotId2+"tok"
   val AGBOT2AUTH = ("Authorization","Basic "+agbotId2+":"+agbotToken2)
-  // val numPredefinedDevices = if (usingPersistence) 0 else 1     // predefined in TempDb
   val agProto = "ExchangeAutomatedTest"    // using this to avoid db entries from real users and predefined ones
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
@@ -116,10 +115,7 @@ class DevicesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
   }
 
-  ExchConfig.load
-  val usingPersistence = !ExchConfig.getBoolean("api.db.memoryDb")
-  // println("DevicesSuite: usingPersistence: "+usingPersistence)
-    // Get the number of existing devices so we can later check the number we added
+  // Get the number of existing devices so we can later check the number we added
   test("GET number of existing devices") {
     val response: HttpResponse[String] = Http(URL+"/devices").headers(ACCEPT).headers(USERAUTH).asString
     // info("code: "+response.code+", response.body: "+response.body)
@@ -130,6 +126,7 @@ class DevicesSuite extends FunSuite {
     info("Set number of existing devices")
   }
 
+  ExchConfig.load
   val putDevRespDisabled = ExchConfig.getBoolean("api.microservices.disable")
   /** Add a normal device */
   test("PUT /devices/"+deviceId+" - normal") {
@@ -916,7 +913,7 @@ class DevicesSuite extends FunSuite {
       1, List[String](""), 0, 0)
     val response = Http(URL+"/search/devices").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.NOT_FOUND)
     val postSearchDevResp = parse(response.body).extract[PostSearchDevicesResponse]
     val devices = postSearchDevResp.devices
     assert(devices.length === 0)
@@ -933,7 +930,7 @@ class DevicesSuite extends FunSuite {
 
   /** Test the secondsStale parameter */
   test("POST /search/devices/ - all arm devices, 1 not stale") {
-    val secondsNotStale = if (usingPersistence) 3 else 1
+    val secondsNotStale = 3
     info("secondsNotStale: "+secondsNotStale)
     val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),

@@ -12,6 +12,7 @@ import org.json4s.native.Serialization.write
 import com.horizon.exchangeapi._
 import scala.collection.immutable._
 import java.time._
+import java.util.Properties
 
 /**
  * Tests for the /agbots routes. To run
@@ -41,6 +42,9 @@ class AgbotsSuite extends FunSuite {
   val agbot2Id = "9931"
   val agbot2Token = agbot2Id+"tok"
   val AGBOT2AUTH = ("Authorization","Basic "+agbot2Id+":"+agbot2Token)
+  val agbot3Id = "9932"
+  val agbot3Token = agbot3Id+"tok"
+  val AGBOT3AUTH = ("Authorization","Basic "+agbot3Id+":"+agbot3Token)
   val agreementId = "9950"
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
@@ -365,6 +369,33 @@ class AgbotsSuite extends FunSuite {
     assert(response.code === HttpCode.NOT_FOUND)
     val getAgResp = parse(response.body).extract[GetAgbotAgreementsResponse]
     assert(getAgResp.agreements.size === 0)
+  }
+
+  /** Try to add agbot3, when max agbots is below that. */
+  test("PUT /agbots/"+agbot3Id+" - with low maxAgbots") {
+    // Get the current config value so we can restore it afterward
+    ExchConfig.load
+    val origMaxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
+
+    // Change the maxAgbots config value in the svr
+    var configInput = AdminConfigRequest("api.limits.maxAgbots", "1")
+    var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+
+    // Now try adding another agbot - expect it to be rejected
+    val input = PutAgbotsRequest(agbot3Token, "agbot"+agbot3Id+"-norm", "whisper-id", "ABC")
+    response = Http(URL+"/agbots/"+agbot3Id).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("Access Denied"))
+
+    // Restore the maxAgbots config value in the svr
+    configInput = AdminConfigRequest("api.limits.maxAgbots", origMaxAgbots.toString)
+    response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
   }
 
   // Note: testing of msgs is in DevicesSuite.scala

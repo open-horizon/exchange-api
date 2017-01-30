@@ -25,15 +25,29 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}   //rena
 import scala.concurrent.Future
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import java.util.Properties
 
 case class AdminHashpwRequest(password: String)
 case class AdminHashpwResponse(hashedPassword: String)
 
 case class AdminLogLevelRequest(loggingLevel: String)
 
+case class AdminConfigRequest(varPath: String, value: String)
+
 case class AdminDropdbTokenResponse(token: String)
 
-// type AdminPutTableDummyRequest = Seq[String]
+case class GetAdminStatusResponse(msg: String, numberOfUsers: Int, numberOfDevices: Int, numberOfDeviceAgreements: Int, numberOfDeviceMsgs: Int, numberOfAgbots: Int, numberOfAgbotAgreements: Int, numberOfAgbotMsgs: Int)
+class AdminStatus() {
+  var msg: String = ""
+  var numberOfUsers: Int = 0
+  var numberOfDevices: Int = 0
+  var numberOfDeviceAgreements: Int = 0
+  var numberOfDeviceMsgs: Int = 0
+  var numberOfAgbots: Int = 0
+  var numberOfAgbotAgreements: Int = 0
+  var numberOfAgbotMsgs: Int = 0
+  def toGetAdminStatusResponse = GetAdminStatusResponse(msg, numberOfUsers, numberOfDevices, numberOfDeviceAgreements, numberOfDeviceMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs)
+}
 
 
 /** Implementation for all of the /admin routes */
@@ -257,7 +271,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminMigrateDb =
     (apiOperation[ApiResponse]("postAdminMigrateDb")
       summary "Migrates the DB to a new schema"
-      notes "Note: for now you must run POST /admin/dumptables before running this. Dumps all of the tables to files, drops the tables, creates the tables (usually with new schema), and loads the tables from the files. Can only be run by the root user."
+      notes "Consider running POST /admin/upgradedb instead. Note: for now you must run POST /admin/dumptables before running this. Dumps all of the tables to files, drops the tables, creates the tables (usually with new schema), and loads the tables from the files. Can only be run by the root user."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -515,11 +529,98 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     }
   })
 
+  // =========== GET /admin/status ===============================
+  val getAdminStatus =
+    (apiOperation[GetAdminStatusResponse]("getAdminStatus")
+      summary "Returns status of the Exchange server"
+      notes "Returns a dictionary of statuses/statistics. Can be run by any user."
+      parameters(
+        Parameter("username", DataType.String, Option[String]("The username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("The password. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  /** Handles GET /admin/status. */
+  get("/admin/status", operation(getAdminStatus)) ({
+    validateUser(BaseAccess.STATUS, "")
+    val resp = response
+    val statusResp = new AdminStatus()
+    db.run(UsersTQ.rows.length.result.asTry.flatMap({ xs =>
+      logger.debug("GET /admin/status users length: "+xs)
+      xs match {
+        case Success(v) => statusResp.numberOfUsers = v
+          DevicesTQ.rows.length.result.asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("GET /admin/status devices length: "+xs)
+      xs match {
+        case Success(v) => statusResp.numberOfDevices = v
+          AgbotsTQ.rows.length.result.asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("GET /admin/status agbots length: "+xs)
+      xs match {
+        case Success(v) => statusResp.numberOfAgbots = v
+          DeviceAgreementsTQ.rows.length.result.asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("GET /admin/status devagreements length: "+xs)
+      xs match {
+        case Success(v) => statusResp.numberOfDeviceAgreements = v
+          AgbotAgreementsTQ.rows.length.result.asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("GET /admin/status agbotagreements length: "+xs)
+      xs match {
+        case Success(v) => statusResp.numberOfAgbotAgreements = v
+          DeviceMsgsTQ.rows.length.result.asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("GET /admin/status devmsgs length: "+xs)
+      xs match {
+        case Success(v) => statusResp.numberOfDeviceMsgs = v
+          AgbotMsgsTQ.rows.length.result.asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      logger.debug("GET /admin/status agbotmsgs length: "+xs)
+      xs match {
+        case Success(v) => statusResp.numberOfAgbotMsgs = v
+          statusResp.msg = "Exchange server operating normally"
+        case Failure(t) => statusResp.msg = t.getMessage
+      }
+      statusResp.toGetAdminStatusResponse
+    })
+  })
+
+  /** Handles PUT /admin/config - set 1 or more variables in the in-memory config. Intentionally not put swagger, because only used by automated tests. */
+  put("/admin/config") ({
+    validateRoot(BaseAccess.ADMIN)
+    val resp = response
+    val mod = try { parse(request.body).extract[AdminConfigRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    logger.debug("PUT /admin/config mod: "+mod)
+    val props = new Properties()
+    props.setProperty(mod.varPath, mod.value)
+    ExchConfig.mod(props)
+    logger.debug("config value: "+ExchConfig.getInt(mod.varPath))
+    resp.setStatus(HttpCode.PUT_OK)    // let the auth cache build up gradually
+    ApiResponse(ApiResponseType.OK, "Config values set successfully")
+  })
+
   /** Dev testing of db access */
   get("/admin/gettest") ({
-    // logger.info("GET /admin/gettest")
     validateUser(BaseAccess.ADMIN, "")
     val resp = response
+
+    ApiResponse(ApiResponseType.OK, "maxAgbots: "+ExchConfig.getInt("api.limits.maxAgbots"))
+
+    /*
     // ApiResponse(ApiResponseType.OK, "Now: "+ApiTime.nowUTC+", Then: "+ApiTime.pastUTC(100)+".")
     val ttl = 2 * 86400
     val oldestTime = ApiTime.pastUTC(ttl)
@@ -532,79 +633,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       if (listSorted.size > 0) for (m <- listSorted) { msgs += m.toDeviceMsg }
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetDeviceMsgsResponse(msgs.toList, 0)
-    })
-
-    /*
-    // val prop = Prop("arch", "arm", "string", "in")
-    val propList = List(Prop("arch", "arm", "string", "in"),Prop("memory","300","int",">="),Prop("version","1.0.0","version","in"),Prop("dataVerification","true","boolean","="))
-    // val sw = Map[String,String]("a" -> "b", "c" -> "d")
-    val sw = Map[String,String]()
-    // val str = compact(render(prop))
-    val str = write(sw)
-    println("str: "+str)
-
-    // val device = try { parse(str).extract[Prop] }
-    // catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    // val props = read[List[Prop]](str)
-    // println("props: "+props)
-
-    val swVersions = read[Map[String,String]](str)
-    println("swVersions: "+swVersions)
-    resp.setStatus(HttpCode.POST_OK)
-    ApiResponse(ApiResponseType.OK, "successful")
-
-    // db.run(UsersTQ.getUser("bp").result).flatMap[ApiResponse]({ x =>
-    db.run(UsersTQ.getUser("bp").result).map({ x =>
-      println(x)
-      if (x.size > 0) {
-        resp.setStatus(HttpCode.POST_OK)
-        // Future(ApiResponse(ApiResponseType.OK, "get was successful for "+x.head._1))
-        ApiResponse(ApiResponseType.OK, "get was successful for "+x.head.username)
-      } else {
-        resp.setStatus(HttpCode.NOT_FOUND)
-        ApiResponse(ApiResponseType.OK, "get was unsuccessful")
-
-      }
-    })
-
-    val a = UsersTQ.rows.filter(_.username === "bp").map(_.password).result
-    val pwVector = Await.result(db.run(a), Duration(1000, MILLISECONDS))
-    val hashedPw: String = if (pwVector.size > 0) pwVector.head else "<not there>"
-
-    ApiResponse(ApiResponseType.OK, "hashedPw: "+hashedPw)
-
-    // val p: DatabasePublisher[String] = db.stream(a)
-    // p.foreach { t => hashedPw = t; logger.info("t: "+t) }
-
-    val q = for {
-      m <- MicroservicesTQ.rows if m.deviceId === "1"
-      d <- m.device
-    } yield (d.id, d.token, d.name, d.owner, d.msgEndPoint, d.lastHeartbeat, m.url, m.numAgreements, m.policy)
-
-    val q = for {
-      m <- TestMicrosTQ.rows if m.deviceId === "d1"
-      d <- m.device
-    } yield (d.id, d.name, d.owner, m.name, m.url, m.numAgreements)
-
-    val q2 = for {
-      (m, d) <- ExchangeApiTables.testmicros zip ExchangeApiTables.testdevices
-    } yield (d.id, d.name, d.owner, m.name, m.url)
-
-    val q = for {
-      m <- MicroservicesTQ.rows if m.deviceId === "1"
-      d <- m.device
-      p <- PropsTQ.rows if p.msId === m.msId
-    } yield (d.id, d.token, d.name, d.owner, d.msgEndPoint, d.lastHeartbeat, m.url, m.numAgreements, m.policy, p.name, p.value, p.propType, p.op)
-
-    db.run(q.result)
-
-    db.run(q.result).map({ list =>
-      case class Join(id: String, token: String, name: String, owner: String, msgEndPoint: String, lastHeartbeat: String, url: String, numAgreements: Int, policy: String, pname: String, value: String, propType: String, op: String)
-      var joins = ListBuffer[Join]()
-      for (e <- list) {
-        joins += Join(e._1, e._2, e._3, e._4, e._5, e._6, e._7, e._8, e._9, e._10, e._11, e._12, e._13)
-      }
-      joins.toList
     })
     */
   })

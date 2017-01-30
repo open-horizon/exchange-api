@@ -21,6 +21,7 @@ object BaseAccess extends Enumeration {
     WRITE,       // implies READ and includes delete
     CREATE,       //TODO: remove this, we should not distinguish between create and write
     ADMIN,
+    STATUS,
     RESET_PW,
     AGREEMENT_CONFIRM,
     DATA_HEARTBEAT,
@@ -54,6 +55,7 @@ object Access extends Enumeration {
     WRITE_ALL_USERS,
     RESET_USER_PW,
     ADMIN,
+    STATUS,
     ALL,
     NONE        // should not be put in any role below
     = Value
@@ -64,7 +66,7 @@ import Access._
 /** Who is allowed to do what. */
 object Role {
   val ANONYMOUS = Set(Access.CREATE_USER, Access.RESET_USER_PW)
-  val USER = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.RESET_USER_PW, Access.CREATE_DEVICE, Access.READ_MY_DEVICES, Access.WRITE_MY_DEVICES, Access.READ_ALL_DEVICES, Access.CREATE_AGBOT, Access.READ_MY_AGBOTS, Access.WRITE_MY_AGBOTS, Access.AGBOT_AGREEMENT_DATA_HEARTBEAT, Access.AGBOT_AGREEMENT_CONFIRM, Access.READ_ALL_AGBOTS)
+  val USER = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.RESET_USER_PW, Access.CREATE_DEVICE, Access.READ_MY_DEVICES, Access.WRITE_MY_DEVICES, Access.READ_ALL_DEVICES, Access.CREATE_AGBOT, Access.READ_MY_AGBOTS, Access.WRITE_MY_AGBOTS, Access.AGBOT_AGREEMENT_DATA_HEARTBEAT, Access.AGBOT_AGREEMENT_CONFIRM, Access.READ_ALL_AGBOTS, Access.STATUS)
   val SUPERUSER = Set(Access.ALL)
   val DEVICE = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.SEND_MSG_TO_AGBOT)
   val AGBOT = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.AGBOT_AGREEMENT_DATA_HEARTBEAT, Access.AGBOT_AGREEMENT_CONFIRM, Access.READ_ALL_DEVICES, Access.SEND_MSG_TO_DEVICE)
@@ -363,6 +365,9 @@ trait AuthenticationSupport extends ScalatraBase {
     if (baseAccess == BaseAccess.ADMIN) {
       val role = if (Role.isSuperUser(username)) Role.SUPERUSER else Role.USER
       return Role.hasAuthorization(role, Access.ADMIN)
+    } else if (baseAccess == BaseAccess.STATUS) {
+      val role = if (Role.isSuperUser(username)) Role.SUPERUSER else Role.USER
+      return Role.hasAuthorization(role, Access.STATUS)
     } else if (baseAccess == BaseAccess.RESET_PW) {
       val role = if (Role.isSuperUser(username)) Role.SUPERUSER else if (username == "") Role.ANONYMOUS else Role.USER
       return Role.hasAuthorization(role, Access.RESET_USER_PW)

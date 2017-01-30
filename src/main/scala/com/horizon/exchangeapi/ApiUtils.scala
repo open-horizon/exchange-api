@@ -11,6 +11,7 @@ import java.time._
 import scala.util._
 import com.typesafe.config._
 import java.io.File
+import java.util.Properties
 import org.slf4j.LoggerFactory
 import ch.qos.logback.classic.{Logger, Level}     // unfortunately, the slf4j abstraction does not include setting the log level
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -56,11 +57,11 @@ object TempDb {
 object ExchConfig {
   val configResourceName = "config.json"
   val configFileName = "/etc/horizon/exchange/"+configResourceName
-  // The syntax call CONF is typesafe's superset of json that allows comments, etc. See https://github.com/typesafehub/config#using-hocon-the-json-superset. Strict json would be ConfigSyntax.JSON.
+  // The syntax called CONF is typesafe's superset of json that allows comments, etc. See https://github.com/typesafehub/config#using-hocon-the-json-superset. Strict json would be ConfigSyntax.JSON.
   val configOpts = ConfigParseOptions.defaults().setSyntax(ConfigSyntax.CONF).setAllowMissing(false)
   var config = ConfigFactory.parseResources(configResourceName, configOpts)    // these are the default values, this file is bundled in the jar
   val LOGGER = "EXCHANGE"    //or could use org.slf4j.Logger.ROOT_LOGGER_NAME
-  val logger: Logger = LoggerFactory.getLogger(LOGGER).asInstanceOf[Logger]     //TODO: maybe add a custom layout that includes the date: http://logback.qos.ch/manual/layouts.html
+  val logger: Logger = LoggerFactory.getLogger(LOGGER).asInstanceOf[Logger]     //todo: maybe add a custom layout that includes the date: http://logback.qos.ch/manual/layouts.html
   // Maps log levels expressed as strings in the config file to the slf4j log level enums
   val levels: Map[String,Level] = Map("OFF"->Level.OFF, "ERROR"->Level.ERROR, "WARN"->Level.WARN, "INFO"->Level.INFO, "DEBUG"->Level.DEBUG, "TRACE"->Level.TRACE, "ALL"->Level.ALL)
 
@@ -89,6 +90,9 @@ object ExchConfig {
   }
 
   def reload: Unit = load
+
+  /** Set a few values on top of the current config. These values are not save persistently. Used mostly for automated testing. */
+  def mod(props: Properties): Unit = { config = ConfigFactory.parseProperties(props).withFallback(config) }
 
   /** This is done separately from load() because we need the db execution context */
   def createRoot(db: Database): Unit = {

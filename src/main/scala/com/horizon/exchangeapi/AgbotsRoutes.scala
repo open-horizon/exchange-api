@@ -258,7 +258,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val owner = if (isAuthenticatedUser(creds)) creds.id else ""
     val resp = response
     db.run(AgbotsTQ.getNumOwned(owner).result.flatMap({ xs =>
-      logger.debug("POST /agbots/"+id+" num owned: "+xs)
+      logger.debug("PUT /agbots/"+id+" num owned: "+xs)
       val numOwned = xs
       val maxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
       if (numOwned <= maxAgbots || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
@@ -526,34 +526,34 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles PUT /agbots/{id}/agreements/{agid}. Normally called by agbot to add/update itself. */
   put("/agbots/:id/agreements/:agid", operation(putAgbotAgreement)) ({
-    // logger.info("PUT /agbots/"+params("id")+"/agreements/"+params("agid"))
     val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
     val agrId = params("agid")
     validateUserOrAgbotId(BaseAccess.WRITE, id)
     val agreement = try { parse(request.body).extract[PutAgbotAgreementRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-    val createAgreement = (TempDb.agbotsAgreements.contains(id) && !TempDb.agbotsAgreements.get(id).get.contains(agrId))
-      if (createAgreement && TempDb.agbotsAgreements.get(id).get.size >= ExchConfig.getInt("api.limits.maxAgreements")) {    // make sure they are not trying to overrun the exchange svr by creating a ton of agbot agreements
-        status_=(HttpCode.ACCESS_DENIED)
-        ApiResponse(ApiResponseType.ACCESS_DENIED, "can not create more than "+ExchConfig.getInt("api.limits.maxAgreements")+ " agreements for agbot "+agrId)
-      } else {
-        agreement.copyToTempDb(id, agrId)
-        status_=(HttpCode.PUT_OK)
-        ApiResponse(ApiResponseType.OK, "agreement added to or updated in the exchange")
+    db.run(AgbotAgreementsTQ.getNumOwned(id).result.flatMap({ xs =>
+      logger.debug("PUT /agbots/"+id+"/agreements/"+agrId+" num owned: "+xs)
+      val numOwned = xs
+      val maxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
+      if (numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
+        agreement.toAgbotAgreementRow(id, agrId).upsert.asTry
       }
-    } else {
-      db.run(agreement.toAgbotAgreementRow(id, agrId).upsert.asTry).map({ xs =>
-        logger.debug("PUT /agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
-        xs match {
-          case Success(v) => resp.setStatus(HttpCode.PUT_OK)
-            ApiResponse(ApiResponseType.OK, "agreement added or updated")
-          case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+      else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxAgreements+ " agreements for this agbot")).asTry
+    })).map({ xs =>
+      logger.debug("PUT /agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "agreement added or updated")
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+            resp.setStatus(HttpCode.ACCESS_DENIED)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, "agreement '"+agrId+"' for agbot '"+id+"' not inserted or updated: "+t.getMessage)
+          } else {
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agrId+"' for agbot '"+id+"' not inserted or updated: "+t.toString)
-        }
-      })
-    }
+          }
+      }
+    })
   })
 
   // =========== DELETE /agbots/{id}/agreements ===============================
@@ -884,15 +884,24 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val msg = try { parse(request.body).extract[PostAgbotsMsgsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
-    // Remove msgs whose TTL is past, then get the device publicKey, then write the agbotmsgs row, all in the same db.run thread
+    // Remove msgs whose TTL is past, then check the mailbox is not full, then get the device publicKey, then write the agbotmsgs row, all in the same db.run thread
     db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
       logger.debug("POST /agbots/"+agbotId+"/msgs delete expired result: "+xs.toString)
-      DevicesTQ.getPublicKey(devId).result
+      AgbotMsgsTQ.getNumOwned(agbotId).result
+    }).flatMap({ xs =>
+      logger.debug("POST /agbots/"+agbotId+"/msgs mailbox size: "+xs)
+      val mailboxSize = xs
+      val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
+      if (mailboxSize < maxMessagesInMailbox) DevicesTQ.getPublicKey(devId).result.asTry
+      else DBIO.failed(new Throwable("Access Denied: the message mailbox of "+agbotId+" is full ("+maxMessagesInMailbox+ " messages)")).asTry
     }).flatMap({ xs =>
       logger.debug("POST /agbots/"+agbotId+"/msgs device publickey result: "+xs.toString)
-      val devicePubKey = xs.head
-      if (devicePubKey != "") AgbotMsgRow(0, agbotId, devId, devicePubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
-      else DBIO.failed(new Throwable("Invalid Input: the message sender must have their public key registered with the Exchange")).asTry
+      xs match {
+        case Success(v) => val devicePubKey = v.head
+          if (devicePubKey != "") AgbotMsgRow(0, agbotId, devId, devicePubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
+          else DBIO.failed(new Throwable("Invalid Input: the message sender must have their public key registered with the Exchange")).asTry
+        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
+      }
     })).map({ xs =>
       logger.debug("POST /agbots/"+agbotId+"/msgs write row result: "+xs.toString)
       xs match {
@@ -901,6 +910,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         case Failure(t) => if (t.getMessage.startsWith("Invalid Input:")) {
             resp.setStatus(HttpCode.BAD_INPUT)
             ApiResponse(ApiResponseType.BAD_INPUT, "agbot '"+agbotId+"' msg not inserted: "+t.getMessage)
+          } else if (t.getMessage.startsWith("Access Denied:")) {
+            resp.setStatus(HttpCode.ACCESS_DENIED)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, "agbot '"+agbotId+"' msg not inserted: "+t.getMessage)
           } else {
             resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+agbotId+"' msg not inserted: "+t.toString)

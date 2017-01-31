@@ -270,6 +270,33 @@ class AgbotsSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
+  /** Try to add a 3rd agreement, when max agreements is below that. */
+  test("PUT /agbots/"+agbotId+"/agreements/9952 - with low maxAgreements") {
+    // Get the current config value so we can restore it afterward
+    ExchConfig.load
+    val origMaxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
+
+    // Change the maxAgreements config value in the svr
+    var configInput = AdminConfigRequest("api.limits.maxAgreements", "1")
+    var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+
+    // Now try adding another agreement - expect it to be rejected
+    val input = PutAgbotAgreementRequest("netspeed", "signed")
+    response = Http(URL+"/agbots/"+agbotId+"/agreements/9952").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("Access Denied"))
+
+    // Restore the maxAgreements config value in the svr
+    configInput = AdminConfigRequest("api.limits.maxAgreements", origMaxAgreements.toString)
+    response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
   test("GET /agbots/"+agbotId+"/agreements - verify agbot agreement") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/agreements").headers(ACCEPT).headers(AUTH).asString
     info("code: "+response.code)
@@ -374,7 +401,7 @@ class AgbotsSuite extends FunSuite {
   /** Try to add agbot3, when max agbots is below that. */
   test("PUT /agbots/"+agbot3Id+" - with low maxAgbots") {
     // Get the current config value so we can restore it afterward
-    ExchConfig.load
+    // ExchConfig.load  <-- done up above
     val origMaxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
 
     // Change the maxAgbots config value in the svr

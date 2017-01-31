@@ -71,6 +71,7 @@ object DevicesTQ {
   def getDevice(id: String) = rows.filter(_.id === id)
   def getToken(id: String) = rows.filter(_.id === id).map(_.token)
   def getOwner(id: String) = rows.filter(_.id === id).map(_.owner)
+  def getNumOwned(owner: String) = rows.filter(_.owner === owner).length
   def getLastHeartbeat(id: String) = rows.filter(_.id === id).map(_.lastHeartbeat)
   def getPublicKey(id: String) = rows.filter(_.id === id).map(_.publicKey)
 
@@ -157,6 +158,7 @@ object DeviceAgreementsTQ {
 
   def getAgreements(deviceId: String) = rows.filter(_.deviceId === deviceId)
   def getAgreement(deviceId: String, agId: String) = rows.filter( r => {r.deviceId === deviceId && r.agId === agId} )
+  def getNumOwned(deviceId: String) = rows.filter(_.deviceId === deviceId).length
   def getAgreementsWithState = rows.filter(_.state =!= "")
 }
 
@@ -210,8 +212,8 @@ case class DeviceMsgRow(msgId: Int, deviceId: String, agbotId: String, agbotPubK
 
 class DeviceMsgs(tag: Tag) extends Table[DeviceMsgRow](tag, "devmsgs") {
   def msgId = column[Int]("msgid", O.PrimaryKey, O.AutoInc)    // this enables them to delete a msg and helps us deliver them in order
-  def deviceId = column[String]("deviceid")
-  def agbotId = column[String]("agbotid")
+  def deviceId = column[String]("deviceid")       // msg recipient
+  def agbotId = column[String]("agbotid")         // msg sender
   def agbotPubKey = column[String]("agbotpubkey")
   def message = column[String]("message")
   def timeSent = column[String]("timesent")
@@ -227,6 +229,7 @@ object DeviceMsgsTQ {
   def getMsgs(deviceId: String) = rows.filter(_.deviceId === deviceId)  // this is that devices msg mailbox
   def getMsg(deviceId: String, msgId: Int) = rows.filter( r => {r.deviceId === deviceId && r.msgId === msgId} )
   def getMsgsExpired = rows.filter(_.timeExpires < ApiTime.nowUTC)
+  def getNumOwned(deviceId: String) = rows.filter(_.deviceId === deviceId).length
 }
 
 case class DeviceMsg(msgId: Int, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String)

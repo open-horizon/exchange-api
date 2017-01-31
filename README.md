@@ -84,7 +84,7 @@ services in the exchange.
 - Fixed POST /admin/dropdb to not delete the root user from the authentication cache, so you have credentials to run POST /admin/initdb
 - Improved the implementation of POST /search/devices. All externals are the same, except now if all devices are stale it returns 404 (the json returned is still `{"devices":[],"lastIndex":0}`)
 - Added GET /admin/status to use for monitoring the exchange api svr
-- Added checks so users can not create more devices, agbots, agreements, or msgs than the max numbers allowed in config.json
+- Added checks so users can not create more devices, agbots, agreements, or msgs than the max numbers allowed in config.json, and added the associated maxMessages in the default config.json
 
 ## Changes Between v1.20.0 and v1.21.0
 

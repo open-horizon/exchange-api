@@ -608,9 +608,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val props = new Properties()
     props.setProperty(mod.varPath, mod.value)
     ExchConfig.mod(props)
-    logger.debug("config value: "+ExchConfig.getInt(mod.varPath))
+    // logger.debug("config value: "+ExchConfig.getInt(mod.varPath))
     resp.setStatus(HttpCode.PUT_OK)    // let the auth cache build up gradually
-    ApiResponse(ApiResponseType.OK, "Config values set successfully")
+    ApiResponse(ApiResponseType.OK, "Config value set successfully")
   })
 
   /** Dev testing of db access */

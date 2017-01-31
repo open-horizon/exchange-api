@@ -518,33 +518,32 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     device.validate
     val owner = if (isAuthenticatedUser(creds)) creds.id else ""
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      if (baseAccess == BaseAccess.CREATE && TempDb.devices.filter(d => d._2.owner == owner).size >= ExchConfig.getInt("api.limits.maxDevices")) {    // make sure they are not trying to overrun the exchange svr by creating a ton of devices
-        status_=(HttpCode.ACCESS_DENIED)
-        ApiResponse(ApiResponseType.ACCESS_DENIED, "can not create more than "+ExchConfig.getInt("api.limits.maxDevices")+ " devices")
-      } else {
-        val microTmpls = device.getMicroTemplates      // do this before creating/updating the entry in db, in case it can not find the templates
-        device.copyToTempDb(id, owner)
-        if (baseAccess == BaseAccess.CREATE && owner != "") logger.info("User '"+owner+"' created device '"+id+"'.")
-        status_=(HttpCode.PUT_OK)
-        microTmpls
+    val microTmpls = device.getMicroTemplates      // do this before creating/updating the entry in db, in case it can not find the templates
+    val resp = response
+    db.run(DevicesTQ.getNumOwned(owner).result.flatMap({ xs =>
+      logger.debug("PUT /devices/"+id+" num owned: "+xs)
+      val numOwned = xs
+      val maxDevices = ExchConfig.getInt("api.limits.maxDevices")
+      if (numOwned <= maxDevices || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
+        val action = if (owner == "") device.getDbUpdate(id, owner) else device.getDbUpsert(id, owner)
+        action.transactionally.asTry
       }
-    } else {   // persistence
-      //TODO: check they haven't created too many devices using Await.result
-      val microTmpls = device.getMicroTemplates      // do this before creating/updating the entry in db, in case it can not find the templates
-      val resp = response
-      val action = if (owner == "") device.getDbUpdate(id, owner) else device.getDbUpsert(id, owner)
-      db.run(action.transactionally.asTry).map({ xs =>
-        logger.debug("PUT /devices/"+id+" result: "+xs.toString)
-        xs match {
-          case Success(v) => if (device.token != "") AuthCache.devices.put(Creds(id, device.token))    // the token passed in to the cache should be the non-hashed one
-            resp.setStatus(HttpCode.PUT_OK)
-            microTmpls
-          case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+      else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxDevices+ " devices")).asTry
+    })).map({ xs =>
+      logger.debug("PUT /devices/"+id+" result: "+xs.toString)
+      xs match {
+        case Success(v) => if (device.token != "") AuthCache.devices.put(Creds(id, device.token))    // the token passed in to the cache should be the non-hashed one
+          resp.setStatus(HttpCode.PUT_OK)
+          microTmpls
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+            resp.setStatus(HttpCode.ACCESS_DENIED)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, "device '"+id+"' not inserted or updated: "+t.getMessage)
+          } else {
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, "device '"+id+"' not inserted or updated: "+t.toString)
-        }
-      })
-    }
+          }
+      }
+    })
   })
 
   // =========== PATCH /devices/{id} ===============================
@@ -838,27 +837,28 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val agreement = try { parse(request.body).extract[PutDeviceAgreementRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      val createAgreement = (TempDb.devicesAgreements.contains(id) && !TempDb.devicesAgreements.get(id).get.contains(agId))
-      if (createAgreement && TempDb.devicesAgreements.get(id).get.size >= ExchConfig.getInt("api.limits.maxAgreements")) {    // make sure they are not trying to overrun the exchange svr by creating a ton of device agreements
-        status_=(HttpCode.ACCESS_DENIED)
-        ApiResponse(ApiResponseType.ACCESS_DENIED, "can not create more than "+ExchConfig.getInt("api.limits.maxAgreements")+ " agreements for device "+agId)
-      } else {
-        agreement.copyToTempDb(id, agId)
-        status_=(HttpCode.PUT_OK)
-        ApiResponse(ApiResponseType.OK, "agreement added or updated")
+    db.run(DeviceAgreementsTQ.getNumOwned(id).result.flatMap({ xs =>
+      logger.debug("PUT /devices/"+id+"/agreements/"+agId+" num owned: "+xs)
+      val numOwned = xs
+      val maxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
+      if (numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
+        agreement.toDeviceAgreementRow(id, agId).upsert.asTry
       }
-    } else {
-      db.run(agreement.toDeviceAgreementRow(id, agId).upsert.asTry).map({ xs =>
-        logger.debug("PUT /devices/"+id+"/agreements/"+agId+" result: "+xs.toString)
-        xs match {
-          case Success(v) => resp.setStatus(HttpCode.PUT_OK)
-            ApiResponse(ApiResponseType.OK, "agreement added or updated")
-          case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agId+"' for device '"+id+"' not inserted or updated: "+t.toString)
+      else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxAgreements+ " agreements for this device")).asTry
+    })).map({ xs =>
+      logger.debug("PUT /devices/"+id+"/agreements/"+agId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "agreement added or updated")
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+            resp.setStatus(HttpCode.ACCESS_DENIED)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, "agreement '"+agId+"' for device '"+id+"' not inserted or updated: "+t.getMessage)
+          } else {
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agId+"' for device '"+id+"' not inserted or updated: "+t.toString)
         }
-      })
-    }
+      }
+    })
   })
 
   // =========== DELETE /devices/{id}/agreements ===============================
@@ -968,15 +968,24 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val msg = try { parse(request.body).extract[PostDevicesMsgsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
-    // Remove msgs whose TTL is past, then get the agbot publicKey, then write the devmsgs row, all in the same db.run thread
+    // Remove msgs whose TTL is past, then check the mailbox is not full, then get the agbot publicKey, then write the devmsgs row, all in the same db.run thread
     db.run(DeviceMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
       logger.debug("POST /devices/"+devId+"/msgs delete expired result: "+xs.toString)
-      AgbotsTQ.getPublicKey(agbotId).result
+      DeviceMsgsTQ.getNumOwned(devId).result
+    }).flatMap({ xs =>
+      logger.debug("POST /devices/"+devId+"/msgs mailbox size: "+xs)
+      val mailboxSize = xs
+      val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
+      if (mailboxSize < maxMessagesInMailbox) AgbotsTQ.getPublicKey(agbotId).result.asTry
+      else DBIO.failed(new Throwable("Access Denied: the message mailbox of "+devId+" is full ("+maxMessagesInMailbox+ " messages)")).asTry
     }).flatMap({ xs =>
       logger.debug("POST /devices/"+devId+"/msgs agbot publickey result: "+xs.toString)
-      val agbotPubKey = xs.head
-      if (agbotPubKey != "") DeviceMsgRow(0, devId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
-      else DBIO.failed(new Throwable("Invalid Input: the message sender must have their public key registered with the Exchange")).asTry
+      xs match {
+        case Success(v) => val agbotPubKey = v.head
+          if (agbotPubKey != "") DeviceMsgRow(0, devId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
+          else DBIO.failed(new Throwable("Invalid Input: the message sender must have their public key registered with the Exchange")).asTry
+        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
+      }
     })).map({ xs =>
       logger.debug("POST /devices/"+devId+"/msgs write row result: "+xs.toString)
       xs match {
@@ -985,6 +994,9 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Failure(t) => if (t.getMessage.startsWith("Invalid Input:")) {
             resp.setStatus(HttpCode.BAD_INPUT)
             ApiResponse(ApiResponseType.BAD_INPUT, "device '"+devId+"' msg not inserted: "+t.getMessage)
+          } else if (t.getMessage.startsWith("Access Denied:")) {
+            resp.setStatus(HttpCode.ACCESS_DENIED)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, "device '"+devId+"' msg not inserted: "+t.getMessage)
           } else {
             resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, "device '"+devId+"' msg not inserted: "+t.toString)

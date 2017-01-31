@@ -960,6 +960,33 @@ class DevicesSuite extends FunSuite {
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
+  /** Try to add a 3rd agreement, when max agreements is below that. */
+  test("PUT /devices/"+deviceId+"/agreements/9952 - with low maxAgreements") {
+    // Get the current config value so we can restore it afterward
+    // ExchConfig.load  <-- already do this earlier
+    val origMaxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
+
+    // Change the maxAgreements config value in the svr
+    var configInput = AdminConfigRequest("api.limits.maxAgreements", "1")
+    var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+
+    // Now try adding another agreement - expect it to be rejected
+    val input = PutDeviceAgreementRequest("netspeed", "signed")
+    response = Http(URL+"/devices/"+deviceId+"/agreements/9952").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("Access Denied"))
+
+    // Restore the maxAgreements config value in the svr
+    configInput = AdminConfigRequest("api.limits.maxAgreements", origMaxAgreements.toString)
+    response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
   /** Delete all agreements for device 9900 */
   test("DELETE /devices/"+deviceId+"/agreements - all agreements") {
     val response = Http(URL+"/devices/"+deviceId+"/agreements").method("delete").headers(ACCEPT).headers(DEVICEAUTH).asString
@@ -973,6 +1000,37 @@ class DevicesSuite extends FunSuite {
     assert(response.code === HttpCode.NOT_FOUND)
     val getAgResp = parse(response.body).extract[GetDeviceAgreementsResponse]
     assert(getAgResp.agreements.size === 0)
+  }
+
+  /** Try to add device3, when max devices is below that. */
+  test("PUT /devices/9904 - with low maxDevices") {
+    // Get the current config value so we can restore it afterward
+    // ExchConfig.load  <-- already do this earlier
+    val origMaxDevices = ExchConfig.getInt("api.limits.maxDevices")
+
+    // Change the maxDevices config value in the svr
+    // if putDevRespDisabled==true there are currently 3 devices for out tests, otherwise 4 devices (plus the ones manually created)
+    var configInput = AdminConfigRequest("api.limits.maxDevices", "2")
+    var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+
+    // Now try adding another device - expect it to be rejected
+    val input = PutDevicesRequest("mytok", "rpi9904-netspeed", List(Microservice(NETSPEEDSPEC,1,"{json policy for 9904 netspeed}",List(
+      Prop("arch","arm","string","in"),
+      Prop("version","1.0.0","version","in"),
+      Prop("agreementProtocols",agProto,"list","in")))), "whisper-id", Map(), "DEVICE4ABC")
+    response = Http(URL+"/devices/9904").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("Access Denied"))
+
+    // Restore the maxDevices config value in the svr
+    configInput = AdminConfigRequest("api.limits.maxDevices", origMaxDevices.toString)
+    response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
   }
 
   /** Add a 2nd agbot so we can test msgs */
@@ -1194,6 +1252,88 @@ class DevicesSuite extends FunSuite {
     assert(response.code === HttpCode.NOT_FOUND)
     val resp2 = parse(response.body).extract[GetAgbotMsgsResponse]
     assert(resp2.messages.size === 0)
+  }
+
+  /** Try to add a 4th msg to agbot1, when max msgs is below that. */
+  test("POST /agbots/"+agbotId+"/msgs - with low maxMessagesInMailbox") {
+    // Get the current config value so we can restore it afterward
+    // ExchConfig.load  <-- already do this earlier
+    val origMaxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
+
+    // Change the maxMessagesInMailbox config value in the svr
+    var configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", "3")
+    var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+
+    // Now try adding another msg - expect it to be rejected
+    var input = PostAgbotsMsgsRequest("{msg1 from device1 to agbot1}", 300)
+    response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED)
+    var apiResp = parse(response.body).extract[ApiResponse]
+    assert(apiResp.msg.contains("Access Denied"))
+
+    // But we should still be able to send a msg to agbot2, because his mailbox isn't full yet
+    input = PostAgbotsMsgsRequest("{msg1 from device1 to agbot2}", 300)
+    response = Http(URL+"/agbots/"+agbotId2+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    apiResp = parse(response.body).extract[ApiResponse]
+    assert(apiResp.code === ApiResponseType.OK)
+
+    response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("get").headers(ACCEPT).headers(AGBOT2AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val resp = parse(response.body).extract[GetAgbotMsgsResponse]
+    assert(resp.messages.size === 1)
+
+    // Restore the maxMessagesInMailbox config value in the svr
+    configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", origMaxMessagesInMailbox.toString)
+    response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  /** Try to add a 4th msg to device1, when max msgs is below that. */
+  test("POST /devices/"+deviceId+"/msgs - with low maxMessagesInMailbox") {
+    // Get the current config value so we can restore it afterward
+    // ExchConfig.load  <-- already do this earlier
+    val origMaxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
+
+    // Change the maxMessagesInMailbox config value in the svr
+    var configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", "3")
+    var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+
+    // Now try adding another msg - expect it to be rejected
+    var input = PostDevicesMsgsRequest("{msg1 from agbot1 to device1}", 300)
+    response = Http(URL+"/devices/"+deviceId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED)
+    var apiResp = parse(response.body).extract[ApiResponse]
+    assert(apiResp.msg.contains("Access Denied"))
+
+    // But we should still be able to send a msg to device2, because his mailbox isn't full yet
+    input = PostDevicesMsgsRequest("{msg1 from agbot1 to device2}", 300)
+    response = Http(URL+"/devices/"+deviceId2+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    apiResp = parse(response.body).extract[ApiResponse]
+    assert(apiResp.code === ApiResponseType.OK)
+
+    response = Http(URL+"/devices/"+deviceId2+"/msgs").method("get").headers(ACCEPT).headers(DEVICE2AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val resp = parse(response.body).extract[GetDeviceMsgsResponse]
+    assert(resp.messages.size === 1)
+
+    // Restore the maxMessagesInMailbox config value in the svr
+    configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", origMaxMessagesInMailbox.toString)
+    response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
   }
 
   /** Clean up, delete all the test devices */

@@ -116,6 +116,7 @@ object AgbotAgreementsTQ {
 
   def getAgreements(agbotId: String) = rows.filter(_.agbotId === agbotId)
   def getAgreement(agbotId: String, agrId: String) = rows.filter( r => {r.agbotId === agbotId && r.agrId === agrId} )
+  def getNumOwned(agbotId: String) = rows.filter(_.agbotId === agbotId).length
   def getAgreementsWithState = rows.filter(_.state =!= "")
 }
 
@@ -132,8 +133,8 @@ case class AgbotMsgRow(msgId: Int, agbotId: String, deviceId: String, devicePubK
 
 class AgbotMsgs(tag: Tag) extends Table[AgbotMsgRow](tag, "agbotmsgs") {
   def msgId = column[Int]("msgid", O.PrimaryKey, O.AutoInc)    // this enables them to delete a msg and helps us deliver them in order
-  def agbotId = column[String]("agbotid")
-  def deviceId = column[String]("deviceid")
+  def agbotId = column[String]("agbotid")       // msg recipient
+  def deviceId = column[String]("deviceid")     // msg sender
   def devicePubKey = column[String]("devicepubkey")
   def message = column[String]("message")
   def timeSent = column[String]("timesent")
@@ -149,6 +150,7 @@ object AgbotMsgsTQ {
   def getMsgs(agbotId: String) = rows.filter(_.agbotId === agbotId)  // this is that agbots msg mailbox
   def getMsg(agbotId: String, msgId: Int) = rows.filter( r => {r.agbotId === agbotId && r.msgId === msgId} )
   def getMsgsExpired = rows.filter(_.timeExpires < ApiTime.nowUTC)
+  def getNumOwned(agbotId: String) = rows.filter(_.agbotId === agbotId).length
 }
 
 case class AgbotMsg(msgId: Int, deviceId: String, devicePubKey: String, message: String, timeSent: String, timeExpires: String)

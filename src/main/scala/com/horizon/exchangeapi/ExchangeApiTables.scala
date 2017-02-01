@@ -24,7 +24,9 @@ object ExchangeApiTables {
   val create = (UsersTQ.rows.schema ++ DevicesTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema).create
 
   // Alter the schema of existing tables
-  val alterTables = DBIO.seq(sqlu"alter table devices add column if not exists publickey character varying not null default ''", sqlu"alter table agbots add column if not exists publickey character varying not null default ''")
+  // Note: the compose/bluemix version of postgresql does not support the 'if not exists' option
+  // val alterTables = DBIO.seq(sqlu"alter table devices add column if not exists publickey character varying not null default ''", sqlu"alter table agbots add column if not exists publickey character varying not null default ''")
+  val alterTables = DBIO.seq(sqlu"alter table devices add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
 
   // Used to create just the new tables in this version, so we do not have to disrupt the existing tables
   val createNewTables = (DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema).create
@@ -34,7 +36,8 @@ object ExchangeApiTables {
   val delete = DBIO.seq(sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
 
   // Remove the alters of existing tables
-  val unAlterTables = DBIO.seq(sqlu"alter table devices drop column if exists publickey", sqlu"alter table agbots drop column if exists publickey")
+  // val unAlterTables = DBIO.seq(sqlu"alter table devices drop column if exists publickey", sqlu"alter table agbots drop column if exists publickey")
+  val unAlterTables = DBIO.seq(sqlu"alter table devices drop column publickey", sqlu"alter table agbots drop column publickey")
 
   // Used to delete just the new tables in this version (so we can recreate), so we do not have to disrupt the existing tables
   val deleteNewTables = DBIO.seq(sqlu"drop table devmsgs", sqlu"drop table agbotmsgs")

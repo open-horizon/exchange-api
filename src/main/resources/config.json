@@ -6,7 +6,8 @@
 		"limits": {
 			"maxDevices": 1000,		// maximum number of devices 1 user is allowed to create
 			"maxAgbots": 1000,		// maximum number of agbots 1 user is allowed to create
-			"maxAgreements": 100	// maximum number of agreements 1 user is allowed to create
+			"maxAgreements": 1000,	// maximum number of agreements 1 device or agbot is allowed to create
+			"maxMessagesInMailbox": 500	// maximum number of msgs currently in 1 device or agbot mailbox (the sending side is handled by rate limiting)
 		},
 		"specRef": {
 			"prefix": "https://bluehorizon.network/documentation/",

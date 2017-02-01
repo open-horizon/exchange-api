@@ -11,23 +11,17 @@ import java.time._
 import scala.util._
 import com.typesafe.config._
 import java.io.File
+import java.util.Properties
 import org.slf4j.LoggerFactory
 import ch.qos.logback.classic.{Logger, Level}     // unfortunately, the slf4j abstraction does not include setting the log level
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
 
-/** Temp data structure mimicking our real db for the rest api methods i am still developing. */
+/** Temp data structure mimicking our real db for the rest api methods i am still developing.
 object TempDb {
   def init = {}    // called from ScalatraBootstrap just to force this object to be instantiated
 
-  var devices = new MutableHashMap[String,Device]() /* += (("1",
-    new Device(Password.hash("abc123"),"rpi1","bp",List(Microservice("https://bluehorizon.network/documentation/sdr-device-api",1,"{json policy for rpi1 sdr}",List(
-      Prop("arch","arm","string","in"),
-      Prop("memory","300","int",">="),
-      Prop("version","1.0.0","version","in"),
-      Prop("dataVerification","true","boolean","=")))),
-      "whisper id", Map("horizon"->"1.2.3"), "2016-09-19T13:04:56.850Z[UTC]")
-    )) */
+  var devices = new MutableHashMap[String,Device]()
   PutDevicesRequest("abc123", "rpi1",
     List(
       Microservice("https://bluehorizon.network/documentation/sdr-device-api",1,"{json policy for rpi1 sdr}",List(
@@ -41,26 +35,27 @@ object TempDb {
         Prop("agreementProtocols","ExchangeManualTest","list","in"),
         Prop("version","1.0.0","version","in")))
     ),
-    "whisper id", Map("horizon"->"1.2.3")).copyToTempDb("1", "bp")
+    "whisper id", Map("horizon"->"1.2.3"), "ABC").copyToTempDb("1", "bp")
 
   var agbots = new MutableHashMap[String,Agbot]()      // key is agbot id
 
   var devicesAgreements = MutableHashMap[String,MutableHashMap[String,DeviceAgreement]]()    // the 1st level key is the device id, the 2nd level key is the agreement id
   var agbotsAgreements = MutableHashMap[String,MutableHashMap[String,AgbotAgreement]]()    // the 1st level key is the agbot id, the 2nd level key is the agreement id
 
-  var users = new MutableHashMap[String,User]() // += (("bp", new User(Password.hash("mypw"),"bruceandml@gmail.com","2016-09-19T13:04:56.850Z[UTC]")))
+  var users = new MutableHashMap[String,User]()
   PutUsersRequest("mypw", "bruceandml@gmail.com").copyToTempDb("bp", true)
 }
+*/
 
 /** Global config parameters for the exchange. See typesafe config classes: http://typesafehub.github.io/config/latest/api/ */
 object ExchConfig {
   val configResourceName = "config.json"
   val configFileName = "/etc/horizon/exchange/"+configResourceName
-  // The syntax call CONF is typesafe's superset of json that allows comments, etc. See https://github.com/typesafehub/config#using-hocon-the-json-superset. Strict json would be ConfigSyntax.JSON.
+  // The syntax called CONF is typesafe's superset of json that allows comments, etc. See https://github.com/typesafehub/config#using-hocon-the-json-superset. Strict json would be ConfigSyntax.JSON.
   val configOpts = ConfigParseOptions.defaults().setSyntax(ConfigSyntax.CONF).setAllowMissing(false)
   var config = ConfigFactory.parseResources(configResourceName, configOpts)    // these are the default values, this file is bundled in the jar
   val LOGGER = "EXCHANGE"    //or could use org.slf4j.Logger.ROOT_LOGGER_NAME
-  val logger: Logger = LoggerFactory.getLogger(LOGGER).asInstanceOf[Logger]     //TODO: maybe add a custom layout that includes the date: http://logback.qos.ch/manual/layouts.html
+  val logger: Logger = LoggerFactory.getLogger(LOGGER).asInstanceOf[Logger]     //todo: maybe add a custom layout that includes the date: http://logback.qos.ch/manual/layouts.html
   // Maps log levels expressed as strings in the config file to the slf4j log level enums
   val levels: Map[String,Level] = Map("OFF"->Level.OFF, "ERROR"->Level.ERROR, "WARN"->Level.WARN, "INFO"->Level.INFO, "DEBUG"->Level.DEBUG, "TRACE"->Level.TRACE, "ALL"->Level.ALL)
 
@@ -89,6 +84,9 @@ object ExchConfig {
   }
 
   def reload: Unit = load
+
+  /** Set a few values on top of the current config. These values are not save persistently. Used mostly for automated testing. */
+  def mod(props: Properties): Unit = { config = ConfigFactory.parseProperties(props).withFallback(config) }
 
   /** This is done separately from load() because we need the db execution context */
   def createRoot(db: Database): Unit = {
@@ -159,6 +157,12 @@ object ApiResponseType {
 object ApiTime {
   /** Returns now in UTC string format */
   def nowUTC = ZonedDateTime.now.withZoneSameInstant(ZoneId.of("UTC")).toString
+
+  /** Return UTC format of the time n seconds ago */
+  def pastUTC(secondsAgo: Int) = ZonedDateTime.now.minusSeconds(secondsAgo).withZoneSameInstant(ZoneId.of("UTC")).toString
+
+  /** Return UTC format of the time n seconds from now */
+  def futureUTC(secondsFromNow: Int) = ZonedDateTime.now.plusSeconds(secondsFromNow).withZoneSameInstant(ZoneId.of("UTC")).toString
 
   /** Returns now in epoch seconds */
   def nowSeconds: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970

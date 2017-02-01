@@ -9,9 +9,7 @@ import org.scalatra.ScalatraServlet
  *  @param swagger instance of ExchangeApiSwagger created in ScalatraBootstrap
  */
 class ResourcesApp(implicit val swagger: Swagger) extends ScalatraServlet with NativeSwaggerBase // {
-// 	get("/foo") {
-// 		<p>Hello</p>
-// 	}
+// 	get("/foo") { <p>Hello</p> }
 // }
 
 /** Exchange API swagger instance, passed implicitly to ResourcesApp in ScalatraBootstrap. */

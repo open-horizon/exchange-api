@@ -21,9 +21,11 @@ object BaseAccess extends Enumeration {
     WRITE,       // implies READ and includes delete
     CREATE,       //TODO: remove this, we should not distinguish between create and write
     ADMIN,
+    STATUS,
     RESET_PW,
     AGREEMENT_CONFIRM,
-    DATA_HEARTBEAT
+    DATA_HEARTBEAT,
+    SEND_MSG
     = Value
 }
 import BaseAccess._
@@ -38,6 +40,7 @@ object Access extends Enumeration {
     WRITE_MY_DEVICES,
     READ_ALL_DEVICES,
     WRITE_ALL_DEVICES,
+    SEND_MSG_TO_DEVICE,
     CREATE_AGBOT,       //TODO: remove this, we should not distinguish between create and write
     READ_MY_AGBOTS,
     WRITE_MY_AGBOTS,
@@ -45,13 +48,16 @@ object Access extends Enumeration {
     WRITE_ALL_AGBOTS,
     AGBOT_AGREEMENT_DATA_HEARTBEAT,
     AGBOT_AGREEMENT_CONFIRM,
+    SEND_MSG_TO_AGBOT,
     CREATE_USER,       //TODO: remove this, we should not distinguish between create and write
     CREATE_SUPERUSER,       //TODO: remove this, it does not even make sense
     READ_ALL_USERS,
     WRITE_ALL_USERS,
     RESET_USER_PW,
     ADMIN,
-    ALL
+    STATUS,
+    ALL,
+    NONE        // should not be put in any role below
     = Value
   // val ALL = Set(READ_MYSELF, WRITE_MYSELF, CREATE_DEVICE, READ_MY_DEVICES, WRITE_MY_DEVICES, READ_ALL_DEVICES, WRITE_ALL_DEVICES, CREATE_AGBOT, READ_MY_AGBOTS, WRITE_MY_AGBOTS, READ_ALL_AGBOTS, WRITE_ALL_AGBOTS, CREATE_USER, READ_ALL_USERS, WRITE_ALL_USERS)
 }
@@ -60,12 +66,13 @@ import Access._
 /** Who is allowed to do what. */
 object Role {
   val ANONYMOUS = Set(Access.CREATE_USER, Access.RESET_USER_PW)
-  val USER = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.RESET_USER_PW, Access.CREATE_DEVICE, Access.READ_MY_DEVICES, Access.WRITE_MY_DEVICES, Access.READ_ALL_DEVICES, Access.CREATE_AGBOT, Access.READ_MY_AGBOTS, Access.WRITE_MY_AGBOTS, Access.AGBOT_AGREEMENT_DATA_HEARTBEAT, Access.AGBOT_AGREEMENT_CONFIRM, Access.READ_ALL_AGBOTS)
+  val USER = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.RESET_USER_PW, Access.CREATE_DEVICE, Access.READ_MY_DEVICES, Access.WRITE_MY_DEVICES, Access.READ_ALL_DEVICES, Access.CREATE_AGBOT, Access.READ_MY_AGBOTS, Access.WRITE_MY_AGBOTS, Access.AGBOT_AGREEMENT_DATA_HEARTBEAT, Access.AGBOT_AGREEMENT_CONFIRM, Access.READ_ALL_AGBOTS, Access.STATUS)
   val SUPERUSER = Set(Access.ALL)
-  val DEVICE = Set(Access.READ_MYSELF, Access.WRITE_MYSELF)
-  val AGBOT = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.AGBOT_AGREEMENT_DATA_HEARTBEAT, Access.AGBOT_AGREEMENT_CONFIRM, Access.READ_ALL_DEVICES)
+  val DEVICE = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.SEND_MSG_TO_AGBOT)
+  val AGBOT = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.AGBOT_AGREEMENT_DATA_HEARTBEAT, Access.AGBOT_AGREEMENT_CONFIRM, Access.READ_ALL_DEVICES, Access.SEND_MSG_TO_DEVICE)
   def hasAuthorization(role: Set[Access], access: Access): Boolean = { role.contains(Access.ALL) || role.contains(access) }
-  def isSuperUser(username: String): Boolean = return username == "root"    // only checks the username, does not verify the pw
+  def superUser = "root"
+  def isSuperUser(username: String): Boolean = return username == superUser    // only checks the username, does not verify the pw
 }
 
 case class Creds(id: String, token: String) {     // id and token are generic names and their values can actually be username and password
@@ -105,14 +112,14 @@ object AuthCache {
     def _init(credList: Seq[(String,String,String)], skipRoot: Boolean = false): Unit = {
       for ((id,token,owner) <- credList) {
         val tokens: Tokens = if (Password.isHashed(token)) Tokens("", token) else Tokens(token, Password.hash(token))
-        if (!(skipRoot && id == "root")) _put(id, tokens)     // Note: ExchConfig.createRoot(db) already puts root in the auth cache and we do not want a race condition
+        if (!(skipRoot && Role.isSuperUser(id))) _put(id, tokens)     // Note: ExchConfig.createRoot(db) already puts root in the auth cache and we do not want a race condition
         if (whichTable != "users" && owner != "") _putOwner(id, owner)
       }
     }
 
     /** Returns Some(Tokens) from the cache for this user/id (but verifies with the db 1st), or None if does not exist */
     def get(id: String): Option[Tokens] = {
-      if (Role.isSuperUser(id) || ExchConfig.getBoolean("api.db.memoryDb")) return _get(id)     // root is not in the db, only the cache
+      if (Role.isSuperUser(id)) return _get(id)     // root is always initialized from config.json and put in the cache, and should not be changed at runtime
 
       // Even though we try to put every new/updated id/token or user/pw in our cache, when this server runs in multi-node mode,
       // an update could have come to 1 of the other nodes. The db is our sync point, so always verify our cached hash with the db hash.
@@ -185,7 +192,6 @@ object AuthCache {
     /** Returns Some(owner) from the cache for this id (but verifies with the db 1st), or None if does not exist */
     def getOwner(id: String): Option[String] = {
       if (whichTable == "users") return None      // we never actually call this
-      if (ExchConfig.getBoolean("api.db.memoryDb")) return _getOwner(id)
 
       // Even though we try to put every new/updated owner in our cache, when this server runs in multi-node mode,
       // an update could have come to 1 of the other nodes. The db is our sync point, so always verify our cached owner with the db owner.
@@ -233,7 +239,15 @@ object AuthCache {
     def removeOwner(id: String) = { _removeOwner(id) }
 
     /** Removes all user/id, pw/token pairs from this cache. */
-    def removeAll = { _clear }
+    def removeAll = {
+      val rootTokens = if (whichTable == "users") _get(Role.superUser) else None     // have to preserve the root user or they can not do anything after this
+      _clear
+      rootTokens match {
+        case Some(tokens) => _put(Role.superUser, tokens)
+        case None => ;
+      }
+      removeAllOwners
+    }
     def removeAllOwners = { _clearOwners }
 
     /** Low-level functions to lock on the hashmap */
@@ -268,7 +282,8 @@ trait AuthenticationSupport extends ScalatraBase {
   def credentialsAndLog(anonymousOk: Boolean = false): Creds = {
     val creds = credentials(anonymousOk)
     val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
-    logger.info("User or id "+userOrId+" from "+request.getRemoteAddr+" running "+request.getMethod+" "+request.getPathInfo)
+    val clientIp = request.header("X-Forwarded-For").orElse(Option(request.getRemoteAddr)).get      // haproxy inserts the real client ip into the header for us
+    logger.info("User or id "+userOrId+" from "+clientIp+" running "+request.getMethod+" "+request.getPathInfo)
     if (isDbMigration && !Role.isSuperUser(creds.id)) halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied - in the process of DB migration"))
     return creds
   }
@@ -288,7 +303,7 @@ trait AuthenticationSupport extends ScalatraBase {
           case R1(basicAuthStr) => val basicAuthStr2 = if (basicAuthStr.contains(":")) basicAuthStr else new String(Base64.getDecoder.decode(basicAuthStr), "utf-8")
             val R2 = """^\s*(\S*):(\S*)\s*$""".r      // decode() seems to add a newline at the end
             basicAuthStr2 match {
-              case R2(id,tok) => /*println("id="+id+",tok="+tok+".");*/ Creds(id,tok)
+              case R2(id,tok) => /*logger.trace("id="+id+",tok="+tok+".");*/ Creds(id,tok)
               case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials format: "+basicAuthStr2))
             }
           case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "if the Authorization field in the header is specified, only Basic auth is currently supported"))
@@ -317,31 +332,16 @@ trait AuthenticationSupport extends ScalatraBase {
   /** Returns true if the username and password of a User object in the db match the specified credentials */
   def isAuthenticatedUser(creds: Creds): Boolean = {
     return AuthCache.users.isValid(creds)
-    // Keeping this code here for now in case we end up having a situation in which we need to fall back to the db
-    // TempDb.users.get(creds.id) match {
-    //   case Some(user) => try { Password.check(creds.token, user.password) } catch { case e: Exception => return false }   // can throw IllegalArgumentException: Invalid salt version
-    //   case None => return false
-    // }
   }
 
   /** Returns if the id and token of a Device object in the db match the specified credentials */
   def isAuthenticatedDevice(creds: Creds): Boolean = {
     return AuthCache.devices.isValid(creds)
-    // Keeping this code here for now in case we end up having a situation in which we need to fall back to the db
-    // TempDb.devices.get(creds.id) match {
-    //   case Some(device) => try { Password.check(creds.token, device.token) } catch { case e: Exception => return false }   // can throw IllegalArgumentException: Invalid salt version
-    //   case None => return false
-    // }
   }
 
   /** Returns true if the id and token of an Agbot object in the db match the specified credentials */
   def isAuthenticatedAgbot(creds: Creds): Boolean = {
     return AuthCache.agbots.isValid(creds)
-    // Keeping this code here for now in case we end up having a situation in which we need to fall back to the db
-    // TempDb.agbots.get(creds.id) match {
-    //   case Some(agbot) => try { Password.check(creds.token, agbot.token) } catch { case e: Exception => return false }   // can throw IllegalArgumentException: Invalid salt version
-    //   case None => return false
-    // }
   }
 
   /** Returns true if this authenticated user has access to the specified user object */
@@ -349,6 +349,9 @@ trait AuthenticationSupport extends ScalatraBase {
     if (baseAccess == BaseAccess.ADMIN) {
       val role = if (Role.isSuperUser(username)) Role.SUPERUSER else Role.USER
       return Role.hasAuthorization(role, Access.ADMIN)
+    } else if (baseAccess == BaseAccess.STATUS) {
+      val role = if (Role.isSuperUser(username)) Role.SUPERUSER else Role.USER
+      return Role.hasAuthorization(role, Access.STATUS)
     } else if (baseAccess == BaseAccess.RESET_PW) {
       val role = if (Role.isSuperUser(username)) Role.SUPERUSER else if (username == "") Role.ANONYMOUS else Role.USER
       return Role.hasAuthorization(role, Access.RESET_USER_PW)
@@ -367,27 +370,16 @@ trait AuthenticationSupport extends ScalatraBase {
   /** Returns true if this authenticated user has access to the specified device object */
   def userHasAuthorizationToDevice(username: String, deviceToAccess: String, baseAccess: BaseAccess): Boolean = {
     var iOwnDevice = false
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      if (deviceToAccess == "#") iOwnDevice = true        // "#" means my devices
-      else {
-        TempDb.devices.get(deviceToAccess) match {      // find out if this device exists and i own it
-          case Some(dev) => iOwnDevice = (dev.owner == username)
-          case None => if (baseAccess != CREATE && deviceToAccess != "*") halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "not found"))
-        }
+    if (deviceToAccess == "#") iOwnDevice = true        // "#" means my devices
+    else if (baseAccess != CREATE && deviceToAccess != "*") {
+      AuthCache.devices.getOwner(deviceToAccess) match {
+        case Some(owner) => if (owner == username) iOwnDevice = true else iOwnDevice = false
+        case None => iOwnDevice = true    // if we did not find it, we consider that as owning it because we will create it
       }
-    } else {    // persistence
-      if (deviceToAccess == "#") iOwnDevice = true        // "#" means my devices
-      else if (baseAccess != CREATE && deviceToAccess != "*") {
-        AuthCache.devices.getOwner(deviceToAccess) match {
-          case Some(owner) => if (owner == username) iOwnDevice = true else iOwnDevice = false
-          case None => iOwnDevice = true    // if we did not find it, we consider that as owning it because we will create it
-        }
-        // iOwnDevice = try {
-        //   //TODO: add owner to auth cache so we can fall back to that
-        //   val ownerVector = Await.result(db.run(DevicesTQ.getOwner(deviceToAccess).result), Duration(3000, MILLISECONDS))
-        //   if (ownerVector.size > 0) { if (ownerVector.head == username) true else false } else true    // if we did not find it, we consider that as owning it because we will create it
-        // } catch { case e: java.util.concurrent.TimeoutException => logger.error("getting device '"+deviceToAccess+"' owner timed out"); false }     // could not get it from the db, so have to assume we do not own it
-      }
+      // iOwnDevice = try {
+      //   val ownerVector = Await.result(db.run(DevicesTQ.getOwner(deviceToAccess).result), Duration(3000, MILLISECONDS))
+      //   if (ownerVector.size > 0) { if (ownerVector.head == username) true else false } else true    // if we did not find it, we consider that as owning it because we will create it
+      // } catch { case e: java.util.concurrent.TimeoutException => logger.error("getting device '"+deviceToAccess+"' owner timed out"); false }     // could not get it from the db, so have to assume we do not own it
     }
     var access: Access = Access.READ_MY_DEVICES
     baseAccess match {          // determine the access required, based on the baseAccess and whether i own the device or not
@@ -402,24 +394,16 @@ trait AuthenticationSupport extends ScalatraBase {
   /** Returns true if this authenticated user has access to the specified agbot object */
   def userHasAuthorizationToAgbot(username: String, agbotToAccess: String, baseAccess: BaseAccess): Boolean = {
     var iOwnAgbot = false
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      TempDb.agbots.get(agbotToAccess) match {      // find out if this agbot exists and i own it
-        case Some(agbot) => iOwnAgbot = (agbot.owner == username)
-        case None => if (baseAccess != CREATE && !(agbotToAccess == "*" || agbotToAccess == "#")) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "not found"))
+    if (agbotToAccess == "#") iOwnAgbot = true        // "#" means my agbots
+    else if (baseAccess != CREATE && agbotToAccess != "*") {
+      AuthCache.agbots.getOwner(agbotToAccess) match {
+        case Some(owner) => if (owner == username) iOwnAgbot = true else iOwnAgbot = false
+        case None => iOwnAgbot = true    // if we did not find it, we consider that as owning it because we will create it
       }
-    } else {    // persistence
-      if (agbotToAccess == "#") iOwnAgbot = true        // "#" means my agbots
-      else if (baseAccess != CREATE && agbotToAccess != "*") {
-        AuthCache.agbots.getOwner(agbotToAccess) match {
-          case Some(owner) => if (owner == username) iOwnAgbot = true else iOwnAgbot = false
-          case None => iOwnAgbot = true    // if we did not find it, we consider that as owning it because we will create it
-        }
-        // iOwnAgbot = try {
-        //   //TODO: add owner to auth cache so we can fall back to that
-        //   val ownerVector = Await.result(db.run(AgbotsTQ.getOwner(agbotToAccess).result), Duration(3000, MILLISECONDS))
-        //   if (ownerVector.size > 0) { if (ownerVector.head == username) true else false } else true    // if we did not find it, we consider that as owning it because we will create it
-        // } catch { case e: java.util.concurrent.TimeoutException => logger.error("getting device '"+agbotToAccess+"' owner timed out"); false }     // could not get it from the db, so have to assume we do not own it
-      }
+      // iOwnAgbot = try {
+      //   val ownerVector = Await.result(db.run(AgbotsTQ.getOwner(agbotToAccess).result), Duration(3000, MILLISECONDS))
+      //   if (ownerVector.size > 0) { if (ownerVector.head == username) true else false } else true    // if we did not find it, we consider that as owning it because we will create it
+      // } catch { case e: java.util.concurrent.TimeoutException => logger.error("getting device '"+agbotToAccess+"' owner timed out"); false }     // could not get it from the db, so have to assume we do not own it
     }
     var access: Access = Access.READ_MY_AGBOTS
     baseAccess match {          // determine the access required, based on the baseAccess and whether i own the device or not
@@ -437,13 +421,14 @@ trait AuthenticationSupport extends ScalatraBase {
   def deviceHasAuthorization(id: String, idToAccess: String, baseAccess: BaseAccess): Boolean = {
     var access: Access = Access.READ_MYSELF
     if (id == idToAccess) access = if (baseAccess == BaseAccess.READ) Access.READ_MYSELF else Access.WRITE_MYSELF
+    else if (baseAccess == BaseAccess.SEND_MSG) access = Access.SEND_MSG_TO_AGBOT
     else access = if (baseAccess == BaseAccess.READ) Access.READ_ALL_DEVICES else Access.WRITE_ALL_DEVICES
     return Role.hasAuthorization(Role.DEVICE, access)
   }
 
   /** Returns true if this authenticated agbot id has access to the specified device object */
   def agbotHasAuthorizationToDevice(id: String, idToAccess: String, baseAccess: BaseAccess): Boolean = {
-    val access = if (baseAccess == BaseAccess.READ) Access.READ_ALL_DEVICES else Access.WRITE_ALL_DEVICES
+    val access = if (baseAccess == BaseAccess.READ) Access.READ_ALL_DEVICES else if (baseAccess == BaseAccess.WRITE) Access.WRITE_ALL_DEVICES else Access.NONE
     return Role.hasAuthorization(Role.AGBOT, access)
   }
 
@@ -453,6 +438,7 @@ trait AuthenticationSupport extends ScalatraBase {
     if (id == idToAccess && baseAccess == BaseAccess.DATA_HEARTBEAT) access = Access.AGBOT_AGREEMENT_DATA_HEARTBEAT
     else if (baseAccess == BaseAccess.AGREEMENT_CONFIRM) access = Access.AGBOT_AGREEMENT_CONFIRM       // the implementation of the rest method only searches the agbot agreements owned by the same user
     else if (id == idToAccess) access = if (baseAccess == BaseAccess.READ) Access.READ_MYSELF else Access.WRITE_MYSELF
+    else if (baseAccess == BaseAccess.SEND_MSG) access = Access.SEND_MSG_TO_DEVICE
     else access = if (baseAccess == BaseAccess.READ) Access.READ_ALL_AGBOTS else Access.WRITE_ALL_AGBOTS
     return Role.hasAuthorization(Role.AGBOT, access)
   }
@@ -487,6 +473,13 @@ trait AuthenticationSupport extends ScalatraBase {
     halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
   }
 
+  /** Validates creds as device id/token. */
+  def validateDeviceId(baseAccess: BaseAccess): Creds = {
+    val creds = credentialsAndLog()
+    if (isAuthenticatedDevice(creds)) if (deviceHasAuthorization(creds.id, "", baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
+    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+  }
+
   /** Validates creds, and then validates access to the specified device. */
   def validateAccessToDevice(baseAccess: BaseAccess, id: String): Creds = {
     val creds = credentialsAndLog()
@@ -496,11 +489,18 @@ trait AuthenticationSupport extends ScalatraBase {
     halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
   }
 
-  /** Validates creds as either user/pw or agbot id/token, and then validates access the specified agbot. */
+  /** Validates creds as either user/pw or agbot id/token, and then validates access to the specified agbot. */
   def validateUserOrAgbotId(baseAccess: BaseAccess, id: String): Creds = {
     val creds = credentialsAndLog()
     if (isAuthenticatedUser(creds)) if (userHasAuthorizationToAgbot(creds.id, id, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
     if (isAuthenticatedAgbot(creds)) if (agbotHasAuthorization(creds.id, id, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
+    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+  }
+
+  /** Validates creds as agbot id/token. */
+  def validateAgbotId(baseAccess: BaseAccess): Creds = {
+    val creds = credentialsAndLog()
+    if (isAuthenticatedAgbot(creds)) if (agbotHasAuthorization(creds.id, "", baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
     halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
   }
 
@@ -517,8 +517,6 @@ trait AuthenticationSupport extends ScalatraBase {
   /** Returns a temporary pw reset token. */
   def createToken(username: String): String = {
     // Get their current pw to use as the secret
-    // TempDb.users.get(username) match {
-    //   case Some(user) => Token.create(user.password)
     AuthCache.users.get(username) match {
       case Some(tokens) => if (tokens.unhashed != "") Token.create(tokens.unhashed) else Token.create(tokens.hashed)   // try to create the token with the unhashed pw for consistency with the rest of the code
       case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "username not found"))
@@ -528,8 +526,6 @@ trait AuthenticationSupport extends ScalatraBase {
   /** Returns true if the token is correct for this user and not expired */
   def isTokenValid(token: String, username: String): Boolean = {
     // Get their current pw to use as the secret
-    // TempDb.users.get(username) match {
-    //   case Some(user) => Token.isValid(token, user.password)
     // Using the pw from our auth cache is more consistent with the rest of the code. It exposes 1 case that is so rare we are not going to
     // worry about it: root pw in config.json is hashed (so initially the cached pw is hashed), they run POST /users/{u}/reset (it hashes the reset token with hashed pw), they run any GET as root (which causes us to replace the cached pw with the non-hashed value), they run POST /users/{u}/changepw (which tries to validate the reset token with the unhashed root pw and it fails). In this special case if they go thru the process again, it will succeed.
     AuthCache.users.get(username) match {

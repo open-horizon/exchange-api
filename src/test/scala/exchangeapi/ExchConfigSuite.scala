@@ -13,11 +13,10 @@ import com.horizon.exchangeapi._
 class ExchConfigSuite extends FunSuite {
   test("ExchConfig tests") {
     ExchConfig.load
-    val usingPersistence = !ExchConfig.getBoolean("api.db.memoryDb")
-    info("usingPersistence: "+usingPersistence)
     assert(ExchConfig.getInt("api.limits.maxDevices") === 1000)
     assert(ExchConfig.getInt("api.limits.maxAgbots") === 1000)
-    assert(ExchConfig.getInt("api.limits.maxAgreements") === 100)
+    assert(ExchConfig.getInt("api.limits.maxAgreements") === 1000)
+    assert(ExchConfig.getInt("api.limits.maxMessagesInMailbox") === 500)
     
     assert(ExchConfig.getString("api.specRef.prefix") === "https://bluehorizon.network/documentation/")
     assert(ExchConfig.getString("api.specRef.suffix") === "-device-api")

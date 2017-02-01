@@ -1,7 +1,6 @@
-# Adds agbot a2 as root
+# Gets a hash of the specified pw
 if [[ $1 == "-raw" ]]; then parse=cat; else parse="jq -r ."; fi
 curl -# -w "%{http_code}" -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic root:$EXCHANGE_ROOTPW" -d '{
-  "token": "abcdef",
-  "name": "agbot2-asroot",
-  "msgEndPoint": "whisper-id"
-}' $EXCHANGE_URL_ROOT/v1/agbots/a2 | $parse
+  "varPath": "api.limits.maxDevices",
+  "value": "1"
+}' $EXCHANGE_URL_ROOT/v1/admin/config | $parse

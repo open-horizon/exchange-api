@@ -5,7 +5,7 @@
 SHELL = /bin/bash -e
 ARCH = x86
 DOCKER_NAME ?= exchange-api
-DOCKER_TAG ?= v1.21.0
+DOCKER_TAG ?= v1.22.0
 DOCKER_OPTS ?= --no-cache
 COMPILE_CLEAN ?= clean
 image-string = $(DOCKER_REGISTRY)/$(ARCH)/exchange-api
@@ -58,7 +58,6 @@ docker: .docker-exec
 	@touch $@
 
 .docker-compile: src/main/scala/com/horizon/exchangeapi/* src/main/resources/* .docker-bld
-	sed -i '' 's/\(new SwaggerUi({\) *$$/\1 validatorUrl: null,/' src/main/webapp/index.html   # this is the only way to set validatorUrl to null in swagger
 	docker exec -t $(DOCKER_NAME)_bld /bin/bash -c "cd $(EXCHANGE_API_DIR) && ./sbt package"
 	# war file ends up in: ./target/scala-$SCALA_VERSION_SHORT/exchange-api_$SCALA_VERSION_SHORT-$EXCHANGE_API_WAR_VERSION.war
 	@touch $@
@@ -77,9 +76,9 @@ docker: .docker-exec
 	@touch $@
 
 # Run the automated tests in the bld container against the exchange svr running in the exec container
-#TODO: this does not yet work, because requests to port 8080 in the bld container can not yet get to the exec container
-docker-test:
-	docker exec -t $(DOCKER_NAME)_bld /bin/bash -c "cd $(EXCHANGE_API_DIR) && ./sbt test"
+#TODO: set up a docker network (docker network create <name>) for the test, then run both container instances attached to that net (with --net <name>) and the 0.0.0.0 listening port on the exec container will be reachable by your bld container. Then have it docker network remove <name>
+# docker-test:
+# 	docker exec -t $(DOCKER_NAME)_bld /bin/bash -c "cd $(EXCHANGE_API_DIR) && ./sbt test"
 
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:
@@ -92,8 +91,17 @@ docker-push-version-only:
 
 docker-push: docker docker-push-only
 
+# Get the latest version of the swagger ui from github and copy the dist dir into our repo
 sync-swagger-ui:
-	rsync -aiu ../../../../github.com/swagger-api/swagger-ui/dist/ src/main/webapp
+	rm -rf /tmp/swagger-ui.backup
+	mkdir -p /tmp/swagger-ui.backup
+	cp -a src/main/webapp/* /tmp/swagger-ui.backup    # backup the version of swagger-ui we are currently using, in case the newer verion does not work
+	git -C ../../swagger-api/swagger-ui pull    # update the repo
+	mv src/main/webapp/index.html src/main/webapp/our-index.html   # we have our own main index.html, so move it out of the way temporaily
+	rsync -aiu ../../swagger-api/swagger-ui/dist/ src/main/webapp      # copy the latest dist dir from the repo into our repo
+	mv src/main/webapp/index.html src/main/webapp/swagger-index.html
+	mv src/main/webapp/our-index.html src/main/webapp/index.html
+	sed -i '' 's/\(new SwaggerUi({\) *$$/\1 validatorUrl: null,/' src/main/webapp/swagger-index.html   # this is the only way to set validatorUrl to null in swagger
 
 testmake:
 	echo $(EXCHANGE_EMAIL)

@@ -75,6 +75,20 @@ services in the exchange.
 
 - The properties used for advertising and searching should always have its value element be a string. For example the memory property value should be `"300"` instead of `300`. This is because scalatra is automatically converting the json to scala data structures, and i don't know how to have the data structures that vary in type.
 
+## Changes Between v1.21.0 and v1.22.0
+
+- Added DELETE /devices/{id}/agreements and DELETE /agbots/{id}/agreements to delete all of the agreements of a device/agbot
+- Added GET /(devices|agbots)/{id}?attribute={attrname} to get a single attribute of the device/agbot resource
+- Added PATCH /(devices|agbots)/{id} to set a single attribute of the device/agbot resource
+- Modified PUT /devices/{id} and PUT /agbots/{id} to also take publicKey in the input body (but made it backward compatible so you do not have to specify it)
+- Added POST devices/{device-id}/msgs (to send/create a msg), GET devices/{device-id}/msgs (to read your msgs), and DELETE devices/{device-id}/msgs/{msg-id}. Also added the same methods for agbots.
+- Fixed POST /admin/dropdb to not delete the root user from the authentication cache, so you have credentials to run POST /admin/initdb
+- Improved the implementation of POST /search/devices. All externals are the same, except now if all devices are stale it returns 404 (the json returned is still `{"devices":[],"lastIndex":0}`)
+- Added GET /admin/status to use for monitoring the exchange api svr
+- Added checks so users can not create more devices, agbots, agreements, or msgs than the max numbers allowed in config.json, and added the associated maxMessagesInMailbox in the default config.json
+- Removed all code for the in-memory db (it was not being maintained anyway)
+- Added logging a real client IP (gotten from haproxy)
+
 ## Changes Between v1.20.0 and v1.21.0
 
 - adjusted debug logging to be more helpful and less verbose

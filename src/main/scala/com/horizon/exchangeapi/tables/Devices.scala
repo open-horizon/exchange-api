@@ -15,14 +15,13 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}   //rena
 
 /** Contains the object representations of the DB tables related to devices. */
 
-// case class DeviceRow(id: String, token: String, name: String, owner: String, msgEndPoint: String, lastHeartbeat: String) {
-case class DeviceRow(id: String, token: String, name: String, owner: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String) {
+case class DeviceRow(id: String, token: String, name: String, owner: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toDevice(superUser: Boolean): Device = {
     val tok = if (superUser) token else StrConstants.hiddenPw
     val swv = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
-    new Device(tok, name, owner, List[Microservice](), msgEndPoint, swv, lastHeartbeat)
+    new Device(tok, name, owner, List[Microservice](), msgEndPoint, swv, lastHeartbeat, publicKey)
   }
 
   def putInHashMap(superUser: Boolean, devs: MutableHashMap[String,Device]): Unit = {
@@ -35,15 +34,15 @@ case class DeviceRow(id: String, token: String, name: String, owner: String, msg
   def upsert: DBIO[_] = {
     // Note: this currently does not do the right thing for a blank token
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (owner == "root") DevicesTQ.rows.map(d => (d.id, d.token, d.name, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat)).insertOrUpdate((id, tok, name, msgEndPoint, softwareVersions, lastHeartbeat))
-    else DevicesTQ.rows.insertOrUpdate(DeviceRow(id, tok, name, owner, msgEndPoint, softwareVersions, lastHeartbeat))
+    if (owner == "root") DevicesTQ.rows.map(d => (d.id, d.token, d.name, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey)).insertOrUpdate((id, tok, name, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    else DevicesTQ.rows.insertOrUpdate(DeviceRow(id, tok, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
   }
 
   def update: DBIO[_] = {
     // Note: this currently does not do the right thing for a blank token
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (owner == "") (for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.token,d.name,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat)).update((id, tok, name, msgEndPoint, softwareVersions, lastHeartbeat))
-    else (for { d <- DevicesTQ.rows if d.id === id } yield d).update(DeviceRow(id, tok, name, owner, msgEndPoint, softwareVersions, lastHeartbeat))
+    if (owner == "") (for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.token,d.name,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey)).update((id, tok, name, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    else (for { d <- DevicesTQ.rows if d.id === id } yield d).update(DeviceRow(id, tok, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
   }
 }
 
@@ -56,8 +55,9 @@ class Devices(tag: Tag) extends Table[DeviceRow](tag, "devices") {
   def msgEndPoint = column[String]("msgendpoint")
   def softwareVersions = column[String]("swversions")
   def lastHeartbeat = column[String]("lastheartbeat")
+  def publicKey = column[String]("publickey")     // this is last because that is where alter table in upgradedb puts it
   // this describes what you get back when you return rows from a query
-  def * = (id, token, name, owner, msgEndPoint, softwareVersions, lastHeartbeat) <> (DeviceRow.tupled, DeviceRow.unapply)
+  def * = (id, token, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey) <> (DeviceRow.tupled, DeviceRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
@@ -71,7 +71,25 @@ object DevicesTQ {
   def getDevice(id: String) = rows.filter(_.id === id)
   def getToken(id: String) = rows.filter(_.id === id).map(_.token)
   def getOwner(id: String) = rows.filter(_.id === id).map(_.owner)
+  def getNumOwned(owner: String) = rows.filter(_.owner === owner).length
   def getLastHeartbeat(id: String) = rows.filter(_.id === id).map(_.lastHeartbeat)
+  def getPublicKey(id: String) = rows.filter(_.id === id).map(_.publicKey)
+
+  /** Returns a query for the specified device attribute value. Returns null if an invalid attribute name is given. */
+  def getAttribute(id: String, attrName: String): Query[_,_,Seq] = {
+    val filter = rows.filter(_.id === id)
+    // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
+    return attrName match {
+      case "token" => filter.map(_.token)
+      case "name" => filter.map(_.name)
+      case "owner" => filter.map(_.owner)
+      case "msgEndPoint" => filter.map(_.msgEndPoint)
+      case "softwareVersions" => filter.map(_.softwareVersions)
+      case "lastHeartbeat" => filter.map(_.lastHeartbeat)
+      case "publicKey" => filter.map(_.publicKey)
+      case _ => null
+    }
+  }
 
   /** Returns the actions to delete the device and any micros/props and agreements that reference it */
   def getDeleteActions(id: String): DBIO[_] = DBIO.seq(
@@ -115,8 +133,8 @@ object DevicesTQ {
 }
 
 // This is the device table minus the key - used as the data structure to return to the REST clients
-class Device(var token: String, var name: String, var owner: String, var registeredMicroservices: List[Microservice], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String) {
-  def copy = new Device(token, name, owner, registeredMicroservices, msgEndPoint, softwareVersions, lastHeartbeat)
+class Device(var token: String, var name: String, var owner: String, var registeredMicroservices: List[Microservice], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String) {
+  def copy = new Device(token, name, owner, registeredMicroservices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey)
 }
 
 case class DeviceAgreementRow(agId: String, deviceId: String, microservice: String, state: String, lastUpdated: String) {
@@ -140,6 +158,7 @@ object DeviceAgreementsTQ {
 
   def getAgreements(deviceId: String) = rows.filter(_.deviceId === deviceId)
   def getAgreement(deviceId: String, agId: String) = rows.filter( r => {r.deviceId === deviceId && r.agId === agId} )
+  def getNumOwned(deviceId: String) = rows.filter(_.deviceId === deviceId).length
   def getAgreementsWithState = rows.filter(_.state =!= "")
 }
 
@@ -181,6 +200,39 @@ class AgreementsHash(tempDbDevicesAgreements: MutableHashMap[String,MutableHashM
     }
   } else {}     //TODO: throw exception
 }
+
+
+/** The devmsgs table holds the msgs sent to devices by agbots */
+case class DeviceMsgRow(msgId: Int, deviceId: String, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String) {
+  def toDeviceMsg = DeviceMsg(msgId, agbotId, agbotPubKey, message, timeSent, timeExpires)
+
+  def insert: DBIO[_] = ((DeviceMsgsTQ.rows returning DeviceMsgsTQ.rows.map(_.msgId)) += this)  // inserts the row and returns the msgId of the new row
+  def upsert: DBIO[_] = DeviceMsgsTQ.rows.insertOrUpdate(this)    // do not think we need this
+}
+
+class DeviceMsgs(tag: Tag) extends Table[DeviceMsgRow](tag, "devmsgs") {
+  def msgId = column[Int]("msgid", O.PrimaryKey, O.AutoInc)    // this enables them to delete a msg and helps us deliver them in order
+  def deviceId = column[String]("deviceid")       // msg recipient
+  def agbotId = column[String]("agbotid")         // msg sender
+  def agbotPubKey = column[String]("agbotpubkey")
+  def message = column[String]("message")
+  def timeSent = column[String]("timesent")
+  def timeExpires = column[String]("timeexpires")
+  def * = (msgId, deviceId, agbotId, agbotPubKey, message, timeSent, timeExpires) <> (DeviceMsgRow.tupled, DeviceMsgRow.unapply)
+  def device = foreignKey("device_fk", deviceId, DevicesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object DeviceMsgsTQ {
+  val rows = TableQuery[DeviceMsgs]
+
+  def getMsgs(deviceId: String) = rows.filter(_.deviceId === deviceId)  // this is that devices msg mailbox
+  def getMsg(deviceId: String, msgId: Int) = rows.filter( r => {r.deviceId === deviceId && r.msgId === msgId} )
+  def getMsgsExpired = rows.filter(_.timeExpires < ApiTime.nowUTC)
+  def getNumOwned(deviceId: String) = rows.filter(_.deviceId === deviceId).length
+}
+
+case class DeviceMsg(msgId: Int, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String)
 
 /*
 case class SoftwareVersionRow(swId: Int, deviceId: String, name: String, version: String) {

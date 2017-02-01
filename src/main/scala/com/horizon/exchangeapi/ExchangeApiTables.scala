@@ -21,15 +21,31 @@ import com.horizon.exchangeapi.tables._
 /** The umbrella class for the DB tables. The specific table classes are in the tables subdir. */
 object ExchangeApiTables {
 
-  val create = (UsersTQ.rows.schema ++ DevicesTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema).create
+  val create = (UsersTQ.rows.schema ++ DevicesTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema).create
+
+  // Alter the schema of existing tables
+  // Note: the compose/bluemix version of postgresql does not support the 'if not exists' option
+  // val alterTables = DBIO.seq(sqlu"alter table devices add column if not exists publickey character varying not null default ''", sqlu"alter table agbots add column if not exists publickey character varying not null default ''")
+  val alterTables = DBIO.seq(sqlu"alter table devices add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
+
+  // Used to create just the new tables in this version, so we do not have to disrupt the existing tables
+  val createNewTables = (DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema).create
 
   // val delete = (AgbotAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ PropsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ DevicesTQ.rows.schema ++ UsersTQ.rows.schema).drop
-  // Note: doing this because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints, we should be ok with the drops below?
-  val delete = DBIO.seq(sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
+  // Note: doing this because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints (only adding), we should be ok with the drops below?
+  val delete = DBIO.seq(sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
 
+  // Remove the alters of existing tables
+  // val unAlterTables = DBIO.seq(sqlu"alter table devices drop column if exists publickey", sqlu"alter table agbots drop column if exists publickey")
+  val unAlterTables = DBIO.seq(sqlu"alter table devices drop column publickey", sqlu"alter table agbots drop column publickey")
+
+  // Used to delete just the new tables in this version (so we can recreate), so we do not have to disrupt the existing tables
+  val deleteNewTables = DBIO.seq(sqlu"drop table devmsgs", sqlu"drop table agbotmsgs")
+
+  // Populate the tables with a few rows. This is rarely used.
   val setup = DBIO.seq(
     UsersTQ.rows += UserRow("bp", Password.hash("mypw"), "bruceandml@gmail.com", ApiTime.nowUTC),
-    DevicesTQ.rows += DeviceRow("1", Password.hash("abc123"), "rpi1", "bp", "whisper-1", """{"horizon":"1.2.3"}""", ApiTime.nowUTC),
+    DevicesTQ.rows += DeviceRow("1", Password.hash("abc123"), "rpi1", "bp", "whisper-1", """{"horizon":"1.2.3"}""", ApiTime.nowUTC, "ABC"),
       // SoftwareVersionsTQ.rows += SoftwareVersionRow(0, "1", "kernel", "3.13.0-79-generic"),
       MicroservicesTQ.rows += MicroserviceRow("1|http://bluehorizon.network/documentation/sdr-device-api", "1", "http://bluehorizon.network/documentation/sdr-device-api", 1, "{dev1-sdr-policy}"),
         PropsTQ.rows += PropRow("1|http://bluehorizon.network/documentation/sdr-device-api|arch", "1|http://bluehorizon.network/documentation/sdr-device-api", "arch", "arm", "string", "in"),
@@ -41,7 +57,7 @@ object ExchangeApiTables {
         PropsTQ.rows += PropRow("1|http://bluehorizon.network/documentation/netspeed-device-api|arch", "1|http://bluehorizon.network/documentation/netspeed-device-api", "arch", "arm", "string", "in"),
         PropsTQ.rows += PropRow("1|http://bluehorizon.network/documentation/netspeed-device-api|memory", "1|http://bluehorizon.network/documentation/netspeed-device-api", "version", "1.0.0", "version", "in"),
 
-    DevicesTQ.rows += DeviceRow("d2", Password.hash("abc"), "rpi2", "bp", "whisper-d2", "{}", ApiTime.nowUTC),
+    DevicesTQ.rows += DeviceRow("d2", Password.hash("abc"), "rpi2", "bp", "whisper-d2", "{}", ApiTime.nowUTC, "ABC2"),
       MicroservicesTQ.rows += MicroserviceRow("d2|http:///netspeed", "d2", "http:///netspeed", 1, "{dev2-netspeed-policy}"),
         PropsTQ.rows += PropRow("d2|http:///netspeed|arch", "d2|http:///netspeed", "arch", "arm", "string", "in"),
         PropsTQ.rows += PropRow("d2|http:///netspeed|agreementProtocols", "d2|http:///netspeed", "agreementProtocols", "ExchangeManualTest", "list", "in")
@@ -84,6 +100,16 @@ object ExchangeApiTables {
       val filename = dumpDir+"/agbotagreements"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[AgbotAgreementRow](filename).dump(xs)
+      DeviceMsgsTQ.rows.result
+    }).flatMap({ xs =>
+      val filename = dumpDir+"/devmsgs"+dumpSuffix
+      logger.info("dumping "+xs.size+" rows to "+filename)
+      new TableIo[DeviceMsgRow](filename).dump(xs)
+      AgbotMsgsTQ.rows.result
+    }).flatMap({ xs =>
+      val filename = dumpDir+"/agbotmsgs"+dumpSuffix
+      logger.info("dumping "+xs.size+" rows to "+filename)
+      new TableIo[AgbotMsgRow](filename).dump(xs)
       AgbotAgreementsTQ.rows.result     // we do not need this redundant query, but flatMap has to return an action
     })
 
@@ -143,6 +169,12 @@ object ExchangeApiTables {
 
     val agbotagreements = new TableIo[AgbotAgreementRow](dumpDir+"/agbotagreements"+dumpSuffix).load
     if (agbotagreements.size > 0) actions += (AgbotAgreementsTQ.rows ++= agbotagreements)
+
+    val devicemsgs = new TableIo[DeviceMsgRow](dumpDir+"/devmsgs"+dumpSuffix).load
+    if (devicemsgs.size > 0) actions += (DeviceMsgsTQ.rows ++= devicemsgs)
+
+    val agbotmsgs = new TableIo[AgbotMsgRow](dumpDir+"/agbotmsgs"+dumpSuffix).load
+    if (agbotmsgs.size > 0) actions += (AgbotMsgsTQ.rows ++= agbotmsgs)
 
     return actions.toList
   }

@@ -119,7 +119,7 @@ object AuthCache {
 
     /** Returns Some(Tokens) from the cache for this user/id (but verifies with the db 1st), or None if does not exist */
     def get(id: String): Option[Tokens] = {
-      if (Role.isSuperUser(id) || ExchConfig.getBoolean("api.db.memoryDb")) return _get(id)     // root is not in the db, only the cache
+      if (Role.isSuperUser(id)) return _get(id)     // root is always initialized from config.json and put in the cache, and should not be changed at runtime
 
       // Even though we try to put every new/updated id/token or user/pw in our cache, when this server runs in multi-node mode,
       // an update could have come to 1 of the other nodes. The db is our sync point, so always verify our cached hash with the db hash.
@@ -192,7 +192,6 @@ object AuthCache {
     /** Returns Some(owner) from the cache for this id (but verifies with the db 1st), or None if does not exist */
     def getOwner(id: String): Option[String] = {
       if (whichTable == "users") return None      // we never actually call this
-      if (ExchConfig.getBoolean("api.db.memoryDb")) return _getOwner(id)
 
       // Even though we try to put every new/updated owner in our cache, when this server runs in multi-node mode,
       // an update could have come to 1 of the other nodes. The db is our sync point, so always verify our cached owner with the db owner.
@@ -333,31 +332,16 @@ trait AuthenticationSupport extends ScalatraBase {
   /** Returns true if the username and password of a User object in the db match the specified credentials */
   def isAuthenticatedUser(creds: Creds): Boolean = {
     return AuthCache.users.isValid(creds)
-    // Keeping this code here for now in case we end up having a situation in which we need to fall back to the db
-    // TempDb.users.get(creds.id) match {
-    //   case Some(user) => try { Password.check(creds.token, user.password) } catch { case e: Exception => return false }   // can throw IllegalArgumentException: Invalid salt version
-    //   case None => return false
-    // }
   }
 
   /** Returns if the id and token of a Device object in the db match the specified credentials */
   def isAuthenticatedDevice(creds: Creds): Boolean = {
     return AuthCache.devices.isValid(creds)
-    // Keeping this code here for now in case we end up having a situation in which we need to fall back to the db
-    // TempDb.devices.get(creds.id) match {
-    //   case Some(device) => try { Password.check(creds.token, device.token) } catch { case e: Exception => return false }   // can throw IllegalArgumentException: Invalid salt version
-    //   case None => return false
-    // }
   }
 
   /** Returns true if the id and token of an Agbot object in the db match the specified credentials */
   def isAuthenticatedAgbot(creds: Creds): Boolean = {
     return AuthCache.agbots.isValid(creds)
-    // Keeping this code here for now in case we end up having a situation in which we need to fall back to the db
-    // TempDb.agbots.get(creds.id) match {
-    //   case Some(agbot) => try { Password.check(creds.token, agbot.token) } catch { case e: Exception => return false }   // can throw IllegalArgumentException: Invalid salt version
-    //   case None => return false
-    // }
   }
 
   /** Returns true if this authenticated user has access to the specified user object */
@@ -386,27 +370,16 @@ trait AuthenticationSupport extends ScalatraBase {
   /** Returns true if this authenticated user has access to the specified device object */
   def userHasAuthorizationToDevice(username: String, deviceToAccess: String, baseAccess: BaseAccess): Boolean = {
     var iOwnDevice = false
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      if (deviceToAccess == "#") iOwnDevice = true        // "#" means my devices
-      else {
-        TempDb.devices.get(deviceToAccess) match {      // find out if this device exists and i own it
-          case Some(dev) => iOwnDevice = (dev.owner == username)
-          case None => if (baseAccess != CREATE && deviceToAccess != "*") halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "not found"))
-        }
+    if (deviceToAccess == "#") iOwnDevice = true        // "#" means my devices
+    else if (baseAccess != CREATE && deviceToAccess != "*") {
+      AuthCache.devices.getOwner(deviceToAccess) match {
+        case Some(owner) => if (owner == username) iOwnDevice = true else iOwnDevice = false
+        case None => iOwnDevice = true    // if we did not find it, we consider that as owning it because we will create it
       }
-    } else {    // persistence
-      if (deviceToAccess == "#") iOwnDevice = true        // "#" means my devices
-      else if (baseAccess != CREATE && deviceToAccess != "*") {
-        AuthCache.devices.getOwner(deviceToAccess) match {
-          case Some(owner) => if (owner == username) iOwnDevice = true else iOwnDevice = false
-          case None => iOwnDevice = true    // if we did not find it, we consider that as owning it because we will create it
-        }
-        // iOwnDevice = try {
-        //   //TODO: add owner to auth cache so we can fall back to that
-        //   val ownerVector = Await.result(db.run(DevicesTQ.getOwner(deviceToAccess).result), Duration(3000, MILLISECONDS))
-        //   if (ownerVector.size > 0) { if (ownerVector.head == username) true else false } else true    // if we did not find it, we consider that as owning it because we will create it
-        // } catch { case e: java.util.concurrent.TimeoutException => logger.error("getting device '"+deviceToAccess+"' owner timed out"); false }     // could not get it from the db, so have to assume we do not own it
-      }
+      // iOwnDevice = try {
+      //   val ownerVector = Await.result(db.run(DevicesTQ.getOwner(deviceToAccess).result), Duration(3000, MILLISECONDS))
+      //   if (ownerVector.size > 0) { if (ownerVector.head == username) true else false } else true    // if we did not find it, we consider that as owning it because we will create it
+      // } catch { case e: java.util.concurrent.TimeoutException => logger.error("getting device '"+deviceToAccess+"' owner timed out"); false }     // could not get it from the db, so have to assume we do not own it
     }
     var access: Access = Access.READ_MY_DEVICES
     baseAccess match {          // determine the access required, based on the baseAccess and whether i own the device or not
@@ -421,24 +394,16 @@ trait AuthenticationSupport extends ScalatraBase {
   /** Returns true if this authenticated user has access to the specified agbot object */
   def userHasAuthorizationToAgbot(username: String, agbotToAccess: String, baseAccess: BaseAccess): Boolean = {
     var iOwnAgbot = false
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      TempDb.agbots.get(agbotToAccess) match {      // find out if this agbot exists and i own it
-        case Some(agbot) => iOwnAgbot = (agbot.owner == username)
-        case None => if (baseAccess != CREATE && !(agbotToAccess == "*" || agbotToAccess == "#")) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "not found"))
+    if (agbotToAccess == "#") iOwnAgbot = true        // "#" means my agbots
+    else if (baseAccess != CREATE && agbotToAccess != "*") {
+      AuthCache.agbots.getOwner(agbotToAccess) match {
+        case Some(owner) => if (owner == username) iOwnAgbot = true else iOwnAgbot = false
+        case None => iOwnAgbot = true    // if we did not find it, we consider that as owning it because we will create it
       }
-    } else {    // persistence
-      if (agbotToAccess == "#") iOwnAgbot = true        // "#" means my agbots
-      else if (baseAccess != CREATE && agbotToAccess != "*") {
-        AuthCache.agbots.getOwner(agbotToAccess) match {
-          case Some(owner) => if (owner == username) iOwnAgbot = true else iOwnAgbot = false
-          case None => iOwnAgbot = true    // if we did not find it, we consider that as owning it because we will create it
-        }
-        // iOwnAgbot = try {
-        //   //TODO: add owner to auth cache so we can fall back to that
-        //   val ownerVector = Await.result(db.run(AgbotsTQ.getOwner(agbotToAccess).result), Duration(3000, MILLISECONDS))
-        //   if (ownerVector.size > 0) { if (ownerVector.head == username) true else false } else true    // if we did not find it, we consider that as owning it because we will create it
-        // } catch { case e: java.util.concurrent.TimeoutException => logger.error("getting device '"+agbotToAccess+"' owner timed out"); false }     // could not get it from the db, so have to assume we do not own it
-      }
+      // iOwnAgbot = try {
+      //   val ownerVector = Await.result(db.run(AgbotsTQ.getOwner(agbotToAccess).result), Duration(3000, MILLISECONDS))
+      //   if (ownerVector.size > 0) { if (ownerVector.head == username) true else false } else true    // if we did not find it, we consider that as owning it because we will create it
+      // } catch { case e: java.util.concurrent.TimeoutException => logger.error("getting device '"+agbotToAccess+"' owner timed out"); false }     // could not get it from the db, so have to assume we do not own it
     }
     var access: Access = Access.READ_MY_AGBOTS
     baseAccess match {          // determine the access required, based on the baseAccess and whether i own the device or not
@@ -552,8 +517,6 @@ trait AuthenticationSupport extends ScalatraBase {
   /** Returns a temporary pw reset token. */
   def createToken(username: String): String = {
     // Get their current pw to use as the secret
-    // TempDb.users.get(username) match {
-    //   case Some(user) => Token.create(user.password)
     AuthCache.users.get(username) match {
       case Some(tokens) => if (tokens.unhashed != "") Token.create(tokens.unhashed) else Token.create(tokens.hashed)   // try to create the token with the unhashed pw for consistency with the rest of the code
       case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "username not found"))
@@ -563,8 +526,6 @@ trait AuthenticationSupport extends ScalatraBase {
   /** Returns true if the token is correct for this user and not expired */
   def isTokenValid(token: String, username: String): Boolean = {
     // Get their current pw to use as the secret
-    // TempDb.users.get(username) match {
-    //   case Some(user) => Token.isValid(token, user.password)
     // Using the pw from our auth cache is more consistent with the rest of the code. It exposes 1 case that is so rare we are not going to
     // worry about it: root pw in config.json is hashed (so initially the cached pw is hashed), they run POST /users/{u}/reset (it hashes the reset token with hashed pw), they run any GET as root (which causes us to replace the cached pw with the non-hashed value), they run POST /users/{u}/changepw (which tries to validate the reset token with the unhashed root pw and it fails). In this special case if they go thru the process again, it will succeed.
     AuthCache.users.get(username) match {

@@ -17,18 +17,11 @@ import ch.qos.logback.classic.{Logger, Level}     // unfortunately, the slf4j ab
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
 
-/** Temp data structure mimicking our real db for the rest api methods i am still developing. */
+/** Temp data structure mimicking our real db for the rest api methods i am still developing.
 object TempDb {
   def init = {}    // called from ScalatraBootstrap just to force this object to be instantiated
 
-  var devices = new MutableHashMap[String,Device]() /* += (("1",
-    new Device(Password.hash("abc123"),"rpi1","bp",List(Microservice("https://bluehorizon.network/documentation/sdr-device-api",1,"{json policy for rpi1 sdr}",List(
-      Prop("arch","arm","string","in"),
-      Prop("memory","300","int",">="),
-      Prop("version","1.0.0","version","in"),
-      Prop("dataVerification","true","boolean","=")))),
-      "whisper id", Map("horizon"->"1.2.3"), "2016-09-19T13:04:56.850Z[UTC]")
-    )) */
+  var devices = new MutableHashMap[String,Device]()
   PutDevicesRequest("abc123", "rpi1",
     List(
       Microservice("https://bluehorizon.network/documentation/sdr-device-api",1,"{json policy for rpi1 sdr}",List(
@@ -49,9 +42,10 @@ object TempDb {
   var devicesAgreements = MutableHashMap[String,MutableHashMap[String,DeviceAgreement]]()    // the 1st level key is the device id, the 2nd level key is the agreement id
   var agbotsAgreements = MutableHashMap[String,MutableHashMap[String,AgbotAgreement]]()    // the 1st level key is the agbot id, the 2nd level key is the agreement id
 
-  var users = new MutableHashMap[String,User]() // += (("bp", new User(Password.hash("mypw"),"bruceandml@gmail.com","2016-09-19T13:04:56.850Z[UTC]")))
+  var users = new MutableHashMap[String,User]()
   PutUsersRequest("mypw", "bruceandml@gmail.com").copyToTempDb("bp", true)
 }
+*/
 
 /** Global config parameters for the exchange. See typesafe config classes: http://typesafehub.github.io/config/latest/api/ */
 object ExchConfig {

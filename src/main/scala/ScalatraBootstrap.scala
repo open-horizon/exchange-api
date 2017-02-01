@@ -24,13 +24,9 @@ class ScalatraBootstrap extends LifeCycle {
 
   // Load the db backend. The db access info must be in config.json
   var cpds: ComboPooledDataSource = null
-  if (!ExchConfig.getBoolean("api.db.memoryDb")) {
-    cpds = new ComboPooledDataSource
-    configureC3p0(cpds)
-    logger.info("Created c3p0 connection pool")
-  } else {
-    TempDb.init
-  }
+  cpds = new ComboPooledDataSource
+  configureC3p0(cpds)
+  logger.info("Created c3p0 connection pool")
 
   /** Initialize the main servlet.
    *

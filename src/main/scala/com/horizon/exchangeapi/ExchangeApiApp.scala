@@ -45,12 +45,10 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
   protected implicit def executor = scala.concurrent.ExecutionContext.Implicits.global
 
   // Initialize authentication cache from objects in the db
-  if (!ExchConfig.getBoolean("api.db.memoryDb")) {
-    ExchConfig.createRoot(db)
-    AuthCache.users.init(db)
-    AuthCache.devices.init(db)
-    AuthCache.agbots.init(db)
-  }
+  ExchConfig.createRoot(db)
+  AuthCache.users.init(db)
+  AuthCache.devices.init(db)
+  AuthCache.agbots.init(db)
 
   // All of the route implementations are in traits called *Routes
 }

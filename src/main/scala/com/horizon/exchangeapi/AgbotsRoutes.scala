@@ -30,21 +30,6 @@ case class PutAgbotsRequest(token: String, name: String, msgEndPoint: String, pu
     if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))
   }
 
-  /* Puts this entry in the database */
-  def copyToTempDb(id: String, owner: String) = {
-    var tok = if (token == "") "" else Password.hash(token)
-    var own = owner
-    TempDb.agbots.get(id) match {
-      // If the agbot exists and token in body is "" then do not overwrite token in the db entry
-      case Some(agbot) => if (token == "") tok = agbot.token              // do not need to hash it because it already is
-        if (owner == "" || Role.isSuperUser(owner)) own = agbot.owner
-      case None => ;
-    }
-    val dbAgbot = new Agbot(tok, name, own, msgEndPoint, ApiTime.nowUTC, publicKey)
-    TempDb.agbots.put(id, dbAgbot)
-    if (token != "") AuthCache.agbots.put(Creds(id, token))    // the token passed in to the cache should be the non-hashed one
-  }
-
   /** Get the db queries to insert or update the agbot */
   def getDbUpsert(id: String, owner: String): DBIO[_] = AgbotRow(id, token, name, owner, msgEndPoint, ApiTime.nowUTC, publicKey).upsert
 
@@ -79,15 +64,6 @@ case class GetAgbotAgreementsResponse(agreements: Map[String,AgbotAgreement], la
 
 /** Input format for PUT /agbots/{id}/agreements/<agreement-id> */
 case class PutAgbotAgreementRequest(workload: String, state: String) {
-  /* Puts this entry in the database */
-  def copyToTempDb(agbotid: String, agid: String) = {
-    TempDb.agbotsAgreements.get(agbotid) match {
-      case Some(agbotValue) => agbotValue.put(agid, AgbotAgreement(workload, state, ApiTime.nowUTC, ""))
-      case None => val agbotValue = new MutableHashMap[String,AgbotAgreement]() += ((agid, AgbotAgreement(workload, state, ApiTime.nowUTC, "")))
-        TempDb.agbotsAgreements += ((agbotid, agbotValue))    // this devid is not already in the db, add it
-    }
-  }
-
   def toAgbotAgreement = AgbotAgreement(workload, state, ApiTime.nowUTC, "")
   def toAgbotAgreementRow(agbotId: String, agrId: String) = AgbotAgreementRow(agrId, agbotId, workload, state, ApiTime.nowUTC, "")
 }
@@ -95,21 +71,7 @@ case class PutAgbotAgreementRequest(workload: String, state: String) {
 case class PostAgbotsIsRecentDataRequest(secondsStale: Int, agreementIds: List[String])     // the strings in the list are agreement ids
 case class PostAgbotsIsRecentDataElement(agreementId: String, recentData: Boolean)
 
-case class PostAgreementsConfirmRequest(agreementId: String) {
-  /** Returns true if this agreementId is owned by an agbot owned by this owner, and the agreement is active. */
-  def confirmTempDb(owner: String): Boolean = {
-    // Find the agreement ids in any of this user's agbots
-    val agbotIds = TempDb.agbots.toMap.filter(a => a._2.owner == owner).keys.toSet      // all the agbots owned by this user
-    val agbotsAgreements = TempDb.agbotsAgreements.toMap.filter(a => agbotIds.contains(a._1) && a._2.keys.toSet.contains(agreementId))    // agbotsAgreements is hash of hash: 1st key is agbot id, 2nd key is agreement id, value is agreement info
-    // we still have the same hash of hash, but have reduced the top level to only agbot ids that contain these agreement ids
-    if (agbotsAgreements.size == 0) return false
-    // println(agbotsAgreements)
-
-    // Find the state of the agreement
-    val agreementMap = agbotsAgreements.values.head     // get the agreement hash that contained this agreement id
-    return agreementMap.get(agreementId).get.state != ""
-  }
-}
+case class PostAgreementsConfirmRequest(agreementId: String)
 
 
 /** Input body for POST /agbots/{id}/msgs */
@@ -146,32 +108,19 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles GET /agbots. Normally called by the user to see all agbots. */
   get("/agbots", operation(getAgbots)) ({
-    // logger.info("GET /agbots")
     val creds = validateUserOrAgbotId(BaseAccess.READ, "*")
     val superUser = isSuperUser(creds)
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      var agbots = TempDb.agbots.toMap
-      if (!superUser) agbots = agbots.mapValues(a => {val a2 = a.copy; a2.token = "********"; a2})
-      GetAgbotsResponse(agbots, 0)
-    } else {
-      // var q = AgbotsTQ.rows.to[scala.collection.Seq]
-      var q = AgbotsTQ.rows.subquery
-      // add filters
-      // params.get("idfilter") match {
-      //   case Some(id) => q = AgbotsTQ.getAgbot(id)
-      //   case _ => ;
-      // }
-      params.get("idfilter").foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
-      params.get("name").foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
-      params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
+    var q = AgbotsTQ.rows.subquery
+    params.get("idfilter").foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
+    params.get("name").foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
+    params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
 
-      db.run(q.result).map({ list =>
-        logger.debug("GET /agbots result size: "+list.size)
-        val agbots = new MutableHashMap[String,Agbot]
-        for (a <- list) agbots.put(a.id, a.toAgbot(superUser))
-        GetAgbotsResponse(agbots.toMap, 0)
-      })
-    }
+    db.run(q.result).map({ list =>
+      logger.debug("GET /agbots result size: "+list.size)
+      val agbots = new MutableHashMap[String,Agbot]
+      for (a <- list) agbots.put(a.id, a.toAgbot(superUser))
+      GetAgbotsResponse(agbots.toMap, 0)
+    })
   })
 
   /* ====== GET /agbots/{id} ================================ */
@@ -248,10 +197,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles PUT /agbot/{id}. Normally called by agbot to add/update itself. */
   put("/agbots/:id", operation(putAgbots)) ({
-    // logger.info("PUT /agbots/"+params("id"))
     val id = params("id")
-    val baseAccess = if (TempDb.agbots.contains(id)) BaseAccess.WRITE else BaseAccess.CREATE
-    val creds = validateUserOrAgbotId(baseAccess, id)
+    val creds = validateUserOrAgbotId(BaseAccess.WRITE, id)
     val agbot = try { parse(request.body).extract[PutAgbotsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     agbot.validate
@@ -347,30 +294,21 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles DELETE /agbots/{id}. */
   delete("/agbots/:id", operation(deleteAgbots)) ({
-    // logger.info("DELETE /agbots/"+params("id"))
     val id = params("id")
     validateUserOrAgbotId(BaseAccess.WRITE, id)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      TempDb.agbots.remove(id)
-      TempDb.agbotsAgreements.remove(id)       // remove the agreements for this agbot
-      AuthCache.agbots.remove(id)    // do this after removing from the real db, in case that fails
-      status_=(HttpCode.DELETED)
-      ApiResponse(ApiResponseType.OK, "agbot deleted from the exchange")
-    } else {
-      db.run(AgbotsTQ.getDeleteActions(id).transactionally.asTry).map({ xs =>
-        logger.debug("DELETE /agbots/"+id+" result: "+xs.toString)
-        xs match {
-          case Success(v) => ;
-            AuthCache.agbots.remove(id)
-            resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, "agbot deleted")
-          case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)    // not considered an error, because they wanted the resource gone and it is
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+id+"' not deleted: "+t.toString)
-          }
-      })
-    }
+    db.run(AgbotsTQ.getDeleteActions(id).transactionally.asTry).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+" result: "+xs.toString)
+      xs match {
+        case Success(v) => ;
+          AuthCache.agbots.remove(id)
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "agbot deleted")
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)    // not considered an error, because they wanted the resource gone and it is
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+id+"' not deleted: "+t.toString)
+        }
+    })
   })
 
   // =========== POST /agbots/{id}/heartbeat ===============================
@@ -386,35 +324,23 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles POST /agbots/{id}/heartbeat. */
   post("/agbots/:id/heartbeat", operation(postAgbotsHeartbeat)) ({
-    // logger.info("POST /agbots/"+params("id")+"/heartbeat")
     val id = params("id")
     validateUserOrAgbotId(BaseAccess.WRITE, id)
     val resp = response
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      val agbot = TempDb.agbots.get(id)
-      agbot match {
-        case Some(agbot) => agbot.lastHeartbeat = ApiTime.nowUTC
-          status_=(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "heartbeat successful")
-        case None => status_=(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "agbot id '"+id+"' not found")
+    db.run(AgbotsTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry).map({ xs =>
+      logger.debug("POST /agbots/"+id+"/heartbeat result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+              resp.setStatus(HttpCode.POST_OK)
+              ApiResponse(ApiResponseType.OK, "agbot updated")
+            } else {
+              resp.setStatus(HttpCode.NOT_FOUND)
+              ApiResponse(ApiResponseType.NOT_FOUND, "agbot '"+id+"' not found")
+            }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+id+"' not updated: "+t.toString)
       }
-    } else {
-      db.run(AgbotsTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry).map({ xs =>
-        logger.debug("POST /agbots/"+id+"/heartbeat result: "+xs.toString)
-        xs match {
-          case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-                resp.setStatus(HttpCode.POST_OK)
-                ApiResponse(ApiResponseType.OK, "agbot updated")
-              } else {
-                resp.setStatus(HttpCode.NOT_FOUND)
-                ApiResponse(ApiResponseType.NOT_FOUND, "agbot '"+id+"' not found")
-              }
-          case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+id+"' not updated: "+t.toString)
-        }
-      })
-    }
+    })
   })
 
   /* ====== GET /agbots/{id}/agreements ================================ */
@@ -435,26 +361,17 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles GET /agbots/{id}/agreements. Normally called by the user to see all agreements of this agbot. */
   get("/agbots/:id/agreements", operation(getAgbotAgreements)) ({
-    // logger.info("GET /agbots/"+params("id")+"/agreements")
     val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
     validateUserOrAgbotId(BaseAccess.READ, id)
     val resp = response
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      TempDb.agbotsAgreements.get(id) match {
-        case Some(agbotValue) => GetAgbotAgreementsResponse(agbotValue.toMap, 0)
-        case None => status_=(HttpCode.NOT_FOUND)
-          GetAgbotAgreementsResponse(new HashMap[String,AgbotAgreement](), 0)
-      }
-    } else {
-      db.run(AgbotAgreementsTQ.getAgreements(id).result).map({ list =>
-        logger.debug("GET /agbots/"+id+"/agreements result size: "+list.size)
-        logger.trace("GET /agbots/"+id+"/agreements result: "+list.toString)
-        val agreements = new MutableHashMap[String, AgbotAgreement]
-        if (list.size > 0) for (e <- list) { agreements.put(e.agrId, e.toAgbotAgreement) }
-        else resp.setStatus(HttpCode.NOT_FOUND)
-        GetAgbotAgreementsResponse(agreements.toMap, 0)
-      })
-    }
+    db.run(AgbotAgreementsTQ.getAgreements(id).result).map({ list =>
+      logger.debug("GET /agbots/"+id+"/agreements result size: "+list.size)
+      logger.trace("GET /agbots/"+id+"/agreements result: "+list.toString)
+      val agreements = new MutableHashMap[String, AgbotAgreement]
+      if (list.size > 0) for (e <- list) { agreements.put(e.agrId, e.toAgbotAgreement) }
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      GetAgbotAgreementsResponse(agreements.toMap, 0)
+    })
   })
 
   /* ====== GET /agbots/{id}/agreements/{agid} ================================ */
@@ -476,28 +393,17 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles GET /agbots/{id}/agreements/{agid}. */
   get("/agbots/:id/agreements/:agid", operation(getOneAgbotAgreement)) ({
-    // logger.info("GET /agbots/"+params("id")+"/agreements/"+params("agid"))
     val id = if (params("id") == "{id}") swaggerHack("id") else params("id")   // but do not have a hack/fix for the agid
     val agrId = params("agid")
     validateUserOrAgbotId(BaseAccess.READ, id)
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      TempDb.agbotsAgreements.get(id) match {
-        case Some(agbotValue) => val resp = GetAgbotAgreementsResponse(agbotValue.toMap.filter(d => d._1 == agrId), 0)
-          if (!resp.agreements.contains(agrId)) status_=(HttpCode.NOT_FOUND)
-          resp
-        case None => status_=(HttpCode.NOT_FOUND)
-          GetAgbotAgreementsResponse(new HashMap[String,AgbotAgreement](), 0)
-      }
-    } else {
-      val resp = response
-      db.run(AgbotAgreementsTQ.getAgreement(id, agrId).result).map({ list =>
-        logger.debug("GET /agbots/"+id+"/agreements/"+agrId+" result: "+list.toString)
-        val agreements = new MutableHashMap[String, AgbotAgreement]
-        if (list.size > 0) for (e <- list) { agreements.put(e.agrId, e.toAgbotAgreement) }
-        else resp.setStatus(HttpCode.NOT_FOUND)
-        GetAgbotAgreementsResponse(agreements.toMap, 0)
-      })
-    }
+    val resp = response
+    db.run(AgbotAgreementsTQ.getAgreement(id, agrId).result).map({ list =>
+      logger.debug("GET /agbots/"+id+"/agreements/"+agrId+" result: "+list.toString)
+      val agreements = new MutableHashMap[String, AgbotAgreement]
+      if (list.size > 0) for (e <- list) { agreements.put(e.agrId, e.toAgbotAgreement) }
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      GetAgbotAgreementsResponse(agreements.toMap, 0)
+    })
   })
 
   // =========== PUT /agbots/{id}/agreements/{agid} ===============================
@@ -602,31 +508,21 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles DELETE /agbots/{id}/agreements/{agid}. */
   delete("/agbots/:id/agreements/:agid", operation(deleteAgbotAgreement)) ({
-    // logger.info("DELETE /agbots/"+params("id")+"/agreements/"+params("agid"))
     val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
     val agrId = params("agid")
     validateUserOrAgbotId(BaseAccess.WRITE, params("id"))
     val resp = response
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      TempDb.agbotsAgreements.get(params("id")) match {
-        case Some(agbotValue) => agbotValue.remove(agrId)    // remove does *not* throw an exception if the key does not exist
-        case None => ;
-      }
-      status_=(HttpCode.DELETED)
-      ApiResponse(ApiResponseType.OK, "agreement deleted from the exchange")
-    } else {
-      db.run(AgbotAgreementsTQ.getAgreement(id,agrId).delete.asTry).map({ xs =>
-        logger.debug("DELETE /agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
-        xs match {
-          case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
-              resp.setStatus(HttpCode.DELETED)
-              ApiResponse(ApiResponseType.OK, "agbot agreement deleted")
-            } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from agbot agreement delete: "+e) }    // the specific exception is NumberFormatException
-          case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agrId+"' for agbot '"+id+"' not deleted: "+t.toString)
-          }
-      })
-    }
+    db.run(AgbotAgreementsTQ.getAgreement(id,agrId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
+            resp.setStatus(HttpCode.DELETED)
+            ApiResponse(ApiResponseType.OK, "agbot agreement deleted")
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from agbot agreement delete: "+e) }    // the specific exception is NumberFormatException
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agrId+"' for agbot '"+id+"' not deleted: "+t.toString)
+        }
+    })
   })
 
   // =========== POST /agbots/{id}/dataheartbeat ===============================
@@ -645,14 +541,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles POST /agbots/{id}/dataheartbeat. */
   post("/agbots/:id/dataheartbeat", operation(postAgbotsDataHeartbeat)) ({
-    // logger.info("POST /agbots/"+params("id")+"/dataheartbeat")
     val id = params("id")
     validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
     val agrIds = try { parse(request.body).extract[List[String]] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val agreementIds = agrIds.toSet
 
-    //TODO: implement persistence
+    /*todo: implement persistence
     // Find the agreement ids in any of this user's agbots
     val owner = TempDb.agbots.get(id) match {       // 1st find owner (user)
       case Some(agbot) => agbot.owner
@@ -672,49 +567,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     }
     status_=(HttpCode.POST_OK)
     ApiResponse(ApiResponseType.OK, "data heartbeats successful")
-  })
-
-  // =========== POST /agbots/{id}/dataheartbeat/{agid} ===============================
-  /** maybe delete this and only keep the 1 above?
-  val postAgbotsDataHeartbeat2 =
-    (apiOperation[ApiResponse]("postAgbotsDataHeartbeat2")
-      summary "Deprecated - Tells the exchange data has been received for this agreement"
-      notes "Lets the exchange know that data has just been received for this agreement. This is normally run by a cloud data aggregation service that is registered as an agbot of the same exchange user account that owns the agbots that are contracting on behalf of a workload. Can be run by the owning user or any of the agbots owned by that user. The other agbot that negotiated this agreement id can check the dataLastReceived of the agreement to determine if the agreement should be canceled (if data verification is enabled)."
-      parameters(
-        Parameter("id", DataType.String, Option[String]("ID of the agbot running this REST API method."), paramType = ParamType.Path),
-        Parameter("agid", DataType.String, Option[String]("ID of the agreement to update the dataLastReceived field for."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      )
-  */
-
-  /** Handles POST /agbots/{id}/dataheartbeat/{agid}. */
-  // post("/agbots/:id/dataheartbeat/:agid", operation(postAgbotsDataHeartbeat2)) ({
-  post("/agbots/:id/dataheartbeat/:agid") ({
-    // logger.info("POST /agbots/"+params("id")+"/dataheartbeat/"+params("agid"))
-    val id = params("id")
-    val agid = params("agid")
-    validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
-    //TODO: implement persistence
-    // Find the agreement id in any of this user's agbots
-    val owner = TempDb.agbots.get(id) match {
-      case Some(agbot) => agbot.owner
-      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "agbot id '"+id+"' not found"))
-    }
-    val agbotIds = TempDb.agbots.toMap.filter(a => a._2.owner == owner).keys.toSet
-    val agbotsAgreements = TempDb.agbotsAgreements.toMap.filter(a => agbotIds.contains(a._1) && a._2.contains(agid))    // agbotsAgreements is hash of hash: 1st key is agbot id, 2nd key is agreement id, value is agreement info
-    // we still have the same hash of hash, but have reduced the top level to only agbot ids that contain this agreement id
-    if (agbotsAgreements.size == 0) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "agreement id '"+agid+"' not found"))
-    // not sure under what circumstances more than 1 agbot would have an entry for this agreement, but handle it nonetheless
-    // println(agbotsAgreements)
-    for ((id,agrMap) <- agbotsAgreements) {
-      agrMap.get(agid) match {
-        case Some(agr) => agrMap.put(agid, AgbotAgreement(agr.workload, agr.state, agr.lastUpdated, ApiTime.nowUTC))   // copy everything from the original entry except dataLastReceived
-        case None => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "did not find agreement id '"+agid+"' in agbot '"+id+"' as expected"))
-      }
-    }
-    status_=(HttpCode.POST_OK)
-    ApiResponse(ApiResponseType.OK, "data heartbeat successful")
+    */
+    status_=(HttpCode.NOT_IMPLEMENTED)
+    ApiResponse(ApiResponseType.NOT_IMPLEMENTED, "data heartbeats not implemented yet")
   })
 
   // =========== POST /agbots/{id}/isrecentdata ===============================
@@ -734,7 +589,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles POST /agbots/{id}/isrecentdata. */
   post("/agbots/:id/isrecentdata", operation(postAgbotsIsRecentData)) ({
-    // logger.info("POST /agbots/"+params("id")+"/isrecentdata")
     val id = params("id")
     validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
     val req = try { parse(request.body).extract[PostAgbotsIsRecentDataRequest] }
@@ -742,7 +596,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val secondsStale = req.secondsStale
     val agreementIds = req.agreementIds.toSet
 
-    //TODO: implement persistence
+    /*todo: implement persistence
     // Find the agreement ids in any of this user's agbots
     val owner = TempDb.agbots.get(id) match {       // 1st find owner (user)
       case Some(agbot) => agbot.owner
@@ -764,6 +618,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     }
     status_=(HttpCode.POST_OK)
     resp
+    */
+    status_=(HttpCode.NOT_IMPLEMENTED)
+    ApiResponse(ApiResponseType.NOT_IMPLEMENTED, "isrecentdata not implemented yet")
   })
 
   // =========== POST /agreements/confirm ===============================
@@ -783,73 +640,53 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles POST /agreements/confirm. */
   post("/agreements/confirm", operation(postAgreementsConfirm)) ({
-    // logger.info("POST /agreements/confirm")
     val creds = validateUserOrAgbotId(BaseAccess.AGREEMENT_CONFIRM, "#")
     val req = try { parse(request.body).extract[PostAgreementsConfirmRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
 
     val resp = response
-    if (ExchConfig.getBoolean("api.db.memoryDb")) {
-      // Get the owner of the agbots
-      var owner = ""
-      if (isAuthenticatedUser(creds)) owner = creds.id
-      else {      // must be an agbot
-        TempDb.agbots.get(creds.id) match {
-          case Some(agbot) => owner = agbot.owner
-          case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "agbot id '"+creds.id+"' not found"))
+    val owner = if (isAuthenticatedUser(creds)) creds.id else ""
+    if (owner != "") {
+      // the user invoked this rest method, so look for an agbot owned by this user with this agr id
+      val agbotAgreementJoin = for {
+        (agbot, agr) <- AgbotsTQ.rows joinLeft AgbotAgreementsTQ.rows on (_.id === _.agbotId)
+        if agbot.owner === owner && agr.map(_.agrId) === req.agreementId
+      } yield (agbot, agr)
+      db.run(agbotAgreementJoin.result).map({ list =>
+        logger.debug("POST /agreements/confirm of "+req.agreementId+" result: "+list.toString)
+        // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.owner === owner && agr.agrId === req.agreementId
+        if (list.size > 0 && !list.head._2.isEmpty && list.head._2.get.state != "") {
+          resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, "agreement active")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "agreement not found or not active")
         }
-      }
-      if (req.confirmTempDb(owner)) {
-        status_=(HttpCode.POST_OK)
-        ApiResponse(ApiResponseType.OK, "agreement active")
-      } else {
-        status_=(HttpCode.NOT_FOUND)
-        ApiResponse(ApiResponseType.NOT_FOUND, "agreement not found or not active")
-      }
-    } else {    // persistence
-      val owner = if (isAuthenticatedUser(creds)) creds.id else ""
-      if (owner != "") {
-        // the user invoked this rest method, so look for an agbot owned by this user with this agr id
-        val agbotAgreementJoin = for {
-          (agbot, agr) <- AgbotsTQ.rows joinLeft AgbotAgreementsTQ.rows on (_.id === _.agbotId)
-          if agbot.owner === owner && agr.map(_.agrId) === req.agreementId
-        } yield (agbot, agr)
-        db.run(agbotAgreementJoin.result).map({ list =>
-          logger.debug("POST /agreements/confirm of "+req.agreementId+" result: "+list.toString)
-          // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.owner === owner && agr.agrId === req.agreementId
-          if (list.size > 0 && !list.head._2.isEmpty && list.head._2.get.state != "") {
+      })
+    } else {
+      // an agbot invoked this rest method, so look for the agbot with this id and for the agbot with this agr id, and see if they are owned by the same user
+      val agbotAgreementJoin = for {
+        (agbot, agr) <- AgbotsTQ.rows joinLeft AgbotAgreementsTQ.rows on (_.id === _.agbotId)
+        if agbot.id === creds.id || agr.map(_.agrId) === req.agreementId
+      } yield (agbot, agr)
+      db.run(agbotAgreementJoin.result).map({ list =>
+        logger.debug("POST /agreements/confirm of "+req.agreementId+" result: "+list.toString)
+        if (list.size > 0) {
+          // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.id === creds.id || agr.agrId === req.agreementId
+          val agbot1 = list.find(r => r._1.id == creds.id).orNull
+          val agbot2 = list.find(r => !r._2.isEmpty && r._2.get.agrId == req.agreementId).orNull
+          if (agbot1 != null && agbot2 != null && agbot1._1.owner == agbot2._1.owner && agbot2._2.get.state != "") {
             resp.setStatus(HttpCode.POST_OK)
             ApiResponse(ApiResponseType.OK, "agreement active")
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
             ApiResponse(ApiResponseType.NOT_FOUND, "agreement not found or not active")
           }
-        })
-      } else {
-        // an agbot invoked this rest method, so look for the agbot with this id and for the agbot with this agr id, and see if they are owned by the same user
-        val agbotAgreementJoin = for {
-          (agbot, agr) <- AgbotsTQ.rows joinLeft AgbotAgreementsTQ.rows on (_.id === _.agbotId)
-          if agbot.id === creds.id || agr.map(_.agrId) === req.agreementId
-        } yield (agbot, agr)
-        db.run(agbotAgreementJoin.result).map({ list =>
-          logger.debug("POST /agreements/confirm of "+req.agreementId+" result: "+list.toString)
-          if (list.size > 0) {
-            // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.id === creds.id || agr.agrId === req.agreementId
-            val agbot1 = list.find(r => r._1.id == creds.id).orNull
-            val agbot2 = list.find(r => !r._2.isEmpty && r._2.get.agrId == req.agreementId).orNull
-            if (agbot1 != null && agbot2 != null && agbot1._1.owner == agbot2._1.owner && agbot2._2.get.state != "") {
-              resp.setStatus(HttpCode.POST_OK)
-              ApiResponse(ApiResponseType.OK, "agreement active")
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "agreement not found or not active")
-            }
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "agreement not found or not active")
-          }
-        })
-      }
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "agreement not found or not active")
+        }
+      })
     }
   })
 

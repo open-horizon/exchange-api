@@ -2,7 +2,7 @@
 if [[ $1 == "-raw" ]]; then parse=cat; else parse="jq -r ."; fi
 curl -# -w "%{http_code}" -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic $EXCHANGE_USER:$EXCHANGE_PW" -d '{
   "token": "abc123",
-  "name": "rpi1-modified-micros",
+  "name": "rpi1",
   "registeredMicroservices": [
     {
       "url": "https://bluehorizon.network/documentation/sdr-device-api",
@@ -16,8 +16,8 @@ curl -# -w "%{http_code}" -X PUT -H 'Content-Type: application/json' -H 'Accept:
           "op": "in"
         },
         {
-          "name": "cpus",
-          "value": "2",
+          "name": "memory",
+          "value": "300",
           "propType": "int",
           "op": ">="
         },
@@ -42,7 +42,7 @@ curl -# -w "%{http_code}" -X PUT -H 'Content-Type: application/json' -H 'Accept:
       ]
     },
     {
-      "url": "https://bluehorizon.network/documentation/netspeed222-device-api",
+      "url": "https://bluehorizon.network/documentation/netspeed-device-api",
       "numAgreements": 1,
       "policy": "{json policy for rpi1 netspeed}",
       "properties": [

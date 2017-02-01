@@ -24,10 +24,15 @@ import com.horizon.exchangeapi.tables._
 case class GetAgbotsResponse(agbots: Map[String,Agbot], lastIndex: Int)
 case class GetAgbotAttributeResponse(attribute: String, value: String)
 
+/** For backward compatibility for before i added the publicKey field */
+case class PutAgbotsRequestOld(token: String, name: String, msgEndPoint: String) {
+  def toPutAgbotsRequest = PutAgbotsRequest(token, name, msgEndPoint, "")
+}
+
 /** Input format for PUT /agbots/<agbot-id> */
 case class PutAgbotsRequest(token: String, name: String, msgEndPoint: String, publicKey: String) {
   def validate = {
-    if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))
+    // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /devices/{id}/msgs checks for the publicKey
   }
 
   /** Get the db queries to insert or update the agbot */
@@ -200,7 +205,15 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val id = params("id")
     val creds = validateUserOrAgbotId(BaseAccess.WRITE, id)
     val agbot = try { parse(request.body).extract[PutAgbotsRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch {
+      case e: Exception => if (e.getMessage.contains("No usable value for publicKey")) {    // the specific exception is MappingException
+          // try parsing again with the old structure
+          val agbotOld = try { parse(request.body).extract[PutAgbotsRequestOld] }
+          catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
+          agbotOld.toPutAgbotsRequest
+        }
+        else halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e))
+    }
     agbot.validate
     val owner = if (isAuthenticatedUser(creds)) creds.id else ""
     val resp = response

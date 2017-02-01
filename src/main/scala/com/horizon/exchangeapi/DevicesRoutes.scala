@@ -84,13 +84,18 @@ case class PostSearchDevicesRequest(desiredMicroservices: List[MicroserviceSearc
 case class DeviceResponse(id: String, name: String, microservices: List[Microservice], msgEndPoint: String, publicKey: String)
 case class PostSearchDevicesResponse(devices: List[DeviceResponse], lastIndex: Int)
 
+/** For backward compatibility for before i added the publicKey field */
+case class PutDevicesRequestOld(token: String, name: String, registeredMicroservices: List[Microservice], msgEndPoint: String, softwareVersions: Map[String,String]) {
+  def toPutDevicesRequest = PutDevicesRequest(token, name, registeredMicroservices, msgEndPoint, softwareVersions, "")
+}
+
 /** Input format for PUT /devices/<device-id> */
 case class PutDevicesRequest(token: String, name: String, registeredMicroservices: List[Microservice], msgEndPoint: String, softwareVersions: Map[String,String], publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Halts the request with an error msg if the user input is invalid. */
   def validate = {
-    if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))
+    // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
     for (m <- registeredMicroservices) {
       if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
       m.validate match {
@@ -481,7 +486,15 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val id = params("id")
     val creds = validateUserOrDeviceId(BaseAccess.WRITE, id)
     val device = try { parse(request.body).extract[PutDevicesRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch {
+      case e: Exception => if (e.getMessage.contains("No usable value for publicKey")) {    // the specific exception is MappingException
+          // try parsing again with the old structure
+          val deviceOld = try { parse(request.body).extract[PutDevicesRequestOld] }
+          catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
+          deviceOld.toPutDevicesRequest
+        }
+        else halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e))
+    }
     device.validate
     val owner = if (isAuthenticatedUser(creds)) creds.id else ""
     val microTmpls = device.getMicroTemplates      // do this before creating/updating the entry in db, in case it can not find the templates

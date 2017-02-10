@@ -11,7 +11,7 @@ import org.json4s.jackson.JsonMethods._
 import org.scalatra.json._
 import org.slf4j._
 import Access._
-import BaseAccess._
+// import BaseAccess._
 import scala.util._
 import scala.util.control.Breaks._
 import scala.collection.immutable._
@@ -33,6 +33,7 @@ case class PutAgbotsRequestOld(token: String, name: String, msgEndPoint: String)
 case class PutAgbotsRequest(token: String, name: String, msgEndPoint: String, publicKey: String) {
   def validate = {
     // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /devices/{id}/msgs checks for the publicKey
+    if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token specified must not be blank"))
   }
 
   /** Get the db queries to insert or update the agbot */
@@ -113,8 +114,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles GET /agbots. Normally called by the user to see all agbots. */
   get("/agbots", operation(getAgbots)) ({
-    val creds = validateUserOrAgbotId(BaseAccess.READ, "*")
-    val superUser = isSuperUser(creds)
+    // val creds = validateUserOrAgbotId(BaseAccess.READ, "*")
+    val ident = credsAndLog().authenticate().authorizeTo(TAgbot("*"),Access.READ)
+    val superUser = ident.isSuperUser
     var q = AgbotsTQ.rows.subquery
     params.get("idfilter").foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
     params.get("name").foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
@@ -147,9 +149,10 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles GET /agbots/{id}. Normally called by the agbot to verify its own entry after a reboot. */
   get("/agbots/:id", operation(getOneAgbot)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
-    val creds = validateUserOrAgbotId(BaseAccess.READ, id)
-    val superUser = isSuperUser(creds)
+    val id = swaggerHack("id")
+    // val creds = validateUserOrAgbotId(BaseAccess.READ, id)
+    val ident = credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.READ)
+    val superUser = ident.isSuperUser
     val resp = response
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the agbot
@@ -184,7 +187,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
 ```
 {
-  "token": "abc",       // agbot token, set by user when adding this agbot. When the agbot is running this to update the agbot it can set this to the empty string
+  "token": "abc",       // agbot token, set by user when adding this agbot
   "name": "agbot3",         // agbot name that you pick
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this agbot to be contacted by agbots, empty string to use the built-in Exchange msg service
   "publicKey"      // used by devices to encrypt msgs sent to this agbot using the built-in Exchange msg service
@@ -202,8 +205,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles PUT /agbot/{id}. Normally called by agbot to add/update itself. */
   put("/agbots/:id", operation(putAgbots)) ({
-    val id = params("id")
-    val creds = validateUserOrAgbotId(BaseAccess.WRITE, id)
+    val id = swaggerHack("id")
+    // val creds = validateUserOrAgbotId(BaseAccess.WRITE, id)
+    val ident = credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.WRITE)
     val agbot = try { parse(request.body).extract[PutAgbotsRequest] }
     catch {
       case e: Exception => if (e.getMessage.contains("No usable value for publicKey")) {    // the specific exception is MappingException
@@ -215,7 +219,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         else halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e))
     }
     agbot.validate
-    val owner = if (isAuthenticatedUser(creds)) creds.id else ""
+    // val owner = if (isAuthenticatedUser(creds)) creds.id else ""
+    val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
     db.run(AgbotsTQ.getNumOwned(owner).result.flatMap({ xs =>
       logger.debug("PUT /agbots/"+id+" num owned: "+xs)
@@ -229,7 +234,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     })).map({ xs =>
       logger.debug("PUT /agbots/"+id+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (agbot.token != "") AuthCache.agbots.put(Creds(id, agbot.token))    // the token passed in to the cache should be the non-hashed one
+        case Success(v) => AuthCache.agbots.putBoth(Creds(id,agbot.token), owner)    // the token passed in to the cache should be the non-hashed one
           resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, "agbot added or updated")
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -274,8 +279,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles PATCH /agbot/{id}. Must be called by user to add agbot, normally called by agbot to update itself. */
   patch("/agbots/:id", operation(patchAgbots)) ({
-    val id = params("id")
-    val creds = validateUserOrAgbotId(BaseAccess.WRITE, id)
+    val id = swaggerHack("id")
+    // val creds = validateUserOrAgbotId(BaseAccess.WRITE, id)
+    val ident = credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.WRITE)
     val agbot = try { parse(request.body).extract[PatchAgbotsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.trace("PATCH /agbots/"+id+" input: "+agbot.toString)
@@ -285,9 +291,17 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     db.run(action.transactionally.asTry).map({ xs =>
       logger.debug("PATCH /agbots/"+id+" result: "+xs.toString)
       xs match {
-        case Success(v) => agbot.token match { case Some(tok) if (tok != "") => AuthCache.agbots.put(Creds(id, tok)); case _ => ; }    // the token passed in to the cache should be the non-hashed one
-          resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of agbot '"+id+"' updated")
+        case Success(v) => try {
+            val numUpdated = v.toString.toInt     // v comes to us as type Any
+            if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
+              agbot.token match { case Some(tok) if (tok != "") => AuthCache.agbots.put(Creds(id, tok)); case _ => ; }    // the token passed in to the cache should be the non-hashed one. We do not need to run putOwner because patch does not change the owner
+              resp.setStatus(HttpCode.PUT_OK)
+              ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of agbot '"+id+"' updated")
+            } else {
+              resp.setStatus(HttpCode.NOT_FOUND)
+              ApiResponse(ApiResponseType.NOT_FOUND, "agbot '"+id+"' not found")
+            }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+id+"' not inserted or updated: "+t.toString)
       }
@@ -307,18 +321,23 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles DELETE /agbots/{id}. */
   delete("/agbots/:id", operation(deleteAgbots)) ({
-    val id = params("id")
-    validateUserOrAgbotId(BaseAccess.WRITE, id)
+    val id = swaggerHack("id")
+    // validateUserOrAgbotId(BaseAccess.WRITE, id)
+    credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
-    db.run(AgbotsTQ.getDeleteActions(id).transactionally.asTry).map({ xs =>
+    db.run(AgbotsTQ.getAgbot(id).delete.transactionally.asTry).map({ xs =>
       logger.debug("DELETE /agbots/"+id+" result: "+xs.toString)
       xs match {
-        case Success(v) => ;
-          AuthCache.agbots.remove(id)
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "agbot deleted")
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)    // not considered an error, because they wanted the resource gone and it is
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+            AuthCache.agbots.removeBoth(id)
+            resp.setStatus(HttpCode.DELETED)
+            ApiResponse(ApiResponseType.OK, "agbot deleted")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "agbot '"+id+"' not found")
+          }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+id+"' not deleted: "+t.toString)
         }
     })
@@ -337,8 +356,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles POST /agbots/{id}/heartbeat. */
   post("/agbots/:id/heartbeat", operation(postAgbotsHeartbeat)) ({
-    val id = params("id")
-    validateUserOrAgbotId(BaseAccess.WRITE, id)
+    val id = swaggerHack("id")
+    // validateUserOrAgbotId(BaseAccess.WRITE, id)
+    credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.WRITE)
     val resp = response
     db.run(AgbotsTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry).map({ xs =>
       logger.debug("POST /agbots/"+id+"/heartbeat result: "+xs.toString)
@@ -374,8 +394,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles GET /agbots/{id}/agreements. Normally called by the user to see all agreements of this agbot. */
   get("/agbots/:id/agreements", operation(getAgbotAgreements)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
-    validateUserOrAgbotId(BaseAccess.READ, id)
+    val id = swaggerHack("id")
+    // validateUserOrAgbotId(BaseAccess.READ, id)
+    credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.READ)
     val resp = response
     db.run(AgbotAgreementsTQ.getAgreements(id).result).map({ list =>
       logger.debug("GET /agbots/"+id+"/agreements result size: "+list.size)
@@ -406,9 +427,10 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles GET /agbots/{id}/agreements/{agid}. */
   get("/agbots/:id/agreements/:agid", operation(getOneAgbotAgreement)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")   // but do not have a hack/fix for the agid
+    val id = swaggerHack("id")   // but do not have a hack/fix for the agid
     val agrId = params("agid")
-    validateUserOrAgbotId(BaseAccess.READ, id)
+    // validateUserOrAgbotId(BaseAccess.READ, id)
+    credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.READ)
     val resp = response
     db.run(AgbotAgreementsTQ.getAgreement(id, agrId).result).map({ list =>
       logger.debug("GET /agbots/"+id+"/agreements/"+agrId+" result: "+list.toString)
@@ -445,9 +467,10 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles PUT /agbots/{id}/agreements/{agid}. Normally called by agbot to add/update itself. */
   put("/agbots/:id/agreements/:agid", operation(putAgbotAgreement)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
+    val id = swaggerHack("id")
     val agrId = params("agid")
-    validateUserOrAgbotId(BaseAccess.WRITE, id)
+    // validateUserOrAgbotId(BaseAccess.WRITE, id)
+    credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.WRITE)
     val agreement = try { parse(request.body).extract[PutAgbotAgreementRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
@@ -488,19 +511,20 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles DELETE /agbots/{id}/agreements. */
   delete("/agbots/:id/agreements", operation(deleteAgbotAllAgreement)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
-    validateUserOrAgbotId(BaseAccess.WRITE, id)
+    val id = swaggerHack("id")
+    // validateUserOrAgbotId(BaseAccess.WRITE, id)
+    credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.WRITE)
     val resp = response
     db.run(AgbotAgreementsTQ.getAgreements(id).delete.asTry).map({ xs =>
       logger.debug("DELETE /agbots/"+id+"/agreements result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-              resp.setStatus(HttpCode.DELETED)
-              ApiResponse(ApiResponseType.OK, "agbot agreements deleted")
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for agbot '"+id+"' found")
-            }
+            resp.setStatus(HttpCode.DELETED)
+            ApiResponse(ApiResponseType.OK, "agbot agreements deleted")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for agbot '"+id+"' found")
+          }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreements for agbot '"+id+"' not deleted: "+t.toString)
         }
@@ -521,17 +545,21 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles DELETE /agbots/{id}/agreements/{agid}. */
   delete("/agbots/:id/agreements/:agid", operation(deleteAgbotAgreement)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
+    val id = swaggerHack("id")
     val agrId = params("agid")
-    validateUserOrAgbotId(BaseAccess.WRITE, params("id"))
+    // validateUserOrAgbotId(BaseAccess.WRITE, params("id"))
+    credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.WRITE)
     val resp = response
     db.run(AgbotAgreementsTQ.getAgreement(id,agrId).delete.asTry).map({ xs =>
       logger.debug("DELETE /agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
       xs match {
-        case Success(v) => try {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, "agbot agreement deleted")
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from agbot agreement delete: "+e) }    // the specific exception is NumberFormatException
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "agreement '"+agrId+"' for agbot '"+id+"' not found")
+          }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agrId+"' for agbot '"+id+"' not deleted: "+t.toString)
         }
@@ -554,8 +582,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles POST /agbots/{id}/dataheartbeat. */
   post("/agbots/:id/dataheartbeat", operation(postAgbotsDataHeartbeat)) ({
-    val id = params("id")
-    validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
+    val id = swaggerHack("id")
+    // validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
+    credsAndLog().authenticate().authorizeTo(TAgbot("#"),Access.DATA_HEARTBEAT_MY_AGBOTS).creds
     val agrIds = try { parse(request.body).extract[List[String]] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val agreementIds = agrIds.toSet
@@ -602,8 +631,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles POST /agbots/{id}/isrecentdata. */
   post("/agbots/:id/isrecentdata", operation(postAgbotsIsRecentData)) ({
-    val id = params("id")
-    validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
+    val id = swaggerHack("id")
+    // validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
+    credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.READ).creds
     val req = try { parse(request.body).extract[PostAgbotsIsRecentDataRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val secondsStale = req.secondsStale
@@ -653,12 +683,15 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles POST /agreements/confirm. */
   post("/agreements/confirm", operation(postAgreementsConfirm)) ({
-    val creds = validateUserOrAgbotId(BaseAccess.AGREEMENT_CONFIRM, "#")
+    // val creds = validateUserOrAgbotId(BaseAccess.AGREEMENT_CONFIRM, "#")
+    val ident = credsAndLog().authenticate().authorizeTo(TAgbot("#"),Access.READ)
+    val creds = ident.creds
     val req = try { parse(request.body).extract[PostAgreementsConfirmRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
 
     val resp = response
-    val owner = if (isAuthenticatedUser(creds)) creds.id else ""
+    // val owner = if (isAuthenticatedUser(creds)) creds.id else ""
+    val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     if (owner != "") {
       // the user invoked this rest method, so look for an agbot owned by this user with this agr id
       val agbotAgreementJoin = for {
@@ -728,9 +761,10 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles POST /agbots/{id}/msgs. */
   post("/agbots/:id/msgs", operation(postAgbotsMsgs)) ({
-    val agbotId = params("id")
-    val creds = validateDeviceId(BaseAccess.SEND_MSG)
-    val devId = creds.id
+    val agbotId = swaggerHack("id")
+    // val creds = validateDeviceId(BaseAccess.SEND_MSG)
+    val ident = credsAndLog().authenticate().authorizeTo(TAgbot(agbotId),Access.SEND_MSG_TO_AGBOT)
+    val devId = ident.creds.id      //todo: handle the case where the acls allow users to send msgs
     val msg = try { parse(request.body).extract[PostAgbotsMsgsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
@@ -789,8 +823,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles GET /agbots/{id}/msgs. Normally called by the user to see all msgs of this agbot. */
   get("/agbots/:id/msgs", operation(getAgbotMsgs)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
-    validateUserOrAgbotId(BaseAccess.READ, id)
+    val id = swaggerHack("id")
+    // validateUserOrAgbotId(BaseAccess.READ, id)
+    credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.READ)
     val resp = response
     // Remove msgs whose TTL is past, and then get the msgs for this agbot
     db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
@@ -821,20 +856,21 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   /** Handles DELETE /agbots/{id}/msgs/{msgid}. */
   delete("/agbots/:id/msgs/:msgid", operation(deleteAgbotMsg)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
+    val id = swaggerHack("id")
     val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "msgid must be an integer: "+e)) }    // the specific exception is NumberFormatException
-    validateUserOrAgbotId(BaseAccess.WRITE, id)
+    // validateUserOrAgbotId(BaseAccess.WRITE, id)
+    credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.WRITE)
     val resp = response
     db.run(AgbotMsgsTQ.getMsg(id,msgId).delete.asTry).map({ xs =>
       logger.debug("DELETE /agbots/"+id+"/msgs/"+msgId+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-              resp.setStatus(HttpCode.DELETED)
-              ApiResponse(ApiResponseType.OK, "agbot msg deleted")
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "msg '"+msgId+"' for agbot '"+id+"' not found")
-            }
+            resp.setStatus(HttpCode.DELETED)
+            ApiResponse(ApiResponseType.OK, "agbot msg deleted")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "msg '"+msgId+"' for agbot '"+id+"' not found")
+          }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "msg '"+msgId+"' for agbot '"+id+"' not deleted: "+t.toString)
         }

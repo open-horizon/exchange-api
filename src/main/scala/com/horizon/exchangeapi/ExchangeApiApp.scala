@@ -26,7 +26,7 @@ import com.horizon.exchangeapi.tables._
  *  @param swagger the ExchangeApiSwagger instance, created in ScalatraBootstrap
  */
 class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends ScalatraServlet
-    with FutureSupport with NativeJsonSupport with SwaggerSupport with AuthenticationSupport with DevicesRoutes with AgbotsRoutes with UsersRoutes with AdminRoutes {
+    with FutureSupport with NativeJsonSupport with SwaggerSupport with AuthenticationSupport with DevicesRoutes with AgbotsRoutes with UsersRoutes with AdminRoutes with BlockchainsRoutes {
 
   /** Sets up automatic case class to JSON output serialization, required by the JValueResult trait. */
   protected implicit val jsonFormats: Formats = DefaultFormats
@@ -49,6 +49,8 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
   AuthCache.users.init(db)
   AuthCache.devices.init(db)
   AuthCache.agbots.init(db)
+  AuthCache.bctypes.init(db)
+  AuthCache.blockchains.init(db)
 
   // All of the route implementations are in traits called *Routes
 }

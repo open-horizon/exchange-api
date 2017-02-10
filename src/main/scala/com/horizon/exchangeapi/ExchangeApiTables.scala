@@ -21,26 +21,33 @@ import com.horizon.exchangeapi.tables._
 /** The umbrella class for the DB tables. The specific table classes are in the tables subdir. */
 object ExchangeApiTables {
 
-  val create = (UsersTQ.rows.schema ++ DevicesTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema).create
+  // Create all of the current version's tables - used in /admin/initdb and /admin/migratedb
+  val create = (UsersTQ.rows.schema ++ DevicesTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema).create
 
-  // Alter the schema of existing tables
+  // Alter the schema of existing tables - used in /admin/upgradedb
   // Note: the compose/bluemix version of postgresql does not support the 'if not exists' option
-  // val alterTables = DBIO.seq(sqlu"alter table devices add column if not exists publickey character varying not null default ''", sqlu"alter table agbots add column if not exists publickey character varying not null default ''")
-  val alterTables = DBIO.seq(sqlu"alter table devices add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
+  // val alterTables = DBIO.seq(sqlu"alter table devices add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
+  // val alterTables = DBIO.seq(sqlu"alter table devices drop column publickey", sqlu"alter table agbots drop column publickey")
+  val alterTables = ""
 
-  // Used to create just the new tables in this version, so we do not have to disrupt the existing tables
-  val createNewTables = (DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema).create
+  // Used to create just the new tables in this version, so we do not have to disrupt the existing tables - used in /admin/initnewtables and /admin/upgradedb
+  val createNewTables = (BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema).create
+  // val createNewTables = BctypesTQ.rows.schema.create
 
-  // val delete = (AgbotAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ PropsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ DevicesTQ.rows.schema ++ UsersTQ.rows.schema).drop
   // Note: doing this because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints (only adding), we should be ok with the drops below?
-  val delete = DBIO.seq(sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
+  val delete = DBIO.seq(sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
 
-  // Remove the alters of existing tables
-  // val unAlterTables = DBIO.seq(sqlu"alter table devices drop column if exists publickey", sqlu"alter table agbots drop column if exists publickey")
-  val unAlterTables = DBIO.seq(sqlu"alter table devices drop column publickey", sqlu"alter table agbots drop column publickey")
+  // Delete the previous version's (v1.22.0) tables - used by /admin/migratedb
+  val deletePrevious = DBIO.seq(sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
 
-  // Used to delete just the new tables in this version (so we can recreate), so we do not have to disrupt the existing tables
-  val deleteNewTables = DBIO.seq(sqlu"drop table devmsgs", sqlu"drop table agbotmsgs")
+  // Remove the alters of existing tables - used by /admin/unupgradedb
+  // val unAlterTables = DBIO.seq(sqlu"alter table devices drop column publickey", sqlu"alter table agbots drop column publickey")
+  // val unAlterTables = DBIO.seq(sqlu"alter table devices add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
+  val unAlterTables = ""
+
+  // Used to delete just the new tables in this version (so we can recreate), so we do not have to disrupt the existing tables - used by /admin/dropnewtables and /admin/unupgradedb
+  val deleteNewTables = DBIO.seq(sqlu"drop table blockchains", sqlu"drop table bctypes")
+  // val deleteNewTables = DBIO.seq(sqlu"drop table bctypes")
 
   // Populate the tables with a few rows. This is rarely used.
   val setup = DBIO.seq(
@@ -63,7 +70,7 @@ object ExchangeApiTables {
         PropsTQ.rows += PropRow("d2|http:///netspeed|agreementProtocols", "d2|http:///netspeed", "agreementProtocols", "ExchangeManualTest", "list", "in")
   )
 
-  /** Returns a db action that queries each table and dumps it to a file in json format */
+  /** Returns a db action that queries each table and dumps it to a file in json format - used in /admin/dumptables and /admin/migratedb */
   def dump(dumpDir: String, dumpSuffix: String)(implicit logger: Logger): DBIO[_] = {
     // This is a single db action that strings together via flatMap all the table queries and writing each result to a file
     return UsersTQ.rows.result.flatMap({ xs =>
@@ -143,7 +150,7 @@ object ExchangeApiTables {
     */
   }
 
-  /** Returns a list of db actions for loading the contents of the dumped json files into the tables */
+  /** Returns a list of db actions for loading the contents of the dumped json files into the tables- used in /admin/loadtables and /admin/migratedb */
   def load(dumpDir: String, dumpSuffix: String)(implicit logger: Logger): List[DBIO[_]] = {
     val actions = ListBuffer[DBIO[_]]()
 

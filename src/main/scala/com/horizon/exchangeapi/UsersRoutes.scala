@@ -10,7 +10,7 @@ import org.json4s.jackson.JsonMethods._
 import org.scalatra.json._
 import org.slf4j._
 import Access._
-import BaseAccess._
+// import BaseAccess._
 import scala.util._
 import scala.util.control.Breaks._
 import scala.collection.immutable._
@@ -53,8 +53,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   /** Handles GET /users. Can only be called by the root user to see all users. */
   get("/users", operation(getUsers)) ({
-    val creds = validateUser(BaseAccess.READ, "*")
-    val superUser = isSuperUser(creds)
+    // val creds = validateUser(BaseAccess.READ, "*")
+    val ident = credsAndLog().authenticate().authorizeTo(TUser("*"),Access.READ)
+    val superUser = ident.isSuperUser
     db.run(UsersTQ.rows.result).map({ list =>
       logger.debug("GET /users result size: "+list.size)
       val users = new MutableHashMap[String, User]
@@ -84,9 +85,10 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   /** Handles GET /users/{username}. Normally called by the user to verify his own entry after a reboot. */
   get("/users/:username", operation(getOneUser)) ({
-    val username = if (params("username") == "{username}") swaggerHack("username") else params("username")
-    val creds = validateUser(BaseAccess.READ, username)
-    val superUser = isSuperUser(creds)
+    val username = swaggerHack("username")
+    // val creds = validateUser(BaseAccess.READ, username)
+    val ident = credsAndLog().authenticate().authorizeTo(TUser(username),Access.READ)
+    val superUser = ident.isSuperUser
     val resp = response     // needed so the db.run() future has this context
     // logger.debug("using postgres")
     db.run(UsersTQ.getUser(username).result).map({ xs =>
@@ -132,9 +134,10 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   /** Handles PUT /user/{username}. Must be called by root to add the user, or called by user to update itself. */
   put("/users/:username", operation(putUsers)) ({
     // Note: we currently do not have a way to verify this is a real person creating this, so we use rate limiting in haproxy
-    val username = params("username")
-    val creds = validateUser(BaseAccess.WRITE, username)
-    val isRoot = Role.isSuperUser(creds.id)
+    val username = swaggerHack("username")
+    // val creds = validateUser(BaseAccess.WRITE, username)
+    val ident = credsAndLog().authenticate().authorizeTo(TUser(username),Access.WRITE)
+    val isRoot = ident.isSuperUser
     val user = try { parse(request.body).extract[PutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.debug(user.toString)
@@ -196,8 +199,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   post("/users/:username", operation(postUsers)) ({
     // Note: we do not currently verify this is a real person creating this (with, for example, captcha), because haproxy restricts the number of
     //      times a single IP address can call this in a day to a very small number
-    val username = params("username")
-    validateUser(BaseAccess.CREATE, username)
+    val username = swaggerHack("username")
+    // validateUser(BaseAccess.CREATE, username)
+    val ident = credsAndLog(true).authenticate().authorizeTo(TUser(username),Access.CREATE)
     val user = try { parse(request.body).extract[PutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.debug(user.toString)
@@ -228,24 +232,25 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   /** Handles DELETE /users/{username}. */
   delete("/users/:username", operation(deleteUsers)) ({
-    // logger.info("DELETE /users/"+params("username"))
-    val username = params("username")
-    validateUser(BaseAccess.WRITE, username)
+    val username = swaggerHack("username")
+    // validateUser(BaseAccess.WRITE, username)
+    val ident = credsAndLog().authenticate().authorizeTo(TUser(username),Access.WRITE)
     val resp = response
     // now with all the foreign keys set up correctly and onDelete=cascade, the db will automatically delete the associated rows in other tables
-    db.run(UsersTQ.getUser(username).delete).map({ xs =>
+    db.run(UsersTQ.getUser(username).delete.transactionally.asTry).map({ xs =>
       logger.debug("DELETE /users/"+username+" result: "+xs.toString)
-      try {
-        val numDeleted = xs.toString.toInt
-        if (numDeleted > 0) {
-          AuthCache.users.remove(username)
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "user deleted from the exchange")
-        } else {
-          resp.setStatus(HttpCode.DELETED)    // not considered an error, because they wanted the resource gone and it is
-          ApiResponse(ApiResponseType.OK, "user '"+username+"' did not need to be deleted because it did not exist")
-        }
-      } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from user delete: "+e) }    // the specific exception is NumberFormatException
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+            AuthCache.users.remove(username)
+            resp.setStatus(HttpCode.DELETED)
+            ApiResponse(ApiResponseType.OK, "user deleted")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "user '"+username+"' not found")
+          }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "user '"+username+"' not deleted: "+t.toString)
+      }
     })
   })
 
@@ -263,8 +268,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   /** Handles POST /users/{username}/confirm. */
   post("/users/:username/confirm", operation(postUsersConfirm)) ({
     // Note: the haproxy rate limiting guards against pw cracking attempts
-    val username = params("username")
-    validateUser(BaseAccess.READ, username)
+    val username = swaggerHack("username")
+    // validateUser(BaseAccess.READ, username)
+    val ident = credsAndLog().authenticate().authorizeTo(TUser(username),Access.READ)
     status_=(HttpCode.POST_OK)
     ApiResponse(ApiResponseType.OK, "confirmation successful")
   })
@@ -288,11 +294,12 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   /** Handles POST /users/{username}/reset. */
   post("/users/:username/reset", operation(postUsersReset)) ({
-    val username = params("username")
-    //TODO: anonymous needs to be allowed, but we need to prevent someone else flooding their email
-    val creds = validateUser(BaseAccess.RESET_PW, username)
+    val username = swaggerHack("username")
+    // Note: anonymous is allowed, obviously, but haproxy rate limiting is used to prevent someone else flooding their email
+    // val creds = validateUser(BaseAccess.RESET_PW, username)
+    val ident = credsAndLog(true).authenticate().authorizeTo(TUser(username),Access.RESET_USER_PW)
 
-    if (isSuperUser(creds)) {
+    if (ident.isSuperUser) {
       // verify the username exists via the cache
       AuthCache.users.get(username) match {
         case Some(user) => ;      // do not need to do anything
@@ -340,8 +347,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   /** Handles POST /users/{username}/changepw. */
   post("/users/:username/changepw", operation(postUsersChangePw)) ({
-    val username = params("username")
-    validateToken(BaseAccess.WRITE, username)     // this validates the token that is passed in via the header (or via the password query parm)
+    val username = swaggerHack("username")
+    // validateToken(BaseAccess.WRITE, username)     // this validates the token that is passed in via the header (or via the password query parm)
+    credsAndLog().authenticate("token").authorizeTo(TUser(username),Access.WRITE)
     val req = try { parse(request.body).extract[ChangePwRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response

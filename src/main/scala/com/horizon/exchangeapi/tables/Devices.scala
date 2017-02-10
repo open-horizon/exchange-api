@@ -91,7 +91,7 @@ object DevicesTQ {
     }
   }
 
-  /** Returns the actions to delete the device and any micros/props and agreements that reference it */
+  /** Returns the actions to delete the device and any micros/props and agreements that reference it
   def getDeleteActions(id: String): DBIO[_] = DBIO.seq(
       // now with all the foreign keys set up correctly and onDelete=cascade, the db will automatically delete these associated rows
       // PropsTQ.rows.filter(_.propId like id+"|%").delete,       // delete the props that reference this device
@@ -99,6 +99,7 @@ object DevicesTQ {
       // DeviceAgreementsTQ.getAgreements(id).delete,            // delete agreements that reference this device
       rows.filter(_.id === id).delete    // delete the device
     )
+  */
 
   /** Separate the join of the devices, microservices, properties, and swversions tables into their respective scala classes (collapsing duplicates) and return a hash containing it all */
   // def parseJoin(superUser: Boolean, list: Seq[(DeviceRow, Option[MicroserviceRow], Option[PropRow], Option[SoftwareVersionRow])]): Map[String,Device] = {

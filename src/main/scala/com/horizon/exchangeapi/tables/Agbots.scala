@@ -81,12 +81,13 @@ object AgbotsTQ {
     }
   }
 
-  /** Returns the actions to delete the agbot and the agreements that reference it */
+  /** Returns the actions to delete the agbot and the agreements that reference it
   def getDeleteActions(id: String): DBIO[_] = DBIO.seq(
       // now with all the foreign keys set up correctly and onDelete=cascade, the db will automatically delete these associated rows
       // AgbotAgreementsTQ.getAgreements(id).delete,            // delete agreements that reference this agbot
       getAgbot(id).delete    // delete the agbot
     )
+  */
 }
 
 // This is the agbot table minus the key - used as the data structure to return to the REST clients

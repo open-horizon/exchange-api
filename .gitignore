@@ -17,5 +17,3 @@ project/project/
 docker/fs/root/.ssh/id_*
 docker-exec/
 docker-bld/
-Dockerfile-exec
-Dockerfile-bld

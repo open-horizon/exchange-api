@@ -5,14 +5,17 @@
 SHELL = /bin/bash -e
 ARCH = x86
 DOCKER_NAME ?= exchange-api
-DOCKER_TAG ?= v1.22.0
+DOCKER_TAG ?= v1.23.0
 DOCKER_OPTS ?= --no-cache
 COMPILE_CLEAN ?= clean
 image-string = $(DOCKER_REGISTRY)/$(ARCH)/exchange-api
 
 # Some of these vars are also used by the Dockerfiles
-SCALA_VERSION ?= 2.11.8
-SCALA_VERSION_SHORT ?= 2.11
+# SCALA_VERSION ?= 2.11.8
+# SCALA_VERSION_SHORT ?= 2.11
+# try to sync this version with the version of scala you have installed on your dev machine, and with what is specified in build.scala
+SCALA_VERSION ?= 2.12.1
+SCALA_VERSION_SHORT ?= 2.12
 JETTY_VERSION ?= 9.3.11.v20160721
 # this version corresponds to the Version variable in project/build.scala
 EXCHANGE_API_WAR_VERSION ?= 0.1.0

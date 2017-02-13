@@ -30,18 +30,18 @@ import com.horizon.exchangeapi.tables._
 class SlickSuite extends FunSuite {
 
   ignore("listUsers") {
-    val cpds = new ComboPooledDataSource
-    val db = Database.forDataSource(cpds)
-    db.run(UsersTQ.getUser("bob").result) map { xs =>
-      println(xs)
-    }
+    // val cpds = new ComboPooledDataSource
+    // val db = Database.forDataSource(cpds)
+    // db.run(UsersTQ.getUser("bob").result) map { xs =>
+    //   println(xs)
+    // }
   }
   ignore("get user password") {
-    val cpds = new ComboPooledDataSource
-    val db = Database.forDataSource(cpds)
-    db.run(UsersTQ.getPassword("alice").result).map({ xs =>
-      println(xs)
-    })
+    // val cpds = new ComboPooledDataSource
+    // val db = Database.forDataSource(cpds)
+    // db.run(UsersTQ.getPassword("alice").result).map({ xs =>
+    //   println(xs)
+    // })
   }
   test("user info") {
     // val cpds = new ComboPooledDataSource

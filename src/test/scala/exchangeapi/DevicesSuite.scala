@@ -70,7 +70,7 @@ class DevicesSuite extends FunSuite {
     for (i <- List(user)) {
       val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED)
+      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
   }
 
@@ -383,8 +383,6 @@ class DevicesSuite extends FunSuite {
     assert(micro.url === NETSPEEDSPEC)
     archProp = micro.properties.find(p => p.name=="arch").get
     assert(archProp.value === "amd64")
-
-    info("GET /devices output verified")
   }
 
   test("GET /devices - filter owner and name") {
@@ -467,8 +465,6 @@ class DevicesSuite extends FunSuite {
     assert((memProp !== null) && (memProp.value === "300"))
 
     assert(dev.registeredMicroservices.find(m => m.url==NETSPEEDSPEC) !== None)
-
-    info("GET /devices/"+deviceId+" output verified")
   }
 
   test("GET /devices/"+deviceId+" - as device") {
@@ -755,8 +751,16 @@ class DevicesSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
+  /** Update an agreement for device 9900 - as the device */
+  test("PUT /devices/"+deviceId+"/agreements/"+agreementId+" - update as device") {
+    val input = PutDeviceAgreementRequest(SDRSPEC, "finalized")
+    val response = Http(URL+"/devices/"+deviceId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
   /** Update an agreement for device 9900 - as user */
-  test("PUT /devices/"+deviceId+"/agreements/"+agreementId+" - as user") {
+  test("PUT /devices/"+deviceId+"/agreements/"+agreementId+" - update as user") {
     val input = PutDeviceAgreementRequest(SDRSPEC, "negotiating")
     val response = Http(URL+"/devices/"+deviceId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -783,8 +787,6 @@ class DevicesSuite extends FunSuite {
     assert(ag.microservice === SDRSPEC)
     assert(ag.state === "negotiating")
     assert(getAgResp.agreements.contains("9951"))
-
-    info("GET /devices/"+deviceId+"/agreements output verified")
   }
 
   test("GET /devices/"+deviceId+"/agreements/"+agreementId) {
@@ -850,7 +852,7 @@ class DevicesSuite extends FunSuite {
 
   /** Delete the agreement for device 9900 */
   test("DELETE /devices/"+deviceId+"/agreements/"+agreementId+" - sdr") {
-    val response = Http(URL+"/devices/"+deviceId+"/agreements/"+agreementId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/devices/"+deviceId+"/agreements/"+agreementId).method("delete").headers(ACCEPT).headers(DEVICEAUTH).asString
     info("DELETE "+agreementId+", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }
@@ -903,7 +905,7 @@ class DevicesSuite extends FunSuite {
 
   /** Test the secondsStale parameter */
   test("POST /search/devices/ - all arm devices, but all stale") {
-    Thread.sleep(1500)    // delay 1.5 seconds so other devices will be stale
+    Thread.sleep(1100)    // delay 1.5 seconds so other devices will be stale
     val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","2","int",">="),
@@ -930,7 +932,7 @@ class DevicesSuite extends FunSuite {
 
   /** Test the secondsStale parameter */
   test("POST /search/devices/ - all arm devices, 1 not stale") {
-    val secondsNotStale = 3
+    val secondsNotStale = 1
     info("secondsNotStale: "+secondsNotStale)
     val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
@@ -940,8 +942,8 @@ class DevicesSuite extends FunSuite {
       Prop("dataVerification","","wildcard","=")))),
       secondsNotStale, List[String](""), 0, 0)
     val response = Http(URL+"/search/devices").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
+    // info("code: "+response.code)
+    info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostSearchDevicesResponse]
     val devices = postSearchDevResp.devices
@@ -989,7 +991,7 @@ class DevicesSuite extends FunSuite {
 
   /** Delete all agreements for device 9900 */
   test("DELETE /devices/"+deviceId+"/agreements - all agreements") {
-    val response = Http(URL+"/devices/"+deviceId+"/agreements").method("delete").headers(ACCEPT).headers(DEVICEAUTH).asString
+    val response = Http(URL+"/devices/"+deviceId+"/agreements").method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("DELETE agreements, code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }

@@ -12,12 +12,12 @@ import org.json4s.jackson.Serialization.{read, write}
 import org.scalatra.json._
 import org.slf4j._
 import Access._
-import BaseAccess._
+// import BaseAccess._
 import scala.util._
 import scala.util.control.Breaks._
 import scala.collection.immutable._
 import scala.collection.mutable.{ListBuffer, Set => MutableSet, HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
-import scala.concurrent.ExecutionContext.Implicits.global
+// import scala.concurrent.ExecutionContext.Implicits.global
 import scalaj.http._
 import com.horizon.exchangeapi.tables._
 import collection.JavaConversions.enumerationAsScalaIterator
@@ -96,6 +96,7 @@ case class PutDevicesRequest(token: String, name: String, registeredMicroservice
   /** Halts the request with an error msg if the user input is invalid. */
   def validate = {
     // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
+    if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token specified must not be blank"))
     for (m <- registeredMicroservices) {
       if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
       m.validate match {
@@ -269,8 +270,9 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   get("/devices", operation(getDevices)) ({
     // try {    // this try/catch does not get us much more than what scalatra does by default
     // I think the request member is of type org.eclipse.jetty.server.Request, which implements interfaces javax.servlet.http.HttpServletRequest and javax.servlet.ServletRequest
-    val creds = validateAccessToDevice(BaseAccess.READ, "*")
-    val superUser = isSuperUser(creds)
+    // val creds = validateAccessToDevice(BaseAccess.READ, "*")
+    val ident = credsAndLog().authenticate().authorizeTo(TDevice("*"),Access.READ)
+    val superUser = ident.isSuperUser
     // throw new IllegalArgumentException("arg 1 was wrong...")
     // The devices, microservices, and properties tables all combine to form the Device object, so we do joins to get them all.
     // Note: joinLeft is necessary here so that if no micros exist for a device, we still get the device (and likewise for the micro if no props exist).
@@ -312,9 +314,10 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles GET /devices/{id}. Normally called by the device to verify his own entry after a reboot. */
   get("/devices/:id", operation(getOneDevice)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
-    val creds = validateAccessToDevice(BaseAccess.READ, id)
-    val superUser = isSuperUser(creds)
+    val id = swaggerHack("id")
+    // val creds = validateAccessToDevice(BaseAccess.READ, id)
+    val ident = credsAndLog().authenticate().authorizeTo(TDevice(id),Access.READ)
+    val superUser = ident.isSuperUser
     val resp = response
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the device
@@ -394,7 +397,8 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles POST /search/devices. Normally called by the agbot to search for available devices. */
   post("/search/devices", operation(postSearchDevices)) ({
-    validateAccessToDevice(BaseAccess.READ, "*")
+    // validateAccessToDevice(BaseAccess.READ, "*")
+    credsAndLog().authenticate().authorizeTo(TDevice("*"),Access.READ)
     val searchProps = try { parse(request.body).extract[PostSearchDevicesRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     searchProps.validate
@@ -483,8 +487,9 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   /** Handles PUT /device/{id}. Must be called by user to add device, normally called by device to update itself. */
   put("/devices/:id", operation(putDevices)) ({
     // consider writing a customer deserializer that will do error checking on the body, see: https://gist.github.com/fehguy/4191861#file-gistfile1-scala-L74
-    val id = params("id")
-    val creds = validateUserOrDeviceId(BaseAccess.WRITE, id)
+    val id = swaggerHack("id")
+    // val creds = validateUserOrDeviceId(BaseAccess.WRITE, id)
+    val ident = credsAndLog().authenticate().authorizeTo(TDevice(id),Access.WRITE)
     val device = try { parse(request.body).extract[PutDevicesRequest] }
     catch {
       case e: Exception => if (e.getMessage.contains("No usable value for publicKey")) {    // the specific exception is MappingException
@@ -496,7 +501,8 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         else halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e))
     }
     device.validate
-    val owner = if (isAuthenticatedUser(creds)) creds.id else ""
+    // val owner = if (isAuthenticatedUser(creds)) creds.id else ""
+    val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val microTmpls = device.getMicroTemplates      // do this before creating/updating the entry in db, in case it can not find the templates
     val resp = response
     db.run(DevicesTQ.getNumOwned(owner).result.flatMap({ xs =>
@@ -511,7 +517,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     })).map({ xs =>
       logger.debug("PUT /devices/"+id+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (device.token != "") AuthCache.devices.put(Creds(id, device.token))    // the token passed in to the cache should be the non-hashed one
+        case Success(v) => AuthCache.devices.putBoth(Creds(id,device.token),owner)    // the token passed in to the cache should be the non-hashed one
           resp.setStatus(HttpCode.PUT_OK)
           microTmpls
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -557,8 +563,9 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles PATCH /device/{id}. Must be called by user to add device, normally called by device to update itself. */
   patch("/devices/:id", operation(patchDevices)) ({
-    val id = params("id")
-    val creds = validateUserOrDeviceId(BaseAccess.WRITE, id)
+    val id = swaggerHack("id")
+    // val creds = validateUserOrDeviceId(BaseAccess.WRITE, id)
+    val ident = credsAndLog().authenticate().authorizeTo(TDevice(id),Access.WRITE)
     val device = try { parse(request.body).extract[PatchDevicesRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.trace("PATCH /devices/"+id+" input: "+device.toString)
@@ -568,48 +575,22 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     db.run(action.transactionally.asTry).map({ xs =>
       logger.debug("PATCH /devices/"+id+" result: "+xs.toString)
       xs match {
-        case Success(v) => device.token match { case Some(tok) if (tok != "") => AuthCache.devices.put(Creds(id, tok)); case _ => ; }    // the token passed in to the cache should be the non-hashed one
-          resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of device '"+id+"' updated")
+        case Success(v) => try {
+            val numUpdated = v.toString.toInt     // v comes to us as type Any
+            if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
+              device.token match { case Some(tok) if (tok != "") => AuthCache.devices.put(Creds(id, tok)); case _ => ; }    // the token passed in to the cache should be the non-hashed one. We do not need to run putOwner because patch does not change the owner
+              resp.setStatus(HttpCode.PUT_OK)
+              ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of device '"+id+"' updated")
+            } else {
+              resp.setStatus(HttpCode.NOT_FOUND)
+              ApiResponse(ApiResponseType.NOT_FOUND, "device '"+id+"' not found")
+            }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "device '"+id+"' not inserted or updated: "+t.toString)
       }
     })
   })
-
-/*
-  // =========== DELETE /devices ===============================
-  val deleteManyDevices =
-    (apiOperation[ApiResponse]("deleteManyDevices")
-      summary "Deletes some/all of my devices"
-      notes "Deletes devices (RPi's) from the exchange DB based on the selection criteria provided, and deletes the agreements stored for this device (but does not actually cancel the agreements between the device and agbots). Can be run by the owning user or the device."
-      parameters(
-        Parameter("id", DataType.String, Option[String]("ID of the device to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the device. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("owner", DataType.String, Option[String]("The owner of the devices to be deleted."), paramType=ParamType.Query)
-        // Parameter("idfilter", DataType.String, Option[String]("Filter results to only include devices with this id (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        // Parameter("name", DataType.String, Option[String]("Filter results to only include devices with this name (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
-        )
-      )
-
-  /** Handles DELETE /devices */
-  delete("/devices", operation(deleteManyDevices)) ({
-    validateUserOrDeviceId(BaseAccess.WRITE, "#")
-    // remove does *not* throw an exception if the key does not exist
-    val resp = response
-    db.run(DevicesTQ.getDeleteMineActions(owner).transactionally.asTry).map({ xs =>
-      logger.debug("DELETE /devices result: "+xs.toString)
-      xs match {
-        case Success(v) => ;      // will get Success even if 0 are deleted
-          AuthCache.devices.remove(id)
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "devices deleted from the exchange")
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "devices not deleted: "+t.toString)
-        }
-    })
-  })
-*/
 
   // =========== DELETE /devices/{id} ===============================
   val deleteDevices =
@@ -624,16 +605,22 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles DELETE /devices/{id}. */
   delete("/devices/:id", operation(deleteDevices)) ({
-    val id = params("id")
-    validateUserOrDeviceId(BaseAccess.WRITE, id)
+    val id = swaggerHack("id")
+    // validateUserOrDeviceId(BaseAccess.WRITE, id)
+    credsAndLog().authenticate().authorizeTo(TDevice(id),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
-    db.run(DevicesTQ.getDeleteActions(id).transactionally.asTry).map({ xs =>
+    db.run(DevicesTQ.getDevice(id).delete.transactionally.asTry).map({ xs =>
       logger.debug("DELETE /devices/"+id+" result: "+xs.toString)
       xs match {
-        case Success(v) => AuthCache.devices.remove(id)  // not checking the num deleted because with a seq of actions we do not get the results of each action anyway
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "device deleted from the exchange")
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+            AuthCache.devices.removeBoth(id)
+            resp.setStatus(HttpCode.DELETED)
+            ApiResponse(ApiResponseType.OK, "device deleted")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "device '"+id+"' not found")
+          }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "device '"+id+"' not deleted: "+t.toString)
         }
@@ -653,8 +640,9 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles POST /devices/{id}/heartbeat. */
   post("/devices/:id/heartbeat", operation(postDevicesHeartbeat)) ({
-    val id = params("id")
-    validateUserOrDeviceId(BaseAccess.WRITE, id)
+    val id = swaggerHack("id")
+    // validateUserOrDeviceId(BaseAccess.WRITE, id)
+    credsAndLog().authenticate().authorizeTo(TDevice(id),Access.WRITE)
     val resp = response
     db.run(DevicesTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry).map({ xs =>
       logger.debug("POST /devices/"+id+"/heartbeat result: "+xs.toString)
@@ -690,8 +678,9 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles GET /devices/{id}/agreements. Normally called by the user to see all agreements of this device. */
   get("/devices/:id/agreements", operation(getDeviceAgreements)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
-    validateUserOrDeviceId(BaseAccess.READ, id)
+    val id = swaggerHack("id")
+    // validateUserOrDeviceId(BaseAccess.READ, id)
+    credsAndLog().authenticate().authorizeTo(TDevice(id),Access.READ)
     val resp = response
       db.run(DeviceAgreementsTQ.getAgreements(id).result).map({ list =>
         logger.debug("GET /devices/"+id+"/agreements result size: "+list.size)
@@ -722,9 +711,10 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles GET /devices/{id}/agreements/{agid}. */
   get("/devices/:id/agreements/:agid", operation(getOneDeviceAgreement)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")   // but do not have a hack/fix for the agid
+    val id = swaggerHack("id")   // but do not have a hack/fix for the agid
     val agId = params("agid")
-    validateUserOrDeviceId(BaseAccess.READ, id)
+    // validateUserOrDeviceId(BaseAccess.READ, id)
+    credsAndLog().authenticate().authorizeTo(TDevice(id),Access.READ)
     val resp = response
     db.run(DeviceAgreementsTQ.getAgreement(id, agId).result).map({ list =>
       logger.debug("GET /devices/"+id+"/agreements/"+agId+" result: "+list.toString)
@@ -762,9 +752,10 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   /** Handles PUT /devices/{id}/agreements/{agid}. Normally called by device to add/update itself. */
   put("/devices/:id/agreements/:agid", operation(putDeviceAgreement)) ({
     //todo: keep a running total of agreements for each MS so we can search quickly for available MSs
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
+    val id = swaggerHack("id")
     val agId = params("agid")
-    validateUserOrDeviceId(BaseAccess.WRITE, id)
+    // validateUserOrDeviceId(BaseAccess.WRITE, id)
+    credsAndLog().authenticate().authorizeTo(TDevice(id),Access.WRITE)
     val agreement = try { parse(request.body).extract[PutDeviceAgreementRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
@@ -805,19 +796,20 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles DELETE /devices/{id}/agreements. */
   delete("/devices/:id/agreements", operation(deleteDeviceAllAgreement)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
-    validateUserOrDeviceId(BaseAccess.WRITE, id)
+    val id = swaggerHack("id")
+    // validateUserOrDeviceId(BaseAccess.WRITE, id)
+    credsAndLog().authenticate().authorizeTo(TDevice(id),Access.WRITE)
     val resp = response
     db.run(DeviceAgreementsTQ.getAgreements(id).delete.asTry).map({ xs =>
       logger.debug("DELETE /devices/"+id+"/agreements result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-              resp.setStatus(HttpCode.DELETED)
-              ApiResponse(ApiResponseType.OK, "device agreements deleted")
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for device '"+id+"' found")
-            }
+            resp.setStatus(HttpCode.DELETED)
+            ApiResponse(ApiResponseType.OK, "device agreements deleted")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for device '"+id+"' found")
+          }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreements for device '"+id+"' not deleted: "+t.toString)
         }
@@ -838,20 +830,21 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles DELETE /devices/{id}/agreements/{agid}. */
   delete("/devices/:id/agreements/:agid", operation(deleteDeviceAgreement)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
+    val id = swaggerHack("id")
     val agId = params("agid")
-    validateUserOrDeviceId(BaseAccess.WRITE, id)
+    // validateUserOrDeviceId(BaseAccess.WRITE, id)
+    credsAndLog().authenticate().authorizeTo(TDevice(id),Access.WRITE)
     val resp = response
     db.run(DeviceAgreementsTQ.getAgreement(id,agId).delete.asTry).map({ xs =>
       logger.debug("DELETE /devices/"+id+"/agreements/"+agId+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-              resp.setStatus(HttpCode.DELETED)
-              ApiResponse(ApiResponseType.OK, "device agreement deleted")
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "agreement '"+agId+"' for device '"+id+"' not found")
-            }
+            resp.setStatus(HttpCode.DELETED)
+            ApiResponse(ApiResponseType.OK, "device agreement deleted")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "agreement '"+agId+"' for device '"+id+"' not found")
+          }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agId+"' for device '"+id+"' not deleted: "+t.toString)
         }
@@ -883,9 +876,10 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles POST /devices/{id}/msgs. */
   post("/devices/:id/msgs", operation(postDevicesMsgs)) ({
-    val devId = params("id")
-    val creds = validateAgbotId(BaseAccess.SEND_MSG)
-    val agbotId = creds.id
+    val devId = swaggerHack("id")
+    // val creds = validateAgbotId(BaseAccess.SEND_MSG)
+    val ident = credsAndLog().authenticate().authorizeTo(TDevice(devId),Access.SEND_MSG_TO_DEVICE)
+    val agbotId = ident.creds.id
     val msg = try { parse(request.body).extract[PostDevicesMsgsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
@@ -944,8 +938,9 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles GET /devices/{id}/msgs. Normally called by the user to see all msgs of this device. */
   get("/devices/:id/msgs", operation(getDeviceMsgs)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
-    validateUserOrDeviceId(BaseAccess.READ, id)
+    val id = swaggerHack("id")
+    // validateUserOrDeviceId(BaseAccess.READ, id)
+    credsAndLog().authenticate().authorizeTo(TDevice(id),Access.READ)
     val resp = response
     // Remove msgs whose TTL is past, and then get the msgs for this device
     db.run(DeviceMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
@@ -976,20 +971,21 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Handles DELETE /devices/{id}/msgs/{msgid}. */
   delete("/devices/:id/msgs/:msgid", operation(deleteDeviceMsg)) ({
-    val id = if (params("id") == "{id}") swaggerHack("id") else params("id")
+    val id = swaggerHack("id")
     val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "msgid must be an integer: "+e)) }    // the specific exception is NumberFormatException
-    validateUserOrDeviceId(BaseAccess.WRITE, id)
+    // validateUserOrDeviceId(BaseAccess.WRITE, id)
+    credsAndLog().authenticate().authorizeTo(TDevice(id),Access.WRITE)
     val resp = response
     db.run(DeviceMsgsTQ.getMsg(id,msgId).delete.asTry).map({ xs =>
       logger.debug("DELETE /devices/"+id+"/msgs/"+msgId+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-              resp.setStatus(HttpCode.DELETED)
-              ApiResponse(ApiResponseType.OK, "device msg deleted")
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "msg '"+msgId+"' for device '"+id+"' not found")
-            }
+            resp.setStatus(HttpCode.DELETED)
+            ApiResponse(ApiResponseType.OK, "device msg deleted")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "msg '"+msgId+"' for device '"+id+"' not found")
+          }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "msg '"+msgId+"' for device '"+id+"' not deleted: "+t.toString)
         }

@@ -54,7 +54,7 @@ class AgbotsSuite extends FunSuite {
     for (i <- List(user)) {
       val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED)
+      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
   }
 
@@ -145,8 +145,6 @@ class AgbotsSuite extends FunSuite {
     assert(getAgbotResp.agbots.contains(agbotId))
     var dev = getAgbotResp.agbots.get(agbotId).get     // the 2nd get turns the Some(val) into val
     assert(dev.name === "agbot"+agbotId+"-normal")
-
-    info("GET /agbots output verified")
   }
 
   test("GET /agbots - filter owner, idfilter, and name") {
@@ -184,8 +182,6 @@ class AgbotsSuite extends FunSuite {
     val now: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
     val lastHb = ZonedDateTime.parse(agbot.lastHeartbeat).toEpochSecond
     assert(now - lastHb <= 3)    // should not now be more than 3 seconds from the time the heartbeat was done above
-
-    info("GET /agbots output verified")
   }
 
   /** Update 1 attr of the agbot as the agbot */
@@ -254,6 +250,14 @@ class AgbotsSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
+  /** Update an agreement for agbot 9930 - as the agbot */
+  test("PUT /agbots/"+agbotId+"/agreements/"+agreementId+" - update as agbot") {
+    val input = PutAgbotAgreementRequest("sdr", "finalized")
+    val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
   /** Update the agreement for agbot 9930 - as user */
   test("PUT /agbots/"+agbotId+"/agreements/"+agreementId+" - as user") {
     val input = PutAgbotAgreementRequest("sdr", "negotiating")
@@ -309,8 +313,6 @@ class AgbotsSuite extends FunSuite {
     assert(ag.workload === "sdr")
     assert(ag.state === "negotiating")
     assert(getAgResp.agreements.contains("9951"))
-
-    info("GET /agbots/"+agbotId+"/agreements output verified")
   }
 
   test("GET /agbots/"+agbotId+"/agreements/"+agreementId) {
@@ -423,6 +425,17 @@ class AgbotsSuite extends FunSuite {
     response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+  }
+
+  /** Explicit delete of agbot */
+  test("DELETE /agbots/"+agbotId+" - as user") {
+    var response = Http(URL+"/agbots/"+agbotId).method("delete").headers(ACCEPT).headers(AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+
+    response = Http(URL+"/agbots/"+agbotId).headers(ACCEPT).headers(AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND)
   }
 
   // Note: testing of msgs is in DevicesSuite.scala

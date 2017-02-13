@@ -51,7 +51,7 @@ class UsersSuite extends FunSuite {
     for (i <- List(user)) {     // we do not delete the root user because it was created by the config file, not this test suite
       val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED)
+      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
   }
 
@@ -137,8 +137,6 @@ class UsersSuite extends FunSuite {
     assert(getUserResp.users.contains(user))
     var u = getUserResp.users.get(user).get     // the 2nd get turns the Some(val) into val
     assert(u.email === user+"@gmail.com")
-
-    info("GET /users output verified")
   }
 
   test("GET /users - as "+user) {
@@ -159,8 +157,6 @@ class UsersSuite extends FunSuite {
     assert(getUserResp.users.contains(user))
     var u = getUserResp.users.get(user).get     // the 2nd get turns the Some(val) into val
     assert(u.email === user+"@gmail.com")
-
-    info("GET /users/"+user+" output verified")
   }
 
   /** Update the normal user with encoded creds */
@@ -308,8 +304,6 @@ class UsersSuite extends FunSuite {
     assert(getUserResp.users.contains(user))
     var u = getUserResp.users.get(user).get     // the 2nd get turns the Some(val) into val
     assert(u.email === user+"@gmail.com")
-
-    info("GET /users/"+user+" output verified")
   }
 
   /** Clean up, delete all the test users */

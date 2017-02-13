@@ -80,6 +80,8 @@ services in the exchange.
 - Added PUT/GET/DELETE /bctypes/{type} and PUT/GET/DELETE /bctypes/{type}/blockchains/{name} to store/retrieve BC info
 - All DELETE methods not return 404 if the resource was not found. (Before it was inconsistent, some returned 204 and some 404.)
 - Refactored authentication and authorization code, so now it is easier to read, easier to extend, and handles a few corner cases better. No external changes for all the mainline use cases.
+- Changed the scala version used in building the container to be the latest stable and the same as my dev environment (2.12.1)
+- Moved up to latest stable version of scalatra (2.4.1 ot 2.5.1)
 
 ## Changes Between v1.21.0 and v1.22.0
 

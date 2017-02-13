@@ -17,7 +17,7 @@ import scala.util._
 import scala.util.control.Breaks._
 import scala.collection.immutable._
 import scala.collection.mutable.{ListBuffer, Set => MutableSet, HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
-import scala.concurrent.ExecutionContext.Implicits.global
+// import scala.concurrent.ExecutionContext.Implicits.global
 import scalaj.http._
 import com.horizon.exchangeapi.tables._
 import collection.JavaConversions.enumerationAsScalaIterator

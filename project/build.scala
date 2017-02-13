@@ -10,8 +10,9 @@ object ScalatraSlickBuild extends Build {
   val Organization = "com.horizon"
   val Name = "Exchange API"
   val Version = "0.1.0"
-  val ScalaVersion = "2.11.8"
-  val ScalatraVersion = "2.4.1"
+  // val ScalaVersion = "2.11.8"
+  val ScalaVersion = "2.12.1"
+  val ScalatraVersion = "2.5.1"     // can see the latest version at https://github.com/scalatra/scalatra/blob/2.5.x/version.sbt
 
   lazy val project = Project (
     "exchange-api",

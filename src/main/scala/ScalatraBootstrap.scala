@@ -33,7 +33,8 @@ class ScalatraBootstrap extends LifeCycle {
    *  Mounts the top level URLs for the REST API and swagger, and creates the db object.
    */
   override def init(context: ServletContext) {
-    val db = if (cpds != null) Database.forDataSource(cpds) else null
+    // val db = if (cpds != null) Database.forDataSource(cpds) else null
+    val db = if (cpds != null) Database.forDataSource(cpds, Option(50)) else null
     context.mount(new ExchangeApiApp(db), "/v1", "v1")
     context.mount(new ResourcesApp, "/api-docs", "api-docs")
     context.mount(new SwaggerUiServlet, "/api", "api")

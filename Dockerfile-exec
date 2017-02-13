@@ -1,0 +1,28 @@
+FROM ubuntu:latest
+MAINTAINER bruce potter <bp@us.ibm.com>
+
+ARG SCALA_VERSION
+ARG SCALA_VERSION_SHORT
+ARG JETTY_VERSION
+ARG EXCHANGE_API_WAR_VERSION
+
+# install build tools: curl, java
+RUN apt-get update && apt-get install -y vim curl openjdk-8-jre
+
+# install scala
+RUN curl -s http://downloads.lightbend.com/scala/$SCALA_VERSION/scala-$SCALA_VERSION.tgz | tar -zx -C /usr/local/share
+RUN ln -s `ls -1dr /usr/local/share/scala-2* | head -1` /usr/local/share/scala
+ENV PATH="/usr/local/share/scala/bin:$PATH"
+
+# install jetty, instructions from: http://www.eclipse.org/jetty/documentation/current/quick-start-getting-started.html
+RUN curl -s http://repo1.maven.org/maven2/org/eclipse/jetty/jetty-distribution/$JETTY_VERSION/jetty-distribution-$JETTY_VERSION.tar.gz | tar -zx -C /usr/local/share
+RUN ln -s `ls -1dr /usr/local/share/jetty-distribution-9* | head -1` /usr/local/share/jetty
+ENV JETTY_HOME="/usr/local/share/jetty"
+ENV JETTY_BASE="/usr/local/share/jetty-base"
+RUN mkdir $JETTY_BASE
+RUN cd $JETTY_BASE && java -jar $JETTY_HOME/start.jar --add-to-startd=http,deploy
+
+# copy exchange war file to jetty-base and start it. This listens on port 8080
+ADD ./target/scala-$SCALA_VERSION_SHORT/exchange-api_$SCALA_VERSION_SHORT-$EXCHANGE_API_WAR_VERSION.war $JETTY_BASE/webapps/ROOT.war
+CMD cd $JETTY_BASE && java -jar $JETTY_HOME/start.jar
+#CMD /bin/bash

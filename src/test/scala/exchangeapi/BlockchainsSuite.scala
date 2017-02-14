@@ -107,21 +107,21 @@ class BlockchainsSuite extends FunSuite {
   }
 
   test("PUT /bctypes/"+bctype+" - add as user") {
-    val input = PutBctypeRequest(bctype+" desc", Map("foo"->"bar"))
+    val input = PutBctypeRequest(bctype+" desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /bctypes/"+bctype+" - update as same user") {
-    val input = PutBctypeRequest(bctype+" new desc", Map("foo"->"bar"))
+    val input = PutBctypeRequest(bctype+" new desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /bctypes/"+bctype+" - update as 2nd user - should fail") {
-    val input = PutBctypeRequest(bctype+" yet another desc", Map("foo"->"bar"))
+    val input = PutBctypeRequest(bctype+" yet another desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -137,21 +137,21 @@ class BlockchainsSuite extends FunSuite {
   }
 
   test("PUT /bctypes/"+bctype2+" - as device - should fail") {
-    val input = PutBctypeRequest(bctype2+" desc", Map("foo"->"bar"))
+    val input = PutBctypeRequest(bctype2+" desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("PUT /bctypes/"+bctype2+" - as agbot - should fail") {
-    val input = PutBctypeRequest(bctype2+" desc", Map("foo"->"bar"))
+    val input = PutBctypeRequest(bctype2+" desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("PUT /bctypes/"+bctype2+" - add bctype2 as 2nd user") {
-    val input = PutBctypeRequest(bctype2+" desc", Map("foo"->"bar"))
+    val input = PutBctypeRequest(bctype2+" desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -169,7 +169,7 @@ class BlockchainsSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
 
     // Now try adding another bctype - expect it to be rejected
-    val input = PutBctypeRequest(bctype3+" desc", Map("foo"->"bar"))
+    val input = PutBctypeRequest(bctype3+" desc", "json escaped string")
     response = Http(URL+"/bctypes/"+bctype3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -315,21 +315,21 @@ class BlockchainsSuite extends FunSuite {
   }
 
   test("PUT /bctypes/"+bctype+"/blockchains/"+bcname+" - add as user") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname+" desc", List[String]("url1","url2","url3"), List[String]("gen1","gen2","gwn3"), List[String]("net1","net2","net3"))
+    val input = PutBlockchainRequest(bctype+"-"+bcname+" desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /bctypes/"+bctype+"/blockchains/"+bcname+" - update as same user") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname+" new desc", List[String]("url1","url2","url3"), List[String]("gen1","gen2","gwn3"), List[String]("net1","net2","net3"))
+    val input = PutBlockchainRequest(bctype+"-"+bcname+" new desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /bctypes/"+bctype+"/blockchains/"+bcname+" - update as 2nd user - should fail") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname+" yet another desc", List[String]("url1","url2","url3"), List[String]("gen1","gen2","gwn3"), List[String]("net1","net2","net3"))
+    val input = PutBlockchainRequest(bctype+"-"+bcname+" yet another desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -338,9 +338,7 @@ class BlockchainsSuite extends FunSuite {
   test("PUT /bctypes/"+bctype+"/blockchains/"+bcname2+" - invalid blockchain body") {
     val badJsonInput = """{
       "descriptionx": "foo",
-      "bootNodes": [ "url1", "url2", "url3" ],
-      "genesis": [ "gen1", "gen2", "gen3" ],
-      "networkId": [ "net1", "net2", "net3" ]
+      "details": "json escaped string"
     }"""
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname2).postData(badJsonInput).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -348,28 +346,28 @@ class BlockchainsSuite extends FunSuite {
   }
 
   test("PUT /bctypes/"+bctype+"/blockchains/"+bcname2+" - as device - should fail") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", List[String]("url1","url2","url3"), List[String]("gen1","gen2","gwn3"), List[String]("net1","net2","net3"))
+    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("PUT /bctypes/"+bctype+"/blockchains/"+bcname2+" - as agbot - should fail") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", List[String]("url1","url2","url3"), List[String]("gen1","gen2","gwn3"), List[String]("net1","net2","net3"))
+    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("PUT /bctypes/"+bctype+"/blockchains/"+bcname2+" - add bcname2 as user2") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", List[String]("url1","url2","url3"), List[String]("gen1","gen2","gwn3"), List[String]("net1","net2","net3"))
+    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /bctypes/"+bctype2+"/blockchains/"+bcname2+" - as user2 - and duplicate bcname should be ok") {
-    val input = PutBlockchainRequest(bctype2+"-"+bcname2+" desc", List[String]("url1","url2","url3"), List[String]("gen1","gen2","gwn3"), List[String]("net1","net2","net3"))
+    val input = PutBlockchainRequest(bctype2+"-"+bcname2+" desc", "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype2+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -387,7 +385,7 @@ class BlockchainsSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
 
     // Now try adding another blockchain - expect it to be rejected
-    val input = PutBlockchainRequest(bctype+"-"+bcname3+" desc", List[String]("url1","url2","url3"), List[String]("gen1","gen2","gwn3"), List[String]("net1","net2","net3"))
+    val input = PutBlockchainRequest(bctype+"-"+bcname3+" desc", "json escaped string")
     response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)

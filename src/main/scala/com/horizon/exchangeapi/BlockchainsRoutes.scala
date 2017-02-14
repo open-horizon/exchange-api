@@ -24,17 +24,19 @@ case class GetBctypesResponse(bctypes: Map[String,Bctype], lastIndex: Int)
 case class GetBctypeAttributeResponse(attribute: String, value: String)
 
 /** Input format for PUT /bctypes/<bctype-id> */
-case class PutBctypeRequest(description: String, containerInfo: Map[String,String]) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
+// case class PutBctypeRequest(description: String, containerInfo: Map[String,String]) {
+case class PutBctypeRequest(description: String, details: String) {
+  // protected implicit val jsonFormats: Formats = DefaultFormats
   def validate = {
     // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /devices/{id}/msgs checks for the publicKey
   }
 
-  def toBctypeRow(bctype: String, owner: String) = BctypeRow(bctype, description, owner, write(containerInfo), ApiTime.nowUTC)
+  // def toBctypeRow(bctype: String, owner: String) = BctypeRow(bctype, description, owner, write(containerInfo), ApiTime.nowUTC)
+  def toBctypeRow(bctype: String, owner: String) = BctypeRow(bctype, description, owner, details, ApiTime.nowUTC)
 }
 
-case class PatchBctypeRequest(description: Option[String], containerInfo: Option[String]) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
+case class PatchBctypeRequest(description: Option[String], details: Option[String]) {
+  // protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the bctype, and the attribute name being updated. */
   def getDbUpdate(bctype: String): (DBIO[_],String) = {
@@ -42,11 +44,12 @@ case class PatchBctypeRequest(description: Option[String], containerInfo: Option
     //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this bctype
     description match { case Some(description) => return ((for { d <- BctypesTQ.rows if d.bctype === bctype } yield (d.bctype,d.description,d.lastUpdated)).update((bctype, description, lastUpdated)), "description"); case _ => ; }
-    containerInfo match {
-      case Some(ci) => val cInfo = if (ci != "") write(containerInfo) else ""
-        return ((for { d <- BctypesTQ.rows if d.bctype === bctype } yield (d.bctype,d.containerInfo,d.lastUpdated)).update((bctype, cInfo, lastUpdated)), "containerInfo")
-      case _ => ;
-    }
+    details match { case Some(det) => return ((for { d <- BctypesTQ.rows if d.bctype === bctype } yield (d.bctype,d.details,d.lastUpdated)).update((bctype, det, lastUpdated)), "details"); case _ => ; }
+    // containerInfo match {
+    //   case Some(ci) => val cInfo = if (ci != "") write(containerInfo) else ""
+    //     return ((for { d <- BctypesTQ.rows if d.bctype === bctype } yield (d.bctype,d.containerInfo,d.lastUpdated)).update((bctype, cInfo, lastUpdated)), "containerInfo")
+    //   case _ => ;
+    // }
     return (null, null)
   }
 }
@@ -57,14 +60,16 @@ case class GetBlockchainsResponse(blockchains: Map[String,Blockchain], lastIndex
 case class GetBlockchainAttributeResponse(attribute: String, value: String)
 
 /** Input format for PUT /bctypes/{bctype}/blockchains/<name> */
-case class PutBlockchainRequest(description: String, bootNodes: List[String], genesis: List[String], networkId: List[String]) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
-  def toBlockchainRow(bctype: String, name: String, owner: String) = BlockchainRow(name, bctype, description, owner, write(bootNodes), write(genesis), write(networkId), ApiTime.nowUTC)
-  // def toBlockchainRow(bctype: String, name: String, owner: String) = BlockchainRow(name, bctype, description, owner, "a", "b", "c", ApiTime.nowUTC)
+// case class PutBlockchainRequest(description: String, bootNodes: List[String], genesis: List[String], networkId: List[String]) {
+case class PutBlockchainRequest(description: String, details: String) {
+  // protected implicit val jsonFormats: Formats = DefaultFormats
+  // def toBlockchainRow(bctype: String, name: String, owner: String) = BlockchainRow(name, bctype, description, owner, write(bootNodes), write(genesis), write(networkId), ApiTime.nowUTC)
+  def toBlockchainRow(bctype: String, name: String, owner: String) = BlockchainRow(name, bctype, description, owner, details, ApiTime.nowUTC)
 }
 
-case class PatchBlockchainRequest(description: Option[String], bootNodes: Option[List[String]], genesis: Option[List[String]], networkId: Option[List[String]]) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
+// case class PatchBlockchainRequest(description: Option[String], bootNodes: Option[List[String]], genesis: Option[List[String]], networkId: Option[List[String]]) {
+case class PatchBlockchainRequest(description: Option[String], details: Option[String]) {
+  // protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the blockchain, and the attribute name being updated. */
   def getDbUpdate(bctype: String, name: String): (DBIO[_],String) = {
@@ -72,21 +77,24 @@ case class PatchBlockchainRequest(description: Option[String], bootNodes: Option
     //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this bctype
     description match { case Some(description) => return ((for { d <- BlockchainsTQ.rows if d.bctype === bctype && d.name === name } yield (d.name, d.bctype,d.description,d.lastUpdated)).update((name, bctype, description, lastUpdated)), "description"); case _ => ; }
-    bootNodes match {
-      case Some(bn) => val bNodes = if (bn != "") write(bootNodes) else ""
-        return ((for { d <- BlockchainsTQ.rows if d.bctype === bctype && d.name === name } yield (d.name,d.bctype,d.bootNodes,d.lastUpdated)).update((name, bctype, bNodes, lastUpdated)), "bootNodes")
+    details match { case Some(det) => return ((for { d <- BlockchainsTQ.rows if d.bctype === bctype && d.name === name } yield (d.name,d.bctype,d.details,d.lastUpdated)).update((name, bctype, det, lastUpdated)), "details")
       case _ => ;
     }
-    genesis match {
-      case Some(g) => val gen = if (g != "") write(genesis) else ""
-        return ((for { d <- BlockchainsTQ.rows if d.bctype === bctype && d.name === name } yield (d.name,d.bctype,d.genesis,d.lastUpdated)).update((name, bctype, gen, lastUpdated)), "genesis")
-      case _ => ;
-    }
-    networkId match {
-      case Some(n) => val netId = if (n != "") write(networkId) else ""
-        return ((for { d <- BlockchainsTQ.rows if d.bctype === bctype && d.name === name } yield (d.name,d.bctype,d.networkId,d.lastUpdated)).update((name, bctype, netId, lastUpdated)), "networkId")
-      case _ => ;
-    }
+    // bootNodes match {
+    //   case Some(bn) => val bNodes = if (bn != "") write(bootNodes) else ""
+    //     return ((for { d <- BlockchainsTQ.rows if d.bctype === bctype && d.name === name } yield (d.name,d.bctype,d.bootNodes,d.lastUpdated)).update((name, bctype, bNodes, lastUpdated)), "bootNodes")
+    //   case _ => ;
+    // }
+    // genesis match {
+    //   case Some(g) => val gen = if (g != "") write(genesis) else ""
+    //     return ((for { d <- BlockchainsTQ.rows if d.bctype === bctype && d.name === name } yield (d.name,d.bctype,d.genesis,d.lastUpdated)).update((name, bctype, gen, lastUpdated)), "genesis")
+    //   case _ => ;
+    // }
+    // networkId match {
+    //   case Some(n) => val netId = if (n != "") write(networkId) else ""
+    //     return ((for { d <- BlockchainsTQ.rows if d.bctype === bctype && d.name === name } yield (d.name,d.bctype,d.networkId,d.lastUpdated)).update((name, bctype, netId, lastUpdated)), "networkId")
+    //   case _ => ;
+    // }
     return (null, null)
   }
 }
@@ -193,7 +201,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
 ```
 {
   "description": "abc",       // description of the blockchain type
-  "containerInfo": "{ ... }"
+  "details": "escaped json string"
 }
 ```"""
       parameters(
@@ -251,8 +259,8 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
 
 ```
 {
-  "description": "abc"       // description of the blockchain type
-  "containerInfo": "{ ... }"
+  "description": "abc",       // description of the blockchain type
+  "details": "escaped json string"
 }
 ```
 
@@ -431,9 +439,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
 ```
 {
   "description": "abc",
-  "bootNodes": [ "url1", "url2", "url3" ],
-  "genesis": [ "url1", "url2", "url3" ],
-  "networkId": [ "url1", "url2", "url3" ]
+  "details": "escaped json string"
 }
 ```"""
       parameters(
@@ -502,10 +508,8 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
 
 ```
 {
-  "description": "abc"
-  "bootNodes": [ "url1", "url2", "url3" ]
-  "genesis": [ "url1", "url2", "url3" ]
-  "networkId": [ "url1", "url2", "url3" ]
+  "description": "abc",
+  "details": "escaped json string"
 }
 ```
 

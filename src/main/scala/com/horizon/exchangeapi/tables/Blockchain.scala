@@ -15,12 +15,12 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}   //rena
 
 /** Contains the object representations of the DB tables related to bctypes. */
 
-case class BctypeRow(bctype: String, description: String, definedBy: String, containerInfo: String, lastUpdated: String) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
+case class BctypeRow(bctype: String, description: String, definedBy: String, details: String, lastUpdated: String) {
+  // protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toBctype: Bctype = {
-    val ci = if (containerInfo != "") read[Map[String,String]](containerInfo) else Map[String,String]()
-    new Bctype(description, definedBy, ci, lastUpdated)
+    // val ci = if (containerInfo != "") read[Map[String,String]](containerInfo) else Map[String,String]()
+    new Bctype(description, definedBy, details, lastUpdated)
   }
 
   def upsert: DBIO[_] = BctypesTQ.rows.insertOrUpdate(this)
@@ -31,10 +31,10 @@ class Bctypes(tag: Tag) extends Table[BctypeRow](tag, "bctypes") {
   def bctype = column[String]("bctype", O.PrimaryKey)
   def description = column[String]("description")
   def definedBy = column[String]("definedby")
-  def containerInfo = column[String]("containerinfo")
+  def details = column[String]("details")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (bctype, description, definedBy, containerInfo, lastUpdated) <> (BctypeRow.tupled, BctypeRow.unapply)
+  def * = (bctype, description, definedBy, details, lastUpdated) <> (BctypeRow.tupled, BctypeRow.unapply)
   def user = foreignKey("user_fk", definedBy, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
@@ -46,7 +46,7 @@ object BctypesTQ {
   def getDescription(bctype: String) = rows.filter(_.bctype === bctype).map(_.description)
   def getOwner(bctype: String) = rows.filter(_.bctype === bctype).map(_.definedBy)
   def getNumOwned(owner: String) = rows.filter(_.definedBy === owner).length
-  def getContainerInfo(bctype: String) = rows.filter(_.bctype === bctype).map(_.containerInfo)
+  def getDetails(bctype: String) = rows.filter(_.bctype === bctype).map(_.details)
   def getLastUpdated(bctype: String) = rows.filter(_.bctype === bctype).map(_.lastUpdated)
 
   /** Returns a query for the specified bctype attribute value. Returns null if an invalid attribute name is given. */
@@ -56,7 +56,7 @@ object BctypesTQ {
     return attrName match {
       case "description" => filter.map(_.description)
       case "definedBy" => filter.map(_.definedBy)
-      case "containerInfo" => filter.map(_.containerInfo)
+      case "details" => filter.map(_.details)
       case "lastUpdated" => filter.map(_.lastUpdated)
       case _ => null
     }
@@ -67,18 +67,20 @@ object BctypesTQ {
 }
 
 // This is the bctype table minus the key - used as the data structure to return to the REST clients
-class Bctype(var description: String, var definedBy: String, var containerInfo: Map[String,String], var lastUpdated: String) {
-  def copy = new Bctype(description, definedBy, containerInfo, lastUpdated)
+// class Bctype(var description: String, var definedBy: String, var containerInfo: Map[String,String], var lastUpdated: String) {
+class Bctype(var description: String, var definedBy: String, var details: String, var lastUpdated: String) {
+  def copy = new Bctype(description, definedBy, details, lastUpdated)
 }
 
 /** One instance of a blockchain. From a rest api perspective, this is a sub-resource of bctype. */
-case class BlockchainRow(name: String, bctype: String, description: String, definedBy: String, bootNodes: String, genesis: String, networkId: String, lastUpdated: String) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
+// case class BlockchainRow(name: String, bctype: String, description: String, definedBy: String, bootNodes: String, genesis: String, networkId: String, lastUpdated: String) {
+case class BlockchainRow(name: String, bctype: String, description: String, definedBy: String, details: String, lastUpdated: String) {
+  // protected implicit val jsonFormats: Formats = DefaultFormats
   def toBlockchain: Blockchain = {
-    val bn = if (bootNodes != "") read[List[String]](bootNodes) else List[String]()
-    val gen = if (genesis != "") read[List[String]](genesis) else List[String]()
-    val netid = if (networkId != "") read[List[String]](networkId) else List[String]()
-    Blockchain(description, definedBy, bn, gen, netid, lastUpdated)
+    // val bn = if (bootNodes != "") read[List[String]](bootNodes) else List[String]()
+    // val gen = if (genesis != "") read[List[String]](genesis) else List[String]()
+    // val netid = if (networkId != "") read[List[String]](networkId) else List[String]()
+    Blockchain(description, definedBy, details, lastUpdated)
   }
 
   def upsert: DBIO[_] = BlockchainsTQ.rows.insertOrUpdate(this)     //todo: this currently does not work due to this bug: https://github.com/slick/slick/issues/966
@@ -92,12 +94,13 @@ class Blockchains(tag: Tag) extends Table[BlockchainRow](tag, "blockchains") {
   def bctype = column[String]("bctype")
   def description = column[String]("description")
   def definedBy = column[String]("definedby")
-  def bootNodes = column[String]("bootnodes")   // for now we are serializing the json and storing in a string, instead of using another table and doing joins
-  def genesis = column[String]("genesis")
-  def networkId = column[String]("networkid")
+  def details = column[String]("details")
+  // def bootNodes = column[String]("bootnodes")   // for now we are serializing the json and storing in a string, instead of using another table and doing joins
+  // def genesis = column[String]("genesis")
+  // def networkId = column[String]("networkid")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (name, bctype, description, definedBy, bootNodes, genesis, networkId, lastUpdated) <> (BlockchainRow.tupled, BlockchainRow.unapply)
+  def * = (name, bctype, description, definedBy, details, lastUpdated) <> (BlockchainRow.tupled, BlockchainRow.unapply)
   def primKey = primaryKey("pk_bc", (name, bctype))
   // def idx = index("idx_bc", (name, bctype), unique = true)
   def bctypekey = foreignKey("bctype_fk", bctype, BctypesTQ.rows)(_.bctype, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
@@ -131,13 +134,15 @@ object BlockchainsTQ {
     return attrName match {
       case "description" => filter.map(_.description)
       case "definedBy" => filter.map(_.definedBy)
-      case "bootNodes" => filter.map(_.bootNodes)
-      case "genesis" => filter.map(_.genesis)
-      case "networkId" => filter.map(_.networkId)
+      case "details" => filter.map(_.details)
+      // case "bootNodes" => filter.map(_.bootNodes)
+      // case "genesis" => filter.map(_.genesis)
+      // case "networkId" => filter.map(_.networkId)
       case "lastUpdated" => filter.map(_.lastUpdated)
       case _ => null
     }
   }
 }
 
-case class Blockchain(description: String, definedBy: String, bootNodes: List[String], genesis: List[String], networkId: List[String], lastUpdated: String)
+// case class Blockchain(description: String, definedBy: String, bootNodes: List[String], genesis: List[String], networkId: List[String], lastUpdated: String)
+case class Blockchain(description: String, definedBy: String, details: String, lastUpdated: String)

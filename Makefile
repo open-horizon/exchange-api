@@ -3,7 +3,7 @@
 # DOCKER_REGISTRY - hostname of the docker registry to push newly built containers to
 
 SHELL = /bin/bash -e
-ARCH = x86
+ARCH ?= x86
 DOCKER_NAME ?= exchange-api
 DOCKER_TAG ?= v1.23.0
 DOCKER_OPTS ?= --no-cache

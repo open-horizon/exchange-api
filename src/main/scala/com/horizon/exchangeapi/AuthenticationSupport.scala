@@ -36,46 +36,46 @@ import BaseAccess._
 /** The list of access rights. */
 object Access extends Enumeration {
   type Access = Value
-  val READ,       // these 1st 3 are generic and will be changed to specific ones below based on the identity and target
-    WRITE,       // implies READ and includes delete
-    CREATE,
-    READ_MYSELF,      // is used for users, devices, agbots
-    WRITE_MYSELF,
-    CREATE_DEVICE,       // we use WRITE_MY_DEVICES instead of this
-    READ_MY_DEVICES,     // when an device tries to do this it means other device owned by the same user
-    WRITE_MY_DEVICES,
-    READ_ALL_DEVICES,
-    WRITE_ALL_DEVICES,
-    SEND_MSG_TO_DEVICE,
-    CREATE_AGBOT,       // we use WRITE_MY_AGBOTS instead of this
-    READ_MY_AGBOTS,     // when an agbot tries to do this it means other agbots owned by the same user
-    WRITE_MY_AGBOTS,
-    READ_ALL_AGBOTS,
-    WRITE_ALL_AGBOTS,
-    DATA_HEARTBEAT_MY_AGBOTS,
-    // AGBOT_AGREEMENT_DATA_HEARTBEAT,    //TODO: remove
-    // AGBOT_AGREEMENT_CONFIRM,    //TODO: remove
-    SEND_MSG_TO_AGBOT,
-    CREATE_USER,
-    CREATE_SUPERUSER,       // currently no one is allowed to do this, because root is only initialized from the config.json file
-    READ_ALL_USERS,
-    WRITE_ALL_USERS,
-    RESET_USER_PW,
-    READ_MY_BLOCKCHAINS,
-    WRITE_MY_BLOCKCHAINS,
-    READ_ALL_BLOCKCHAINS,
-    WRITE_ALL_BLOCKCHAINS,
-    CREATE_BLOCKCHAINS,       // we use WRITE_MY_BLOCKCHAINS instead of this
-    READ_MY_BCTYPES,
-    WRITE_MY_BCTYPES,
-    READ_ALL_BCTYPES,
-    WRITE_ALL_BCTYPES,
-    CREATE_BCTYPES,       // we use WRITE_MY_BCTYPES instead of this
-    ADMIN,
-    STATUS,
-    ALL,
-    NONE        // should not be put in any role below
-    = Value
+  // Note: the strings here are *not* for checking equality, they are for toString in error msgs
+  val READ = Value("READ")       // these 1st 3 are generic and will be changed to specific ones below based on the identity and target
+  val WRITE = Value("WRITE")       // implies READ and includes delete
+  val CREATE = Value("CREATE")
+  val READ_MYSELF = Value("READ_MYSELF")      // is used for users, devices, agbots
+  val WRITE_MYSELF = Value("WRITE_MYSELF")
+  val CREATE_DEVICE = Value("CREATE_DEVICE")       // we use WRITE_MY_DEVICES instead of this
+  val READ_MY_DEVICES = Value("READ_MY_DEVICES")     // when an device tries to do this it means other device owned by the same user
+  val WRITE_MY_DEVICES = Value("WRITE_MY_DEVICES")
+  val READ_ALL_DEVICES = Value("READ_ALL_DEVICES")
+  val WRITE_ALL_DEVICES = Value("WRITE_ALL_DEVICES")
+  val SEND_MSG_TO_DEVICE = Value("SEND_MSG_TO_DEVICE")
+  val CREATE_AGBOT = Value("CREATE_AGBOT")       // we use WRITE_MY_AGBOTS instead of this
+  val READ_MY_AGBOTS = Value("READ_MY_AGBOTS")     // when an agbot tries to do this it means other agbots owned by the same user
+  val WRITE_MY_AGBOTS = Value("WRITE_MY_AGBOTS")
+  val READ_ALL_AGBOTS = Value("READ_ALL_AGBOTS")
+  val WRITE_ALL_AGBOTS = Value("WRITE_ALL_AGBOTS")
+  val DATA_HEARTBEAT_MY_AGBOTS = Value("DATA_HEARTBEAT_MY_AGBOTS")
+  // AGBOT_AGREEMENT_DATA_HEARTBEAT,    //TODO: remove
+  // AGBOT_AGREEMENT_CONFIRM,    //TODO: remove
+  val SEND_MSG_TO_AGBOT = Value("SEND_MSG_TO_AGBOT")
+  val CREATE_USER = Value("CREATE_USER")
+  val CREATE_SUPERUSER = Value("CREATE_SUPERUSER")       // currently no one is allowed to do this, because root is only initialized from the config.json file
+  val READ_ALL_USERS = Value("READ_ALL_USERS")
+  val WRITE_ALL_USERS = Value("WRITE_ALL_USERS")
+  val RESET_USER_PW = Value("RESET_USER_PW")
+  val READ_MY_BLOCKCHAINS = Value("READ_MY_BLOCKCHAINS")
+  val WRITE_MY_BLOCKCHAINS = Value("WRITE_MY_BLOCKCHAINS")
+  val READ_ALL_BLOCKCHAINS = Value("READ_ALL_BLOCKCHAINS")
+  val WRITE_ALL_BLOCKCHAINS = Value("WRITE_ALL_BLOCKCHAINS")
+  val CREATE_BLOCKCHAINS = Value("CREATE_BLOCKCHAINS")       // we use WRITE_MY_BLOCKCHAINS instead of this
+  val READ_MY_BCTYPES = Value("READ_MY_BCTYPES")
+  val WRITE_MY_BCTYPES = Value("WRITE_MY_BCTYPES")
+  val READ_ALL_BCTYPES = Value("READ_ALL_BCTYPES")
+  val WRITE_ALL_BCTYPES = Value("WRITE_ALL_BCTYPES")
+  val CREATE_BCTYPES = Value("CREATE_BCTYPES")       // we use WRITE_MY_BCTYPES instead of this
+  val ADMIN = Value("ADMIN")
+  val STATUS = Value("STATUS")
+  val ALL = Value("ALL")
+  val NONE = Value("NONE")        // should not be put in any role below
 }
 import Access._
 
@@ -339,6 +339,8 @@ trait AuthenticationSupport extends ScalatraBase {
     def toIAgbot = IAgbot(creds)
     def toIAnonymous = IAnonymous(Creds("",""))
     def isSuperUser = false       // IUser overrides this
+    def identityString = creds.id     // for error msgs
+    def accessDeniedMsg(access: Access) = "Access denied: '"+identityString+"' does not have authorization: "+access
 
     def authenticate(hint: String = ""): Identity = {
       if (creds.isAnonymous) return toIAnonymous
@@ -399,7 +401,7 @@ trait AuthenticationSupport extends ScalatraBase {
           }
         case TAction(id) => access      // a user running an action
       }
-      if (Role.hasAuthorization(role, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
+      if (Role.hasAuthorization(role, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }
 
     def iOwnTarget(target: Target): Boolean = {
@@ -458,7 +460,7 @@ trait AuthenticationSupport extends ScalatraBase {
           }
         case TAction(id) => access      // a device running an action
       }
-      if (Role.hasAuthorization(Role.DEVICE, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
+      if (Role.hasAuthorization(Role.DEVICE, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }    
   }
 
@@ -498,7 +500,7 @@ trait AuthenticationSupport extends ScalatraBase {
           }
         case TAction(id) => access      // a agbot running an action
       }
-      if (Role.hasAuthorization(Role.AGBOT, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
+      if (Role.hasAuthorization(Role.AGBOT, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }    
   }
 
@@ -538,7 +540,7 @@ trait AuthenticationSupport extends ScalatraBase {
           }
         case TAction(id) => access      // a anonymous running an action
       }
-      if (Role.hasAuthorization(Role.ANONYMOUS, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
+      if (Role.hasAuthorization(Role.ANONYMOUS, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }    
   }
 

@@ -2,7 +2,5 @@
 if [[ $1 == "-raw" ]]; then parse=cat; else parse="jq -r ."; fi
 curl -# -w "%{http_code}" -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic root:$EXCHANGE_ROOTPW" -d '{
   "description": "bc1 owned by root",
-  "bootNodes": [ "url1", "url2" ],
-  "genesis": [ "gen1", "gen2" ],
-  "networkId": [ "net1", "net2" ]
+  "details": "json escaped string3"
 }' $EXCHANGE_URL_ROOT/v1/bctypes/bt1/blockchains/bc1 | $parse

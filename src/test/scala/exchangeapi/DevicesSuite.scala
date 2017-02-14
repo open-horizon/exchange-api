@@ -334,7 +334,8 @@ class DevicesSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getDevResp = parse(response.body).extract[GetDevicesResponse]
-    assert(getDevResp.devices.size === (3 + numExistingDevices + (if (putDevRespDisabled) 1 else 0)))
+    val expectedNumDevices = (3 + numExistingDevices + (if (putDevRespDisabled) 1 else 0))
+    assert(getDevResp.devices.size === expectedNumDevices || getDevResp.devices.size === expectedNumDevices+1)   // BlockchainsSuite also creates a device
 
     assert(getDevResp.devices.contains(deviceId))
     var dev = getDevResp.devices.get(deviceId).get     // the 2nd get turns the Some(val) into val

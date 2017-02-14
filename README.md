@@ -82,6 +82,8 @@ services in the exchange.
 - Refactored authentication and authorization code, so now it is easier to read, easier to extend, and handles a few corner cases better. No external changes for all the mainline use cases.
 - Changed the scala version used in building the container to be the latest stable and the same as my dev environment (2.12.1)
 - Moved up to latest stable version of scalatra (2.4.1 ot 2.5.1)
+- Access denied msgs now give details
+- Fixed pw reset email to give link to the swagger entry to change your pw with the token
 
 ## Changes Between v1.21.0 and v1.22.0
 

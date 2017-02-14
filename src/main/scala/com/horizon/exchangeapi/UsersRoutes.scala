@@ -279,7 +279,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postUsersReset =
     (apiOperation[ApiResponse]("postUsersReset")
       summary "Emails the user a token for resetting their password"
-      notes """Use this if you have forgotten your password. (If you know your password and want to change it, you can use PUT /users/{username}.) Emails the user a timed token that can be given to POST /users/{username}/changepw. The token is good for 5 minutes. In the special case in which root's credentials are specified in the HTTP header, the token will not be emailed, instead it be returned in the response like this:
+      notes """Use this if you have forgotten your password. (If you know your password and want to change it, you can use PUT /users/{username}.) Emails the user a timed token that can be given to POST /users/{username}/changepw. The token is good for 10 minutes. In the special case in which root's credentials are specified in the HTTP header, the token will not be emailed, instead it be returned in the response like this:
 
 ```
 {
@@ -311,12 +311,29 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     else {
       // need the user's email to send him the reset token
       val resp = response
+
+      // Form swagger changepw url
+      logger.trace("X-API-Request: "+request.header("X-API-Request"))
+      val requestUrl = request.header("X-API-Request") match {
+        // Staging or prod environment, Haproxy will pass header X-API-Request -> https://exchange.staging.bluehorizon.network/api or https://exchange.bluehorizon.network/api
+        case Some(url) => url
+        // Local development environment, we get http://localhost:8080/api/v1/users/{user}/reset
+        case None => logger.trace("request.uri: "+request.uri)
+          val R = """^(.*)/v\d+/users/[^/]*/reset$""".r
+          request.uri.toString match {
+            case R(url) => url
+            case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "unexpected uri"))
+          }
+      }
+      val changePwUrl = requestUrl+"/api?url="+requestUrl+"/api-docs#!/v1/postUsersChangePw"
+      logger.trace("changePwUrl: "+changePwUrl)
+
       db.run(UsersTQ.getEmail(username).result).map({ xs =>
         logger.debug("POST /users/"+username+"/reset result: "+xs.toString)
         if (xs.size > 0) {
           val email = xs.head
           logger.debug("Emailing reset token for user "+username+" to email: "+email)
-          Email.send(username, email, createToken(username)) match {
+          Email.send(username, email, createToken(username), changePwUrl) match {
             case Success(msg) => resp.setStatus(HttpCode.POST_OK)
               ApiResponse(ApiResponseType.OK, msg)
             case Failure(e) => resp.setStatus(HttpCode.BAD_INPUT)
@@ -337,7 +354,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       notes "Use POST /users/{username}/reset to have a timed token sent to your email address. Then give that token and your new password to this REST API method."
       parameters(
         Parameter("username", DataType.String, Option[String]("Username of the user to be reset."), paramType = ParamType.Path),
-        Parameter("password", DataType.String, Option[String]("Reset token obtained from POST /users/{username}/reset. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("token", DataType.String, Option[String]("Reset token obtained from POST /users/{username}/reset. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[ChangePwRequest],
           Option[String]("Your new password."),
           paramType = ParamType.Body)

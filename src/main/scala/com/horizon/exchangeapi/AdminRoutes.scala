@@ -196,7 +196,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val getDropdbToken =
     (apiOperation[AdminDropdbTokenResponse]("getDropdbToken")
       summary "Gets a 1-time token for dropping the DB"
-      notes "Returns a timed token that can be given to POST /admin/dropdb. The token is good for 5 minutes. Since dropping the DB tables deletes all of their data, this is a way of confirming you really want to do it. This can only be run as root."
+      notes "Returns a timed token that can be given to POST /admin/dropdb. The token is good for 10 minutes. Since dropping the DB tables deletes all of their data, this is a way of confirming you really want to do it. This can only be run as root."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)

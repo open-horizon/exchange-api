@@ -20,7 +20,7 @@ EX_NUM_AGBOTS="${EX_NUM_AGBOTS:-20}"
 EX_NUM_AGREEMENTS="${EX_NUM_AGREEMENTS:-40}"
 EX_PERF_REPEAT="${EX_PERF_REPEAT:-30}"
 EX_URL_ROOT="${EXCHANGE_URL_ROOT:-http://localhost:8080}"
-EX_ROOT_PW="${EX_ROOT_PW:-Horizon-Rul3s}"	# this has to match what is in the exchange config.json
+EX_ROOT_PW="${EXCHANGE_ROOTPW:-rootpw}"	# this has to match what is in the exchange config.json
 
 appjson="application/json"
 accept="-H Accept:$appjson"
@@ -88,11 +88,13 @@ function curlcreate {
 	start=`date +%s`
 	if [[ $2 == "" ]]; then
 		auth=""
+		method="POST" 		# user create is the only method currently that is run anonymously and uses POST
 	else
 		auth="-H Authorization:Basic$2"
+		method="PUT"
 	fi
 	for (( i=1 ; i<=$1 ; i++ )) ; do
-		rc=$(curl -X PUT $curlBasicArgs $content $auth -d "$4" $EX_URL_ROOT/v1/$3$i)
+		rc=$(curl -X $method $curlBasicArgs $content $auth -d "$4" $EX_URL_ROOT/v1/$3$i)
 		checkrc $rc 201
 		echo -n .
 		bignum=$(($bignum+1))

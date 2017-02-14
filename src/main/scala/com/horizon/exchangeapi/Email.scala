@@ -20,7 +20,7 @@ object Email {
   /** Sends email to the specified email
    * @return Success(success-msg) or Failure(exception)
    */
-  def send(username: String, toAddress: String, token: String): Try[String] = {
+  def send(username: String, toAddress: String, token: String, changePwUrl: String): Try[String] = {
     // Check toAddress
     val toAddressObj = try { new InternetAddress(toAddress) } catch { case e: Exception => return Failure(new Exception("bad email address format")) }
 
@@ -50,7 +50,7 @@ object Email {
     message.setSubject(subject)
 
     // Set the email body content
-    val content = "You requested that your Horizon Exchange password be changed for username '" + username + "'. To change your password, copy/paste the token below into the Horizon registration UI. The token will expire in 5 minutes. If you did not request to have your password reset, simply ignore this email.\n\n" + token
+    val content = "You requested that your Horizon Exchange password be changed for username '"+username+"'. To change your password, go to "+changePwUrl+" and fill in the fields: put your username in the username field, copy/paste the token below into the token field, and put {\"newPassword\":\"yournewpw\"} in the body field. When done, click the 'Try it out' button. The token will expire in 10 minutes. If you did not request to have your password reset, simply ignore this email.\n\n" + token
     message.setText(content)
     // message.setText(content, "text/html")
 

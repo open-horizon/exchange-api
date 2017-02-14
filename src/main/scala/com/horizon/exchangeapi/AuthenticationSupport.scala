@@ -592,7 +592,7 @@ trait AuthenticationSupport extends ScalatraBase {
       // Not in the header, look in the url query string. Parameters() gives you the params ater "?". Params() gives you the routes variables (if they have same name)
       case None => (request.parameters.get("id").orElse(params.get("id")), request.parameters.get("token")) match {
         case (Some(id), Some(tok)) => if (id == "{id}") Creds(swaggerHack("id"),tok) else Creds(id,tok)
-        case _ => (request.parameters.get("username").orElse(params.get("username")), request.parameters.get("password")) match {
+        case _ => (request.parameters.get("username").orElse(params.get("username")), request.parameters.get("password").orElse(request.parameters.get("token"))) match {
           case (Some(user), Some(pw)) => if (user == "{username}") Creds(swaggerHack("username"),pw) else Creds(user,pw)
           case _ => if (anonymousOk) Creds("","")
             else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "no credentials given"))

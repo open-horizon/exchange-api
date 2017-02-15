@@ -26,7 +26,9 @@ import java.util.Properties
 @RunWith(classOf[JUnitRunner])
 class BlockchainsSuite extends FunSuite {
 
-  val urlRoot = sys.env.get("EXCHANGE_URL_ROOT").getOrElse("http://localhost:8080")
+  val localUrlRoot = "http://localhost:8080"
+  val urlRoot = sys.env.get("EXCHANGE_URL_ROOT").getOrElse(localUrlRoot)
+  val runningLocally = (urlRoot == localUrlRoot)
   val URL = urlRoot+"/v1"
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
@@ -158,29 +160,31 @@ class BlockchainsSuite extends FunSuite {
   }
 
   test("PUT /bctypes/"+bctype3+" - with low maxBlockchains - should fail") {
-    // Get the current config value so we can restore it afterward
-    ExchConfig.load
-    val origMaxBlockchains = ExchConfig.getInt("api.limits.maxBlockchains")
+    if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
+      // Get the current config value so we can restore it afterward
+      ExchConfig.load
+      val origMaxBlockchains = ExchConfig.getInt("api.limits.maxBlockchains")
 
-    // Change the maxBlockchains config value in the svr
-    var configInput = AdminConfigRequest("api.limits.maxBlockchains", "0")    // user only owns 1 currently
-    var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+      // Change the maxBlockchains config value in the svr
+      var configInput = AdminConfigRequest("api.limits.maxBlockchains", "0")    // user only owns 1 currently
+      var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
 
-    // Now try adding another bctype - expect it to be rejected
-    val input = PutBctypeRequest(bctype3+" desc", "json escaped string")
-    response = Http(URL+"/bctypes/"+bctype3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
-    val respObj = parse(response.body).extract[ApiResponse]
-    assert(respObj.msg.contains("Access Denied"))
+      // Now try adding another bctype - expect it to be rejected
+      val input = PutBctypeRequest(bctype3+" desc", "json escaped string")
+      response = Http(URL+"/bctypes/"+bctype3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED)
+      val respObj = parse(response.body).extract[ApiResponse]
+      assert(respObj.msg.contains("Access Denied"))
 
-    // Restore the maxBlockchains config value in the svr
-    configInput = AdminConfigRequest("api.limits.maxBlockchains", origMaxBlockchains.toString)
-    response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+      // Restore the maxBlockchains config value in the svr
+      configInput = AdminConfigRequest("api.limits.maxBlockchains", origMaxBlockchains.toString)
+      response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
+    }
   }
 
   test("GET /bctypes") {
@@ -374,29 +378,31 @@ class BlockchainsSuite extends FunSuite {
   }
 
   test("PUT /bctypes/"+bctype+"/blockchains/"+bcname3+" - with low maxBlockchains - should fail") {
-    // Get the current config value so we can restore it afterward
-    // ExchConfig.load  <-- done earlier
-    val origMaxBlockchains = ExchConfig.getInt("api.limits.maxBlockchains")
+    if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
+      // Get the current config value so we can restore it afterward
+      // ExchConfig.load  <-- done earlier
+      val origMaxBlockchains = ExchConfig.getInt("api.limits.maxBlockchains")
 
-    // Change the maxBlockchains config value in the svr
-    var configInput = AdminConfigRequest("api.limits.maxBlockchains", "1")    // user owns 2 currently
-    var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+      // Change the maxBlockchains config value in the svr
+      var configInput = AdminConfigRequest("api.limits.maxBlockchains", "1")    // user owns 2 currently
+      var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
 
-    // Now try adding another blockchain - expect it to be rejected
-    val input = PutBlockchainRequest(bctype+"-"+bcname3+" desc", "json escaped string")
-    response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
-    val respObj = parse(response.body).extract[ApiResponse]
-    assert(respObj.msg.contains("Access Denied"))
+      // Now try adding another blockchain - expect it to be rejected
+      val input = PutBlockchainRequest(bctype+"-"+bcname3+" desc", "json escaped string")
+      response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED)
+      val respObj = parse(response.body).extract[ApiResponse]
+      assert(respObj.msg.contains("Access Denied"))
 
-    // Restore the maxBlockchains config value in the svr
-    configInput = AdminConfigRequest("api.limits.maxBlockchains", origMaxBlockchains.toString)
-    response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+      // Restore the maxBlockchains config value in the svr
+      configInput = AdminConfigRequest("api.limits.maxBlockchains", origMaxBlockchains.toString)
+      response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
+    }
   }
 
   test("GET /bctypes/"+bctype+"/blockchains") {

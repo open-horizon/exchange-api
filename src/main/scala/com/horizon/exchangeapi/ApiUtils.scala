@@ -85,7 +85,8 @@ object ExchConfig {
 
   def reload: Unit = load
 
-  /** Set a few values on top of the current config. These values are not save persistently. Used mostly for automated testing. */
+  /** Set a few values on top of the current config. These values are not saved persistently, and therefore will only set it in this 1 exchange instance,
+   * and therefore will *not* work when the exchange is running in multi-node config. This method is used mostly for automated testing. */
   def mod(props: Properties): Unit = { config = ConfigFactory.parseProperties(props).withFallback(config) }
 
   /** This is done separately from load() because we need the db execution context */

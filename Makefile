@@ -5,7 +5,7 @@
 SHELL = /bin/bash -e
 ARCH ?= x86
 DOCKER_NAME ?= exchange-api
-DOCKER_TAG ?= v1.23.0
+DOCKER_TAG ?= v1.24.0
 DOCKER_OPTS ?= --no-cache
 COMPILE_CLEAN ?= clean
 image-string = $(DOCKER_REGISTRY)/$(ARCH)/exchange-api
@@ -16,7 +16,8 @@ image-string = $(DOCKER_REGISTRY)/$(ARCH)/exchange-api
 # try to sync this version with the version of scala you have installed on your dev machine, and with what is specified in build.scala
 SCALA_VERSION ?= 2.12.1
 SCALA_VERSION_SHORT ?= 2.12
-JETTY_VERSION ?= 9.3.11.v20160721
+# JETTY_VERSION ?= 9.3.11.v20160721
+JETTY_VERSION ?= 9.4.1.v20170120
 # this version corresponds to the Version variable in project/build.scala
 EXCHANGE_API_WAR_VERSION ?= 0.1.0
 EXCHANGE_API_DIR ?= /src/github.com/open-horizon/exchange-api

@@ -75,6 +75,10 @@ services in the exchange.
 
 - The properties used for advertising and searching should always have its value element be a string. For example the memory property value should be `"300"` instead of `300`. This is because scalatra is automatically converting the json to scala data structures, and i don't know how to have the data structures that vary in type.
 
+## Changes Between v1.23.0 and v1.24.0 (not done yet)
+
+- Converted to the newer build.sbt file and upgraded to sbt version 0.13.13
+
 ## Changes Between v1.22.0 and v1.23.0
 
 - Added PUT/GET/DELETE /bctypes/{type} and PUT/GET/DELETE /bctypes/{type}/blockchains/{name} to store/retrieve BC info

@@ -1,19 +1,20 @@
-src/main/resources/c3p0.properties
+# Created/used by sbt
+project/project/
 target/
+.lib/
+
+# Create by Makefile to hold build timestamps
+.docker-bld
+.docker-compile
+.docker-exec
+.docker-exec-run
+
+# IntelliJ IDEA
 .idea/
+
+# Eclipse?
 .classpath
 .cache-main
 .cache-tests
 .project
 .settings/
-.lib/
-.docker-bld
-.docker-compile
-.docker-exec
-.docker-exec-run
-project/project/
-/bin/
-
-docker/fs/root/.ssh/id_*
-docker-exec/
-docker-bld/

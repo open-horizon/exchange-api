@@ -41,7 +41,7 @@ class UsersSuite extends FunSuite {
   val rootuser = "root"
   val rootpw = sys.env.get("EXCHANGE_ROOTPW").getOrElse("Horizon-Rul3s")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
-  val CONNTIMEOUT = HttpOptions.connTimeout(10000)
+  val CONNTIMEOUT = HttpOptions.connTimeout(20000)
   val READTIMEOUT = HttpOptions.readTimeout(20000)
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.

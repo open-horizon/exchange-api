@@ -25,7 +25,9 @@ import java.util.Properties
 @RunWith(classOf[JUnitRunner])
 class AgbotsSuite extends FunSuite {
 
-  val urlRoot = sys.env.get("EXCHANGE_URL_ROOT").getOrElse("http://localhost:8080")
+  val localUrlRoot = "http://localhost:8080"
+  val urlRoot = sys.env.get("EXCHANGE_URL_ROOT").getOrElse(localUrlRoot)
+  val runningLocally = (urlRoot == localUrlRoot)
   val URL = urlRoot+"/v1"
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
@@ -276,29 +278,31 @@ class AgbotsSuite extends FunSuite {
 
   /** Try to add a 3rd agreement, when max agreements is below that. */
   test("PUT /agbots/"+agbotId+"/agreements/9952 - with low maxAgreements") {
-    // Get the current config value so we can restore it afterward
-    ExchConfig.load
-    val origMaxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
+    if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
+      // Get the current config value so we can restore it afterward
+      ExchConfig.load
+      val origMaxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
 
-    // Change the maxAgreements config value in the svr
-    var configInput = AdminConfigRequest("api.limits.maxAgreements", "1")
-    var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+      // Change the maxAgreements config value in the svr
+      var configInput = AdminConfigRequest("api.limits.maxAgreements", "1")
+      var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
 
-    // Now try adding another agreement - expect it to be rejected
-    val input = PutAgbotAgreementRequest("netspeed", "signed")
-    response = Http(URL+"/agbots/"+agbotId+"/agreements/9952").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
-    val respObj = parse(response.body).extract[ApiResponse]
-    assert(respObj.msg.contains("Access Denied"))
+      // Now try adding another agreement - expect it to be rejected
+      val input = PutAgbotAgreementRequest("netspeed", "signed")
+      response = Http(URL+"/agbots/"+agbotId+"/agreements/9952").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED)
+      val respObj = parse(response.body).extract[ApiResponse]
+      assert(respObj.msg.contains("Access Denied"))
 
-    // Restore the maxAgreements config value in the svr
-    configInput = AdminConfigRequest("api.limits.maxAgreements", origMaxAgreements.toString)
-    response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+      // Restore the maxAgreements config value in the svr
+      configInput = AdminConfigRequest("api.limits.maxAgreements", origMaxAgreements.toString)
+      response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
+    }
   }
 
   test("GET /agbots/"+agbotId+"/agreements - verify agbot agreement") {
@@ -402,29 +406,31 @@ class AgbotsSuite extends FunSuite {
 
   /** Try to add agbot3, when max agbots is below that. */
   test("PUT /agbots/"+agbot3Id+" - with low maxAgbots") {
-    // Get the current config value so we can restore it afterward
-    // ExchConfig.load  <-- done up above
-    val origMaxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
+    if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
+      // Get the current config value so we can restore it afterward
+      // ExchConfig.load  <-- done up above
+      val origMaxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
 
-    // Change the maxAgbots config value in the svr
-    var configInput = AdminConfigRequest("api.limits.maxAgbots", "1")
-    var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+      // Change the maxAgbots config value in the svr
+      var configInput = AdminConfigRequest("api.limits.maxAgbots", "1")
+      var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
 
-    // Now try adding another agbot - expect it to be rejected
-    val input = PutAgbotsRequest(agbot3Token, "agbot"+agbot3Id+"-norm", "whisper-id", "ABC")
-    response = Http(URL+"/agbots/"+agbot3Id).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
-    val respObj = parse(response.body).extract[ApiResponse]
-    assert(respObj.msg.contains("Access Denied"))
+      // Now try adding another agbot - expect it to be rejected
+      val input = PutAgbotsRequest(agbot3Token, "agbot"+agbot3Id+"-norm", "whisper-id", "ABC")
+      response = Http(URL+"/agbots/"+agbot3Id).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED)
+      val respObj = parse(response.body).extract[ApiResponse]
+      assert(respObj.msg.contains("Access Denied"))
 
-    // Restore the maxAgbots config value in the svr
-    configInput = AdminConfigRequest("api.limits.maxAgbots", origMaxAgbots.toString)
-    response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+      // Restore the maxAgbots config value in the svr
+      configInput = AdminConfigRequest("api.limits.maxAgbots", origMaxAgbots.toString)
+      response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
+    }
   }
 
   /** Explicit delete of agbot */

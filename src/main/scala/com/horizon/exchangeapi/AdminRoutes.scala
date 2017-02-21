@@ -611,7 +611,8 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
-  /** Handles PUT /admin/config - set 1 or more variables in the in-memory config. Intentionally not put swagger, because only used by automated tests. */
+  /** Handles PUT /admin/config - set 1 or more variables in the in-memory config (so it does not do the right thing in multi-node mode).
+   * Intentionally not put swagger, because only used by automated tests. */
   put("/admin/config") ({
     // validateRoot(BaseAccess.ADMIN)
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)

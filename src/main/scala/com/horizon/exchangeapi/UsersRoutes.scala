@@ -1,21 +1,17 @@
 /** Services routes for all of the /users api methods. */
 package com.horizon.exchangeapi
 
-import org.scalatra._
-import slick.jdbc.PostgresProfile.api._
-import org.scalatra.swagger._
 import org.json4s._
-import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
-import org.scalatra.json._
+import org.scalatra._
+import org.scalatra.swagger._
 import org.slf4j._
-import Access._
-// import BaseAccess._
-import scala.util._
-import scala.util.control.Breaks._
-import scala.collection.immutable._
-import scala.collection.mutable.{HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
+import slick.jdbc.PostgresProfile.api._
 import com.horizon.exchangeapi.tables._
+
+import scala.collection.immutable._
+import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.util._
 
 //====== These are the input and output structures for /users routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -94,7 +90,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(UsersTQ.getUser(username).result).map({ xs =>
       logger.debug("GET /users/"+username+" result: "+xs.toString)
       // logger.debug("size: "+xs.size)
-      if (xs.size > 0) {
+      if (xs.nonEmpty) {
         val pw = if (superUser) xs.head.password else StrConstants.hiddenPw
         val user = User(pw, xs.head.email, xs.head.lastUpdated)
         // val users = new MutableHashMap[String,User]() += ((xs.head._1, user))
@@ -200,8 +196,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     // Note: we do not currently verify this is a real person creating this (with, for example, captcha), because haproxy restricts the number of
     //      times a single IP address can call this in a day to a very small number
     val username = swaggerHack("username")
-    // validateUser(BaseAccess.CREATE, username)
-    val ident = credsAndLog(true).authenticate().authorizeTo(TUser(username),Access.CREATE)
+    credsAndLog(true).authenticate().authorizeTo(TUser(username),Access.CREATE)
     val user = try { parse(request.body).extract[PutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.debug(user.toString)
@@ -233,8 +228,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   /** Handles DELETE /users/{username}. */
   delete("/users/:username", operation(deleteUsers)) ({
     val username = swaggerHack("username")
-    // validateUser(BaseAccess.WRITE, username)
-    val ident = credsAndLog().authenticate().authorizeTo(TUser(username),Access.WRITE)
+    credsAndLog().authenticate().authorizeTo(TUser(username),Access.WRITE)
     val resp = response
     // now with all the foreign keys set up correctly and onDelete=cascade, the db will automatically delete the associated rows in other tables
     db.run(UsersTQ.getUser(username).delete.transactionally.asTry).map({ xs =>
@@ -269,8 +263,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   post("/users/:username/confirm", operation(postUsersConfirm)) ({
     // Note: the haproxy rate limiting guards against pw cracking attempts
     val username = swaggerHack("username")
-    // validateUser(BaseAccess.READ, username)
-    val ident = credsAndLog().authenticate().authorizeTo(TUser(username),Access.READ)
+    credsAndLog().authenticate().authorizeTo(TUser(username),Access.READ)
     status_=(HttpCode.POST_OK)
     ApiResponse(ApiResponseType.OK, "confirmation successful")
   })
@@ -302,7 +295,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     if (ident.isSuperUser) {
       // verify the username exists via the cache
       AuthCache.users.get(username) match {
-        case Some(user) => ;      // do not need to do anything
+        case Some(_) => ;      // do not need to do anything
         case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "username '"+username+"' not found"))
       }
       status_=(HttpCode.POST_OK)
@@ -330,14 +323,14 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
       db.run(UsersTQ.getEmail(username).result).map({ xs =>
         logger.debug("POST /users/"+username+"/reset result: "+xs.toString)
-        if (xs.size > 0) {
+        if (xs.nonEmpty) {
           val email = xs.head
           logger.debug("Emailing reset token for user "+username+" to email: "+email)
           Email.send(username, email, createToken(username), changePwUrl) match {
             case Success(msg) => resp.setStatus(HttpCode.POST_OK)
               ApiResponse(ApiResponseType.OK, msg)
             case Failure(e) => resp.setStatus(HttpCode.BAD_INPUT)
-              ApiResponse(ApiResponseType.BAD_INPUT, e.toString())
+              ApiResponse(ApiResponseType.BAD_INPUT, e.toString)
           }
         } else {      // username not found in db
           resp.setStatus(HttpCode.NOT_FOUND)

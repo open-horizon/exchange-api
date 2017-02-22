@@ -155,9 +155,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("POST /admin/initdb result: "+xs.toString)
       xs match {
         case Success(v) => resp.setStatus(HttpCode.POST_OK)
-          // AuthCache.users.init(db)     // instead of doing this we can let the cache build up over time as resources are accessed
-          // AuthCache.devices.init(db)
-          // AuthCache.agbots.init(db)
+          ExchConfig.createRoot(db)         // initialize the users table with the root user from config.json
           ApiResponse(ApiResponseType.OK, "db initialized successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "db not initialized: "+t.toString)

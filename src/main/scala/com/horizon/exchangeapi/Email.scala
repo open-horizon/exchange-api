@@ -1,11 +1,10 @@
 /** Class for sending email to an exchange user. */
 package com.horizon.exchangeapi
 
+import java.util.{Date, Properties}
 import javax.mail._
 import javax.mail.internet._
-import java.util.Date
-import java.util.Properties
-import scala.collection.JavaConversions._
+
 import scala.util._
 
 /** Encapsulates sending email to exchange users */
@@ -15,14 +14,14 @@ object Email {
   val fromAddress = "noreply@bluehorizon.network"
   val subject = "Horizon password reset token"
 
-  // var smtpHost = gmailRelay     //TODO: determine if localhost has a relay
+  // var smtpHost = gmailRelay     //todo: determine if localhost has a relay
 
   /** Sends email to the specified email
    * @return Success(success-msg) or Failure(exception)
    */
   def send(username: String, toAddress: String, token: String, changePwUrl: String): Try[String] = {
     // Check toAddress
-    val toAddressObj = try { new InternetAddress(toAddress) } catch { case e: Exception => return Failure(new Exception("bad email address format")) }
+    val toAddressObj = try { new InternetAddress(toAddress) } catch { case _: Exception => return Failure(new Exception("bad email address format")) }
 
     // Get info from the config file
     val host = ExchConfig.getString("api.smtp.host")
@@ -59,7 +58,7 @@ object Email {
       if (auth) {
         val transport = session.getTransport("smtp")
         transport.connect(host, user, password)
-        transport.sendMessage(message, message.getAllRecipients())
+        transport.sendMessage(message, message.getAllRecipients)
         transport.close()
       } else {
         Transport.send(message)   // for non-authenticate svrs

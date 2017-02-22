@@ -1,51 +1,25 @@
 /** Helper classes for the exchange api rest methods, including some of the common case classes used by the api. */
 package com.horizon.exchangeapi
 
-import slick.jdbc.PostgresProfile.api._
-import Access._
-import scala.util.control.Breaks._
-// import scala.collection.mutable._
-import scala.collection.immutable._
-import scala.collection.mutable.{HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
-import java.time._
-import scala.util._
-import com.typesafe.config._
 import java.io.File
+import java.time._
+
+import com.typesafe.config._
+import slick.jdbc.PostgresProfile.api._
+
+import scala.collection.immutable._
+import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.util._
+//import java.util
 import java.util.Properties
-import org.slf4j.LoggerFactory
-import ch.qos.logback.classic.{Logger, Level}     // unfortunately, the slf4j abstraction does not include setting the log level
-import scala.concurrent.ExecutionContext.Implicits.global
+
+import ch.qos.logback.classic.{Level, Logger}
 import com.horizon.exchangeapi.tables._
+import org.slf4j.LoggerFactory
 
-/** Temp data structure mimicking our real db for the rest api methods i am still developing.
-object TempDb {
-  def init = {}    // called from ScalatraBootstrap just to force this object to be instantiated
+import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext.Implicits.global
 
-  var devices = new MutableHashMap[String,Device]()
-  PutDevicesRequest("abc123", "rpi1",
-    List(
-      Microservice("https://bluehorizon.network/documentation/sdr-device-api",1,"{json policy for rpi1 sdr}",List(
-        Prop("arch","arm","string","in"),
-        Prop("memory","300","int",">="),
-        Prop("version","1.0.0","version","in"),
-        Prop("agreementProtocols","ExchangeManualTest","list","in"),
-        Prop("dataVerification","true","boolean","="))),
-      Microservice("https://bluehorizon.network/documentation/netspeed-device-api",1,"{json policy for rpi1 netspeed}",List(
-        Prop("arch","arm","string","in"),
-        Prop("agreementProtocols","ExchangeManualTest","list","in"),
-        Prop("version","1.0.0","version","in")))
-    ),
-    "whisper id", Map("horizon"->"1.2.3"), "ABC").copyToTempDb("1", "bp")
-
-  var agbots = new MutableHashMap[String,Agbot]()      // key is agbot id
-
-  var devicesAgreements = MutableHashMap[String,MutableHashMap[String,DeviceAgreement]]()    // the 1st level key is the device id, the 2nd level key is the agreement id
-  var agbotsAgreements = MutableHashMap[String,MutableHashMap[String,AgbotAgreement]]()    // the 1st level key is the agbot id, the 2nd level key is the agreement id
-
-  var users = new MutableHashMap[String,User]()
-  PutUsersRequest("mypw", "bruceandml@gmail.com").copyToTempDb("bp", true)
-}
-*/
 
 /** Global config parameters for the exchange. See typesafe config classes: http://typesafehub.github.io/config/latest/api/ */
 object ExchConfig {
@@ -60,9 +34,9 @@ object ExchConfig {
   val levels: Map[String,Level] = Map("OFF"->Level.OFF, "ERROR"->Level.ERROR, "WARN"->Level.WARN, "INFO"->Level.INFO, "DEBUG"->Level.DEBUG, "TRACE"->Level.TRACE, "ALL"->Level.ALL)
 
   /** Tries to load the user's external config file */
-  def load: Unit = {
+  def load(): Unit = {
     val f = new File(configFileName)
-    if (f.isFile()) {     // checks if it exists and is a regular file
+    if (f.isFile) {     // checks if it exists and is a regular file
       config = ConfigFactory.parseFile(f, configOpts).withFallback(config)    // uses the defaults for anything not specified in the external config file
       logger.info("Using config file "+configFileName)
     } else {
@@ -78,12 +52,31 @@ object ExchConfig {
       }
     }
 
+    // Put the root user in the auth cache in case the db has not been inited yet, they need to be able to run POST /admin/initdb
+    val rootpw = config.getString("api.root.password")
+    if (rootpw != "") {
+      AuthCache.users.put(Creds("root", rootpw))
+      logger.info("Root user from config.json added to the in-memory authentication cache")
+    }
+
+    // Read the ACLs and set them in our Role object
+    for (role <- List("ANONYMOUS", "USER", "SUPERUSER", "DEVICE", "AGBOT")) {
+      val accessList = getStringList("api.acls."+role)
+      logger.trace("Setting access for role "+role+": "+accessList.toString)
+      if (accessList.nonEmpty) {
+        Role.setRole(role, accessList.toSet) match {
+          case Success(_) => ;  // we are good
+          case Failure(t) => logger.error("could not set access for role "+role+" to "+accessList.toString+": "+t.toString)
+        }
+      }
+    }
+
     // Let them know if they are running with the in-memory db
     if (getBoolean("api.db.memoryDb")) logger.info("Running with the in-memory DB (not the persistent postgresql DB).")
     else logger.info("Running with the persistent postgresql DB.")
   }
 
-  def reload: Unit = load
+  def reload(): Unit = load()
 
   /** Set a few values on top of the current config. These values are not saved persistently, and therefore will only set it in this 1 exchange instance,
    * and therefore will *not* work when the exchange is running in multi-node config. This method is used mostly for automated testing. */
@@ -93,7 +86,6 @@ object ExchConfig {
   def createRoot(db: Database): Unit = {
     // If the root pw is set in the config file, create or update the root user in the db to match
     val rootpw = config.getString("api.root.password")
-    // if (rootpw != "") AuthCache.users.put(Creds("root", rootpw))    // do not actually put the root user in the db, just in our cache
     if (rootpw != "") {
       val rootemail = config.getString("api.root.email")
       AuthCache.users.put(Creds("root", rootpw))    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
@@ -107,8 +99,12 @@ object ExchConfig {
     }
   }
 
+  //todo: we should catch ConfigException.Missing and ConfigException.WrongType, but they are always set by the built-in config.json
   /** Returns the value of the specified config variable. Throws com.typesafe.config.ConfigException.* if not found. */
   def getString(key: String): String = { return config.getString(key) }
+
+  /** Returns the value of the specified config variable. Throws com.typesafe.config.ConfigException.* if not found. */
+  def getStringList(key: String): List[String] = { return config.getStringList(key).asScala.toList }
 
   /** Returns the value of the specified config variable. Throws com.typesafe.config.ConfigException.* if not found. */
   def getInt(key: String): Int = { return config.getInt(key) }

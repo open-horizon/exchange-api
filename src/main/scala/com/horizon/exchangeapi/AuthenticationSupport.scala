@@ -1,37 +1,19 @@
 package com.horizon.exchangeapi
 
-import scala.util.matching._
-import org.scalatra.{ScalatraBase}
-import org.mindrot.jbcrypt.BCrypt
-import pdi.jwt.{Jwt, JwtAlgorithm, JwtHeader, JwtClaim, JwtOptions}
-import scala.collection.mutable.{HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
-import org.slf4j.{LoggerFactory, Logger}
-import slick.jdbc.PostgresProfile.api._
-import scala.concurrent.Await
-import scala.concurrent.duration._
-import com.horizon.exchangeapi.tables._
-import scala.concurrent.ExecutionContext.Implicits.global
 import java.util.Base64
-import java.nio.charset.StandardCharsets
 
-/** The list of basic access rights.
-object BaseAccess extends Enumeration {     //todo: remove this and only use Access
-  type BaseAccess = Value
-  val READ,
-    WRITE,       // implies READ and includes delete
-    CREATE,       // should we not distinguish between create and write?
-    ADMIN,
-    STATUS,
-    RESET_PW,
-    AGREEMENT_CONFIRM,
-    DATA_HEARTBEAT,
-    SEND_MSG,
-    READ_ALL_BLOCKCHAINS,
-    WRITE_ALL_BLOCKCHAINS
-    = Value
-}
-import BaseAccess._
-*/
+import com.horizon.exchangeapi.tables._
+import org.mindrot.jbcrypt.BCrypt
+import org.scalatra.ScalatraBase
+import org.slf4j.{Logger, LoggerFactory}
+import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim}
+import slick.jdbc.PostgresProfile.api._
+
+import scala.collection.mutable.{HashMap => MutableHashMap, Set => MutableSet}
+import scala.concurrent.Await
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
+import scala.util._
 
 /** The list of access rights. */
 object Access extends Enumeration {
@@ -54,8 +36,6 @@ object Access extends Enumeration {
   val READ_ALL_AGBOTS = Value("READ_ALL_AGBOTS")
   val WRITE_ALL_AGBOTS = Value("WRITE_ALL_AGBOTS")
   val DATA_HEARTBEAT_MY_AGBOTS = Value("DATA_HEARTBEAT_MY_AGBOTS")
-  // AGBOT_AGREEMENT_DATA_HEARTBEAT,    //TODO: remove
-  // AGBOT_AGREEMENT_CONFIRM,    //TODO: remove
   val SEND_MSG_TO_AGBOT = Value("SEND_MSG_TO_AGBOT")
   val CREATE_USER = Value("CREATE_USER")
   val CREATE_SUPERUSER = Value("CREATE_SUPERUSER")       // currently no one is allowed to do this, because root is only initialized from the config.json file
@@ -77,16 +57,54 @@ object Access extends Enumeration {
   val ALL = Value("ALL")
   val NONE = Value("NONE")        // should not be put in any role below
 }
-import Access._
+import com.horizon.exchangeapi.Access._
 
 /** Who is allowed to do what. */
 object Role {
+  /*
   val ANONYMOUS = Set(Access.CREATE_USER, Access.RESET_USER_PW)
   val USER = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.RESET_USER_PW, Access.CREATE_DEVICE, Access.READ_MY_DEVICES, Access.WRITE_MY_DEVICES, Access.READ_ALL_DEVICES, Access.CREATE_AGBOT, Access.READ_MY_AGBOTS, Access.WRITE_MY_AGBOTS, Access.DATA_HEARTBEAT_MY_AGBOTS, Access.READ_ALL_AGBOTS, Access.STATUS, Access.READ_MY_BLOCKCHAINS, Access.READ_ALL_BLOCKCHAINS, Access.WRITE_MY_BLOCKCHAINS, Access.CREATE_BLOCKCHAINS, Access.READ_MY_BCTYPES, Access.READ_ALL_BCTYPES, Access.WRITE_MY_BCTYPES, Access.CREATE_BCTYPES)
   val SUPERUSER = Set(Access.ALL)
   val DEVICE = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.READ_MY_DEVICES, Access.SEND_MSG_TO_AGBOT, Access.READ_ALL_BLOCKCHAINS, Access.READ_ALL_BCTYPES)
   val AGBOT = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.DATA_HEARTBEAT_MY_AGBOTS, Access.READ_MY_AGBOTS, Access.READ_ALL_DEVICES, Access.SEND_MSG_TO_DEVICE, Access.READ_ALL_BLOCKCHAINS, Access.READ_ALL_BCTYPES)
   def hasAuthorization(role: Set[Access], access: Access): Boolean = { role.contains(Access.ALL) || role.contains(access) }
+  */
+
+  //todo: these should probably become another Enumeration subclass
+  var ANONYMOUS = Set[String]()
+  var USER = Set[String]()
+  var SUPERUSER = Set[String]()
+  var DEVICE = Set[String]()
+  var AGBOT = Set[String]()
+
+  /** Sets the set of access values to the specified role */
+  def setRole(role: String, accessValues: Set[String]): Try[String] = {
+    role match {
+      case "ANONYMOUS" => ANONYMOUS = accessValues
+      case "USER" => USER = accessValues
+      case "SUPERUSER" => SUPERUSER = accessValues
+      case "DEVICE" => DEVICE = accessValues
+      case "AGBOT" => AGBOT = accessValues
+      case _ => return Failure(new Exception("invalid role"))
+    }
+    return Success("role set successfuly")
+  }
+
+  val allAccessValues = getAllAccessValues
+
+  /** Returns a set of all of the Access enum toString values */
+  def getAllAccessValues: Set[String] = {
+    val accessSet = MutableSet[String]()
+    for (a <- Access.values) { accessSet += a.toString}
+    accessSet.toSet
+  }
+
+  /** Returns true if the specified access string is valid. Used to check input from config.json. */
+  def isValidAcessValue(access: String): Boolean = allAccessValues.contains(access)
+
+  /** Returns true if the role has the specified access */
+  def hasAuthorization(role: Set[String], access: Access): Boolean = { role.contains(Access.ALL.toString) || role.contains(access.toString) }
+
   def superUser = "root"
   def isSuperUser(username: String): Boolean = return username == superUser    // only checks the username, does not verify the pw
 }
@@ -114,13 +132,13 @@ object AuthCache {
     val owners = new MutableHashMap[String,String]()     // key is device or agbot id, value is the username that owns it. (Not used for users)
     val whichTable = whichTab
 
-    var db: Database = null       // filled in my init() below
+    var db: Database = _       // filled in my init() below
 
     /** Initializes the cache with all of the things currently in the persistent db */
     def init(db: Database): Unit = {
       this.db = db      // store for later use
       whichTable match {
-        case "users" => db.run(UsersTQ.rows.map(x => (x.username, x.password)).result).map({ list => this._initUsers(list, true) })
+        case "users" => db.run(UsersTQ.rows.map(x => (x.username, x.password)).result).map({ list => this._initUsers(list, skipRoot = true) })
         case "devices" => db.run(DevicesTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
         case "agbots" => db.run(AgbotsTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
         case "bctypes" => db.run(BctypesTQ.rows.map(x => (x.bctype, x.definedBy)).result).map({ list => this._initBctypes(list) })
@@ -176,11 +194,11 @@ object AuthCache {
       //TODO: this db access should go at the beginning of every rest api db access, using flatmap to move on to the db access the rest api is really for
       val dbHashedTok: String = try {
         val tokVector = Await.result(db.run(a), Duration(3000, MILLISECONDS))
-        if (tokVector.size > 0) tokVector.head else ""
+        if (tokVector.nonEmpty) tokVector.head else ""
       } catch {
         //TODO: this seems to happen sometimes when my laptop has been asleep. Maybe it has to reconnect to the db.
         //      Until i get a better handle on this, use the cache token when this happens.
-        case e: java.util.concurrent.TimeoutException => logger.error("getting hashed pw/token for '"+id+"' timed out. Using the cache for now.")
+        case _: java.util.concurrent.TimeoutException => logger.error("getting hashed pw/token for '"+id+"' timed out. Using the cache for now.")
           return _get(id)
       }
 
@@ -188,8 +206,8 @@ object AuthCache {
       _get(id) match {
         case Some(cacheTok) => if (dbHashedTok == "" && whichTable == "users" && Role.isSuperUser(id)) { return Some(cacheTok) }  // we never want to get rid of the cache in root, or we have no way to repair things
           else if (dbHashedTok == "") {   //not in db, remove it from cache, unless it is root
-            remove(id);
-            return None
+            remove(id)
+          return None
           } else {    // in both db and cache, verify hashed values match, or update
             if (dbHashedTok == cacheTok.hashed) return Some(cacheTok)       // all good
             else {
@@ -227,7 +245,7 @@ object AuthCache {
                 } else false
               }
             }
-          } catch { case e: Exception => logger.error("Invalid salt version error from Password.check()"); false }   // can throw IllegalArgumentException: Invalid salt version 
+          } catch { case _: Exception => logger.error("Invalid salt version error from Password.check()"); false }   // can throw IllegalArgumentException: Invalid salt version
         case None => false
       }
     }
@@ -249,11 +267,11 @@ object AuthCache {
       }
       try {
         val ownerVector = Await.result(db.run(a), Duration(3000, MILLISECONDS))
-        if (ownerVector.size > 0) /*{ logger.trace("getOwner return: "+ownerVector.head);*/ return Some(ownerVector.head) else /*{ logger.trace("getOwner return: None");*/ return None
+        if (ownerVector.nonEmpty) /*{ logger.trace("getOwner return: "+ownerVector.head);*/ return Some(ownerVector.head) else /*{ logger.trace("getOwner return: None");*/ return None
       } catch {
         //todo: this seems to happen sometimes when the exchange svr has been idle for a while. Or maybe it is just when i'm running local and my laptop has been asleep.
         //      Until i get a better handle on this, use the cache owner when this happens.
-        case e: java.util.concurrent.TimeoutException => logger.error("getting owner for '"+id+"' timed out. Using the cache for now.")
+        case _: java.util.concurrent.TimeoutException => logger.error("getting owner for '"+id+"' timed out. Using the cache for now.")
           return _getOwner(id)
       }
     }
@@ -287,27 +305,27 @@ object AuthCache {
     def removeBoth(id: String) = { _removeBoth(id) }
 
     /** Removes all user/id, pw/token pairs from this cache. */
-    def removeAll = {
+    def removeAll() = {
       val rootTokens = if (whichTable == "users") _get(Role.superUser) else None     // have to preserve the root user or they can not do anything after this
-      _clear
+      _clear()
       rootTokens match {
         case Some(tokens) => _put(Role.superUser, tokens)
         case None => ;
       }
-      removeAllOwners
+      removeAllOwners()
     }
-    def removeAllOwners = { _clearOwners }
+    def removeAllOwners() = { _clearOwners() }
 
     /** Low-level functions to lock on the hashmap */
     private def _get(id: String) = synchronized { things.get(id) }
     private def _put(id: String, tokens: Tokens) = synchronized { things.put(id, tokens) }
     private def _remove(id: String) = synchronized { things.remove(id) }
-    private def _clear = synchronized { things.clear }
+    private def _clear() = synchronized { things.clear }
 
     private def _getOwner(id: String) = synchronized { owners.get(id) }
     private def _putOwner(id: String, owner: String) = synchronized { owners.put(id, owner) }
     private def _removeOwner(id: String) = synchronized { owners.remove(id) }
-    private def _clearOwners = synchronized { owners.clear }
+    private def _clearOwners() = synchronized { owners.clear }
 
     private def _removeBoth(id: String) = synchronized { things.remove(id); owners.remove(id) }
   }     // end of Cache class
@@ -375,31 +393,31 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-        case TDevice(id) => access match {     // a user accessing a device
+        case TDevice(_) => access match {     // a user accessing a device
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_DEVICES else Access.READ_ALL_DEVICES
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_DEVICES else Access.WRITE_ALL_DEVICES
             case Access.CREATE => Access.CREATE_DEVICE    // not used, because WRITE is used for create also
             case _ => access
           }
-        case TAgbot(id) => access match {     // a user accessing a agbot
+        case TAgbot(_) => access match {     // a user accessing a agbot
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-        case TBctype(id) => access match {     // a user accessing a bctype
+        case TBctype(_) => access match {     // a user accessing a bctype
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_BCTYPES else Access.READ_ALL_BCTYPES
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_BCTYPES else Access.WRITE_ALL_BCTYPES
             case Access.CREATE => Access.CREATE_BCTYPES
             case _ => access
           }
-        case TBlockchain(id) => access match {     // a user accessing a blockchain
+        case TBlockchain(_) => access match {     // a user accessing a blockchain
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_BLOCKCHAINS else Access.READ_ALL_BLOCKCHAINS
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_BLOCKCHAINS else Access.WRITE_ALL_BLOCKCHAINS
             case Access.CREATE => Access.CREATE_BLOCKCHAINS
             case _ => access
           }
-        case TAction(id) => access      // a user running an action
+        case TAction(_) => access      // a user running an action
       }
       if (Role.hasAuthorization(role, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }
@@ -417,7 +435,7 @@ trait AuthenticationSupport extends ScalatraBase {
           case _ => return false
         }
         owner match {
-          case Some(owner) => if (owner == creds.id) return true else return false
+          case Some(owner2) => if (owner2 == creds.id) return true else return false
           case None => return true    // if we did not find it, we consider that as owning it because we will create it
         }
       }
@@ -440,25 +458,25 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => Access.CREATE_DEVICE
             case _ => access
           }
-        case TAgbot(id) => access match {     // a device accessing a agbot
+        case TAgbot(_) => access match {     // a device accessing a agbot
             case Access.READ => Access.READ_ALL_AGBOTS
             case Access.WRITE => Access.WRITE_ALL_AGBOTS
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-        case TBctype(id) => access match {     // a device accessing a bctype
+        case TBctype(_) => access match {     // a device accessing a bctype
             case Access.READ => Access.READ_ALL_BCTYPES
             case Access.WRITE => Access.WRITE_ALL_BCTYPES
             case Access.CREATE => Access.CREATE_BCTYPES
             case _ => access
           }
-        case TBlockchain(id) => access match {     // a device accessing a blockchain
+        case TBlockchain(_) => access match {     // a device accessing a blockchain
             case Access.READ => Access.READ_ALL_BLOCKCHAINS
             case Access.WRITE => Access.WRITE_ALL_BLOCKCHAINS
             case Access.CREATE => Access.CREATE_BLOCKCHAINS
             case _ => access
           }
-        case TAction(id) => access      // a device running an action
+        case TAction(_) => access      // a device running an action
       }
       if (Role.hasAuthorization(Role.DEVICE, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }    
@@ -474,7 +492,7 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-        case TDevice(id) => access match {     // a agbot accessing a device
+        case TDevice(_) => access match {     // a agbot accessing a device
             case Access.READ => Access.READ_ALL_DEVICES
             case Access.WRITE => Access.WRITE_ALL_DEVICES
             case Access.CREATE => Access.CREATE_DEVICE
@@ -486,19 +504,19 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-        case TBctype(id) => access match {     // a agbot accessing a bctype
+        case TBctype(_) => access match {     // a agbot accessing a bctype
             case Access.READ => Access.READ_ALL_BCTYPES
             case Access.WRITE => Access.WRITE_ALL_BCTYPES
             case Access.CREATE => Access.CREATE_BCTYPES
             case _ => access
           }
-        case TBlockchain(id) => access match {     // a agbot accessing a blockchain
+        case TBlockchain(_) => access match {     // a agbot accessing a blockchain
             case Access.READ => Access.READ_ALL_BLOCKCHAINS
             case Access.WRITE => Access.WRITE_ALL_BLOCKCHAINS
             case Access.CREATE => Access.CREATE_BLOCKCHAINS
             case _ => access
           }
-        case TAction(id) => access      // a agbot running an action
+        case TAction(_) => access      // a agbot running an action
       }
       if (Role.hasAuthorization(Role.AGBOT, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }    
@@ -514,31 +532,31 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-        case TDevice(id) => access match {     // a anonymous accessing a device
+        case TDevice(_) => access match {     // a anonymous accessing a device
             case Access.READ => Access.READ_ALL_DEVICES
             case Access.WRITE => Access.WRITE_ALL_DEVICES
             case Access.CREATE => Access.CREATE_DEVICE
             case _ => access
           }
-        case TAgbot(id) => access match {     // a anonymous accessing a agbot
+        case TAgbot(_) => access match {     // a anonymous accessing a agbot
             case Access.READ => Access.READ_ALL_AGBOTS
             case Access.WRITE => Access.WRITE_ALL_AGBOTS
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-        case TBctype(id) => access match {     // a anonymous accessing a bctype
+        case TBctype(_) => access match {     // a anonymous accessing a bctype
             case Access.READ => Access.READ_ALL_BCTYPES
             case Access.WRITE => Access.WRITE_ALL_BCTYPES
             case Access.CREATE => Access.CREATE_BCTYPES
             case _ => access
           }
-        case TBlockchain(id) => access match {     // a anonymous accessing a blockchain
+        case TBlockchain(_) => access match {     // a anonymous accessing a blockchain
             case Access.READ => Access.READ_ALL_BLOCKCHAINS
             case Access.WRITE => Access.WRITE_ALL_BLOCKCHAINS
             case Access.CREATE => Access.CREATE_BLOCKCHAINS
             case _ => access
           }
-        case TAction(id) => access      // a anonymous running an action
+        case TAction(_) => access      // a anonymous running an action
       }
       if (Role.hasAuthorization(Role.ANONYMOUS, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }    
@@ -601,196 +619,6 @@ trait AuthenticationSupport extends ScalatraBase {
     }
   }
 
-/*
-
-  /** Returns true if username is root and pw is correct */
-  def isSuperUser(creds: Creds): Boolean = { Role.isSuperUser(creds.id) && isAuthenticatedUser(creds) }
-
-  /** Returns true if the username and password of a User object in the db match the specified credentials */
-  def isAuthenticatedUser(creds: Creds): Boolean = {
-    return AuthCache.users.isValid(creds)
-  }
-
-  /** Returns if the id and token of a Device object in the db match the specified credentials */
-  def isAuthenticatedDevice(creds: Creds): Boolean = {
-    return AuthCache.devices.isValid(creds)
-  }
-
-  /** Returns true if the id and token of an Agbot object in the db match the specified credentials */
-  def isAuthenticatedAgbot(creds: Creds): Boolean = {
-    return AuthCache.agbots.isValid(creds)
-  }
-
-  /** Returns true if this authenticated user has access to the specified user object */
-  def userHasAuthorization(username: String, userToAccess: String, baseAccess: BaseAccess): Boolean = {
-    val role = if (Role.isSuperUser(username)) Role.SUPERUSER else if (username == "") Role.ANONYMOUS else Role.USER
-    if (baseAccess == BaseAccess.ADMIN) return Role.hasAuthorization(role, Access.ADMIN)
-    else if (baseAccess == BaseAccess.STATUS) return Role.hasAuthorization(role, Access.STATUS)
-    else if (baseAccess == BaseAccess.RESET_PW) return Role.hasAuthorization(role, Access.RESET_USER_PW)
-    else if (baseAccess == BaseAccess.READ_ALL_BLOCKCHAINS) return Role.hasAuthorization(role, Access.READ_ALL_BLOCKCHAINS)
-    else if (baseAccess == BaseAccess.WRITE_ALL_BLOCKCHAINS) return Role.hasAuthorization(role, Access.WRITE_ALL_BLOCKCHAINS)
-    else if (username == "" && baseAccess == BaseAccess.CREATE) {
-      val acc = if (Role.isSuperUser(userToAccess)) Access.CREATE_SUPERUSER else Access.CREATE_USER
-      return Role.hasAuthorization(Role.ANONYMOUS, acc)
-    } else {
-      var access: Access = Access.READ_MYSELF
-      if (username == userToAccess) access = if (baseAccess == BaseAccess.READ) Access.READ_MYSELF else Access.WRITE_MYSELF
-      else access = if (baseAccess == BaseAccess.READ) Access.READ_ALL_USERS else Access.WRITE_ALL_USERS
-      return Role.hasAuthorization(role, access)
-    }
-  }
-
-  /** Returns true if this authenticated user has access to the specified device object */
-  def userHasAuthorizationToDevice(username: String, deviceToAccess: String, baseAccess: BaseAccess): Boolean = {
-    var iOwnDevice = false
-    if (deviceToAccess == "#") iOwnDevice = true        // "#" means my devices
-    else if (baseAccess != BaseAccess.CREATE && deviceToAccess != "*") {
-      AuthCache.devices.getOwner(deviceToAccess) match {
-        case Some(owner) => if (owner == username) iOwnDevice = true else iOwnDevice = false
-        case None => iOwnDevice = true    // if we did not find it, we consider that as owning it because we will create it
-      }
-      // iOwnDevice = try {
-      //   val ownerVector = Await.result(db.run(DevicesTQ.getOwner(deviceToAccess).result), Duration(3000, MILLISECONDS))
-      //   if (ownerVector.size > 0) { if (ownerVector.head == username) true else false } else true    // if we did not find it, we consider that as owning it because we will create it
-      // } catch { case e: java.util.concurrent.TimeoutException => logger.error("getting device '"+deviceToAccess+"' owner timed out"); false }     // could not get it from the db, so have to assume we do not own it
-    }
-    var access: Access = Access.READ_MY_DEVICES
-    baseAccess match {          // determine the access required, based on the baseAccess and whether i own the device or not
-      case BaseAccess.READ => access = if (iOwnDevice) Access.READ_MY_DEVICES else Access.READ_ALL_DEVICES
-      case BaseAccess.WRITE => access = if (iOwnDevice) Access.WRITE_MY_DEVICES else Access.WRITE_ALL_DEVICES
-      case BaseAccess.CREATE => access = Access.CREATE_DEVICE
-    }
-    val role = if (Role.isSuperUser(username)) Role.SUPERUSER else Role.USER
-    return Role.hasAuthorization(role,access)
-  }
-
-  /** Returns true if this authenticated user has access to the specified agbot object */
-  def userHasAuthorizationToAgbot(username: String, agbotToAccess: String, baseAccess: BaseAccess): Boolean = {
-    var iOwnAgbot = false
-    if (agbotToAccess == "#") iOwnAgbot = true        // "#" means my agbots
-    else if (baseAccess != BaseAccess.CREATE && agbotToAccess != "*") {
-      AuthCache.agbots.getOwner(agbotToAccess) match {
-        case Some(owner) => if (owner == username) iOwnAgbot = true else iOwnAgbot = false
-        case None => iOwnAgbot = true    // if we did not find it, we consider that as owning it because we will create it
-      }
-      // iOwnAgbot = try {
-      //   val ownerVector = Await.result(db.run(AgbotsTQ.getOwner(agbotToAccess).result), Duration(3000, MILLISECONDS))
-      //   if (ownerVector.size > 0) { if (ownerVector.head == username) true else false } else true    // if we did not find it, we consider that as owning it because we will create it
-      // } catch { case e: java.util.concurrent.TimeoutException => logger.error("getting device '"+agbotToAccess+"' owner timed out"); false }     // could not get it from the db, so have to assume we do not own it
-    }
-    var access: Access = Access.READ_MY_AGBOTS
-    baseAccess match {          // determine the access required, based on the baseAccess and whether i own the device or not
-      case BaseAccess.READ => access = if (iOwnAgbot) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
-      case BaseAccess.WRITE => access = if (iOwnAgbot) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
-      case BaseAccess.DATA_HEARTBEAT => access = if (iOwnAgbot) Access.AGBOT_AGREEMENT_DATA_HEARTBEAT else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-      case BaseAccess.AGREEMENT_CONFIRM => access = Access.AGBOT_AGREEMENT_CONFIRM       // the implementation of the rest method only searches this user's agbot agreements
-      case BaseAccess.CREATE => access = Access.CREATE_AGBOT
-    }
-    val role = if (Role.isSuperUser(username)) Role.SUPERUSER else Role.USER
-    return Role.hasAuthorization(role,access)
-  }
-
-  /** Returns true if this authenticated device id has access to the specified device object */
-  def deviceHasAuthorization(id: String, idToAccess: String, baseAccess: BaseAccess): Boolean = {
-    var access: Access = Access.READ_MYSELF
-    if (id == idToAccess) access = if (baseAccess == BaseAccess.READ) Access.READ_MYSELF else Access.WRITE_MYSELF
-    else if (baseAccess == BaseAccess.SEND_MSG) access = Access.SEND_MSG_TO_AGBOT
-    else if (baseAccess == BaseAccess.READ_ALL_BLOCKCHAINS) access = Access.READ_ALL_BLOCKCHAINS
-    else if (baseAccess == BaseAccess.WRITE_ALL_BLOCKCHAINS) access = Access.WRITE_ALL_BLOCKCHAINS
-    else access = if (baseAccess == BaseAccess.READ) Access.READ_ALL_DEVICES else Access.WRITE_ALL_DEVICES
-    return Role.hasAuthorization(Role.DEVICE, access)
-  }
-
-  /** Returns true if this authenticated agbot id has access to the specified device object */
-  def agbotHasAuthorizationToDevice(id: String, idToAccess: String, baseAccess: BaseAccess): Boolean = {
-    val access = if (baseAccess == BaseAccess.READ) Access.READ_ALL_DEVICES else if (baseAccess == BaseAccess.WRITE) Access.WRITE_ALL_DEVICES else Access.NONE
-    return Role.hasAuthorization(Role.AGBOT, access)
-  }
-
-  /** Returns true if this authenticated agbot id has access to the specified agbot object */
-  def agbotHasAuthorization(id: String, idToAccess: String, baseAccess: BaseAccess): Boolean = {
-    var access: Access = Access.READ_MYSELF
-    if (id == idToAccess && baseAccess == BaseAccess.DATA_HEARTBEAT) access = Access.AGBOT_AGREEMENT_DATA_HEARTBEAT
-    else if (baseAccess == BaseAccess.AGREEMENT_CONFIRM) access = Access.AGBOT_AGREEMENT_CONFIRM       // the implementation of the rest method only searches the agbot agreements owned by the same user
-    else if (id == idToAccess) access = if (baseAccess == BaseAccess.READ) Access.READ_MYSELF else Access.WRITE_MYSELF
-    else if (baseAccess == BaseAccess.SEND_MSG) access = Access.SEND_MSG_TO_DEVICE
-    else if (baseAccess == BaseAccess.READ_ALL_BLOCKCHAINS) access = Access.READ_ALL_BLOCKCHAINS
-    else if (baseAccess == BaseAccess.WRITE_ALL_BLOCKCHAINS) access = Access.WRITE_ALL_BLOCKCHAINS
-    else access = if (baseAccess == BaseAccess.READ) Access.READ_ALL_AGBOTS else Access.WRITE_ALL_AGBOTS
-    return Role.hasAuthorization(Role.AGBOT, access)
-  }
-
-  /** Validates creds as root user/pw, and then validates access to the specified user or operation. */
-  def validateRoot(baseAccess: BaseAccess, username: String = ""): Creds = {
-    val creds = credentialsAndLog()
-    if (isSuperUser(creds)) if (userHasAuthorization(creds.id, username, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
-  }
-
-  /** Validates creds as user/pw, and then validates access to the specified user or operation. */
-  def validateUser(baseAccess: BaseAccess, username: String): Creds = {
-    val creds = credentialsAndLog(true)
-    if (creds.isAnonymous) if (userHasAuthorization("", username, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    if (isAuthenticatedUser(creds)) if (userHasAuthorization(creds.id, username, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
-  }
-
-  /** Validates creds as user and reset token, and then validates access to the specified user or operation. */
-  def validateToken(baseAccess: BaseAccess, username: String): Creds = {
-    val creds = credentialsAndLog()
-    if (isTokenValid(creds.token, creds.id)) if (userHasAuthorization(creds.id, username, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid or expired token"))
-  }
-
-  /** Validates creds as either user/pw or device/agbot id/token. */
-  def validateUserOrId(baseAccess: BaseAccess): Creds = {
-    val creds = credentialsAndLog()
-    if (isAuthenticatedUser(creds)) if (userHasAuthorization(creds.id, "", baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    if (isAuthenticatedDevice(creds)) if (deviceHasAuthorization(creds.id, "", baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    if (isAuthenticatedAgbot(creds)) if (agbotHasAuthorization(creds.id, "", baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
-  }
-
-  /** Validates creds as either user/pw or device id/token, and then validates access to the specified device. */
-  def validateUserOrDeviceId(baseAccess: BaseAccess, id: String): Creds = {
-    val creds = credentialsAndLog()
-    if (isAuthenticatedUser(creds)) if (userHasAuthorizationToDevice(creds.id, id, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    if (isAuthenticatedDevice(creds)) if (deviceHasAuthorization(creds.id, id, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
-  }
-
-  /** Validates creds as device id/token. */
-  def validateDeviceId(baseAccess: BaseAccess): Creds = {
-    val creds = credentialsAndLog()
-    if (isAuthenticatedDevice(creds)) if (deviceHasAuthorization(creds.id, "", baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
-  }
-
-  /** Validates creds, and then validates access to the specified device. */
-  def validateAccessToDevice(baseAccess: BaseAccess, id: String): Creds = {
-    val creds = credentialsAndLog()
-    if (isAuthenticatedUser(creds)) if (userHasAuthorizationToDevice(creds.id, id, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    if (isAuthenticatedDevice(creds)) if (deviceHasAuthorization(creds.id, id, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    if (isAuthenticatedAgbot(creds)) if (agbotHasAuthorizationToDevice(creds.id, id, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
-  }
-
-  /** Validates creds as either user/pw or agbot id/token, and then validates access to the specified agbot. */
-  def validateUserOrAgbotId(baseAccess: BaseAccess, id: String): Creds = {
-    val creds = credentialsAndLog()
-    if (isAuthenticatedUser(creds)) if (userHasAuthorizationToAgbot(creds.id, id, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    if (isAuthenticatedAgbot(creds)) if (agbotHasAuthorization(creds.id, id, baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
-  }
-
-  /** Validates creds as agbot id/token. */
-  def validateAgbotId(baseAccess: BaseAccess): Creds = {
-    val creds = credentialsAndLog()
-    if (isAuthenticatedAgbot(creds)) if (agbotHasAuthorization(creds.id, "", baseAccess)) return creds else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied"))
-    halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
-  }
-*/
-
   /** Work around A swagger Try It button bug that specifies id as "{id}" instead of the actual id. In this case, get the id from the query string. */
   def swaggerHack(paramName: String): String = {
     val paramsVal = params(paramName)
@@ -798,7 +626,7 @@ trait AuthenticationSupport extends ScalatraBase {
     // val parm = request.queryString.split("&").find(x => x.startsWith(paramName+"="))
     val parm = request.parameters.get(paramName)
     parm match {
-      case Some(parm) => return parm      // parm.replace(paramName+"=","")
+      case Some(parm2) => return parm2      // parm.replace(paramName+"=","")
       case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "swagger specifies the "+paramName+" incorrectly in this case"))
     }
   }

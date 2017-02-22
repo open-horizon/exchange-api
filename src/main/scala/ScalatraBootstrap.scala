@@ -1,12 +1,11 @@
-import com.mchange.v2.c3p0.ComboPooledDataSource
-import org.slf4j.LoggerFactory
-import com.horizon.exchangeapi._
-import org.scalatra._
 import javax.servlet.ServletContext
+
+import com.horizon.exchangeapi._
+import com.mchange.v2.c3p0.ComboPooledDataSource
+import org.scalatra._
+import org.slf4j.LoggerFactory
 // import slick.driver.PostgresDriver.api._
 import slick.jdbc.PostgresProfile.api._
-import com.typesafe.config._
-import java.io.File
 
 /** Scalatra bootstrap file.
  *
@@ -23,7 +22,7 @@ class ScalatraBootstrap extends LifeCycle {
   ExchConfig.load
 
   // Load the db backend. The db access info must be in config.json
-  var cpds: ComboPooledDataSource = null
+  var cpds: ComboPooledDataSource = _
   cpds = new ComboPooledDataSource
   configureC3p0(cpds)
   logger.info("Created c3p0 connection pool")
@@ -43,13 +42,13 @@ class ScalatraBootstrap extends LifeCycle {
   /** Closes the db connection in destroy(). */
   private def closeDbConnection() {
     logger.info("Closing c3po connection pool")
-    cpds.close
+    cpds.close()
   }
 
   /** Closes the db connection when the servlet ends. */
   override def destroy(context: ServletContext) {
     super.destroy(context)
-    closeDbConnection
+    closeDbConnection()
   }
 
   /** Configure the slick data pool source using values from the exchange config.json file */

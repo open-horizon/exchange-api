@@ -100,7 +100,10 @@ object Role {
   }
 
   /** Returns true if the specified access string is valid. Used to check input from config.json. */
-  def isValidAcessValue(access: String): Boolean = allAccessValues.contains(access)
+  def isValidAcessValues(accessValues: Set[String]): Boolean = {
+    for (a <- accessValues) if (!allAccessValues.contains(a)) return false
+    return true
+  }
 
   /** Returns true if the role has the specified access */
   def hasAuthorization(role: Set[String], access: Access): Boolean = { role.contains(Access.ALL.toString) || role.contains(access.toString) }

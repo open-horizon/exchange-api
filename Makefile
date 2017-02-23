@@ -16,8 +16,7 @@ image-string = $(DOCKER_REGISTRY)/$(ARCH)/exchange-api
 # try to sync this version with the version of scala you have installed on your dev machine, and with what is specified in build.scala
 SCALA_VERSION ?= 2.12.1
 SCALA_VERSION_SHORT ?= 2.12
-# JETTY_VERSION ?= 9.3.11.v20160721
-JETTY_VERSION ?= 9.4.1.v20170120
+# JETTY_VERSION ?= 9.4.1.v20170120 <- we are now using the jetty docker container, instead of install it ourselves
 # this version corresponds to the Version variable in project/build.scala
 EXCHANGE_API_WAR_VERSION ?= 0.1.0
 EXCHANGE_API_DIR ?= /src/github.com/open-horizon/exchange-api
@@ -67,7 +66,7 @@ docker: .docker-exec
 	@touch $@
 
 .docker-exec: .docker-compile
-	docker build -t $(image-string):$(DOCKER_TAG) $(DOCKER_OPTS) -f Dockerfile-exec --build-arg SCALA_VERSION=$(SCALA_VERSION) --build-arg SCALA_VERSION_SHORT=$(SCALA_VERSION_SHORT) --build-arg JETTY_VERSION=$(JETTY_VERSION) --build-arg EXCHANGE_API_WAR_VERSION=$(EXCHANGE_API_WAR_VERSION) .
+	docker build -t $(image-string):$(DOCKER_TAG) $(DOCKER_OPTS) -f Dockerfile-exec --build-arg SCALA_VERSION=$(SCALA_VERSION) --build-arg SCALA_VERSION_SHORT=$(SCALA_VERSION_SHORT) --build-arg EXCHANGE_API_WAR_VERSION=$(EXCHANGE_API_WAR_VERSION) .
 	docker tag $(image-string):$(DOCKER_TAG) $(image-string):latest
 	@touch $@
 

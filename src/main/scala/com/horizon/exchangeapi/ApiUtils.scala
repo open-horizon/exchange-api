@@ -62,11 +62,15 @@ object ExchConfig {
     // Read the ACLs and set them in our Role object
     for (role <- List("ANONYMOUS", "USER", "SUPERUSER", "DEVICE", "AGBOT")) {
       val accessList = getStringList("api.acls."+role)
-      logger.trace("Setting access for role "+role+": "+accessList.toString)
       if (accessList.nonEmpty) {
-        Role.setRole(role, accessList.toSet) match {
-          case Success(_) => ;  // we are good
-          case Failure(t) => logger.error("could not set access for role "+role+" to "+accessList.toString+": "+t.toString)
+        val accessSet = accessList.toSet
+        if (!Role.isValidAcessValues(accessSet)) logger.error("Invalid value in ACLs for role "+role)
+        else {
+          logger.info("Setting access for role "+role+": "+accessList.toString)
+          Role.setRole(role, accessSet) match {
+            case Success(_) => ; // we are good
+            case Failure(t) => logger.error("Could not set access for role " + role + " to " + accessList.toString + ": " + t.toString)
+          }
         }
       }
     }

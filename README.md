@@ -81,6 +81,7 @@ services in the exchange.
 - Migrated to version 9.4.x of jetty
 - Made ACLs read from config.json (instead of hardcoded)
 - Fixed bug: with a brand new db, could not run POST /admin/initdb because root user was not defined.
+- blah
 
 ## Changes Between v1.22.0 and v1.23.0
 

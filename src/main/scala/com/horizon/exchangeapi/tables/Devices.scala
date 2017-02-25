@@ -1,16 +1,9 @@
 package com.horizon.exchangeapi.tables
-
-import org.scalatra._
 // import slick.driver.PostgresDriver.api._
-import slick.jdbc.PostgresProfile.api._
-import java.sql.Timestamp
-import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization
-import org.json4s.jackson.Serialization.{read, write}
-import org.scalatra.json._
 import com.horizon.exchangeapi._
+import org.json4s._
+import org.json4s.jackson.Serialization.read
+import slick.jdbc.PostgresProfile.api._
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
 
 /** Contains the object representations of the DB tables related to devices. */
@@ -26,7 +19,7 @@ case class DeviceRow(id: String, token: String, name: String, owner: String, msg
 
   def putInHashMap(superUser: Boolean, devs: MutableHashMap[String,Device]): Unit = {
     devs.get(id) match {
-      case Some(dev) => ; // do not need to add the device entry, because it is already there
+      case Some(_) => ; // do not need to add the device entry, because it is already there
       case None => devs.put(id, toDevice(superUser))
     }
   }
@@ -105,24 +98,24 @@ object DevicesTQ {
   // def parseJoin(superUser: Boolean, list: Seq[(DeviceRow, Option[MicroserviceRow], Option[PropRow], Option[SoftwareVersionRow])]): Map[String,Device] = {
   def parseJoin(superUser: Boolean, list: Seq[(DeviceRow, Option[MicroserviceRow], Option[PropRow])] ): Map[String,Device] = {
     // Separate the partially duplicate join rows into maps that only keep unique values
-    var devs = new MutableHashMap[String,Device]    // the key is device id
-    var micros = new MutableHashMap[String,MutableHashMap[String,Microservice]]    // 1st key is device id, 2nd key is micro id
-    var props = new MutableHashMap[String,MutableHashMap[String,Prop]]    // 1st key is micro id, 2nd key is prop id
+    val devs = new MutableHashMap[String,Device]    // the key is device id
+    val micros = new MutableHashMap[String,MutableHashMap[String,Microservice]]    // 1st key is device id, 2nd key is micro id
+    val props = new MutableHashMap[String,MutableHashMap[String,Prop]]    // 1st key is micro id, 2nd key is prop id
     // var swVersions = new MutableHashMap[String,MutableHashMap[String,String]]    // 1st key is device id, 2nd key is sw name
     // for ((d, mOption, pOption, sOption) <- list) {
     for ((d, mOption, pOption) <- list) {
       d.putInHashMap(superUser, devs)
-      if (!mOption.isEmpty) mOption.get.putInHashMap(micros)
-      if (!pOption.isEmpty) pOption.get.putInHashMap(props)
+      if (mOption.isDefined) mOption.get.putInHashMap(micros)
+      if (pOption.isDefined) pOption.get.putInHashMap(props)
       // if (!sOption.isEmpty) sOption.get.putInHashMap(swVersions)
     }
 
     // Now fill in the devs map, turning the maps we created above for micros, props, and swVersions into lists
     for ((devId, d) <- devs) {
-      if (!micros.get(devId).isEmpty) {
+      if (micros.get(devId).isDefined) {
         var microList = ListBuffer[Microservice]()
         for ((msId, m) <- micros.get(devId).get) {
-          val propList = if (!props.get(msId).isEmpty) props.get(msId).get.values.toList else List[Prop]()
+          val propList = if (props.get(msId).isDefined) props.get(msId).get.values.toList else List[Prop]()
           microList += Microservice(m.url, m.numAgreements, m.policy, propList)
         }
         d.registeredMicroservices = microList.toList    // replace the empty micro list we put in there initially
@@ -176,12 +169,12 @@ class AgreementsHash(tempDbDevicesAgreements: MutableHashMap[String,MutableHashM
 
   if (tempDbDevicesAgreements != null) {
     for ((devid,d) <- tempDbDevicesAgreements) {
-      for ((agid,ag) <- d; if ag.state != "" ) {
+      for ((_,ag) <- d; if ag.state != "" ) {
         // negotiation has at least started for this agreement, record it in the hash
         agHash.get(devid) match {
-          case Some(devHash) => var numAgs = devHash.get(ag.microservice)      // device hash is there so find or create the microservice hash within it
+          case Some(devHash) => val numAgs = devHash.get(ag.microservice) // device hash is there so find or create the microservice hash within it
             numAgs match {
-              case Some(numAgs) => devHash.put(ag.microservice, numAgs+1)
+              case Some(numAgs2) => devHash.put(ag.microservice, numAgs2+1)
               case None => devHash.put(ag.microservice, 1)
             }
           case None => agHash += ((devid, new MutableHashMap[String,Int]() += ((ag.microservice, 1)) ))   // this device is not in the hash yet, so create it and add the 1 microservice
@@ -191,9 +184,9 @@ class AgreementsHash(tempDbDevicesAgreements: MutableHashMap[String,MutableHashM
   } else if (dbDevicesAgreements != null) {
     for (a <- dbDevicesAgreements) {
       agHash.get(a.deviceId) match {
-        case Some(devHash) => var numAgs = devHash.get(a.microservice)      // device hash is there so find or create the microservice hash within it
+        case Some(devHash) => val numAgs = devHash.get(a.microservice) // device hash is there so find or create the microservice hash within it
           numAgs match {
-            case Some(numAgs) => devHash.put(a.microservice, numAgs+1)
+            case Some(numAgs2) => devHash.put(a.microservice, numAgs2+1)
             case None => devHash.put(a.microservice, 1)
           }
         case None => agHash += ((a.deviceId, new MutableHashMap[String,Int]() += ((a.microservice, 1)) ))   // this device is not in the hash yet, so create it and add the 1 microservice
@@ -271,12 +264,12 @@ case class MicroserviceRow(msId: String, deviceId: String, url: String, numAgree
 
   def putInHashMap(micros: MutableHashMap[String,MutableHashMap[String,Microservice]]): Unit = {
     micros.get(deviceId) match {
-      case Some(dev) => ; // do not need to add the entry, because it is already there
+      case Some(_) => ; // do not need to add the entry, because it is already there
       case None => micros.put(deviceId, new MutableHashMap[String,Microservice])
     }
     val mMap = micros.get(deviceId).get
     mMap.get(msId) match {
-      case Some(ms) => ; // do not need to add the entry, because it is already there
+      case Some(_) => ; // do not need to add the entry, because it is already there
       case None => mMap.put(msId, toMicroservice)
     }
   }
@@ -346,12 +339,12 @@ case class PropRow(propId: String, msId: String, name: String, value: String, pr
 
   def putInHashMap(props: MutableHashMap[String,MutableHashMap[String,Prop]]) {
     props.get(msId) match {
-      case Some(ms) => ; // do not need to add the entry, because it is already there
+      case Some(_) => ; // do not need to add the entry, because it is already there
       case None => props.put(msId, new MutableHashMap[String,Prop])
     }
     val pMap = props.get(msId).get
     pMap.get(propId) match {
-      case Some(p) => ; // do not need to add the entry, because it is already there
+      case Some(_) => ; // do not need to add the entry, because it is already there
       case None => pMap.put(propId, toProp)
     }
   }
@@ -393,8 +386,8 @@ case class Prop(name: String, value: String, propType: String, op: String) {
       if (op==Op.IN) return Option[String]("invalid op '"+op+"' specified for "+name)
       if (value != "*") {
         // ensure its a valid integer number
-        try { val i = value.toInt }
-        catch { case e: Exception => return Option[String]("invalid integer value '"+value+"' specified for "+name) }
+        try { value.toInt }
+        catch { case _: Exception => return Option[String]("invalid integer value '"+value+"' specified for "+name) }
       }
     }
     if (propType==PropType.VERSION) {
@@ -424,8 +417,8 @@ case class Prop(name: String, value: String, propType: String, op: String) {
       }
       case (PropType.INT, PropType.INT) => op match {
         case Op.EQUAL => return (value == that.value)
-        case Op.GTEQUAL => try { return (that.value.toInt >= value.toInt) } catch { case e: Exception => return false }
-        case Op.LTEQUAL => try { return (that.value.toInt <= value.toInt) } catch { case e: Exception => return false }
+        case Op.GTEQUAL => try { return (that.value.toInt >= value.toInt) } catch { case _: Exception => return false }
+        case Op.LTEQUAL => try { return (that.value.toInt <= value.toInt) } catch { case _: Exception => return false }
         case _ => return false
       }
       case (PropType.VERSION, PropType.VERSION) => op match {

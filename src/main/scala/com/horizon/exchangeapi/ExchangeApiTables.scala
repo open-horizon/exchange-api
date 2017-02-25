@@ -1,21 +1,13 @@
 package com.horizon.exchangeapi
 
-import org.scalatra._
-// import slick.driver.PostgresDriver.api._
-import slick.jdbc.PostgresProfile.api._
-import java.sql.Timestamp
+import java.io._
+
 import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.{read, write}
 import org.slf4j._
-import java.io._
-import scala.util._
-import scala.collection.mutable.{ListBuffer, Set => MutableSet, HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
-import scala.concurrent.Future
+import slick.jdbc.PostgresProfile.api._
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
-// import scala.collection.immutable._
 import com.horizon.exchangeapi.tables._
 
 /** The umbrella class for the DB tables. The specific table classes are in the tables subdir. */
@@ -157,31 +149,31 @@ object ExchangeApiTables {
     // Load the table file and put it on the actions list. Repeating this for each table here, because read[]() needs an explicit type
     // Note: this intentionally does not catch the json parsing exceptions, so they will get thrown to the caller and they can handle them
     val users = new TableIo[UserRow](dumpDir+"/users"+dumpSuffix).load
-    if (users.size > 0) actions += (UsersTQ.rows ++= users)
+    if (users.nonEmpty) actions += (UsersTQ.rows ++= users)
 
     val devices = new TableIo[DeviceRow](dumpDir+"/devices"+dumpSuffix).load
-    if (devices.size > 0) actions += (DevicesTQ.rows ++= devices)
+    if (devices.nonEmpty) actions += (DevicesTQ.rows ++= devices)
 
     val microservices = new TableIo[MicroserviceRow](dumpDir+"/microservices"+dumpSuffix).load
-    if (microservices.size > 0) actions += (MicroservicesTQ.rows ++= microservices)
+    if (microservices.nonEmpty) actions += (MicroservicesTQ.rows ++= microservices)
 
     val properties = new TableIo[PropRow](dumpDir+"/properties"+dumpSuffix).load
-    if (properties.size > 0) actions += (PropsTQ.rows ++= properties)
+    if (properties.nonEmpty) actions += (PropsTQ.rows ++= properties)
 
     val devagreements = new TableIo[DeviceAgreementRow](dumpDir+"/devagreements"+dumpSuffix).load
-    if (devagreements.size > 0) actions += (DeviceAgreementsTQ.rows ++= devagreements)
+    if (devagreements.nonEmpty) actions += (DeviceAgreementsTQ.rows ++= devagreements)
 
     val agbots = new TableIo[AgbotRow](dumpDir+"/agbots"+dumpSuffix).load
-    if (agbots.size > 0) actions += (AgbotsTQ.rows ++= agbots)
+    if (agbots.nonEmpty) actions += (AgbotsTQ.rows ++= agbots)
 
     val agbotagreements = new TableIo[AgbotAgreementRow](dumpDir+"/agbotagreements"+dumpSuffix).load
-    if (agbotagreements.size > 0) actions += (AgbotAgreementsTQ.rows ++= agbotagreements)
+    if (agbotagreements.nonEmpty) actions += (AgbotAgreementsTQ.rows ++= agbotagreements)
 
     val devicemsgs = new TableIo[DeviceMsgRow](dumpDir+"/devmsgs"+dumpSuffix).load
-    if (devicemsgs.size > 0) actions += (DeviceMsgsTQ.rows ++= devicemsgs)
+    if (devicemsgs.nonEmpty) actions += (DeviceMsgsTQ.rows ++= devicemsgs)
 
     val agbotmsgs = new TableIo[AgbotMsgRow](dumpDir+"/agbotmsgs"+dumpSuffix).load
-    if (agbotmsgs.size > 0) actions += (AgbotMsgsTQ.rows ++= agbotmsgs)
+    if (agbotmsgs.nonEmpty) actions += (AgbotMsgsTQ.rows ++= agbotmsgs)
 
     return actions.toList
   }
@@ -194,7 +186,7 @@ class TableIo[T](val filename: String) {
   def dump(rows: Seq[T]) = {
     // read[Map[String,String]](softwareVersions)
     val file = new File(filename)
-    file.getParentFile().mkdirs()
+    file.getParentFile.mkdirs()
     val bw = new BufferedWriter(new FileWriter(file))
     bw.write(write(rows))     // the inside write() converts the scala data structure to a json blob
     bw.close()

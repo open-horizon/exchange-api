@@ -3,29 +3,15 @@ package com.horizon.exchangeapi
 
 import org.scalatra._
 import slick.jdbc.PostgresProfile.api._
-// import slick.driver.PostgresDriver.api._
-// import slick.basic.DatabasePublisher
-// import scala.concurrent.ExecutionContext.Implicits.global
-import org.scalatra.swagger._
-import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization
-import org.json4s.jackson.Serialization.{read, write}
-import org.scalatra.json._
-import org.slf4j._
 import com.horizon.exchangeapi.tables._
-import Access._
-// import BaseAccess._
-import java.io._
-import scala.util._
-import scala.util.control.Breaks._
-import scala.collection.immutable._
-import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
-import scala.concurrent.Future
-import scala.concurrent.Await
-import scala.concurrent.duration._
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
+import org.scalatra.swagger._
+import org.slf4j._
 import java.util.Properties
+import scala.collection.immutable._
+import scala.collection.mutable.ListBuffer
+import scala.util._
 
 case class AdminHashpwRequest(password: String)
 case class AdminHashpwResponse(hashedPassword: String)
@@ -74,7 +60,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   post("/admin/reload", operation(postAdminReload)) ({
     // validateUser(BaseAccess.ADMIN, "")
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
-    ExchConfig.reload
+    ExchConfig.reload()
     logger.debug("POST /admin/reload completed successfully.")
     status_=(HttpCode.POST_OK)
     ApiResponse(ApiResponseType.OK, "reload successful")
@@ -154,7 +140,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(ExchangeApiTables.create.transactionally.asTry).map({ xs =>
       logger.debug("POST /admin/initdb result: "+xs.toString)
       xs match {
-        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+        case Success(_) => resp.setStatus(HttpCode.POST_OK)
           ExchConfig.createRoot(db)         // initialize the users table with the root user from config.json
           ApiResponse(ApiResponseType.OK, "db initialized successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
@@ -182,7 +168,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(ExchangeApiTables.createNewTables.transactionally.asTry).map({ xs =>
       logger.debug("POST /admin/initnewtables result: "+xs.toString)
       xs match {
-        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+        case Success(_) => resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "new tables initialized successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "new tables not initialized: "+t.toString)
@@ -229,9 +215,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(ExchangeApiTables.delete.transactionally.asTry).map({ xs =>
       logger.debug("POST /admin/dropdb result: "+xs.toString)
       xs match {
-        case Success(v) => AuthCache.devices.removeAll     // i think we could just let the cache catch up over time, but seems better to clear it out now
-          AuthCache.users.removeAll
-          AuthCache.agbots.removeAll
+        case Success(_) => AuthCache.devices.removeAll()     // i think we could just let the cache catch up over time, but seems better to clear it out now
+          AuthCache.users.removeAll()
+          AuthCache.agbots.removeAll()
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "db deleted successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
@@ -259,7 +245,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(ExchangeApiTables.deleteNewTables.transactionally.asTry).map({ xs =>
       logger.debug("POST /admin/dropnewtables result: "+xs.toString)
       xs match {
-        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+        case Success(_) => resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "new tables deleted successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "new tables not completely deleted: "+t.toString)
@@ -300,7 +286,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(dbio.asTry).map({ xs =>
       logger.debug("POST /admin/migratedb result: "+xs.toString)
       xs match {
-        case Success(v) => migratingDb = false    // let clients run rest api calls again
+        case Success(_) => migratingDb = false    // let clients run rest api calls again
           resp.setStatus(HttpCode.POST_OK)
           // AuthCache.users.init(db)     // instead of doing this we can let the cache build up over time as resources are accessed
           // AuthCache.devices.init(db)
@@ -339,7 +325,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(dbActions.transactionally.asTry).map({ xs =>
       logger.debug("POST /admin/upgradedb result: "+xs.toString)
       xs match {
-        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+        case Success(_) => resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "db table schemas upgraded successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "db table schemas not upgraded: "+t.toString)
@@ -372,7 +358,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(dbActions.asTry).map({ xs =>
       logger.debug("POST /admin/unupgradedb result: "+xs.toString)
       xs match {
-        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+        case Success(_) => resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "db table schemas unupgraded successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "db table schemas not unupgraded: "+t.toString)
@@ -398,8 +384,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val resp = response
     val dbAction = ExchangeApiTables.dump(dumpDir, dumpSuffix)    // this action queries all the tables and writes them to files
     db.run(dbAction.asTry).map({ xs =>
+      logger.debug("POST /admin/dumptables result: "+xs.toString)
       xs match {
-        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+        case Success(_) => resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "tables dumped to "+dumpDir+" successfully")
         case Failure(t) => logger.error("error in dumping tables: "+t.toString)
           resp.setStatus(HttpCode.INTERNAL_ERROR)
@@ -456,7 +443,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(dbio.asTry).map({ xs =>      // currently not doing it transactionally because it is easier to find the error that way, and they can always drop the db and try again
       logger.debug("POST /admin/loadtables result: "+xs.toString)
       xs match {
-        case Success(v) => resp.setStatus(HttpCode.POST_OK)    // let the auth cache build up gradually
+        case Success(_) => resp.setStatus(HttpCode.POST_OK)    // let the auth cache build up gradually
           ApiResponse(ApiResponseType.OK, "tables restored successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "tables not fully restored: "+t.toString)
@@ -529,7 +516,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         db.run(dbio.transactionally.asTry).map({ xs =>
           logger.debug("PUT /admin/tables/"+table+" result: "+xs.toString)
           xs match {
-            case Success(v) => resp.setStatus(HttpCode.PUT_OK)    // let the auth cache build up gradually
+            case Success(_) => resp.setStatus(HttpCode.PUT_OK)    // let the auth cache build up gradually
               ApiResponse(ApiResponseType.OK, table+" table restored successfully")
             case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
               ApiResponse(ApiResponseType.INTERNAL_ERROR, "table '"+table+"' not restored: "+t.toString)
@@ -554,7 +541,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   get("/admin/status", operation(getAdminStatus)) ({
     // validateUser(BaseAccess.STATUS, "")
     credsAndLog().authenticate().authorizeTo(TAction(),Access.STATUS)
-    val resp = response
     val statusResp = new AdminStatus()
     db.run(UsersTQ.rows.length.result.asTry.flatMap({ xs =>
       logger.debug("GET /admin/status users length: "+xs)
@@ -630,7 +616,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   get("/admin/gettest") ({
     // validateUser(BaseAccess.ADMIN, "")
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val resp = response
+//    val resp = response
 
     ApiResponse(ApiResponseType.OK, "maxAgbots: "+ExchConfig.getInt("api.limits.maxAgbots"))
 

@@ -1,17 +1,9 @@
 package com.horizon.exchangeapi.tables
-
-import org.scalatra._
 // import slick.driver.PostgresDriver.api._
-import slick.jdbc.PostgresProfile.api._
-import java.sql.Timestamp
-import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization
-import org.json4s.jackson.Serialization.{read, write}
-import org.scalatra.json._
 import com.horizon.exchangeapi._
-import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
+import org.json4s._
+import slick.jdbc.PostgresProfile.api._
+
 
 /** Contains the object representations of the DB tables related to agbots. */
 

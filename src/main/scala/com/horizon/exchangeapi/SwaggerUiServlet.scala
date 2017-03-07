@@ -2,7 +2,7 @@ package com.horizon.exchangeapi
 
 import org.scalatra._
 import java.io.File
-import org.slf4j.{LoggerFactory, Logger}
+import org.slf4j.LoggerFactory
 
 class SwaggerUiServlet extends ScalatraServlet {
   val logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
@@ -15,10 +15,10 @@ class SwaggerUiServlet extends ScalatraServlet {
     // logger.info(request.queryString)
     request.queryString.split("&").find(x => x.startsWith("url=")) match {
       // They specified the "url=" param, so pass it along to the swagger-ui
-      case Some(parm) => contentType = "text/html"
+      case Some(_) => contentType = "text/html"
         // This index.html is part of the dist subdir of https://github.com/swagger-api/swagger-ui.git which was copied into src/main/webapp, which sbt copies to target/webapp
         // It takes a param called url which tells it where to get the api-docs data from. This url is from the perspective of the client (browser).
-        new File(servletContext.getResource("/swagger-index.html").getFile())
+        new File(servletContext.getResource("/swagger-index.html").getFile)
         // new File(servletContext.getResource("/index.html").getFile())
         // new File(servletContext.getResource("/index.html?url=http://localhost:8080/api-docs").getFile())  // gave null ptr exception
         // redirect(servletContext.getResource("/index.html")+"?url=http://localhost:8080/api-docs")

@@ -1,21 +1,16 @@
 /** Services routes for all of the /bctypes api methods. */
 package com.horizon.exchangeapi
 
-import org.scalatra._
-import slick.jdbc.PostgresProfile.api._
-import org.scalatra.swagger._
 import org.json4s._
-import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization.{read, write}
-import org.scalatra.json._
+import org.scalatra._
+import org.scalatra.swagger._
 import org.slf4j._
-import Access._
-// import BaseAccess._
-import scala.util._
-import scala.collection.immutable._
-import scala.collection.mutable.{ListBuffer, Set => MutableSet, HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
+import slick.jdbc.PostgresProfile.api._
 import com.horizon.exchangeapi.tables._
+import scala.collection.immutable._
+import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.util._
 
 //====== These are the input and output structures for /bctypes routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -27,7 +22,7 @@ case class GetBctypeAttributeResponse(attribute: String, value: String)
 // case class PutBctypeRequest(description: String, containerInfo: Map[String,String]) {
 case class PutBctypeRequest(description: String, details: String) {
   // protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate = {
+  def validate() = {
     // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /devices/{id}/msgs checks for the publicKey
   }
 
@@ -43,7 +38,7 @@ case class PatchBctypeRequest(description: Option[String], details: Option[Strin
     val lastUpdated = ApiTime.nowUTC
     //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this bctype
-    description match { case Some(description) => return ((for { d <- BctypesTQ.rows if d.bctype === bctype } yield (d.bctype,d.description,d.lastUpdated)).update((bctype, description, lastUpdated)), "description"); case _ => ; }
+    description match { case Some(description2) => return ((for { d <- BctypesTQ.rows if d.bctype === bctype } yield (d.bctype,d.description,d.lastUpdated)).update((bctype, description2, lastUpdated)), "description"); case _ => ; }
     details match { case Some(det) => return ((for { d <- BctypesTQ.rows if d.bctype === bctype } yield (d.bctype,d.details,d.lastUpdated)).update((bctype, det, lastUpdated)), "details"); case _ => ; }
     // containerInfo match {
     //   case Some(ci) => val cInfo = if (ci != "") write(containerInfo) else ""
@@ -76,7 +71,7 @@ case class PatchBlockchainRequest(description: Option[String], details: Option[S
     val lastUpdated = ApiTime.nowUTC
     //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this bctype
-    description match { case Some(description) => return ((for { d <- BlockchainsTQ.rows if d.bctype === bctype && d.name === name } yield (d.name, d.bctype,d.description,d.lastUpdated)).update((name, bctype, description, lastUpdated)), "description"); case _ => ; }
+    description match { case Some(description2) => return ((for { d <- BlockchainsTQ.rows if d.bctype === bctype && d.name === name } yield (d.name, d.bctype,d.description,d.lastUpdated)).update((name, bctype, description2, lastUpdated)), "description"); case _ => ; }
     details match { case Some(det) => return ((for { d <- BlockchainsTQ.rows if d.bctype === bctype && d.name === name } yield (d.name,d.bctype,d.details,d.lastUpdated)).update((name, bctype, det, lastUpdated)), "details")
       case _ => ;
     }
@@ -128,8 +123,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
 
   /** Handles GET /bctypes. Can be called by anyone. */
   get("/bctypes", operation(getBctypes)) ({
-    // val creds = validateUserOrId(BaseAccess.READ_ALL_BLOCKCHAINS)
-    val ident = credsAndLog().authenticate().authorizeTo(TBctype("*"),Access.READ)
+    credsAndLog().authenticate().authorizeTo(TBctype("*"),Access.READ)
     var q = BctypesTQ.rows.subquery
     params.get("bctype").foreach(bctype => { if (bctype.contains("%")) q = q.filter(_.bctype like bctype) else q = q.filter(_.bctype === bctype) })
     params.get("description").foreach(description => { if (description.contains("%")) q = q.filter(_.description like description) else q = q.filter(_.description === description) })
@@ -164,8 +158,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   /** Handles GET /bctypes/{bctype}. Can be called by anyone. */
   get("/bctypes/:bctype", operation(getOneBctype)) ({
     val bctype = swaggerHack("bctype")
-    // val creds = validateUserOrId(BaseAccess.READ_ALL_BLOCKCHAINS)
-    val ident = credsAndLog().authenticate().authorizeTo(TBctype(bctype),Access.READ)
+    credsAndLog().authenticate().authorizeTo(TBctype(bctype),Access.READ)
     val resp = response
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the bctype
@@ -173,7 +166,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
         if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Bctype attribute name '"+attribute+"' is not an attribute of the bctype resource."))
         db.run(q.result).map({ list =>
           logger.trace("GET /bctypes/"+bctype+" attribute result: "+list.toString)
-          if (list.size > 0) {
+          if (list.nonEmpty) {
             GetBctypeAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
@@ -185,7 +178,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
         db.run(BctypesTQ.getBctype(bctype).result).map({ list =>
           logger.debug("GET /bctypes/"+bctype+" result: "+list.toString)
           val bctypes = new MutableHashMap[String,Bctype]
-          if (list.size > 0) for (a <- list) bctypes.put(a.bctype, a.toBctype)
+          if (list.nonEmpty) for (a <- list) bctypes.put(a.bctype, a.toBctype)
           else resp.setStatus(HttpCode.NOT_FOUND)
           GetBctypesResponse(bctypes.toMap, 0)
         })
@@ -222,7 +215,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
     val ident = credsAndLog().authenticate().authorizeTo(TBctype(bctype),Access.WRITE)
     val bctypeReq = try { parse(request.body).extract[PutBctypeRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
-    bctypeReq.validate
+    bctypeReq.validate()
     // val owner = if (isAuthenticatedUser(creds)) creds.id else ""
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
@@ -237,7 +230,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
     })).map({ xs =>
       logger.debug("PUT /bctypes/"+bctype+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (owner != "") AuthCache.bctypes.putOwner(bctype, owner)     // currently only users are allowed to create/update bc resources, so owner should never be blank
+        case Success(_) => if (owner != "") AuthCache.bctypes.putOwner(bctype, owner)     // currently only users are allowed to create/update bc resources, so owner should never be blank
           resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, "bctype added or updated")
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -282,8 +275,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   /** Handles PATCH /bctype/{bctype}. Must be called by the same user that created it. */
   patch("/bctypes/:bctype", operation(patchBctypes)) ({
     val bctype = swaggerHack("bctype")
-    // val creds = validateUserOrId(BaseAccess.WRITE)
-    val ident = credsAndLog().authenticate().authorizeTo(TBctype(bctype),Access.WRITE)
+    credsAndLog().authenticate().authorizeTo(TBctype(bctype),Access.WRITE)
     val bctypeReq = try { parse(request.body).extract[PatchBctypeRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.trace("PATCH /bctypes/"+bctype+" input: "+bctypeReq.toString)
@@ -324,7 +316,6 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   /** Handles DELETE /bctypes/{bctype}. Must be called by user. */
   delete("/bctypes/:bctype", operation(deleteBctypes)) ({
     val bctype = swaggerHack("bctype")
-    // validateUserOrId(BaseAccess.WRITE)
     credsAndLog().authenticate().authorizeTo(TBctype(bctype),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
@@ -365,14 +356,13 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   /** Handles GET /bctypes/{bctype}/blockchains. Can be called by anyone to see all blockchains of this bctype. */
   get("/bctypes/:bctype/blockchains", operation(getBlockchains)) ({
     val bctype = swaggerHack("bctype")
-    // validateUserOrId(BaseAccess.READ)
     credsAndLog().authenticate().authorizeTo(TBlockchain("*"),Access.READ)
     val resp = response
     db.run(BlockchainsTQ.getBlockchains(bctype).result).map({ list =>
       logger.debug("GET /bctypes/"+bctype+"/blockchains result size: "+list.size)
       logger.trace("GET /bctypes/"+bctype+"/blockchains result: "+list.toString)
       val blockchains = new MutableHashMap[String, Blockchain]
-      if (list.size > 0) for (e <- list) { blockchains.put(e.name, e.toBlockchain) }
+      if (list.nonEmpty) for (e <- list) { blockchains.put(e.name, e.toBlockchain) }
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetBlockchainsResponse(blockchains.toMap, 0)
     })
@@ -402,7 +392,6 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
     val bctype = swaggerHack("bctype")   // but do not have a hack/fix for the name
     val name = params("name")
     val compositeId = name+"|"+bctype
-    // validateUserOrId(BaseAccess.READ)
     credsAndLog().authenticate().authorizeTo(TBlockchain(compositeId),Access.READ)
     val resp = response
     params.get("attribute") match {
@@ -411,7 +400,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
         if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Blockchain attribute name '"+attribute+"' is not an attribute of the blockchain resource."))
         db.run(q.result).map({ list =>
           logger.trace("GET /bctypes/"+bctype+"/blockchains/"+name+" attribute result: "+list.toString)
-          if (list.size > 0) {
+          if (list.nonEmpty) {
             GetBlockchainAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
@@ -423,7 +412,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
         db.run(BlockchainsTQ.getBlockchain(bctype, name).result).map({ list =>
           logger.debug("GET /bctypes/"+bctype+"/blockchains/"+name+" result: "+list.toString)
           val blockchains = new MutableHashMap[String, Blockchain]
-          if (list.size > 0) for (e <- list) { blockchains.put(e.name, e.toBlockchain) }
+          if (list.nonEmpty) for (e <- list) { blockchains.put(e.name, e.toBlockchain) }
           else resp.setStatus(HttpCode.NOT_FOUND)
           GetBlockchainsResponse(blockchains.toMap, 0)
         })
@@ -459,7 +448,6 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
     val bctype = swaggerHack("bctype")
     val name = params("name")
     val compositeId = name+"|"+bctype
-    // validateUserOrId(BaseAccess.WRITE)
     val ident = credsAndLog().authenticate().authorizeTo(TBlockchain(compositeId),Access.WRITE)
     val blockchain = try { parse(request.body).extract[PutBlockchainRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
@@ -478,7 +466,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
     }).flatMap({ xs =>
       logger.debug("PUT /bctypes/"+bctype+"/blockchains/"+name+" get existing: "+xs.toString)
       xs match {
-        case Success(v) => val bcExists = (v.size > 0)
+        case Success(v) => val bcExists = v.nonEmpty
           if (bcExists) { logger.debug("PUT /bctypes/"+bctype+"/blockchains/"+name+" updating existing row"); blockchain.toBlockchainRow(bctype, name, owner).update.asTry }
           else { logger.debug("PUT /bctypes/"+bctype+"/blockchains/"+name+" inserting new row"); blockchain.toBlockchainRow(bctype, name, owner).insert.asTry }
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
@@ -486,7 +474,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
     })).map({ xs =>
       logger.debug("PUT /bctypes/"+bctype+"/blockchains/"+name+" result: "+xs.toString)
       xs match {
-        case Success(v) => AuthCache.blockchains.putOwner(compositeId, owner)
+        case Success(_) => AuthCache.blockchains.putOwner(compositeId, owner)
           resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, "blockchain added or updated")
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -534,8 +522,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
     val bctype = swaggerHack("bctype")
     val name = params("name")
     val compositeId = name+"|"+bctype
-    // val creds = validateUserOrId(BaseAccess.WRITE)
-    val ident = credsAndLog().authenticate().authorizeTo(TBlockchain(compositeId),Access.WRITE)
+    credsAndLog().authenticate().authorizeTo(TBlockchain(compositeId),Access.WRITE)
     val bcReq = try { parse(request.body).extract[PatchBlockchainRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.trace("PATCH /bctypes/"+bctype+"/blockchains/"+name+" input: "+bcReq.toString)
@@ -579,7 +566,6 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
     val bctype = swaggerHack("bctype")
     val name = params("name")
     val compositeId = name+"|"+bctype
-    // validateUserOrId(BaseAccess.WRITE)
     credsAndLog().authenticate().authorizeTo(TBlockchain(compositeId),Access.WRITE)
     val resp = response
     db.run(BlockchainsTQ.getBlockchain(bctype,name).delete.asTry).map({ xs =>

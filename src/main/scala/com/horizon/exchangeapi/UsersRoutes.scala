@@ -49,7 +49,6 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   /** Handles GET /users. Can only be called by the root user to see all users. */
   get("/users", operation(getUsers)) ({
-    // val creds = validateUser(BaseAccess.READ, "*")
     val ident = credsAndLog().authenticate().authorizeTo(TUser("*"),Access.READ)
     val superUser = ident.isSuperUser
     db.run(UsersTQ.rows.result).map({ list =>
@@ -82,7 +81,6 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   /** Handles GET /users/{username}. Normally called by the user to verify his own entry after a reboot. */
   get("/users/:username", operation(getOneUser)) ({
     val username = swaggerHack("username")
-    // val creds = validateUser(BaseAccess.READ, username)
     val ident = credsAndLog().authenticate().authorizeTo(TUser(username),Access.READ)
     val superUser = ident.isSuperUser
     val resp = response     // needed so the db.run() future has this context
@@ -131,7 +129,6 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   put("/users/:username", operation(putUsers)) ({
     // Note: we currently do not have a way to verify this is a real person creating this, so we use rate limiting in haproxy
     val username = swaggerHack("username")
-    // val creds = validateUser(BaseAccess.WRITE, username)
     val ident = credsAndLog().authenticate().authorizeTo(TUser(username),Access.WRITE)
     val isRoot = ident.isSuperUser
     val user = try { parse(request.body).extract[PutUsersRequest] }
@@ -152,7 +149,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         }
       })
     } else {      // update by existing user
-      db.run(UserRow(username, user.password, user.email, ApiTime.nowUTC).updateUser).map({ xs =>     // updateUser() handles the case where pw or email is blank (i.e. do not update those fields)
+      db.run(UserRow(username, user.password, user.email, ApiTime.nowUTC).updateUser()).map({ xs =>     // updateUser() handles the case where pw or email is blank (i.e. do not update those fields)
         logger.debug("PUT /users/"+username+" result: "+xs.toString)
         try {
           val numUpdated = xs.toString.toInt
@@ -202,7 +199,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     logger.debug(user.toString)
     val resp = response
     if (user.password == "" || user.email == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "both password and email must be non-blank when creating a user"))
-    db.run(UserRow(username, user.password, user.email, ApiTime.nowUTC).insertUser.asTry).map({ xs =>
+    db.run(UserRow(username, user.password, user.email, ApiTime.nowUTC).insertUser().asTry).map({ xs =>
       logger.debug("POST /users/"+username+" result: "+xs.toString)
       xs match {
         case Success(v) => AuthCache.users.put(Creds(username, user.password))    // the password passed in to the cache should be the non-hashed one
@@ -289,7 +286,6 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   post("/users/:username/reset", operation(postUsersReset)) ({
     val username = swaggerHack("username")
     // Note: anonymous is allowed, obviously, but haproxy rate limiting is used to prevent someone else flooding their email
-    // val creds = validateUser(BaseAccess.RESET_PW, username)
     val ident = credsAndLog(true).authenticate().authorizeTo(TUser(username),Access.RESET_USER_PW)
 
     if (ident.isSuperUser) {
@@ -358,12 +354,11 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   /** Handles POST /users/{username}/changepw. */
   post("/users/:username/changepw", operation(postUsersChangePw)) ({
     val username = swaggerHack("username")
-    // validateToken(BaseAccess.WRITE, username)     // this validates the token that is passed in via the header (or via the password query parm)
     credsAndLog().authenticate("token").authorizeTo(TUser(username),Access.WRITE)
     val req = try { parse(request.body).extract[ChangePwRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
-    db.run(UserRow(username, req.newPassword, "", ApiTime.nowUTC).updateUser).map({ xs =>     // updateUser() handles the case where pw or email is blank (i.e. do not update those fields)
+    db.run(UserRow(username, req.newPassword, "", ApiTime.nowUTC).updateUser()).map({ xs =>     // updateUser() handles the case where pw or email is blank (i.e. do not update those fields)
       logger.debug("POST /users/"+username+"/changepw result: "+xs.toString)
       try {
         val numUpdated = xs.toString.toInt

@@ -8,16 +8,10 @@ package com.horizon.exchangeapi
 import org.scalatra._
 import slick.jdbc.PostgresProfile.api._
 // import scala.concurrent.ExecutionContext.Implicits.global    // this is needed for FutureSupport
-import org.scalatra.swagger._
 import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization
-import org.json4s.jackson.Serialization.{read, write}
 import org.scalatra.json._
-import org.slf4j.{LoggerFactory, Logger}
-import scala.collection.mutable.ListBuffer
-import com.horizon.exchangeapi.tables._
+import org.scalatra.swagger._
+import org.slf4j.LoggerFactory
 
 /** Servlet for the Exchange REST API.
  *

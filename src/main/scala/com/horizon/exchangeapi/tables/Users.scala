@@ -1,18 +1,14 @@
 package com.horizon.exchangeapi.tables
 
-import org.scalatra._
-// import slick.driver.PostgresDriver.api._
-import slick.jdbc.PostgresProfile.api._
-import java.sql.Timestamp
 import com.horizon.exchangeapi._
-import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
+import slick.jdbc.PostgresProfile.api._
 
 /** Contains the object representations of the DB tables related to users. */
 
 //TODO: figure out how to use the slick type Timestamp, but have it stored in UTC
 // case class UserRow(username: String, password: String, email: String, lastUpdated: Timestamp) {
 case class UserRow(username: String, password: String, email: String, lastUpdated: String) {
-  def insertUser: DBIO[_] = {
+  def insertUser(): DBIO[_] = {
     val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
     UsersTQ.rows += (UserRow(username, pw, email, lastUpdated))
   }
@@ -22,7 +18,7 @@ case class UserRow(username: String, password: String, email: String, lastUpdate
     UsersTQ.rows.insertOrUpdate(UserRow(username, pw, email, lastUpdated))
   }
 
-  def updateUser: DBIO[_] = {
+  def updateUser(): DBIO[_] = {
     val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
     // if password and/or email are blank, it means they should not be updated
     (pw, email) match {
@@ -39,8 +35,8 @@ class Users(tag: Tag) extends Table[UserRow](tag, "users") {
   def username = column[String]("username", O.PrimaryKey)
   def password = column[String]("password")
   def email = column[String]("email")
-  // def lastUpdated = column[Timestamp]("lastupdated")    //TODO: need this is UTC, not local time zone
-  def lastUpdated = column[String]("lastupdated")    //TODO: need this is UTC, not local time zone
+  // def lastUpdated = column[Timestamp]("lastupdated")    //todo: need this is UTC, not local time zone
+  def lastUpdated = column[String]("lastupdated")
   def * = (username, password, email, lastUpdated) <> (UserRow.tupled, UserRow.unapply)
 }
 

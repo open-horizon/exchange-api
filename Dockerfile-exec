@@ -1,5 +1,5 @@
-#FROM jetty:latest
-FROM jetty:alpine
+FROM jetty:latest
+#FROM jetty:alpine
 MAINTAINER bruce potter <bp@us.ibm.com>
 
 ARG SCALA_VERSION
@@ -7,8 +7,8 @@ ARG SCALA_VERSION_SHORT
 ARG EXCHANGE_API_WAR_VERSION
 
 # install tools we want available
-#RUN apt-get update && apt-get install -y vim
-RUN apk update && apk add curl vim
+RUN apt-get update && apt-get install -y vim
+#RUN apk update && apk add curl vim
 
 # install scala
 RUN curl -s http://downloads.lightbend.com/scala/$SCALA_VERSION/scala-$SCALA_VERSION.tgz | tar -zx -C /usr/local/share

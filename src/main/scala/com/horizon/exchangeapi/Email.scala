@@ -4,7 +4,6 @@ package com.horizon.exchangeapi
 import java.util.{Date, Properties}
 import javax.mail._
 import javax.mail.internet._
-
 import scala.util._
 
 /** Encapsulates sending email to exchange users */

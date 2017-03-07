@@ -1,10 +1,8 @@
 import javax.servlet.ServletContext
-
 import com.horizon.exchangeapi._
 import com.mchange.v2.c3p0.ComboPooledDataSource
 import org.scalatra._
 import org.slf4j.LoggerFactory
-// import slick.driver.PostgresDriver.api._
 import slick.jdbc.PostgresProfile.api._
 
 /** Scalatra bootstrap file.
@@ -19,7 +17,7 @@ class ScalatraBootstrap extends LifeCycle {
   val logger = LoggerFactory.getLogger(getClass)
 
   // Get config file, normally in /etc/horizon/exchange/config.json
-  ExchConfig.load
+  ExchConfig.load()
 
   // Load the db backend. The db access info must be in config.json
   var cpds: ComboPooledDataSource = _

@@ -24,11 +24,11 @@ EXCHANGE_API_PORT ?= 8080
 EXCHANGE_CONFIG_DIR ?= /etc/horizon/exchange
 OS := $(shell uname)
 ifeq ($(OS),Darwin)
-	# Mac OS X 
-	EXCHANGE_HOST_CONFIG_DIR ?= /private$(EXCHANGE_CONFIG_DIR)
+  # Mac OS X
+  EXCHANGE_HOST_CONFIG_DIR ?= /private$(EXCHANGE_CONFIG_DIR)
 else
-	# Assume Linux (could test by test if OS is Linux)
-	EXCHANGE_HOST_CONFIG_DIR ?= $(EXCHANGE_CONFIG_DIR)
+  # Assume Linux (could test by test if OS is Linux)
+  EXCHANGE_HOST_CONFIG_DIR ?= $(EXCHANGE_CONFIG_DIR)
 endif
 
 
@@ -60,7 +60,7 @@ docker: .docker-exec
 	docker run --name $(DOCKER_NAME)_bld -d -t -v $(CURDIR):$(EXCHANGE_API_DIR) $(image-string):bld /bin/bash
 	@touch $@
 
-.docker-compile: src/main/scala/com/horizon/exchangeapi/* src/main/resources/* .docker-bld
+.docker-compile: $(wildcard src/main/scala/com/horizon/exchangeapi/*) $(wildcard src/main/resources/*) .docker-bld
 	docker exec -t $(DOCKER_NAME)_bld /bin/bash -c "cd $(EXCHANGE_API_DIR) && ./sbt package"
 	# war file ends up in: ./target/scala-$SCALA_VERSION_SHORT/exchange-api_$SCALA_VERSION_SHORT-$EXCHANGE_API_WAR_VERSION.war
 	@touch $@

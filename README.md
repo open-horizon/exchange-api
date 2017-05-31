@@ -83,6 +83,7 @@ services in the exchange.
 - Fixed bug: with a brand new db, could not run POST /admin/initdb because root user was not defined.
 - Switched the dockerfile FROM statement to the official jetty image
 - Added msgs, bctypes, and blockchains to the scale test script
+- Removed requirement for MS numAgreements be set to 1.
 
 ## Changes Between v1.22.0 and v1.23.0
 

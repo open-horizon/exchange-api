@@ -1,6 +1,7 @@
 # Adds device 3 as root
-if [[ $1 == "-raw" ]]; then parse=cat; else parse="jq -r ."; fi
-curl -# -w "%{http_code}" -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic root:$EXCHANGE_ROOTPW" -d '{
+source `dirname $0`/../../functions.sh PUT $*
+
+curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic root:$EXCHANGE_ROOTPW" -d '{
   "token": "def",
   "name": "rpi3-from-root",
   "registeredMicroservices": [

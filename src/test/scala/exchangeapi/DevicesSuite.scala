@@ -134,12 +134,12 @@ class DevicesSuite extends FunSuite {
   test("PUT /devices/"+deviceId+" - normal") {
     val input = PutDevicesRequest(deviceToken, "rpi"+deviceId+"-norm",
       List(
-        Microservice(PWSSPEC,1,"{json policy for "+deviceId+" pws}",List(
+        RegMicroservice(PWSSPEC,1,"{json policy for "+deviceId+" pws}",List(
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","="))),
-        Microservice(NETSPEEDSPEC,1,"{json policy for "+deviceId+" netspeed}",List(
+        RegMicroservice(NETSPEEDSPEC,1,"{json policy for "+deviceId+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("cpus","2","int",">="),
           Prop("version","1.0.0","version","in")))
@@ -162,12 +162,12 @@ class DevicesSuite extends FunSuite {
   test("PUT /devices/"+deviceId+" - normal - update") {
     val input = PutDevicesRequest(deviceToken, "rpi"+deviceId+"-normal-user",
       List(
-        Microservice(PWSSPEC,1,"{json policy for "+deviceId+" pws}",List(
+        RegMicroservice(PWSSPEC,1,"{json policy for "+deviceId+" pws}",List(
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","="))),
-        Microservice(NETSPEEDSPEC,1,"{json policy for "+deviceId+" netspeed}",List(
+        RegMicroservice(NETSPEEDSPEC,1,"{json policy for "+deviceId+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("cpus","2","int",">="),
           Prop("version","1.0.0","version","in")))
@@ -190,13 +190,13 @@ class DevicesSuite extends FunSuite {
   test("PUT /devices/"+deviceId+" - normal - as device") {
     val input = PutDevicesRequest(deviceToken, "rpi"+deviceId+"-normal",
       List(
-        Microservice(SDRSPEC,1,"{json policy for "+deviceId+" sdr}",List(
+        RegMicroservice(SDRSPEC,1,"{json policy for "+deviceId+" sdr}",List(
           Prop("arch","arm","string","in"),
           Prop("memory","300","int",">="),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","="))),
-        Microservice(NETSPEEDSPEC,1,"{json policy for "+deviceId+" netspeed}",List(
+        RegMicroservice(NETSPEEDSPEC,1,"{json policy for "+deviceId+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("version","1.0.0","version","in")))
@@ -218,7 +218,7 @@ class DevicesSuite extends FunSuite {
 
   /** Add a device with higher memory and version */
   test("PUT /devices/"+deviceId2+" - memory 400, version 2.0.0") {
-    val input = PutDevicesRequest("mytok", "rpi9901-mem-400-vers-2", List(Microservice(SDRSPEC,1,"{json policy for 9901 sdr}",List(
+    val input = PutDevicesRequest("mytok", "rpi9901-mem-400-vers-2", List(RegMicroservice(SDRSPEC,1,"{json policy for 9901 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
@@ -239,7 +239,7 @@ class DevicesSuite extends FunSuite {
 
   /** Add a device with netspeed and arch amd64 */
   test("PUT /devices/9902 - netspeed") {
-    val input = PutDevicesRequest("mytok", "rpi9902-netspeed-amd64", List(Microservice(NETSPEEDSPEC,1,"{json policy for 9902 netspeed}",List(
+    val input = PutDevicesRequest("mytok", "rpi9902-netspeed-amd64", List(RegMicroservice(NETSPEEDSPEC,1,"{json policy for 9902 netspeed}",List(
       Prop("arch","amd64","string","in"),
       Prop("memory","300","int",">="),
       Prop("version","1.0.0","version","in"),
@@ -260,7 +260,7 @@ class DevicesSuite extends FunSuite {
 
   /** Try adding a device with invalid integer property */
   test("PUT /devices/9903 - bad integer property") {
-    val input = PutDevicesRequest("mytok", "rpi9903-bad-int", List(Microservice(SDRSPEC,1,"{json policy for 9903 sdr}",List(
+    val input = PutDevicesRequest("mytok", "rpi9903-bad-int", List(RegMicroservice(SDRSPEC,1,"{json policy for 9903 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400MB","int",">="),
       Prop("version","2.0.0","version","in"),
@@ -302,7 +302,7 @@ class DevicesSuite extends FunSuite {
 
   /** Try adding a device with invalid micro url - this succeeds if putDevRespDisabled */
   test("PUT /devices/9903 - bad micro url") {
-    val input = PutDevicesRequest("mytok", "rpi9903-bad-url", List(Microservice(NOTTHERESPEC,1,"{json policy for 9903 sdr}",List(
+    val input = PutDevicesRequest("mytok", "rpi9903-bad-url", List(RegMicroservice(NOTTHERESPEC,1,"{json policy for 9903 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
@@ -343,7 +343,7 @@ class DevicesSuite extends FunSuite {
     var dev = getDevResp.devices.get(deviceId).get     // the 2nd get turns the Some(val) into val
     assert(dev.name === "rpi"+deviceId+"-normal")
     assert(dev.registeredMicroservices.length === 2)
-    var micro: Microservice = dev.registeredMicroservices.find(m => m.url==SDRSPEC) match {
+    var micro: RegMicroservice = dev.registeredMicroservices.find(m => m.url==SDRSPEC) match {
       case Some(m) => m
       case None => assert(false); null
     }
@@ -455,7 +455,7 @@ class DevicesSuite extends FunSuite {
     assert(now - lastHb <= 3)    // should not now be more than 3 seconds from the time the heartbeat was done above
 
     assert(dev.registeredMicroservices.length === 2)
-    val micro: Microservice = dev.registeredMicroservices.find(m => m.url==SDRSPEC) match {
+    val micro: RegMicroservice = dev.registeredMicroservices.find(m => m.url==SDRSPEC) match {
       case Some(m) => m
       case None => assert(false); null
     }
@@ -555,7 +555,7 @@ class DevicesSuite extends FunSuite {
   }
 
   test("POST /search/devices/ - all arm devices") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","2","int",">="),
       Prop("version","*","version","in"),
@@ -581,7 +581,7 @@ class DevicesSuite extends FunSuite {
   }
 
   test("POST /search/devices/ - netspeed arch amd64 - as agbot") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(NETSPEEDSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(NETSPEEDSPEC,List(
       Prop("arch","amd64","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","[1.0.0,2.0.0]","version","in"),
@@ -598,7 +598,7 @@ class DevicesSuite extends FunSuite {
   }
 
   test("POST /search/devices/ - netspeed arch * - as agbot") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(NETSPEEDSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(NETSPEEDSPEC,List(
       Prop("arch","*","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","[1.0.0,2.0.0]","version","in"),
@@ -616,7 +616,7 @@ class DevicesSuite extends FunSuite {
   }
 
   test("POST /search/devices/ - arch list, mem 400, version 2.0.0") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm,amd64","list","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0,3.0.0","version","in"),
@@ -634,7 +634,7 @@ class DevicesSuite extends FunSuite {
 
   /** Do not expect any matches on this search */
   test("POST /search/devices/ - data verification false") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","wildcard","in"),
       Prop("memory","","wildcard",">="),
       Prop("version","0","version","in"),     // in osgi version format 0 means lower bound is 0 and upper bound infinity
@@ -649,7 +649,7 @@ class DevicesSuite extends FunSuite {
   }
 
   test("POST /search/devices/ - invalid propType") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","stringx","in"),
       Prop("memory","","int",">="),
       Prop("version","","version","in"),
@@ -663,7 +663,7 @@ class DevicesSuite extends FunSuite {
   }
 
   test("POST /search/devices/ - invalid op") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","string","inx"),
       Prop("memory","","int",">="),
       Prop("version","","version","in"),
@@ -677,7 +677,7 @@ class DevicesSuite extends FunSuite {
   }
 
   test("POST /search/devices/ - invalid version") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","*","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","1.2.3.4","version","in"),
@@ -691,7 +691,7 @@ class DevicesSuite extends FunSuite {
   }
 
   test("POST /search/devices/ - invalid boolean/op combo") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","string","in"),
       Prop("memory","","int",">="),
       Prop("version","","version","in"),
@@ -705,7 +705,7 @@ class DevicesSuite extends FunSuite {
   }
 
   test("POST /search/devices/ - invalid string/op combo") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","string","="),
       Prop("memory","","int",">="),
       Prop("version","","version","in"),
@@ -719,7 +719,7 @@ class DevicesSuite extends FunSuite {
   }
 
   test("POST /search/devices/ - invalid int/op combo") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","string","in"),
       Prop("memory","","int","in"),
       Prop("version","","version","in"),
@@ -733,7 +733,7 @@ class DevicesSuite extends FunSuite {
   }
 
   test("POST /search/devices/ - invalid version/op combo") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","string","in"),
       Prop("memory","","int",">="),
       Prop("version","","version",">="),
@@ -819,7 +819,7 @@ class DevicesSuite extends FunSuite {
 
   /** Run /search/devices again and we should get 1 less result, because 9900 is in contract */
   test("POST /search/devices/ - all arm devices, "+deviceId+" in agreement") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","","wildcard","in"),
@@ -837,7 +837,7 @@ class DevicesSuite extends FunSuite {
 
   /** We should still find the netspeed MS on 9900, even though the sdr MS on 9900 is in agreement */
   test("POST /search/devices/ - netspeed arch arm, "+deviceId+" sdr in agreement - as agbot") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(NETSPEEDSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(NETSPEEDSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","[1.0.0,2.0.0]","version","in"),
@@ -870,7 +870,7 @@ class DevicesSuite extends FunSuite {
 
   /** Make sure we do not find the netspeed MS on 9900 now */
   test("POST /search/devices/ - netspeed arch arm, "+deviceId+" netspeed in agreement - as agbot") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(NETSPEEDSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(NETSPEEDSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","[1.0.0,2.0.0]","version","in"),
@@ -887,7 +887,7 @@ class DevicesSuite extends FunSuite {
 
   /** We should still find the sdr MS on 9900, even though the netspeed MS on 9900 is in agreement */
   test("POST /search/devices/ - sdr arch arm, "+deviceId+" netspeed in agreement - as agbot") {
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","[1.0.0,2.0.0]","version","in"),
@@ -909,7 +909,7 @@ class DevicesSuite extends FunSuite {
   /** Test the secondsStale parameter */
   test("POST /search/devices/ - all arm devices, but all stale") {
     Thread.sleep(1100)    // delay 1.5 seconds so other devices will be stale
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","2","int",">="),
       Prop("version","*","version","in"),
@@ -937,7 +937,7 @@ class DevicesSuite extends FunSuite {
   test("POST /search/devices/ - all arm devices, 1 not stale") {
     val secondsNotStale = 1
     info("secondsNotStale: "+secondsNotStale)
-    val input = PostSearchDevicesRequest(List(MicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","2","int",">="),
       Prop("version","*","version","in"),
@@ -1024,7 +1024,7 @@ class DevicesSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
 
       // Now try adding another device - expect it to be rejected
-      val input = PutDevicesRequest("mytok", "rpi9904-netspeed", List(Microservice(NETSPEEDSPEC,1,"{json policy for 9904 netspeed}",List(
+      val input = PutDevicesRequest("mytok", "rpi9904-netspeed", List(RegMicroservice(NETSPEEDSPEC,1,"{json policy for 9904 netspeed}",List(
         Prop("arch","arm","string","in"),
         Prop("version","1.0.0","version","in"),
         Prop("agreementProtocols",agProto,"list","in")))), "whisper-id", Map(), "DEVICE4ABC")

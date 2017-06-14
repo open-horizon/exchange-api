@@ -1,18 +1,20 @@
-# Updates a microservice as the wrong user
+# Adds a workload
 source `dirname $0`/../../functions.sh PUT $*
 
 curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic 2:$EXCHANGE_PW" -d '{
-  "label": "GPS x86_64",
+  "label": "Location for x86_64",
   "description": "blah blah",
-  "specRef": "https://bluehorizon.network/documentation/microservice/gps",
+  "workloadUrl": "https://bluehorizon.network/documentation/workload/location",
   "version": "1.0.0",
   "arch": "amd64",
-  "sharable": "singleton",
   "downloadUrl": "this should not work",
-  "matchHardware": {
-    "usbDeviceIds": "1546:01a7",
-    "devFiles": "/dev/ttyUSB*"
-  },
+  "apiSpec": [
+    {
+      "specRef": "https://bluehorizon.network/documentation/microservice/gps",
+      "version": "1.0.0",
+      "arch": "amd64"
+    }
+  ],
   "userInput": [
     {
       "name": "foo",
@@ -23,9 +25,9 @@ curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/j
   ],
   "workloads": [
     {
-      "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:2.0.3\",\"privileged\":true,\"devices\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
+      "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
       "deployment_signature": "EURzSkDyk66qE6esYUDkLWLzM=",
       "torrent": "{\"url\":\"https://images.bluehorizon.network/28f57c.torrent\",\"images\":[{\"file\":\"d98bf.tar.gz\",\"signature\":\"kckH14DUj3bX=\"}]}"
     }
   ]
-}' $EXCHANGE_URL_ROOT/v1/microservices/bluehorizon.network-documentation-microservice-gps_1.0.0_amd64 | $parse
+}' $EXCHANGE_URL_ROOT/v1/workloads/bluehorizon.network-documentation-workload-location_1.0.0_amd64 | $parse

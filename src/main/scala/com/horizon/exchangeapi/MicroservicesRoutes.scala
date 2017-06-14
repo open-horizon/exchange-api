@@ -21,10 +21,9 @@ case class GetMicroservicesResponse(microservices: Map[String,Microservice], las
 case class GetMicroserviceAttributeResponse(attribute: String, value: String)
 
 /** Input format for PUT /microservices/<microservice-id> */
-case class PostPutMicroserviceRequest(label: String, description: String, specRef: String, version: String, arch: String, sharable: String, downloadUrl: String, matchHardware: Map[String,String], userInput: String, workloads: String) {
+case class PostPutMicroserviceRequest(label: String, description: String, specRef: String, version: String, arch: String, sharable: String, downloadUrl: String, matchHardware: Map[String,String], userInput: List[Map[String,String]], workloads: List[Map[String,String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
-    // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /devices/{id}/msgs checks for the publicKey
     // Check the specRef is a valid URL
     try {
       new URL(specRef)
@@ -42,7 +41,7 @@ case class PostPutMicroserviceRequest(label: String, description: String, specRe
     return specRef3 + "_" + version + "_" + arch
   }
 
-  def toMicroserviceRow(microservice: String, owner: String) = MicroserviceRow(microservice, owner, label, description, specRef, version, arch, sharable, downloadUrl, write(matchHardware), userInput, workloads, ApiTime.nowUTC)
+  def toMicroserviceRow(microservice: String, owner: String) = MicroserviceRow(microservice, owner, label, description, specRef, version, arch, sharable, downloadUrl, write(matchHardware), write(userInput), write(workloads), ApiTime.nowUTC)
 }
 
 case class PatchMicroserviceRequest(label: Option[String], description: Option[String], specRef: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], downloadUrl: Option[String]) {
@@ -167,12 +166,12 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   // =========== POST /microservices ===============================
   val postMicroservices =
     (apiOperation[ApiResponse]("postMicroservices")
-      summary "Updates a microservice"
+      summary "Adds a microservice"
       notes """Does a full replace of an existing microservice. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
 
 ```
 {
-  "label": "GPS x86_64",     // for the registration UI
+  "label": "GPS for x86_64",     // for the registration UI
   "description": "blah blah",
   "specRef": "https://bluehorizon.network/documentation/microservice/gps",   // the unique identifier of this MS
   "version": "1.0.0",
@@ -249,6 +248,9 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
           ApiResponse(ApiResponseType.ACCESS_DENIED, "microservice '"+microservice+"' not created: "+t.getMessage)
+        } else if (t.getMessage.contains("duplicate key value violates unique constraint")) {
+          resp.setStatus(HttpCode.ALREADY_EXISTS)
+          ApiResponse(ApiResponseType.ALREADY_EXISTS, "microservice '" + microservice + "' already exists: " + t.getMessage)
         } else {
           resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "microservice '"+microservice+"' not created: "+t.toString)
@@ -265,7 +267,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
 
 ```
 {
-  "label": "GPS x86_64",     // for the registration UI
+  "label": "GPS for x86_64",     // for the registration UI
   "description": "blah blah"
   "specRef": "https://bluehorizon.network/documentation/microservice/gps",   // the unique identifier of this MS
   "version": "1.0.0",

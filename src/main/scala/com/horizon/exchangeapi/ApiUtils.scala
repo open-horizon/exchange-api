@@ -133,6 +133,7 @@ object HttpCode {
   val BAD_INPUT = 400     // invalid user input, usually in the params or json body
   val BADCREDS = 401    // user/pw or id/token is wrong (they call it unauthorized, but it is really unauthenticated)
   val ACCESS_DENIED = 403   // do not have authorization to access this resource
+  val ALREADY_EXISTS = 403   // trying to create a resource that already exists. For now using 403 (forbidden), but could also use 409 (conflict)
   val NOT_FOUND = 404   // resource not found
   val INTERNAL_ERROR = 500
   val NOT_IMPLEMENTED = 501
@@ -143,6 +144,7 @@ case class ApiResponse(code: String, msg: String)
 object ApiResponseType {
   val BADCREDS = "invalid-credentials"
   val ACCESS_DENIED = "access-denied"
+  val ALREADY_EXISTS = "already-exists"
   val BAD_INPUT = "invalid-input"
   val NOT_FOUND = "not-found"
   val INTERNAL_ERROR = "internal_error"

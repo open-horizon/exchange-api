@@ -57,6 +57,11 @@ object Access extends Enumeration {
   val READ_ALL_MICROSERVICES = Value("READ_ALL_MICROSERVICES")
   val WRITE_ALL_MICROSERVICES = Value("WRITE_ALL_MICROSERVICES")
   val CREATE_MICROSERVICES = Value("CREATE_MICROSERVICES")
+  val READ_MY_WORKLOADS = Value("READ_MY_WORKLOADS")
+  val WRITE_MY_WORKLOADS = Value("WRITE_MY_WORKLOADS")
+  val READ_ALL_WORKLOADS = Value("READ_ALL_WORKLOADS")
+  val WRITE_ALL_WORKLOADS = Value("WRITE_ALL_WORKLOADS")
+  val CREATE_WORKLOADS = Value("CREATE_WORKLOADS")
   val ADMIN = Value("ADMIN")
   val STATUS = Value("STATUS")
   val ALL = Value("ALL")
@@ -126,7 +131,7 @@ case class Creds(id: String, token: String) {     // id and token are generic na
 object AuthCache {
   val logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
 
-  /** 1 set of things (user/pw, device id/token, agbot id/token, bctype/owner, bc/owner, microservice/owner) */
+  /** 1 set of things (user/pw, device id/token, agbot id/token, bctype/owner, bc/owner, microservice/owner, workload/owner) */
   class Cache(val whichTab: String) {     //TODO: i am sure there is a better way to handle the different tables
     // Throughout the implementation of this class, id and token are used generically, meaning in the case of users they are user and pw.
     // Our goal is for the token to be unhashed, but we have to handle the case where the user gives us an already hashed token.
@@ -152,6 +157,7 @@ object AuthCache {
         case "bctypes" => db.run(BctypesTQ.rows.map(x => (x.bctype, x.definedBy)).result).map({ list => this._initBctypes(list) })
         case "blockchains" => db.run(BlockchainsTQ.rows.map(x => (x.name, x.bctype, x.definedBy)).result).map({ list => this._initBCs(list) })
         case "microservices" => db.run(MicroservicesTQ.rows.map(x => (x.microservice, x.owner)).result).map({ list => this._initMicroservices(list) })
+        case "workloads" => db.run(WorkloadsTQ.rows.map(x => (x.workload, x.owner)).result).map({ list => this._initWorkloads(list) })
       }
     }
 
@@ -191,6 +197,13 @@ object AuthCache {
     def _initMicroservices(credList: Seq[(String,String)]): Unit = {
       for ((microservice,owner) <- credList) {
         if (owner != "") _putOwner(microservice, owner)
+      }
+    }
+
+    /** Put owners of workloads in the cache */
+    def _initWorkloads(credList: Seq[(String,String)]): Unit = {
+      for ((workload,owner) <- credList) {
+        if (owner != "") _putOwner(workload, owner)
       }
     }
 
@@ -281,6 +294,7 @@ object AuthCache {
         case "bctypes" => BctypesTQ.getOwner(id).result
         case "blockchains" => BlockchainsTQ.getOwner2(id).result
         case "microservices" => MicroservicesTQ.getOwner(id).result
+        case "workloads" => WorkloadsTQ.getOwner(id).result
       }
       try {
         val ownerVector = Await.result(db.run(a), Duration(3000, MILLISECONDS))
@@ -353,6 +367,7 @@ object AuthCache {
   val bctypes = new Cache("bctypes")
   val blockchains = new Cache("blockchains")
   val microservices = new Cache("microservices")
+  val workloads = new Cache("workloads")
 }
 
 /** Authenticates the client credentials and then checks the ACLs for authorization. */
@@ -441,6 +456,12 @@ trait AuthenticationSupport extends ScalatraBase {
           case Access.CREATE => Access.CREATE_MICROSERVICES
           case _ => access
         }
+        case TWorkload(_) => access match {     // a user accessing a workload
+          case Access.READ => if (iOwnTarget(target)) Access.READ_MY_WORKLOADS else Access.READ_ALL_WORKLOADS
+          case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_WORKLOADS else Access.WRITE_ALL_WORKLOADS
+          case Access.CREATE => Access.CREATE_WORKLOADS
+          case _ => access
+        }
         case TAction(_) => access      // a user running an action
       }
       logger.trace("IUser.authorizeTo() access2: "+access2)
@@ -458,6 +479,7 @@ trait AuthenticationSupport extends ScalatraBase {
           case TBctype(id) => AuthCache.bctypes.getOwner(id)
           case TBlockchain(id) => AuthCache.blockchains.getOwner(id)
           case TMicroservice(id) => AuthCache.microservices.getOwner(id)
+          case TWorkload(id) => AuthCache.workloads.getOwner(id)
           case _ => return false
         }
         owner match {
@@ -508,6 +530,12 @@ trait AuthenticationSupport extends ScalatraBase {
           case Access.CREATE => Access.CREATE_MICROSERVICES
           case _ => access
         }
+        case TWorkload(_) => access match {     // a device accessing a workload
+          case Access.READ => Access.READ_ALL_WORKLOADS
+          case Access.WRITE => Access.WRITE_ALL_WORKLOADS
+          case Access.CREATE => Access.CREATE_WORKLOADS
+          case _ => access
+        }
         case TAction(_) => access      // a device running an action
       }
       if (Role.hasAuthorization(Role.DEVICE, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
@@ -552,6 +580,12 @@ trait AuthenticationSupport extends ScalatraBase {
           case Access.READ => Access.READ_ALL_MICROSERVICES
           case Access.WRITE => Access.WRITE_ALL_MICROSERVICES
           case Access.CREATE => Access.CREATE_MICROSERVICES
+          case _ => access
+        }
+        case TWorkload(_) => access match {     // a agbot accessing a workload
+          case Access.READ => Access.READ_ALL_WORKLOADS
+          case Access.WRITE => Access.WRITE_ALL_WORKLOADS
+          case Access.CREATE => Access.CREATE_WORKLOADS
           case _ => access
         }
         case TAction(_) => access      // a agbot running an action
@@ -600,6 +634,12 @@ trait AuthenticationSupport extends ScalatraBase {
           case Access.CREATE => Access.CREATE_MICROSERVICES
           case _ => access
         }
+        case TWorkload(_) => access match {     // a anonymous accessing a workload
+          case Access.READ => Access.READ_ALL_WORKLOADS
+          case Access.WRITE => Access.WRITE_ALL_WORKLOADS
+          case Access.CREATE => Access.CREATE_WORKLOADS
+          case _ => access
+        }
         case TAction(_) => access      // a anonymous running an action
       }
       if (Role.hasAuthorization(Role.ANONYMOUS, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
@@ -619,6 +659,7 @@ trait AuthenticationSupport extends ScalatraBase {
   case class TBctype(id: String) extends Target      // for bctypes and blockchains only the user that created it can update/delete it
   case class TBlockchain(id: String) extends Target   // this id is a composite of the bc name and bctype
   case class TMicroservice(id: String) extends Target      // for microservices only the user that created it can update/delete it
+  case class TWorkload(id: String) extends Target      // for workloads only the user that created it can update/delete it
   case class TAction(id: String = "") extends Target    // for post rest api methods that do not target any specific resource (e.g. admin operations)
 
 

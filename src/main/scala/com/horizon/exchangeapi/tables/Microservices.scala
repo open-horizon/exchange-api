@@ -12,7 +12,9 @@ case class MicroserviceRow(microservice: String, owner: String, label: String, d
 
   def toMicroservice: Microservice = {
     val mh = if (matchHardware != "") read[Map[String,String]](matchHardware) else Map[String,String]()
-    new Microservice(owner, label, description, specRef, version, arch, sharable, downloadUrl, mh, userInput, workloads, lastUpdated)
+    val input = if (userInput != "") read[List[Map[String,String]]](userInput) else List[Map[String,String]]()
+    val wrk = if (workloads != "") read[List[Map[String,String]]](workloads) else List[Map[String,String]]()
+    new Microservice(owner, label, description, specRef, version, arch, sharable, downloadUrl, mh, input, wrk, lastUpdated)
   }
 
   // update returns a DB action to update this row
@@ -87,7 +89,8 @@ object MicroservicesTQ {
 }
 
 // This is the microservice table minus the key - used as the data structure to return to the REST clients
-class Microservice(var owner: String, var label: String, var description: String, var specRef: String, var version: String, var arch: String, var sharable: String, var downloadUrl: String, var matchHardware: Map[String,String], var userInput: String, var workloads: String, var lastUpdated: String) {
-  def copy = new Microservice(owner, label, description, specRef, version, arch, sharable, downloadUrl, matchHardware, userInput, workloads, lastUpdated)
+class Microservice(var owner: String, var label: String, var description: String, var specRef: String, var version: String, var arch: String, var sharable: String, var downloadUrl: String, var matchHardware: Map[String,String], var userInput: List[Map[String,String]], var workloads: List[Map[String,String]], var lastUpdated: String) {
+  // If we end up needing this, we might have to do deep copies of the variables that are actually structures
+  //def copy = new Microservice(owner, label, description, specRef, version, arch, sharable, downloadUrl, matchHardware, userInput, workloads, lastUpdated)
 }
 

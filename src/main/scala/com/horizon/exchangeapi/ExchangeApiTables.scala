@@ -14,7 +14,7 @@ import com.horizon.exchangeapi.tables._
 object ExchangeApiTables {
 
   // Create all of the current version's tables - used in /admin/initdb and /admin/migratedb
-  val create = (UsersTQ.rows.schema ++ DevicesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ MicroservicesTQ.rows.schema).create
+  val create = (UsersTQ.rows.schema ++ DevicesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema).create
 
   // Alter the schema of existing tables - used in /admin/upgradedb
   // Note: the compose/bluemix version of postgresql does not support the 'if not exists' option
@@ -23,14 +23,14 @@ object ExchangeApiTables {
   val alterTables = ""
 
   // Used to create just the new tables in this version, so we do not have to disrupt the existing tables - used in /admin/initnewtables and /admin/upgradedb
-  // val createNewTables = (BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema).create
-  val createNewTables = MicroservicesTQ.rows.schema.create
+  //val createNewTables = (MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema).create
+  val createNewTables = WorkloadsTQ.rows.schema.create
 
   // Delete all of the current tables
   // Note: doing this with raw sql stmts because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints (only adding), we should be ok with the drops below?
-  val delete = DBIO.seq(sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
+  val delete = DBIO.seq(sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
 
-  // Delete the previous version's (v1.22.0) tables - used by /admin/migratedb
+  // Delete the previous version's (v1.24.0) tables - used by /admin/migratedb
   val deletePrevious = DBIO.seq(sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
 
   // Remove the alters of existing tables - used by /admin/unupgradedb
@@ -39,8 +39,8 @@ object ExchangeApiTables {
   val unAlterTables = ""
 
   // Used to delete just the new tables in this version (so we can recreate), so we do not have to disrupt the existing tables - used by /admin/dropnewtables and /admin/unupgradedb
-  // val deleteNewTables = DBIO.seq(sqlu"drop table blockchains", sqlu"drop table bctypes")
-  val deleteNewTables = DBIO.seq(sqlu"drop table mmicroservices")
+  // val deleteNewTables = DBIO.seq(sqlu"drop table mmicroservices", sqlu"drop table workloads")
+  val deleteNewTables = DBIO.seq(sqlu"drop table workloads")
 
   // Populate the tables with a few rows. This is rarely used.
   val setup = DBIO.seq(
@@ -110,7 +110,27 @@ object ExchangeApiTables {
       val filename = dumpDir+"/agbotmsgs"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[AgbotMsgRow](filename).dump(xs)
-      AgbotAgreementsTQ.rows.result     // we do not need this redundant query, but flatMap has to return an action
+      BctypesTQ.rows.result
+    }).flatMap({ xs =>
+      val filename = dumpDir+"/bctypes"+dumpSuffix
+      logger.info("dumping "+xs.size+" rows to "+filename)
+      new TableIo[BctypeRow](filename).dump(xs)
+      BlockchainsTQ.rows.result
+    }).flatMap({ xs =>
+      val filename = dumpDir+"/blockchains"+dumpSuffix
+      logger.info("dumping "+xs.size+" rows to "+filename)
+      new TableIo[BlockchainRow](filename).dump(xs)
+      MicroservicesTQ.rows.result
+    }).flatMap({ xs =>
+      val filename = dumpDir+"/mmicroservices"+dumpSuffix
+      logger.info("dumping "+xs.size+" rows to "+filename)
+      new TableIo[MicroserviceRow](filename).dump(xs)
+      WorkloadsTQ.rows.result
+    }).flatMap({ xs =>
+      val filename = dumpDir+"/workloads"+dumpSuffix
+      logger.info("dumping "+xs.size+" rows to "+filename)
+      new TableIo[WorkloadRow](filename).dump(xs)
+      WorkloadsTQ.rows.result     // we do not need this redundant query, but flatMap has to return an action
     })
 
 
@@ -175,6 +195,18 @@ object ExchangeApiTables {
 
     val agbotmsgs = new TableIo[AgbotMsgRow](dumpDir+"/agbotmsgs"+dumpSuffix).load
     if (agbotmsgs.nonEmpty) actions += (AgbotMsgsTQ.rows ++= agbotmsgs)
+
+    val bctypes = new TableIo[BctypeRow](dumpDir+"/bctypes"+dumpSuffix).load
+    if (bctypes.nonEmpty) actions += (BctypesTQ.rows ++= bctypes)
+
+    val blockchains = new TableIo[BlockchainRow](dumpDir+"/blockchains"+dumpSuffix).load
+    if (blockchains.nonEmpty) actions += (BlockchainsTQ.rows ++= blockchains)
+
+    val mmicroservices = new TableIo[MicroserviceRow](dumpDir+"/mmicroservices"+dumpSuffix).load
+    if (mmicroservices.nonEmpty) actions += (MicroservicesTQ.rows ++= mmicroservices)
+
+    val workloads = new TableIo[WorkloadRow](dumpDir+"/workloads"+dumpSuffix).load
+    if (workloads.nonEmpty) actions += (WorkloadsTQ.rows ++= workloads)
 
     return actions.toList
   }

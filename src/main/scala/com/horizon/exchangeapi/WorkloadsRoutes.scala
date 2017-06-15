@@ -92,24 +92,34 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("owner", DataType.String, Option[String]("Filter results to only include workloads with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("workloadUrl", DataType.String, Option[String]("Filter results to only include workloads with this workloadUrl (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("version", DataType.String, Option[String]("Filter results to only include workloads with this version (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        Parameter("arch", DataType.String, Option[String]("Filter results to only include workloads with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
+        Parameter("arch", DataType.String, Option[String]("Filter results to only include workloads with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
+        Parameter("specRef", DataType.String, Option[String]("Filter results to only include workloads that use this microservice specRef (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
       )
 
   /** Handles GET /workloads. Can be called by anyone. */
   get("/workloads", operation(getWorkloads)) ({
     credsAndLog().authenticate().authorizeTo(TWorkload("*"),Access.READ)
+    val resp = response
     var q = WorkloadsTQ.rows.subquery
-    //todo: what happens if they specify more than 1 of these?
+    // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
     params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
     params.get("workloadUrl").foreach(workloadUrl => { if (workloadUrl.contains("%")) q = q.filter(_.workloadUrl like workloadUrl) else q = q.filter(_.workloadUrl === workloadUrl) })
     params.get("version").foreach(version => { if (version.contains("%")) q = q.filter(_.version like version) else q = q.filter(_.version === version) })
     params.get("arch").foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
 
+    // We are cheating a little on this one because the whole apiSpec structure is serialized into a json string when put in the db, so it has a string value like
+    // [{"specRef":"https://bluehorizon.network/documentation/microservice/rtlsdr","version":"1.0.0","arch":"amd64"}]. But we can still match on the specRef.
+    params.get("specRef").foreach(specRef => {
+      val specRef2 = "%\"specRef\":\"" + specRef + "\"%"
+      q = q.filter(_.apiSpec like specRef2)
+    })
+
     db.run(q.result).map({ list =>
       logger.debug("GET /workloads result size: "+list.size)
       val workloads = new MutableHashMap[String,Workload]
-      for (a <- list) workloads.put(a.workload, a.toWorkload)
+      if (list.nonEmpty) for (a <- list) workloads.put(a.workload, a.toWorkload)
+      else resp.setStatus(HttpCode.NOT_FOUND)
       GetWorkloadsResponse(workloads.toMap, 0)
     })
   })

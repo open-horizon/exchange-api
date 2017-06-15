@@ -23,8 +23,7 @@ object ExchangeApiTables {
   val alterTables = ""
 
   // Used to create just the new tables in this version, so we do not have to disrupt the existing tables - used in /admin/initnewtables and /admin/upgradedb
-  //val createNewTables = (MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema).create
-  val createNewTables = WorkloadsTQ.rows.schema.create
+  val createNewTables = (MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema).create
 
   // Delete all of the current tables
   // Note: doing this with raw sql stmts because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints (only adding), we should be ok with the drops below?
@@ -39,8 +38,7 @@ object ExchangeApiTables {
   val unAlterTables = ""
 
   // Used to delete just the new tables in this version (so we can recreate), so we do not have to disrupt the existing tables - used by /admin/dropnewtables and /admin/unupgradedb
-  // val deleteNewTables = DBIO.seq(sqlu"drop table mmicroservices", sqlu"drop table workloads")
-  val deleteNewTables = DBIO.seq(sqlu"drop table workloads")
+  val deleteNewTables = DBIO.seq(sqlu"drop table mmicroservices", sqlu"drop table workloads")
 
   // Populate the tables with a few rows. This is rarely used.
   val setup = DBIO.seq(

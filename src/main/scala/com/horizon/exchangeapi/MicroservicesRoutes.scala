@@ -100,8 +100,9 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   /** Handles GET /microservices. Can be called by anyone. */
   get("/microservices", operation(getMicroservices)) ({
     credsAndLog().authenticate().authorizeTo(TMicroservice("*"),Access.READ)
+    val resp = response
     var q = MicroservicesTQ.rows.subquery
-    //todo: what happens if they specify more than 1 of these?
+    // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
     params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
     params.get("specRef").foreach(specRef => { if (specRef.contains("%")) q = q.filter(_.specRef like specRef) else q = q.filter(_.specRef === specRef) })
     params.get("version").foreach(version => { if (version.contains("%")) q = q.filter(_.version like version) else q = q.filter(_.version === version) })
@@ -110,7 +111,8 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
     db.run(q.result).map({ list =>
       logger.debug("GET /microservices result size: "+list.size)
       val microservices = new MutableHashMap[String,Microservice]
-      for (a <- list) microservices.put(a.microservice, a.toMicroservice)
+      if (list.nonEmpty) for (a <- list) microservices.put(a.microservice, a.toMicroservice)
+      else resp.setStatus(HttpCode.NOT_FOUND)
       GetMicroservicesResponse(microservices.toMap, 0)
     })
   })

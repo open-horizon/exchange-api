@@ -50,6 +50,7 @@ services in the exchange.
 - Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/devices?id=a&token=b](http://localhost:8080/v1/devices?id=a&token=b)
 - To see the swagger output, browse: [http://localhost:8080/api](http://localhost:8080/api)
 - Run the automated tests (with the exchange server still running): `./sbt test`
+- Run just 1 of the the automated test suites (with the exchange server still running): `./sbt "test-only exchangeapi.AgbotsSuite"`
 - Run the performance tests: `src/test/bash/scale/test.sh` or `src/test/bash/scale/wrapper.sh 8`
 
 ## Building and Running the Container

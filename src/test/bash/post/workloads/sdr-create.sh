@@ -2,11 +2,11 @@
 source `dirname $0`/../../functions.sh POST $*
 
 curl $copts -X POST -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic $EXCHANGE_USER:$EXCHANGE_PW" -d '{
-  "label": "Location for x86_64",
+  "label": "SDR for arm",
   "description": "blah blah",
   "workloadUrl": "https://bluehorizon.network/documentation/workload/apollo",
   "version": "1.0.0",
-  "arch": "amd64",
+  "arch": "arm",
   "downloadUrl": "",
   "apiSpec": [
     {

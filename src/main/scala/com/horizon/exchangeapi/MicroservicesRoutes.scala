@@ -59,12 +59,6 @@ case class PatchMicroserviceRequest(label: Option[String], description: Option[S
     arch match { case Some(ar) => return ((for { d <- MicroservicesTQ.rows if d.microservice === microservice } yield (d.microservice,d.arch,d.lastUpdated)).update((microservice, ar, lastUpdated)), "arch"); case _ => ; }
     sharable match { case Some(shr) => return ((for { d <- MicroservicesTQ.rows if d.microservice === microservice } yield (d.microservice,d.sharable,d.lastUpdated)).update((microservice, shr, lastUpdated)), "sharable"); case _ => ; }
     downloadUrl match { case Some(url) => return ((for { d <- MicroservicesTQ.rows if d.microservice === microservice } yield (d.microservice,d.downloadUrl,d.lastUpdated)).update((microservice, url, lastUpdated)), "downloadUrl"); case _ => ; }
-    //todo:
-    // containerInfo match {
-    //   case Some(ci) => val cInfo = if (ci != "") write(containerInfo) else ""
-    //     return ((for { d <- MicroservicesTQ.rows if d.microservice === microservice } yield (d.microservice,d.containerInfo,d.lastUpdated)).update((microservice, cInfo, lastUpdated)), "containerInfo")
-    //   case _ => ;
-    // }
     return (null, null)
   }
 }

@@ -58,12 +58,6 @@ case class PatchWorkloadRequest(label: Option[String], description: Option[Strin
     version match { case Some(ver) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.version,d.lastUpdated)).update((workload, ver, lastUpdated)), "version"); case _ => ; }
     arch match { case Some(ar) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.arch,d.lastUpdated)).update((workload, ar, lastUpdated)), "arch"); case _ => ; }
     downloadUrl match { case Some(url) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.downloadUrl,d.lastUpdated)).update((workload, url, lastUpdated)), "downloadUrl"); case _ => ; }
-    //todo:
-    // containerInfo match {
-    //   case Some(ci) => val cInfo = if (ci != "") write(containerInfo) else ""
-    //     return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.containerInfo,d.lastUpdated)).update((workload, cInfo, lastUpdated)), "containerInfo")
-    //   case _ => ;
-    // }
     return (null, null)
   }
 }

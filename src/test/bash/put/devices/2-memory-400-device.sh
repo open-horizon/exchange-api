@@ -1,6 +1,7 @@
 # Adds device 2 as the device
-if [[ $1 == "-raw" ]]; then parse=cat; else parse="jq -r ."; fi
-curl -# -w "%{http_code}" -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic 2:abcdef" -d '{
+source `dirname $0`/../../functions.sh PUT $*
+
+curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic 2:abcdef" -d '{
   "token": "abcdef",
   "name": "rpi2-device",
   "registeredMicroservices": [

@@ -1,6 +1,7 @@
 # Update device 1 as device
-if [[ $1 == "-raw" ]]; then parse=cat; else parse="jq -r ."; fi
-curl -# -w "%{http_code}" -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic 1:abc123" -d '{
+source `dirname $0`/../../functions.sh PUT $*
+
+curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic 1:abc123" -d '{
   "token": "abc123",
   "name": "rpi1-updated",
   "registeredMicroservices": [

@@ -50,6 +50,7 @@ services in the exchange.
 - Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/devices?id=a&token=b](http://localhost:8080/v1/devices?id=a&token=b)
 - To see the swagger output, browse: [http://localhost:8080/api](http://localhost:8080/api)
 - Run the automated tests (with the exchange server still running): `./sbt test`
+- Run just 1 of the the automated test suites (with the exchange server still running): `./sbt "test-only exchangeapi.AgbotsSuite"`
 - Run the performance tests: `src/test/bash/scale/test.sh` or `src/test/bash/scale/wrapper.sh 8`
 
 ## Building and Running the Container
@@ -74,6 +75,12 @@ services in the exchange.
 ## Limitations/Restrictions of Current Version
 
 - The properties used for advertising and searching should always have its value element be a string. For example the memory property value should be `"300"` instead of `300`. This is because scalatra is automatically converting the json to scala data structures, and i don't know how to have the data structures that vary in type.
+
+## Changes Between v1.24.0 and v1.25.0
+
+- Added /microservices and /workloads resources
+- Changed default permissions to allow devices and agbots to read all agbots
+- Changed additional image tag from latest to volcanostaging
 
 ## Changes Between v1.23.0 and v1.24.0
 

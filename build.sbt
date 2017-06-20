@@ -15,7 +15,8 @@ lazy val root = (project in file(".")).
       "com.typesafe.slick" %% "slick-hikaricp" % "latest.integration",
       "org.postgresql" % "postgresql" % "latest.integration",
       "com.zaxxer" % "HikariCP" % "latest.integration",
-      "org.slf4j" % "slf4j-api" % "latest.integration",
+      // "org.slf4j" % "slf4j-api" % "latest.release",  // they put version 1.8.0-alpha2 prematurely into latest.release
+      "org.slf4j" % "slf4j-api" % "1.7.+",
       "ch.qos.logback" % "logback-classic" % "latest.integration",
       "com.mchange" % "c3p0" % "latest.integration",
       "javax.servlet" % "javax.servlet-api" % "latest.integration" % "provided",

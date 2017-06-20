@@ -22,7 +22,7 @@ case class GetDevicesResponse(devices: Map[String,Device], lastIndex: Int)
 case class GetDeviceAttributeResponse(attribute: String, value: String)
 
 /** Input for POST /search/devices */
-case class PostSearchDevicesRequest(desiredMicroservices: List[MicroserviceSearch], secondsStale: Int, propertiesToReturn: List[String], startIndex: Int, numEntries: Int) {
+case class PostSearchDevicesRequest(desiredMicroservices: List[RegMicroserviceSearch], secondsStale: Int, propertiesToReturn: List[String], startIndex: Int, numEntries: Int) {
   /** Halts the request with an error msg if the user input is invalid. */
   def validate() = {
     for (m <- desiredMicroservices) {
@@ -43,7 +43,7 @@ case class PostSearchDevicesRequest(desiredMicroservices: List[MicroserviceSearc
     var devicesResp: List[DeviceResponse] = List()
     // for ((id,d) <- devices; if !ApiTime.isSecondsStale(d.lastHeartbeat,secondsStale) ) {   <-- the db query now filters out stale devices
     for ((id,d) <- devices) {
-      var microsResp: List[Microservice] = List()
+      var microsResp: List[RegMicroservice] = List()
       for (m <- d.registeredMicroservices) { breakable {
         // do not even bother checking this against the search criteria if this micro is already at its agreement limit
         val agDev = agHash.agHash.get(id)
@@ -74,16 +74,16 @@ case class PostSearchDevicesRequest(desiredMicroservices: List[MicroserviceSearc
   }
 }
 
-case class DeviceResponse(id: String, name: String, microservices: List[Microservice], msgEndPoint: String, publicKey: String)
+case class DeviceResponse(id: String, name: String, microservices: List[RegMicroservice], msgEndPoint: String, publicKey: String)
 case class PostSearchDevicesResponse(devices: List[DeviceResponse], lastIndex: Int)
 
 /** For backward compatibility for before i added the publicKey field */
-case class PutDevicesRequestOld(token: String, name: String, registeredMicroservices: List[Microservice], msgEndPoint: String, softwareVersions: Map[String,String]) {
+case class PutDevicesRequestOld(token: String, name: String, registeredMicroservices: List[RegMicroservice], msgEndPoint: String, softwareVersions: Map[String,String]) {
   def toPutDevicesRequest = PutDevicesRequest(token, name, registeredMicroservices, msgEndPoint, softwareVersions, "")
 }
 
 /** Input format for PUT /devices/<device-id> */
-case class PutDevicesRequest(token: String, name: String, registeredMicroservices: List[Microservice], msgEndPoint: String, softwareVersions: Map[String,String], publicKey: String) {
+case class PutDevicesRequest(token: String, name: String, registeredMicroservices: List[RegMicroservice], msgEndPoint: String, softwareVersions: Map[String,String], publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Halts the request with an error msg if the user input is invalid. */
@@ -108,7 +108,7 @@ case class PutDevicesRequest(token: String, name: String, registeredMicroservice
     val propsIds = MutableSet[String]()    // the propId attribute of the props we are creating, so we can delete everthing else for this device
     // Now add actions to insert/update the device's micros and props
     for (m <- registeredMicroservices) {
-      actions += m.toMicroserviceRow(id).upsert
+      actions += m.toRegMicroserviceRow(id).upsert
       microsUrls += m.url
       for (p <- m.properties) {
         actions += p.toPropRow(id,m.url).upsert
@@ -117,7 +117,7 @@ case class PutDevicesRequest(token: String, name: String, registeredMicroservice
     }
     // handle the case where they changed what micros or props this device has, form selects to delete all micros and props that reference this device that aren't in microsUrls, propsIds
     actions += PropsTQ.rows.filter(_.propId like id+"|%").filterNot(_.propId inSet propsIds).delete     // props that reference this device, but are not in the list we just created/updated
-    actions += MicroservicesTQ.rows.filter(_.deviceId === id).filterNot(_.url inSet microsUrls).delete    // micros that reference this device, but are not in the list we just created/updated
+    actions += RegMicroservicesTQ.rows.filter(_.deviceId === id).filterNot(_.url inSet microsUrls).delete    // micros that reference this device, but are not in the list we just created/updated
 
     DBIO.seq(actions.toList: _*)      // convert the list of actions to a DBIO seq
   }
@@ -129,7 +129,7 @@ case class PutDevicesRequest(token: String, name: String, registeredMicroservice
     val microsUrls = MutableSet[String]()    // the url attribute of the micros we are updating, so we can delete everthing else for this device
     val propsIds = MutableSet[String]()    // the propId attribute of the props we are updating, so we can delete everthing else for this device
     for (m <- registeredMicroservices) {
-      actions += m.toMicroserviceRow(id).upsert     // only the device should be update (the rest should be upsert), because that's the only one we know exists
+      actions += m.toRegMicroserviceRow(id).upsert     // only the device should be update (the rest should be upsert), because that's the only one we know exists
       microsUrls += m.url
       for (p <- m.properties) {
         actions += p.toPropRow(id,m.url).upsert
@@ -138,7 +138,7 @@ case class PutDevicesRequest(token: String, name: String, registeredMicroservice
     }
     // handle the case where they changed what micros or props this device has, form selects to delete all micros and props that reference this device that aren't in microsUrls, propsIds
     actions += PropsTQ.rows.filter(_.propId like id+"|%").filterNot(_.propId inSet propsIds).delete     // props that reference this device, but are not in the list we just updated
-    actions += MicroservicesTQ.rows.filter(_.deviceId === id).filterNot(_.url inSet microsUrls).delete    // micros that reference this device, but are not in the list we just updated
+    actions += RegMicroservicesTQ.rows.filter(_.deviceId === id).filterNot(_.url inSet microsUrls).delete    // micros that reference this device, but are not in the list we just updated
 
     DBIO.seq(actions.toList: _*)
   }
@@ -273,7 +273,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     //    This means m and p below are wrapped in Option because they may not always be there
     var q = for {
       // ((d, m), p) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on ( (dm, p) => { dm._1.id === p.deviceId && dm._2.map(_.url) === p.msUrl } )
-      ((d, m), p) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
+      ((d, m), p) <- DevicesTQ.rows joinLeft RegMicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
     } yield (d, m, p)
 
     // add filters
@@ -332,7 +332,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         //    This means m and p below are wrapped in Option because sometimes they may not always be there
         val q = for {
           // (((d, m), p), s) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId) joinLeft SoftwareVersionsTQ.rows on (_._1._1.id === _.deviceId)
-          ((d, m), p) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
+          ((d, m), p) <- DevicesTQ.rows joinLeft RegMicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
           if d.id === id
         } yield (d, m, p)
 
@@ -398,7 +398,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val resp = response
     // Narrow down the db query results as much as possible with db selects, then searchProps.matchesDbResults will do the rest
     var q = for {
-      ((d, m), p) <- DevicesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
+      ((d, m), p) <- DevicesTQ.rows joinLeft RegMicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
     } yield (d, m, p)
     // Also filter out devices that are too stale (have not heartbeated recently)
     if (searchProps.secondsStale > 0) q = q.filter(_._1.lastHeartbeat >= ApiTime.pastUTC(searchProps.secondsStale))

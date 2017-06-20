@@ -8,7 +8,9 @@
 			"maxAgbots": 1000,		// maximum number of agbots 1 user is allowed to create
 			"maxAgreements": 1000,	// maximum number of agreements 1 device or agbot is allowed to create
 			"maxMessagesInMailbox": 500,	// maximum number of msgs currently in 1 device or agbot mailbox (the sending side is handled by rate limiting)
-			"maxBlockchains": 100		// maximum number of BC types or instance definitions 1 user is allowed to create
+			"maxBlockchains": 100,		// maximum number of BC types or instance definitions 1 user is allowed to create
+			"maxMicroservices": 100		// maximum number of microservices 1 user is allowed to create
+			"maxWorkloads": 100		// maximum number of workloads 1 user is allowed to create
 		},
 		"specRef": {
 			"prefix": "https://bluehorizon.network/documentation/",
@@ -46,10 +48,10 @@
 		},
 		"acls": {
 			"ANONYMOUS": ["CREATE_USER", "RESET_USER_PW"],
-			"USER": ["READ_MYSELF", "WRITE_MYSELF", "RESET_USER_PW", "CREATE_DEVICE", "READ_MY_DEVICES", "WRITE_MY_DEVICES", "READ_ALL_DEVICES", "CREATE_AGBOT", "READ_MY_AGBOTS", "WRITE_MY_AGBOTS", "DATA_HEARTBEAT_MY_AGBOTS", "READ_ALL_AGBOTS", "STATUS", "READ_MY_BLOCKCHAINS", "READ_ALL_BLOCKCHAINS", "WRITE_MY_BLOCKCHAINS", "CREATE_BLOCKCHAINS", "READ_MY_BCTYPES", "READ_ALL_BCTYPES", "WRITE_MY_BCTYPES", "CREATE_BCTYPES"],
+			"USER": ["READ_MYSELF", "WRITE_MYSELF", "RESET_USER_PW", "CREATE_DEVICE", "READ_MY_DEVICES", "WRITE_MY_DEVICES", "READ_ALL_DEVICES", "CREATE_AGBOT", "READ_MY_AGBOTS", "WRITE_MY_AGBOTS", "DATA_HEARTBEAT_MY_AGBOTS", "READ_ALL_AGBOTS", "STATUS", "READ_MY_BLOCKCHAINS", "READ_ALL_BLOCKCHAINS", "WRITE_MY_BLOCKCHAINS", "CREATE_BLOCKCHAINS", "READ_MY_BCTYPES", "READ_ALL_BCTYPES", "WRITE_MY_BCTYPES", "CREATE_BCTYPES", "READ_MY_MICROSERVICES", "READ_ALL_MICROSERVICES", "WRITE_MY_MICROSERVICES", "CREATE_MICROSERVICES", "READ_MY_WORKLOADS", "READ_ALL_WORKLOADS", "WRITE_MY_WORKLOADS", "CREATE_WORKLOADS"],
 			"SUPERUSER": ["ALL"],
-			"DEVICE": ["READ_MYSELF", "WRITE_MYSELF", "READ_MY_DEVICES", "SEND_MSG_TO_AGBOT", "READ_ALL_BLOCKCHAINS", "READ_ALL_BCTYPES"],
-			"AGBOT": ["READ_MYSELF", "WRITE_MYSELF", "DATA_HEARTBEAT_MY_AGBOTS", "READ_MY_AGBOTS", "READ_ALL_DEVICES", "SEND_MSG_TO_DEVICE", "READ_ALL_BLOCKCHAINS", "READ_ALL_BCTYPES"]
+			"DEVICE": ["READ_MYSELF", "WRITE_MYSELF", "READ_MY_DEVICES", "SEND_MSG_TO_AGBOT", "READ_ALL_AGBOTS", "READ_ALL_BLOCKCHAINS", "READ_ALL_BCTYPES", "READ_ALL_MICROSERVICES", "READ_ALL_WORKLOADS"],
+			"AGBOT": ["READ_MYSELF", "WRITE_MYSELF", "DATA_HEARTBEAT_MY_AGBOTS", "READ_MY_AGBOTS", "READ_ALL_AGBOTS", "READ_ALL_DEVICES", "SEND_MSG_TO_DEVICE", "READ_ALL_BLOCKCHAINS", "READ_ALL_BCTYPES", "READ_ALL_MICROSERVICES", "READ_ALL_WORKLOADS"]
 		}
 	}
 }

@@ -14,7 +14,7 @@ case class DeviceRow(id: String, token: String, name: String, owner: String, msg
   def toDevice(superUser: Boolean): Device = {
     val tok = if (superUser) token else StrConstants.hiddenPw
     val swv = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
-    new Device(tok, name, owner, List[Microservice](), msgEndPoint, swv, lastHeartbeat, publicKey)
+    new Device(tok, name, owner, List[RegMicroservice](), msgEndPoint, swv, lastHeartbeat, publicKey)
   }
 
   def putInHashMap(superUser: Boolean, devs: MutableHashMap[String,Device]): Unit = {
@@ -96,10 +96,10 @@ object DevicesTQ {
 
   /** Separate the join of the devices, microservices, properties, and swversions tables into their respective scala classes (collapsing duplicates) and return a hash containing it all */
   // def parseJoin(superUser: Boolean, list: Seq[(DeviceRow, Option[MicroserviceRow], Option[PropRow], Option[SoftwareVersionRow])]): Map[String,Device] = {
-  def parseJoin(superUser: Boolean, list: Seq[(DeviceRow, Option[MicroserviceRow], Option[PropRow])] ): Map[String,Device] = {
+  def parseJoin(superUser: Boolean, list: Seq[(DeviceRow, Option[RegMicroserviceRow], Option[PropRow])] ): Map[String,Device] = {
     // Separate the partially duplicate join rows into maps that only keep unique values
     val devs = new MutableHashMap[String,Device]    // the key is device id
-    val micros = new MutableHashMap[String,MutableHashMap[String,Microservice]]    // 1st key is device id, 2nd key is micro id
+    val micros = new MutableHashMap[String,MutableHashMap[String,RegMicroservice]]    // 1st key is device id, 2nd key is micro id
     val props = new MutableHashMap[String,MutableHashMap[String,Prop]]    // 1st key is micro id, 2nd key is prop id
     // var swVersions = new MutableHashMap[String,MutableHashMap[String,String]]    // 1st key is device id, 2nd key is sw name
     // for ((d, mOption, pOption, sOption) <- list) {
@@ -113,10 +113,10 @@ object DevicesTQ {
     // Now fill in the devs map, turning the maps we created above for micros, props, and swVersions into lists
     for ((devId, d) <- devs) {
       if (micros.get(devId).isDefined) {
-        var microList = ListBuffer[Microservice]()
+        var microList = ListBuffer[RegMicroservice]()
         for ((msId, m) <- micros.get(devId).get) {
           val propList = if (props.get(msId).isDefined) props.get(msId).get.values.toList else List[Prop]()
-          microList += Microservice(m.url, m.numAgreements, m.policy, propList)
+          microList += RegMicroservice(m.url, m.numAgreements, m.policy, propList)
         }
         d.registeredMicroservices = microList.toList    // replace the empty micro list we put in there initially
       }
@@ -127,7 +127,7 @@ object DevicesTQ {
 }
 
 // This is the device table minus the key - used as the data structure to return to the REST clients
-class Device(var token: String, var name: String, var owner: String, var registeredMicroservices: List[Microservice], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String) {
+class Device(var token: String, var name: String, var owner: String, var registeredMicroservices: List[RegMicroservice], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String) {
   def copy = new Device(token, name, owner, registeredMicroservices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey)
 }
 
@@ -259,42 +259,42 @@ object SoftwareVersionsTQ {
 }
 */
 
-case class MicroserviceRow(msId: String, deviceId: String, url: String, numAgreements: Int, policy: String) {
-  def toMicroservice = Microservice(url, numAgreements, policy, List[Prop]())
+case class RegMicroserviceRow(msId: String, deviceId: String, url: String, numAgreements: Int, policy: String) {
+  def toRegMicroservice = RegMicroservice(url, numAgreements, policy, List[Prop]())
 
-  def putInHashMap(micros: MutableHashMap[String,MutableHashMap[String,Microservice]]): Unit = {
+  def putInHashMap(micros: MutableHashMap[String,MutableHashMap[String,RegMicroservice]]): Unit = {
     micros.get(deviceId) match {
       case Some(_) => ; // do not need to add the entry, because it is already there
-      case None => micros.put(deviceId, new MutableHashMap[String,Microservice])
+      case None => micros.put(deviceId, new MutableHashMap[String,RegMicroservice])
     }
     val mMap = micros.get(deviceId).get
     mMap.get(msId) match {
       case Some(_) => ; // do not need to add the entry, because it is already there
-      case None => mMap.put(msId, toMicroservice)
+      case None => mMap.put(msId, toRegMicroservice)
     }
   }
 
-  def upsert: DBIO[_] = MicroservicesTQ.rows.insertOrUpdate(this)
-  def update: DBIO[_] = MicroservicesTQ.rows.update(this)
+  def upsert: DBIO[_] = RegMicroservicesTQ.rows.insertOrUpdate(this)
+  def update: DBIO[_] = RegMicroservicesTQ.rows.update(this)
 }
 
-class Microservices(tag: Tag) extends Table[MicroserviceRow](tag, "microservices") {
+class RegMicroservices(tag: Tag) extends Table[RegMicroserviceRow](tag, "microservices") {   // <- not changing table name to regmicroservices because i do not want to cause a db schema change
   def msId = column[String]("msid", O.PrimaryKey)     // we form this key as <deviceId>|<url>
   def deviceId = column[String]("deviceid")
   def url = column[String]("url")
   def numAgreements = column[Int]("numagreements")
   def policy = column[String]("policy")
-  def * = (msId, deviceId, url, numAgreements, policy) <> (MicroserviceRow.tupled, MicroserviceRow.unapply)
+  def * = (msId, deviceId, url, numAgreements, policy) <> (RegMicroserviceRow.tupled, RegMicroserviceRow.unapply)
   def device = foreignKey("device_fk", deviceId, DevicesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 // object testmicros extends TableQuery(new TestMicros(_)) {}
-object MicroservicesTQ {
-  val rows = TableQuery[Microservices]
+object RegMicroservicesTQ {
+  val rows = TableQuery[RegMicroservices]
 }
 
 /** We define this trait because microservices in the DB and it the search criteria need the same methods, but have slightly different constructor args */
-trait MicroserviceTrait {
+trait RegMicroserviceTrait {
   def url: String
   def properties: List[Prop]
 
@@ -313,7 +313,7 @@ trait MicroserviceTrait {
    * Rules for comparison:
    * - if both parties do not have the same property names, it is as if wildcard was specified
    */
-  def matches(that: Microservice): Boolean = {
+  def matches(that: RegMicroservice): Boolean = {
     if (url != that.url) return false
     // go thru each of our props, finding and comparing the corresponding prop in that
     for (thatP <- that.properties) {
@@ -327,11 +327,11 @@ trait MicroserviceTrait {
 }
 
 /** 1 microservice in the search criteria */
-case class MicroserviceSearch(url: String, properties: List[Prop]) extends MicroserviceTrait
+case class RegMicroserviceSearch(url: String, properties: List[Prop]) extends RegMicroserviceTrait
 
 /** 1 microservice within a device in the DB */
-case class Microservice(url: String, numAgreements: Int, policy: String, properties: List[Prop]) extends MicroserviceTrait {
-  def toMicroserviceRow(deviceId: String) = MicroserviceRow(deviceId+"|"+url, deviceId, url, numAgreements, policy)
+case class RegMicroservice(url: String, numAgreements: Int, policy: String, properties: List[Prop]) extends RegMicroserviceTrait {
+  def toRegMicroserviceRow(deviceId: String) = RegMicroserviceRow(deviceId+"|"+url, deviceId, url, numAgreements, policy)
 }
 
 case class PropRow(propId: String, msId: String, name: String, value: String, propType: String, op: String) {
@@ -362,7 +362,7 @@ class Props(tag: Tag) extends Table[PropRow](tag, "properties") {
   def op = column[String]("op")
   def * = (propId, msId, name, value, propType, op) <> (PropRow.tupled, PropRow.unapply)
   // def device = foreignKey("device_fk", deviceId, DevicesTQ.rows)(_.id)
-  def ms = foreignKey("ms_fk", msId, MicroservicesTQ.rows)(_.msId, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def ms = foreignKey("ms_fk", msId, RegMicroservicesTQ.rows)(_.msId, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 object PropsTQ {

@@ -80,6 +80,7 @@ services in the exchange.
 
 - Added /microservices and /workloads resources
 - Changed default permissions to allow devices and agbots to read all agbots
+- Changed additional image tag from latest to volcanostaging
 
 ## Changes Between v1.23.0 and v1.24.0
 

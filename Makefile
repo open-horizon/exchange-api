@@ -39,7 +39,7 @@ clean: clean-exec-image
 
 clean-exec-image:
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
-	- docker rmi $(image-string):{$(DOCKER_TAG),latest} 2> /dev/null || :
+	- docker rmi $(image-string):{$(DOCKER_TAG),volcanostaging} 2> /dev/null || :
 	rm -f .docker-exec .docker-exec-run
 
 # Also remove the bld image/container
@@ -67,7 +67,7 @@ docker: .docker-exec
 
 .docker-exec: .docker-compile
 	docker build -t $(image-string):$(DOCKER_TAG) $(DOCKER_OPTS) -f Dockerfile-exec --build-arg SCALA_VERSION=$(SCALA_VERSION) --build-arg SCALA_VERSION_SHORT=$(SCALA_VERSION_SHORT) --build-arg EXCHANGE_API_WAR_VERSION=$(EXCHANGE_API_WAR_VERSION) .
-	docker tag $(image-string):$(DOCKER_TAG) $(image-string):latest
+	docker tag $(image-string):$(DOCKER_TAG) $(image-string):volcanostaging
 	@touch $@
 
 # rem-docker-exec:
@@ -75,7 +75,7 @@ docker: .docker-exec
 
 .docker-exec-run: .docker-exec
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
-	docker run --name $(DOCKER_NAME) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -v $(EXCHANGE_HOST_CONFIG_DIR):$(EXCHANGE_CONFIG_DIR) $(image-string):latest
+	docker run --name $(DOCKER_NAME) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -v $(EXCHANGE_HOST_CONFIG_DIR):$(EXCHANGE_CONFIG_DIR) $(image-string):$(DOCKER_TAG)
 	@touch $@
 
 # Run the automated tests in the bld container against the exchange svr running in the exec container
@@ -86,9 +86,9 @@ docker: .docker-exec
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:
 	docker push $(image-string):$(DOCKER_TAG)
-	docker push $(image-string):latest
+	docker push $(image-string):volcanostaging
 
-# Push the image with the explicit version tag (so someone else can test it), but do not push the latest tag so it does not get deployed to stg/prod yet
+# Push the image with the explicit version tag (so someone else can test it), but do not push the volcanostaging tag so it does not get deployed to stg yet
 docker-push-version-only:
 	docker push $(image-string):$(DOCKER_TAG)
 

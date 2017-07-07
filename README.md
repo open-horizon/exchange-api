@@ -76,6 +76,10 @@ services in the exchange.
 
 - The properties used for advertising and searching should always have its value element be a string. For example the memory property value should be `"300"` instead of `300`. This is because scalatra is automatically converting the json to scala data structures, and i don't know how to have the data structures that vary in type.
 
+## Changes Between v1.25.0 and v1.26.0
+
+- Fixed bug in which the CORS header Access-Control-Allow-Origin was not set in the response
+
 ## Changes Between v1.24.0 and v1.25.0
 
 - Added /microservices and /workloads resources

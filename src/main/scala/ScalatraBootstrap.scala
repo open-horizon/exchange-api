@@ -2,6 +2,7 @@ import javax.servlet.ServletContext
 import com.horizon.exchangeapi._
 import com.mchange.v2.c3p0.ComboPooledDataSource
 import org.scalatra._
+//import org.scalatra.CorsSupport   // allow cross-domain requests
 import org.slf4j.LoggerFactory
 import slick.jdbc.PostgresProfile.api._
 
@@ -32,6 +33,17 @@ class ScalatraBootstrap extends LifeCycle {
   override def init(context: ServletContext) {
     // val db = if (cpds != null) Database.forDataSource(cpds) else null
     val db = if (cpds != null) Database.forDataSource(cpds, Option(50)) else null
+
+    // Disable scalatra's builtin CorsSupport because for some inexplicable reason it doesn't set Access-Control-Allow-Origin which is critical
+    context.setInitParameter("org.scalatra.cors.enable", "false")
+
+    // None of these worked - taken from http://scalatra.org/guides/2.5/web-services/cors.html
+//    context.initParameters("org.scalatra.cors.allowedOrigins") = "*"
+//    context.setInitParameter(CorsSupport.AllowedOriginsKey, "*")
+
+    // This worked as a test, but is not the fix we need
+//    context.setInitParameter(CorsSupport.AllowedMethodsKey, "GET,POST,PUT,DELETE,HEAD,OPTIONS")
+
     context.mount(new ExchangeApiApp(db), "/v1", "v1")
     context.mount(new ResourcesApp, "/api-docs", "api-docs")
     context.mount(new SwaggerUiServlet, "/api", "api")

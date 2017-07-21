@@ -94,6 +94,11 @@ docker-push-version-only:
 
 docker-push: docker docker-push-only
 
+# Promote to prod by retagging to volcano and pushing to the docker registry (salt deploys the volcano-tagged image)
+docker-push-to-prod:
+	docker tag $(image-string):$(DOCKER_TAG) $(image-string):volcano
+	docker push $(image-string):volcano
+
 # Get the latest version of the swagger ui from github and copy the dist dir into our repo
 sync-swagger-ui:
 	rm -rf /tmp/swagger-ui.backup

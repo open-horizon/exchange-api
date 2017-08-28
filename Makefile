@@ -65,7 +65,10 @@ docker: .docker-exec
 	# war file ends up in: ./target/scala-$SCALA_VERSION_SHORT/exchange-api_$SCALA_VERSION_SHORT-$EXCHANGE_API_WAR_VERSION.war
 	@touch $@
 
-.docker-exec: .docker-compile
+.docker-exec: .docker-compile .docker-exec-nodep
+	@touch $@
+
+.docker-exec-nodep:
 	docker build -t $(image-string):$(DOCKER_TAG) $(DOCKER_OPTS) -f Dockerfile-exec --build-arg SCALA_VERSION=$(SCALA_VERSION) --build-arg SCALA_VERSION_SHORT=$(SCALA_VERSION_SHORT) --build-arg EXCHANGE_API_WAR_VERSION=$(EXCHANGE_API_WAR_VERSION) .
 	docker tag $(image-string):$(DOCKER_TAG) $(image-string):volcanostaging
 	@touch $@

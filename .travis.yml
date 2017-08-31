@@ -1,0 +1,39 @@
+sudo: required
+
+services:
+  - docker
+
+language: scala
+
+jdk: oraclejdk8
+
+scala:
+   - 2.11.2
+
+## caching instructions from from http://www.scala-sbt.org/1.0/docs/Travis-CI-with-sbt.html
+cache:
+  directories:
+    - $HOME/.ivy2/cache
+    - $HOME/.sbt
+
+before_cache:
+  # Cleanup the cached directories to avoid unnecessary cache updates
+  - find $HOME/.ivy2/cache -name "ivydata-*.properties" -print -delete
+  - find $HOME/.sbt        -name "*.lock"               -print -delete
+
+env:
+   - DOCKER_TAG=travis DOCKER_REGISTRY=summit.hovitos.engineering/travis SCALA_VERSION=2.11.2 SCALA_VERSION_SHORT=2.11
+
+before_install:
+  - docker info
+  - docker ps -a
+  - unset SBT_OPTS
+  - ./sbt ++$SCALA_VERSION update
+  - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD" summit.hovitos.engineering
+
+script:
+  - ./sbt ++$SCALA_VERSION package
+  - make DOCKER_TAG=$DOCKER_TAG DOCKER_REGISTRY=$DOCKER_REGISTRY SCALA_VERSION=$SCALA_VERSION SCALA_VERSION_SHORT=$SCALA_VERSION_SHORT .docker-exec-nodep
+
+after_success:
+  - docker push $DOCKER_REGISTRY/x86/exchange-api:$DOCKER_TAG

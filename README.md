@@ -58,7 +58,7 @@ services in the exchange.
 - Update the `DOCKER_TAG` variable to the appropriate version in the Makefile
 - To build the build container, compile your local code, build the exchange container, and run it: `make` . Or you can do the individual steps:
     - Build the build container: `make .docker-bld`
-    - Build the code from your local exchange repo in the build container: `make .docker-compile`
+    - Build the code from your local exchange repo in the build container: `make docker-compile`
     - Build the exchange api container and run it locally: `make .docker-exec-run`
 - Manually test container locally: `curl -# -X GET -H "Accept: application/json" -H "Authorization:Basic bp:mypw" http://localhost:8080/v1/devices | jq .`
     - Note: the container can not access a postgres db running locally on the docker host if the db is only listening for unix domain sockets.

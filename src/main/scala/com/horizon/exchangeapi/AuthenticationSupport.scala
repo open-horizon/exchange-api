@@ -62,6 +62,11 @@ object Access extends Enumeration {
   val READ_ALL_WORKLOADS = Value("READ_ALL_WORKLOADS")
   val WRITE_ALL_WORKLOADS = Value("WRITE_ALL_WORKLOADS")
   val CREATE_WORKLOADS = Value("CREATE_WORKLOADS")
+  val READ_MY_ORGS = Value("READ_MY_ORGS")
+  val WRITE_MY_ORGS = Value("WRITE_MY_ORGS")
+  val READ_ALL_ORGS = Value("READ_ALL_ORGS")
+  val WRITE_ALL_ORGS = Value("WRITE_ALL_ORGS")
+  val CREATE_ORGS = Value("CREATE_ORGS")
   val ADMIN = Value("ADMIN")
   val STATUS = Value("STATUS")
   val ALL = Value("ALL")
@@ -151,6 +156,7 @@ object AuthCache {
     def init(db: Database): Unit = {
       this.db = db      // store for later use
       whichTable match {
+        //TODO: do we add org here?
         case "users" => db.run(UsersTQ.rows.map(x => (x.username, x.password)).result).map({ list => this._initUsers(list, skipRoot = true) })
         case "devices" => db.run(DevicesTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
         case "agbots" => db.run(AgbotsTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
@@ -462,6 +468,13 @@ trait AuthenticationSupport extends ScalatraBase {
           case Access.CREATE => Access.CREATE_WORKLOADS
           case _ => access
         }
+        case TOrg(_) => access match {     // a user accessing a org
+          //todo: the way this is coded now, only root will be able to do these things. Add a user role for admin and add method isMyOrg()
+          case Access.READ => Access.READ_ALL_ORGS
+          case Access.WRITE => Access.WRITE_ALL_ORGS
+          case Access.CREATE => Access.CREATE_ORGS
+          case _ => access
+        }
         case TAction(_) => access      // a user running an action
       }
       logger.trace("IUser.authorizeTo() access2: "+access2)
@@ -536,6 +549,12 @@ trait AuthenticationSupport extends ScalatraBase {
           case Access.CREATE => Access.CREATE_WORKLOADS
           case _ => access
         }
+        case TOrg(_) => access match {     // a device accessing a org
+          case Access.READ => Access.READ_ALL_ORGS
+          case Access.WRITE => Access.WRITE_ALL_ORGS
+          case Access.CREATE => Access.CREATE_ORGS
+          case _ => access
+        }
         case TAction(_) => access      // a device running an action
       }
       if (Role.hasAuthorization(Role.DEVICE, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
@@ -586,6 +605,12 @@ trait AuthenticationSupport extends ScalatraBase {
           case Access.READ => Access.READ_ALL_WORKLOADS
           case Access.WRITE => Access.WRITE_ALL_WORKLOADS
           case Access.CREATE => Access.CREATE_WORKLOADS
+          case _ => access
+        }
+        case TOrg(_) => access match {     // a agbot accessing a org
+          case Access.READ => Access.READ_ALL_ORGS
+          case Access.WRITE => Access.WRITE_ALL_ORGS
+          case Access.CREATE => Access.CREATE_ORGS
           case _ => access
         }
         case TAction(_) => access      // a agbot running an action
@@ -640,6 +665,12 @@ trait AuthenticationSupport extends ScalatraBase {
           case Access.CREATE => Access.CREATE_WORKLOADS
           case _ => access
         }
+        case TOrg(_) => access match {     // a anonymous accessing a org
+          case Access.READ => Access.READ_ALL_ORGS
+          case Access.WRITE => Access.WRITE_ALL_ORGS
+          case Access.CREATE => Access.CREATE_ORGS
+          case _ => access
+        }
         case TAction(_) => access      // a anonymous running an action
       }
       if (Role.hasAuthorization(Role.ANONYMOUS, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
@@ -653,6 +684,7 @@ trait AuthenticationSupport extends ScalatraBase {
     def mine: Boolean = return id == "#"
   }
 
+  case class TOrg(id: String) extends Target
   case class TUser(id: String) extends Target
   case class TDevice(id: String) extends Target
   case class TAgbot(id: String) extends Target

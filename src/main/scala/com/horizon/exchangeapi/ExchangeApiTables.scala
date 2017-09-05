@@ -14,7 +14,7 @@ import com.horizon.exchangeapi.tables._
 object ExchangeApiTables {
 
   // Create all of the current version's tables - used in /admin/initdb and /admin/migratedb
-  val create = (UsersTQ.rows.schema ++ DevicesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema).create
+  val create = (UsersTQ.rows.schema ++ DevicesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ OrgsTQ.rows.schema).create
 
   // Alter the schema of existing tables - used in /admin/upgradedb
   // Note: the compose/bluemix version of postgresql does not support the 'if not exists' option
@@ -23,14 +23,16 @@ object ExchangeApiTables {
   val alterTables = ""
 
   // Used to create just the new tables in this version, so we do not have to disrupt the existing tables - used in /admin/initnewtables and /admin/upgradedb
-  val createNewTables = (MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema).create
+  //val createNewTables = (MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema).create  // <-- this is not in prod yet
+  val createNewTables = (OrgsTQ.rows.schema).create
 
   // Delete all of the current tables
   // Note: doing this with raw sql stmts because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints (only adding), we should be ok with the drops below?
-  val delete = DBIO.seq(sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
+  val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
 
   // Delete the previous version's (v1.24.0) tables - used by /admin/migratedb
-  val deletePrevious = DBIO.seq(sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
+  //val deletePrevious = DBIO.seq(sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
+  val deletePrevious = DBIO.seq(sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
 
   // Remove the alters of existing tables - used by /admin/unupgradedb
   // val unAlterTables = DBIO.seq(sqlu"alter table devices drop column publickey", sqlu"alter table agbots drop column publickey")
@@ -38,7 +40,8 @@ object ExchangeApiTables {
   val unAlterTables = ""
 
   // Used to delete just the new tables in this version (so we can recreate), so we do not have to disrupt the existing tables - used by /admin/dropnewtables and /admin/unupgradedb
-  val deleteNewTables = DBIO.seq(sqlu"drop table mmicroservices", sqlu"drop table workloads")
+  //val deleteNewTables = DBIO.seq(sqlu"drop table mmicroservices", sqlu"drop table workloads")  // <-- this is not in prod yet
+  val deleteNewTables = DBIO.seq(sqlu"drop table orgs")
 
   // Populate the tables with a few rows. This is rarely used.
   val setup = DBIO.seq(
@@ -128,7 +131,12 @@ object ExchangeApiTables {
       val filename = dumpDir+"/workloads"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[WorkloadRow](filename).dump(xs)
-      WorkloadsTQ.rows.result     // we do not need this redundant query, but flatMap has to return an action
+      OrgsTQ.rows.result
+    }).flatMap({ xs =>
+      val filename = dumpDir+"/orgs"+dumpSuffix
+      logger.info("dumping "+xs.size+" rows to "+filename)
+      new TableIo[OrgRow](filename).dump(xs)
+      OrgsTQ.rows.result     // we do not need this redundant query, but flatMap has to return an action
     })
 
 
@@ -205,6 +213,9 @@ object ExchangeApiTables {
 
     val workloads = new TableIo[WorkloadRow](dumpDir+"/workloads"+dumpSuffix).load
     if (workloads.nonEmpty) actions += (WorkloadsTQ.rows ++= workloads)
+
+    val orgs = new TableIo[OrgRow](dumpDir+"/orgs"+dumpSuffix).load
+    if (orgs.nonEmpty) actions += (OrgsTQ.rows ++= orgs)
 
     return actions.toList
   }

@@ -20,7 +20,7 @@ import java.net._
 case class GetMicroservicesResponse(microservices: Map[String,Microservice], lastIndex: Int)
 case class GetMicroserviceAttributeResponse(attribute: String, value: String)
 
-/** Input format for PUT /microservices/<microservice-id> */
+/** Input format for POST /microservices or PUT /microservices/<microservice-id> */
 case class PostPutMicroserviceRequest(label: String, description: String, specRef: String, version: String, arch: String, sharable: String, downloadUrl: String, matchHardware: Map[String,String], userInput: List[Map[String,String]], workloads: List[Map[String,String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
@@ -163,7 +163,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val postMicroservices =
     (apiOperation[ApiResponse]("postMicroservices")
       summary "Adds a microservice"
-      notes """Does a full replace of an existing microservice. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
+      notes """Creates a microservice resource. This can only be called by a user. The **request body** structure:
 
 ```
 {

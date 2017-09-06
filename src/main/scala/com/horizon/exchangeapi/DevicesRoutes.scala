@@ -33,17 +33,16 @@ case class PostSearchDevicesRequest(desiredMicroservices: List[RegMicroserviceSe
     }
   }
 
-  /** Returns the micorservices that match the search criteria */
+  /** Returns the microservices that match all of the search criteria */
   def matches(devices: Map[String,Device], agHash: AgreementsHash)(implicit logger: Logger): PostSearchDevicesResponse = {
-    // Build a hash of the current number of agreements for each device and microservice, so we can check them quickly
     // logger.trace(agHash.agHash.toString)
 
-    // loop thru the existing devices and microservices in the DB
-    //todo: should probably make this more FP style
+    // Loop thru the existing devices and microservices in the DB. (Should probably make this more FP style)
     var devicesResp: List[DeviceResponse] = List()
     // for ((id,d) <- devices; if !ApiTime.isSecondsStale(d.lastHeartbeat,secondsStale) ) {   <-- the db query now filters out stale devices
     for ((id,d) <- devices) {
-      var microsResp: List[RegMicroservice] = List()
+      // Get all microservices for this device that are not max'd out on agreements
+      var availableMicros: List[RegMicroservice] = List()
       for (m <- d.registeredMicroservices) { breakable {
         // do not even bother checking this against the search criteria if this micro is already at its agreement limit
         val agDev = agHash.agHash.get(id)
@@ -55,17 +54,25 @@ case class PostSearchDevicesRequest(desiredMicroservices: List[RegMicroserviceSe
             }
           case None => ;      // no agreements for this device, nothing to do
         }
+        availableMicros = availableMicros :+ m
+      } }
 
-        // we have 1 microservice from the db, now go thru all of the desired micros
-        breakable { for (m2 <- desiredMicroservices) {
-          if (m2.matches(m)) {
-            microsResp = microsResp :+ m
+      // We now have several microservices for 1 device from the db (that are not max'd out on agreements). See if all of the desired micros are satisfied.
+      var microsResp: List[RegMicroservice] = List()
+      breakable { for (desiredMicro <- desiredMicroservices) {
+        var found: Boolean = false
+        breakable { for (availableMicro <- availableMicros) {
+          if (desiredMicro.matches(availableMicro)) {
+            microsResp = microsResp :+ availableMicro
+            found = true
             break
           }
         } }
+        if (!found) break     // we did not find one of the required micros, so end early
       } }
-      if (microsResp.nonEmpty) {
-        // at least 1 micro from this device matched, so add this device to the response list
+
+      if (microsResp.length == desiredMicroservices.length) {
+        // all required micros were available in this device, so add this device to the response list
         devicesResp = devicesResp :+ DeviceResponse(id, d.name, microsResp, d.msgEndPoint, d.publicKey)
       }
     }
@@ -211,9 +218,10 @@ case class PatchDevicesRequest(token: Option[String], name: Option[String], msgE
 case class GetDeviceAgreementsResponse(agreements: Map[String,DeviceAgreement], lastIndex: Int)
 
 /** Input format for PUT /devices/{id}/agreements/<agreement-id> */
-case class PutDeviceAgreementRequest(microservice: String, state: String) {
-  def toDeviceAgreement = DeviceAgreement(microservice, state, ApiTime.nowUTC)
-  def toDeviceAgreementRow(deviceId: String, agId: String) = DeviceAgreementRow(agId, deviceId, microservice, state, ApiTime.nowUTC)
+case class PutDeviceAgreementRequest(microservices: List[String], state: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+  def toDeviceAgreement = DeviceAgreement(microservices, state, ApiTime.nowUTC)
+  def toDeviceAgreementRow(deviceId: String, agId: String) = DeviceAgreementRow(agId, deviceId, write(microservices), state, ApiTime.nowUTC)
 }
 
 
@@ -720,7 +728,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
 ```
 {
-  "microservice": "https://bluehorizon.network/documentation/sdr-device-api",    // url (API spec ref)
+  "microservices": ["https://bluehorizon.network/documentation/sdr-device-api"],    // url (API spec ref)
   "state": "negotiating"    // current agreement state: negotiating, signed, finalized, etc.
 }
 ```"""
@@ -741,7 +749,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val id = swaggerHack("id")
     val agId = params("agid")
     credsAndLog().authenticate().authorizeTo(TDevice(id),Access.WRITE)
-    val agreement = try { parse(request.body).extract[PutDeviceAgreementRequest] }
+    val agreement = try { if (""""microservice" *:""".r.findFirstIn(request.body).isDefined) throw new Exception("Instead of old attribute 'microservice', use list attribute 'microservices'") else parse(request.body).extract[PutDeviceAgreementRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
     db.run(DeviceAgreementsTQ.getNumOwned(id).result.flatMap({ xs =>

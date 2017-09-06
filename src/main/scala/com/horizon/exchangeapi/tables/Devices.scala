@@ -131,8 +131,19 @@ class Device(var token: String, var name: String, var owner: String, var registe
   def copy = new Device(token, name, owner, registeredMicroservices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey)
 }
 
-case class DeviceAgreementRow(agId: String, deviceId: String, microservice: String, state: String, lastUpdated: String) {
-  def toDeviceAgreement = DeviceAgreement(microservice, state, lastUpdated)
+case class DeviceAgreementRow(agId: String, deviceId: String, microservices: String, state: String, lastUpdated: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  // Provides backward compat for when microservices was just 1 string (not a json list)
+  def getMicroservices: List[String] = {
+    try { if (microservices != "") read[List[String]](microservices) else List[String]() }
+    catch { case _: Exception => return List[String](microservices) }
+  }
+
+  def toDeviceAgreement = {
+//    val ms = if (microservices != "") read[List[String]](microservices) else List[String]()
+    DeviceAgreement(getMicroservices, state, lastUpdated)
+  }
 
   def upsert: DBIO[_] = DeviceAgreementsTQ.rows.insertOrUpdate(this)
 }
@@ -140,10 +151,10 @@ case class DeviceAgreementRow(agId: String, deviceId: String, microservice: Stri
 class DeviceAgreements(tag: Tag) extends Table[DeviceAgreementRow](tag, "devagreements") {
   def agId = column[String]("agid", O.PrimaryKey)     // ethereum agreeement ids are unique
   def deviceId = column[String]("deviceid")
-  def microservice = column[String]("microservice")
+  def microservices = column[String]("microservice")
   def state = column[String]("state")
   def lastUpdated = column[String]("lastUpdated")
-  def * = (agId, deviceId, microservice, state, lastUpdated) <> (DeviceAgreementRow.tupled, DeviceAgreementRow.unapply)
+  def * = (agId, deviceId, microservices, state, lastUpdated) <> (DeviceAgreementRow.tupled, DeviceAgreementRow.unapply)
   def device = foreignKey("device_fk", deviceId, DevicesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
@@ -156,43 +167,54 @@ object DeviceAgreementsTQ {
   def getAgreementsWithState = rows.filter(_.state =!= "")
 }
 
-case class DeviceAgreement(microservice: String, state: String, lastUpdated: String)
+case class DeviceAgreement(microservices: List[String], state: String, lastUpdated: String)
 
 /** Builds a hash of the current number of agreements for each device and microservice, so we can check them quickly */
-class AgreementsHash(tempDbDevicesAgreements: MutableHashMap[String,MutableHashMap[String,DeviceAgreement]], dbDevicesAgreements: Seq[DeviceAgreementRow]) {
-  // Alternate constructors, where the supply only 1 of the args
-  def this(tempDbDevicesAgreements: MutableHashMap[String,MutableHashMap[String,DeviceAgreement]]) = this(tempDbDevicesAgreements, null)
-  def this(dbDevicesAgreements: Seq[DeviceAgreementRow]) = this(null, dbDevicesAgreements)
+//class AgreementsHash(tempDbDevicesAgreements: MutableHashMap[String,MutableHashMap[String,DeviceAgreement]], dbDevicesAgreements: Seq[DeviceAgreementRow]) {
+class AgreementsHash(dbDevicesAgreements: Seq[DeviceAgreementRow]) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  // Alternate constructors, where they supply only 1 of the args
+  //  def this(tempDbDevicesAgreements: MutableHashMap[String,MutableHashMap[String,DeviceAgreement]]) = this(tempDbDevicesAgreements, null)
+  //  def this(dbDevicesAgreements: Seq[DeviceAgreementRow]) = this(null, dbDevicesAgreements)
 
   // The 1st level key of this hash is the device id, the 2nd level key is the microservice url, the leaf value is current number of agreements
   var agHash = new MutableHashMap[String,MutableHashMap[String,Int]]()
 
+  /*
   if (tempDbDevicesAgreements != null) {
     for ((devid,d) <- tempDbDevicesAgreements) {
       for ((_,ag) <- d; if ag.state != "" ) {
         // negotiation has at least started for this agreement, record it in the hash
         agHash.get(devid) match {
-          case Some(devHash) => val numAgs = devHash.get(ag.microservice) // device hash is there so find or create the microservice hash within it
+          case Some(devHash) => val numAgs = devHash.get(ag.microservices) // device hash is there so find or create the microservice hash within it
             numAgs match {
-              case Some(numAgs2) => devHash.put(ag.microservice, numAgs2+1)
-              case None => devHash.put(ag.microservice, 1)
+              case Some(numAgs2) => devHash.put(ag.microservices, numAgs2+1)
+              case None => devHash.put(ag.microservices, 1)
             }
-          case None => agHash += ((devid, new MutableHashMap[String,Int]() += ((ag.microservice, 1)) ))   // this device is not in the hash yet, so create it and add the 1 microservice
+          case None => agHash += ((devid, new MutableHashMap[String,Int]() += ((ag.microservices, 1)) ))   // this device is not in the hash yet, so create it and add the 1 microservice
         }
       }
     }
   } else if (dbDevicesAgreements != null) {
-    for (a <- dbDevicesAgreements) {
-      agHash.get(a.deviceId) match {
-        case Some(devHash) => val numAgs = devHash.get(a.microservice) // device hash is there so find or create the microservice hash within it
+  */
+  for (a <- dbDevicesAgreements) {
+//    val micros = if (a.microservices != "") read[List[String]](a.microservices) else List[String]()
+    val micros = a.getMicroservices
+    agHash.get(a.deviceId) match {
+      case Some(devHash) => for (ms <- micros) {
+          val numAgs = devHash.get(ms) // device hash is there so find or create the microservice hashes within it
           numAgs match {
-            case Some(numAgs2) => devHash.put(a.microservice, numAgs2+1)
-            case None => devHash.put(a.microservice, 1)
+            case Some(numAgs2) => devHash.put(ms, numAgs2 + 1)
+            case None => devHash.put(ms, 1)
           }
-        case None => agHash += ((a.deviceId, new MutableHashMap[String,Int]() += ((a.microservice, 1)) ))   // this device is not in the hash yet, so create it and add the 1 microservice
-      }
+        }
+      case None => val devHash = new MutableHashMap[String,Int]()   // this device is not in the hash yet, so create it and add the microservice hashes
+        for (ms <- micros) { devHash.put(ms, 1) }
+        agHash += ((a.deviceId, devHash ))
     }
-  } else {}     //TODO: throw exception
+  }
+  //} else {}
 }
 
 

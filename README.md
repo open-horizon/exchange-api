@@ -79,7 +79,7 @@ services in the exchange.
 ## Changes Between v1.26.0 and v1.27.0 (not done yet!)
 
 - Added org resource (still need to implement ACLs for it and move other resources under it)
-- Changed PUT /{devices,agbots}/{id}/agreements/{agid} to accept list of microservices
+- Changed PUT /devices/{id}/agreements/{agid} to accept list of microservices (and corresponding GET and POST search changes)
 
 ## Changes Between v1.25.0 and v1.26.0
 

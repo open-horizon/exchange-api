@@ -76,7 +76,7 @@ services in the exchange.
 
 - The properties used for advertising and searching should always have its value element be a string. For example the memory property value should be `"300"` instead of `300`. This is because scalatra is automatically converting the json to scala data structures, and i don't know how to have the data structures that vary in type.
 
-## Changes Between v1.26.0 and v1.27.0 (not done yet!)
+## Changes Between v1.26.0 and v1.27.0
 
 - Added org resource (still need to implement ACLs for it and move other resources under it)
 - Changed PUT /devices/{id}/agreements/{agid} to accept list of microservices (and corresponding GET and POST search changes)

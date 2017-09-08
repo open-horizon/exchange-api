@@ -20,7 +20,7 @@ import java.net._
 case class GetWorkloadsResponse(workloads: Map[String,Workload], lastIndex: Int)
 case class GetWorkloadAttributeResponse(attribute: String, value: String)
 
-/** Input format for PUT /workloads/<workload-id> */
+/** Input format for POST /microservices or PUT /workloads/<workload-id> */
 case class PostPutWorkloadRequest(label: String, description: String, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: List[Map[String,String]], userInput: List[Map[String,String]], workloads: List[Map[String,String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
@@ -170,7 +170,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val postWorkloads =
     (apiOperation[ApiResponse]("postWorkloads")
       summary "Adds a workload"
-      notes """Does a full replace of an existing workload. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
+      notes """Creates a workload resource. This can only be called by a user. The **request body** structure:
 
 ```
 {

@@ -40,7 +40,7 @@ class DevicesSuite extends FunSuite {
   val pw = user+"pw"
   val USERAUTH = ("Authorization","Basic "+user+":"+pw)
   val BADAUTH = ("Authorization","Basic "+user+":"+pw+"x")
-  val rootuser = "root"
+  val rootuser = "root/root"
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "Horizon-Rul3s")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val deviceId = "9900"     // the 1st device created, that i will use to run some rest methods

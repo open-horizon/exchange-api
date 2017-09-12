@@ -8,7 +8,7 @@ import slick.jdbc.PostgresProfile.api._
 /** Contains the object representations of the DB tables related to agbots. */
 
 // case class AgbotRow(id: String, token: String, name: String, owner: String, msgEndPoint: String, lastHeartbeat: String) {
-case class AgbotRow(id: String, token: String, name: String, owner: String, msgEndPoint: String, lastHeartbeat: String, publicKey: String) {
+case class AgbotRow(id: String, orgid: String, token: String, name: String, owner: String, msgEndPoint: String, lastHeartbeat: String, publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toAgbot(superUser: Boolean): Agbot = {
@@ -19,29 +19,31 @@ case class AgbotRow(id: String, token: String, name: String, owner: String, msgE
   def upsert: DBIO[_] = {
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
     // If owner is root, do not set owner so we do not take over a user's agbot. It will default to root if upsert turns out to be a insert
-    if (owner == "root") AgbotsTQ.rows.map(a => (a.id, a.token, a.name, a.msgEndPoint, a.lastHeartbeat, a.publicKey)).insertOrUpdate((id, tok, name, msgEndPoint, lastHeartbeat, publicKey))
-    else AgbotsTQ.rows.insertOrUpdate(AgbotRow(id, tok, name, owner, msgEndPoint, lastHeartbeat, publicKey))
+    if (owner == "root/root") AgbotsTQ.rows.map(a => (a.id, a.orgid, a.token, a.name, a.msgEndPoint, a.lastHeartbeat, a.publicKey)).insertOrUpdate((id, orgid, tok, name, msgEndPoint, lastHeartbeat, publicKey))
+    else AgbotsTQ.rows.insertOrUpdate(AgbotRow(id, orgid, tok, name, owner, msgEndPoint, lastHeartbeat, publicKey))
   }
 
   def update: DBIO[_] = {
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (owner == "") (for { a <- AgbotsTQ.rows if a.id === id } yield (a.id,a.token,a.name,a.msgEndPoint,a.lastHeartbeat,a.publicKey)).update((id, tok, name, msgEndPoint, lastHeartbeat, publicKey))
-    else (for { a <- AgbotsTQ.rows if a.id === id } yield a).update(AgbotRow(id, tok, name, owner, msgEndPoint, lastHeartbeat, publicKey))
+    if (owner == "") (for { a <- AgbotsTQ.rows if a.id === id } yield (a.id,a.orgid,a.token,a.name,a.msgEndPoint,a.lastHeartbeat,a.publicKey)).update((id, orgid, tok, name, msgEndPoint, lastHeartbeat, publicKey))
+    else (for { a <- AgbotsTQ.rows if a.id === id } yield a).update(AgbotRow(id, orgid, tok, name, owner, msgEndPoint, lastHeartbeat, publicKey))
   }
 }
 
 /** Mapping of the agbots db table to a scala class */
 class Agbots(tag: Tag) extends Table[AgbotRow](tag, "agbots") {
-  def id = column[String]("id", O.PrimaryKey)
+  def id = column[String]("id", O.PrimaryKey)    // the content of this is orgid/username
+  def orgid = column[String]("orgid")
   def token = column[String]("token")
   def name = column[String]("name")
-  def owner = column[String]("owner", O.Default("root"))  // root is the default because during upserts by root, we do not want root to take over the agbot if it already exists
+  def owner = column[String]("owner", O.Default("root/root"))  // root is the default because during upserts by root, we do not want root to take over the agbot if it already exists
   def msgEndPoint = column[String]("msgendpoint")
   def lastHeartbeat = column[String]("lastheartbeat")
   def publicKey = column[String]("publickey")
   // this describes what you get back when you return rows from a query
-  def * = (id, token, name, owner, msgEndPoint, lastHeartbeat, publicKey) <> (AgbotRow.tupled, AgbotRow.unapply)
+  def * = (id, orgid, token, name, owner, msgEndPoint, lastHeartbeat, publicKey) <> (AgbotRow.tupled, AgbotRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 // Instance to access the agbots table
@@ -51,6 +53,7 @@ class Agbots(tag: Tag) extends Table[AgbotRow](tag, "agbots") {
 object AgbotsTQ {
   val rows = TableQuery[Agbots]
 
+  def getAllAgbots(orgid: String) = rows.filter(_.orgid === orgid)
   def getAgbot(id: String) = rows.filter(_.id === id)
   def getToken(id: String) = rows.filter(_.id === id).map(_.token)
   def getOwner(id: String) = rows.filter(_.id === id).map(_.owner)

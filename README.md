@@ -76,6 +76,27 @@ services in the exchange.
 
 - The properties used for advertising and searching should always have its value element be a string. For example the memory property value should be `"300"` instead of `300`. This is because scalatra is automatically converting the json to scala data structures, and i don't know how to have the data structures that vary in type.
 
+## Changes Between v1.27.0 and v1.28.0 (not done yet!)
+
+### Todos left to be finished
+
+- Add 'admin' field to user
+- See if there is a way to fix the swagger hack for 2 level resources
+- Consider changing all creates to POST
+
+### Limitations
+
+- Need to dropdb and initdb
+
+### External Incompatible changes
+
+- All resource except /admin are now under /org/{orgid}. By convention we will use "IBM" for our orgid.
+- All identities must be prefixed by "{orgid}/". E.g. IBM/myuser, IBM/mydeviceid, IBM/myagbotid (as a special case, the root user is root/root). This includes identities listed in owner and definedBy fields.
+
+### Done in this version
+
+-
+
 ## Changes Between v1.26.0 and v1.27.0
 
 - Added org resource (still need to implement ACLs for it and move other resources under it)

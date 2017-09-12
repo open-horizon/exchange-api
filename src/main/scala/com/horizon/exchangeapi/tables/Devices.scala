@@ -27,7 +27,7 @@ case class DeviceRow(id: String, token: String, name: String, owner: String, msg
   def upsert: DBIO[_] = {
     // Note: this currently does not do the right thing for a blank token
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (owner == "root") DevicesTQ.rows.map(d => (d.id, d.token, d.name, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey)).insertOrUpdate((id, tok, name, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    if (owner == "root/root") DevicesTQ.rows.map(d => (d.id, d.token, d.name, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey)).insertOrUpdate((id, tok, name, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
     else DevicesTQ.rows.insertOrUpdate(DeviceRow(id, tok, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
   }
 
@@ -44,7 +44,7 @@ class Devices(tag: Tag) extends Table[DeviceRow](tag, "devices") {
   def id = column[String]("id", O.PrimaryKey)
   def token = column[String]("token")
   def name = column[String]("name")
-  def owner = column[String]("owner", O.Default("root"))  // root is the default because during upserts by root, we do not want root to take over the device if it already exists
+  def owner = column[String]("owner", O.Default("root/root"))  // root is the default because during upserts by root, we do not want root to take over the device if it already exists
   def msgEndPoint = column[String]("msgendpoint")
   def softwareVersions = column[String]("swversions")
   def lastHeartbeat = column[String]("lastheartbeat")

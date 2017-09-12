@@ -37,7 +37,7 @@ class MicroservicesSuite extends FunSuite {
   val user2 = "9998"
   val pw2 = user2+"pw"
   val USER2AUTH = ("Authorization","Basic "+user2+":"+pw2)
-  val rootuser = "root"
+  val rootuser = "root/root"
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "Horizon-Rul3s")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val deviceId = "9911"     // the 1st device created, that i will use to run some rest methods

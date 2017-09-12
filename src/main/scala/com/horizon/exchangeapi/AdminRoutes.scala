@@ -191,8 +191,8 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   get("/admin/dropdb/token", operation(getDropdbToken)) ({
     // validateRoot(BaseAccess.ADMIN)
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
-    status_=(HttpCode.POST_OK)
-    AdminDropdbTokenResponse(createToken("root"))
+    //status_=(HttpCode.POST_OK)
+    AdminDropdbTokenResponse(createToken("root/root"))
   })
 
   // =========== POST /admin/dropdb ===============================

@@ -46,8 +46,8 @@ case class PatchOrgRequest(label: Option[String], description: Option[String]) {
     val lastUpdated = ApiTime.nowUTC
     //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this org
-    label match { case Some(lab) => return ((for { d <- OrgsTQ.rows if d.orgId === orgId } yield (d.orgId,d.label,d.lastUpdated)).update((orgId, lab, lastUpdated)), "label"); case _ => ; }
-    description match { case Some(desc) => return ((for { d <- OrgsTQ.rows if d.orgId === orgId } yield (d.orgId,d.description,d.lastUpdated)).update((orgId, desc, lastUpdated)), "description"); case _ => ; }
+    label match { case Some(lab) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid,d.label,d.lastUpdated)).update((orgId, lab, lastUpdated)), "label"); case _ => ; }
+    description match { case Some(desc) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid,d.description,d.lastUpdated)).update((orgId, desc, lastUpdated)), "description"); case _ => ; }
     return (null, null)
   }
 }
@@ -132,7 +132,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
         })
 
       case None => ;  // Return the whole org resource
-        db.run(OrgsTQ.getOrg(orgId).result).map({ list =>
+        db.run(OrgsTQ.getOrgid(orgId).result).map({ list =>
           logger.debug("GET /orgs/"+orgId+" result: "+list.toString)
           val orgs = new MutableHashMap[String,Org]
           if (list.nonEmpty) for (a <- list) orgs.put(a.orgId, a.toOrg)
@@ -329,7 +329,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
     credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
-    db.run(OrgsTQ.getOrg(orgId).delete.transactionally.asTry).map({ xs =>
+    db.run(OrgsTQ.getOrgid(orgId).delete.transactionally.asTry).map({ xs =>
       logger.debug("DELETE /orgs/"+orgId+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not

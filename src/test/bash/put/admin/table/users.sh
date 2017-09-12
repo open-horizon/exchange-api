@@ -2,7 +2,7 @@
 source `dirname $0`/../../../functions.sh PUT $*
 
 # Pipe the info into this
-curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic root:$EXCHANGE_ROOTPW" -d @- $EXCHANGE_URL_ROOT/v1/admin/tables/users | $parse
+curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic root/root:$EXCHANGE_ROOTPW" -d @- $EXCHANGE_URL_ROOT/v1/admin/tables/users | $parse
 
 # curl -# -w "%{http_code}" -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic root:$EXCHANGE_ROOTPW" -d '[
 #   {

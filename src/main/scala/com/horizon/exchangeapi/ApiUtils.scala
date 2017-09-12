@@ -8,17 +8,17 @@ import com.typesafe.config._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
-import scala.collection.mutable.{HashMap => MutableHashMap}
+//import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.util._
 //import java.util
 import java.util.Properties
 
 import ch.qos.logback.classic.{Level, Logger}
-import com.horizon.exchangeapi.tables._
+//import com.horizon.exchangeapi.tables._
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext.Implicits.global
+//import scala.concurrent.ExecutionContext.Implicits.global
 
 
 /** Global config parameters for the exchange. See typesafe config classes: http://typesafehub.github.io/config/latest/api/ */
@@ -55,7 +55,7 @@ object ExchConfig {
     // Put the root user in the auth cache in case the db has not been inited yet, they need to be able to run POST /admin/initdb
     val rootpw = config.getString("api.root.password")
     if (rootpw != "") {
-      AuthCache.users.put(Creds("root", rootpw))
+      AuthCache.users.put(Creds("root/root", rootpw))
       logger.info("Root user from config.json added to the in-memory authentication cache")
     }
 
@@ -91,15 +91,17 @@ object ExchConfig {
     // If the root pw is set in the config file, create or update the root user in the db to match
     val rootpw = config.getString("api.root.password")
     if (rootpw != "") {
+      AuthCache.users.put(Creds("root/root", rootpw))    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
+      /* todo: not sure we want to create a root org just to put root in the db. Maybe we leave it only in the cache.
       val rootemail = config.getString("api.root.email")
-      AuthCache.users.put(Creds("root", rootpw))    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
-      db.run(UserRow("root", rootpw, rootemail, ApiTime.nowUTC).upsertUser.asTry).map({ xs =>
+      db.run(UserRow("root", "root", rootpw, rootemail, ApiTime.nowUTC).upsertUser.asTry).map({ xs =>
         logger.debug("PUT /users/root (root) result: "+xs.toString)
         xs match {
-          case Success(v) => logger.info("Root user from config.json was successfully created/updated in the DB")
+          case Success(_) => logger.info("Root user from config.json was successfully created/updated in the DB")
           case Failure(t) => logger.error("Failed to write the root user from config.json to the DB: "+t.toString)
         }
       })
+      */
     }
   }
 
@@ -198,9 +200,9 @@ case class Version(version: String) {
   val R1 = """(\d+)""".r
   val (major, minor, mod, isInfinity) = version.trim() match {
     case "infinity" => (0, 0, 0, true)
-    case R3(major, minor, mod) => (major.toInt, minor.toInt, mod.toInt, false)
-    case R2(major, minor) => (major.toInt, minor.toInt, 0, false)
-    case R1(major) => (major.toInt, 0, 0, false)
+    case R3(maj, min, mo) => (maj.toInt, min.toInt, mo.toInt, false)
+    case R2(maj, min) => (maj.toInt, min.toInt, 0, false)
+    case R1(maj) => (maj.toInt, 0, 0, false)
     case _ => (-1, -1, -1, false)
   }
 

@@ -57,23 +57,17 @@ object BctypesTQ {
 }
 
 // This is the bctype table minus the key - used as the data structure to return to the REST clients
-// class Bctype(var description: String, var definedBy: String, var containerInfo: Map[String,String], var lastUpdated: String) {
 class Bctype(var description: String, var definedBy: String, var details: String, var lastUpdated: String) {
   def copy = new Bctype(description, definedBy, details, lastUpdated)
 }
 
 /** One instance of a blockchain. From a rest api perspective, this is a sub-resource of bctype. */
-// case class BlockchainRow(name: String, bctype: String, description: String, definedBy: String, bootNodes: String, genesis: String, networkId: String, lastUpdated: String) {
 case class BlockchainRow(name: String, bctype: String, description: String, definedBy: String, details: String, lastUpdated: String) {
-  // protected implicit val jsonFormats: Formats = DefaultFormats
   def toBlockchain: Blockchain = {
-    // val bn = if (bootNodes != "") read[List[String]](bootNodes) else List[String]()
-    // val gen = if (genesis != "") read[List[String]](genesis) else List[String]()
-    // val netid = if (networkId != "") read[List[String]](networkId) else List[String]()
     Blockchain(description, definedBy, details, lastUpdated)
   }
 
-  def upsert: DBIO[_] = BlockchainsTQ.rows.insertOrUpdate(this)     //todo: this currently does not work due to this bug: https://github.com/slick/slick/issues/966
+  def upsert: DBIO[_] = BlockchainsTQ.rows.insertOrUpdate(this)     //TODO: this might work now, the fix might be in 3.2 or 3.2.1 which came out in 7/2017. This currently does not work due to this bug: https://github.com/slick/slick/issues/966
   def update: DBIO[_] = BlockchainsTQ.getBlockchain(bctype,name).update(this)
   def insert: DBIO[_] = (BlockchainsTQ.rows += this)
 }
@@ -85,9 +79,6 @@ class Blockchains(tag: Tag) extends Table[BlockchainRow](tag, "blockchains") {
   def description = column[String]("description")
   def definedBy = column[String]("definedby")
   def details = column[String]("details")
-  // def bootNodes = column[String]("bootnodes")   // for now we are serializing the json and storing in a string, instead of using another table and doing joins
-  // def genesis = column[String]("genesis")
-  // def networkId = column[String]("networkid")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
   def * = (name, bctype, description, definedBy, details, lastUpdated) <> (BlockchainRow.tupled, BlockchainRow.unapply)
@@ -111,7 +102,6 @@ object BlockchainsTQ {
       case Array(s1, s2) => (s1, s2)
       case _ => ("", "")
     }
-    // println("getOwner2: name: "+name+", bctype: "+bctype)
     rows.filter( r => {r.bctype === bctype && r.name === name} ).map(_.definedBy)
   }
 
@@ -125,14 +115,10 @@ object BlockchainsTQ {
       case "description" => filter.map(_.description)
       case "definedBy" => filter.map(_.definedBy)
       case "details" => filter.map(_.details)
-      // case "bootNodes" => filter.map(_.bootNodes)
-      // case "genesis" => filter.map(_.genesis)
-      // case "networkId" => filter.map(_.networkId)
       case "lastUpdated" => filter.map(_.lastUpdated)
       case _ => null
     }
   }
 }
 
-// case class Blockchain(description: String, definedBy: String, bootNodes: List[String], genesis: List[String], networkId: List[String], lastUpdated: String)
 case class Blockchain(description: String, definedBy: String, details: String, lastUpdated: String)

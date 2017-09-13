@@ -251,9 +251,6 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       summary("Returns all devices")
       notes("""Returns all devices (RPis) in the exchange DB. Can be run by a user or agbot (but not a device).
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       // authorizations("basicAuth")
       parameters(
@@ -275,6 +272,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     // I think the request member is of type org.eclipse.jetty.server.Request, which implements interfaces javax.servlet.http.HttpServletRequest and javax.servlet.ServletRequest
     val ident = credsAndLog().authenticate().authorizeTo(TDevice("*"),Access.READ)
     val superUser = ident.isSuperUser
+    val resp = response
     // throw new IllegalArgumentException("arg 1 was wrong...")
     // The devices, microservices, and properties tables all combine to form the Device object, so we do joins to get them all.
     // Note: joinLeft is necessary here so that if no micros exist for a device, we still get the device (and likewise for the micro if no props exist).
@@ -292,6 +290,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     db.run(q.result).map({ list =>
       logger.debug("GET /devices result size: "+list.size)
       val devices = DevicesTQ.parseJoin(superUser, list)
+      if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
       GetDevicesResponse(devices, 0)
     })
     // } catch { case e: Exception => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "Oops! Somthing unexpected happened: "+e)) }
@@ -303,9 +302,6 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       summary("Returns a device")
       notes("""Returns the device (RPi) with the specified id in the exchange DB. Can be run by that device, a user, or an agbot.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("id", DataType.String, Option[String]("ID of the device."), paramType=ParamType.Query),
@@ -468,12 +464,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the device
   "publicKey"      // used by agbots to encrypt msgs sent to this device using the built-in Exchange msg service
 }
-```
-
-**Notes about the response format:**
-
-- **The format may change in the future.**
-- **Due to a swagger bug, the format shown below is incorrect. Run the PUT method to see the response format instead.**"""
+```"""
       parameters(
         Parameter("id", DataType.String, Option[String]("ID of the device to be added/updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the device. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -543,13 +534,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this device to be contacted by agbots, empty string to use the built-in Exchange msg service
   "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the device
   "publicKey"      // used by agbots to encrypt msgs sent to this device using the built-in Exchange msg service
-}
-```
-
-**Notes about the response format:**
-
-- **The format may change in the future.**
-- **Due to a swagger bug, the format shown below is incorrect. Run the PATCH method to see the response format instead.**"""
+}"""
       parameters(
         Parameter("id", DataType.String, Option[String]("ID of the device to be updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the device. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -662,9 +647,6 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       summary("Returns all agreements this device is in")
       notes("""Returns all agreements in the exchange DB that this device is part of. Can be run by a user or the device.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("id", DataType.String, Option[String]("ID of the device."), paramType=ParamType.Query),
@@ -693,9 +675,6 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       summary("Returns an agreement for a device")
       notes("""Returns the agreement with the specified agid for the specified device id in the exchange DB. Can be run by a user or the device. **Because of a swagger bug this method can not be run via swagger.**
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("id", DataType.String, Option[String]("ID of the device."), paramType=ParamType.Query),
@@ -916,9 +895,6 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       summary("Returns all msgs sent to this device")
       notes("""Returns all msgs that have been sent to this device. They will be returned in the order they were sent. All msgs that have been sent to this device will be returned, unless the device has deleted some, or some are past their TTL. Can be run by a user or the device.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("id", DataType.String, Option[String]("ID of the device."), paramType=ParamType.Query),

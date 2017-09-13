@@ -37,9 +37,6 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       summary("Returns all users")
       notes("""Returns all users in the exchange DB. Can only be run by the root user.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of exchange user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -51,13 +48,15 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = swaggerHack("orgid")
     val ident = credsAndLog().authenticate().authorizeTo(TUser(OrgAndId(orgid,"*").toString),Access.READ)
     val superUser = ident.isSuperUser
+    val resp = response
     db.run(UsersTQ.getAllUsers(orgid).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/users result size: "+list.size)
       val users = new MutableHashMap[String, User]
-      for (e <- list) {
-        val pw = if (superUser) e.password else StrConstants.hiddenPw
-        users.put(e.username, User(pw, e.email, e.lastUpdated))
-      }
+      if (list.nonEmpty) for (e <- list) {
+          val pw = if (superUser) e.password else StrConstants.hiddenPw
+          users.put(e.username, User(pw, e.email, e.lastUpdated))
+        }
+      else resp.setStatus(HttpCode.NOT_FOUND)
       GetUsersResponse(users.toMap, 0)
     })
   })
@@ -68,9 +67,6 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       summary("Returns a user")
       notes("""Returns the user with the specified username in the exchange DB. Can only be run by that user or root.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user."), paramType=ParamType.Query),

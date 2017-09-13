@@ -20,20 +20,10 @@ import scala.util._
 case class GetOrgsResponse(orgs: Map[String,Org], lastIndex: Int)
 case class GetOrgAttributeResponse(attribute: String, value: String)
 
-/** Input format for POST /orgs */
-case class PostOrgRequest(orgId: String, label: String, description: String) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = {
-  }
-
-  def toOrgRow = OrgRow(orgId, label, description, ApiTime.nowUTC)
-}
-
 /** Input format for PUT /orgs/<org-id> */
-case class PutOrgRequest(label: String, description: String) {
+case class PostPutOrgRequest(label: String, description: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = {
-  }
+  def validate() = {}
 
   def toOrgRow(orgId: String) = OrgRow(orgId, label, description, ApiTime.nowUTC)
 }
@@ -66,9 +56,6 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
       summary("Returns all orgs")
       notes("""Returns all org definitions in the exchange DB. Can be run by an admin user, or the root user.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -94,18 +81,15 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
     })
   })
 
-  /* ====== GET /orgs/{org} ================================ */
+  /* ====== GET /orgs/{orgid} ================================ */
   val getOneOrg =
     (apiOperation[GetOrgsResponse]("getOneOrg")
       summary("Returns a org")
       notes("""Returns the org with the specified id in the exchange DB. Can be run by any user in this org.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Org id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire org resource will be returned."), paramType=ParamType.Query, required=false)
@@ -142,7 +126,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
     }
   })
 
-  // =========== POST /orgs ===============================
+  // =========== POST /orgs/{orgid} ===============================
   val postOrgs =
     (apiOperation[ApiResponse]("postOrgs")
       summary "Adds a org"
@@ -150,31 +134,30 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
 ```
 {
-  "orgId": "xyz",
   "label": "MyCompany Inc.",
   "description": "blah blah",
 }
 ```"""
       parameters(
-      Parameter("org", DataType.String, Option[String]("Org id."), paramType=ParamType.Query),
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
       Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
       Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PostOrgRequest],
+      Parameter("body", DataType[PostPutOrgRequest],
         Option[String]("Org object that needs to be updated in the exchange. See details in the Implementation Notes above."),
         paramType = ParamType.Body)
     )
       )
-  val postOrgs2 = (apiOperation[PostOrgRequest]("postOrgs2") summary("a") notes("a"))  // for some bizarre reason, the PostOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val postOrgs2 = (apiOperation[PostPutOrgRequest]("postOrgs2") summary("a") notes("a"))  // for some bizarre reason, the PostOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   /** Handles POST /org. Called by a user to update (must be same user that created it). */
-  post("/orgs", operation(postOrgs)) ({
+  post("/orgs/:orgid", operation(postOrgs)) ({
+    val orgId = swaggerHack("orgid")
     credsAndLog().authenticate().authorizeTo(TOrg(""),Access.CREATE)
-    val orgReq = try { parse(request.body).extract[PostOrgRequest] }
+    val orgReq = try { parse(request.body).extract[PostPutOrgRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     orgReq.validate()
-    val orgId = orgReq.orgId
     val resp = response
-    db.run(orgReq.toOrgRow.insert.asTry).map({ xs =>
+    db.run(orgReq.toOrgRow(orgId).insert.asTry).map({ xs =>
       logger.debug("POST /orgs result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
@@ -193,7 +176,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
     })
   })
 
-  // =========== PUT /orgs/{org} ===============================
+  // =========== PUT /orgs/{orgid} ===============================
   val putOrgs =
     (apiOperation[ApiResponse]("putOrgs")
       summary "Updates a org"
@@ -201,27 +184,26 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
 ```
 {
-  "orgId": "xyz",
   "label": "MyCompany Inc.",
   "description": "blah blah",
 }
 ```"""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Org id."), paramType=ParamType.Query),
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
       Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
       Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PutOrgRequest],
+      Parameter("body", DataType[PostPutOrgRequest],
         Option[String]("Org object that needs to be updated in the exchange. See details in the Implementation Notes above."),
         paramType = ParamType.Body)
     )
       )
-  val putOrgs2 = (apiOperation[PutOrgRequest]("putOrgs2") summary("a") notes("a"))  // for some bizarre reason, the PutOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putOrgs2 = (apiOperation[PostPutOrgRequest]("putOrgs2") summary("a") notes("a"))  // for some bizarre reason, the PutOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   /** Handles PUT /org/{org}. Called by a user to update (must be same user that created it). */
   put("/orgs/:orgid", operation(putOrgs)) ({
     val orgId = swaggerHack("orgid")
     credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
-    val orgReq = try { parse(request.body).extract[PutOrgRequest] }
+    val orgReq = try { parse(request.body).extract[PostPutOrgRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     orgReq.validate()
     val resp = response
@@ -264,15 +246,9 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 ```
 {
   "label": "MyCompany, Inc."
-}
-```
-
-**Notes about the response format:**
-
-- **The format may change in the future.**
-- **Due to a swagger bug, the format shown below is incorrect. Run the PATCH method to see the response format instead.**"""
+}"""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Org id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchOrgRequest],
@@ -317,7 +293,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
       summary "Deletes a org"
       notes "Deletes a org from the exchange DB. This can only be called by root or a user in the org with the admin role."
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Org id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )

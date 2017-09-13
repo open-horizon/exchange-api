@@ -108,9 +108,6 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
       summary("Returns all blockchain types")
       notes("""Returns all Blockchain type definitions in the exchange DB. Can be run by any user, device, or agbot.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -124,6 +121,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   /** Handles GET /bctypes. Can be called by anyone. */
   get("/bctypes", operation(getBctypes)) ({
     credsAndLog().authenticate().authorizeTo(TBctype("*"),Access.READ)
+    val resp = response
     var q = BctypesTQ.rows.subquery
     params.get("bctype").foreach(bctype => { if (bctype.contains("%")) q = q.filter(_.bctype like bctype) else q = q.filter(_.bctype === bctype) })
     params.get("description").foreach(description => { if (description.contains("%")) q = q.filter(_.description like description) else q = q.filter(_.description === description) })
@@ -132,7 +130,8 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
     db.run(q.result).map({ list =>
       logger.debug("GET /bctypes result size: "+list.size)
       val bctypes = new MutableHashMap[String,Bctype]
-      for (a <- list) bctypes.put(a.bctype, a.toBctype)
+      if (list.nonEmpty) for (a <- list) bctypes.put(a.bctype, a.toBctype)
+      else resp.setStatus(HttpCode.NOT_FOUND)
       GetBctypesResponse(bctypes.toMap, 0)
     })
   })
@@ -143,9 +142,6 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
       summary("Returns a blockchain type")
       notes("""Returns the blockchain type with the specified type name in the exchange DB. Can be run by a user, device, or agbot.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
@@ -255,12 +251,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   "description": "abc",       // description of the blockchain type
   "details": "escaped json string"
 }
-```
-
-**Notes about the response format:**
-
-- **The format may change in the future.**
-- **Due to a swagger bug, the format shown below is incorrect. Run the PATCH method to see the response format instead.**"""
+```"""
       parameters(
         Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
@@ -342,9 +333,6 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
       summary("Returns all blockchains of this blockchain type")
       notes("""Returns all blockchain instances that are this blockchain type. Can be run by any user, device, or agbot.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
@@ -374,9 +362,6 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
       summary("Returns a blockchain for a blockchain type")
       notes("""Returns the blockchain definition with the specified name for the specified blockchain type in the exchange DB. Can be run by any user, device, or agbot. **Because of a swagger bug this method can not be run via swagger.**
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
@@ -499,12 +484,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   "description": "abc",
   "details": "escaped json string"
 }
-```
-
-**Notes about the response format:**
-
-- **The format may change in the future.**
-- **Due to a swagger bug, the format shown below is incorrect. Run the PATCH method to see the response format instead.**"""
+```"""
       parameters(
         Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
         Parameter("name", DataType.String, Option[String]("Blockchain instance name."), paramType=ParamType.Query),

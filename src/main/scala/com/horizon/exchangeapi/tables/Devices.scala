@@ -300,7 +300,7 @@ case class RegMicroserviceRow(msId: String, deviceId: String, url: String, numAg
   def update: DBIO[_] = RegMicroservicesTQ.rows.update(this)
 }
 
-class RegMicroservices(tag: Tag) extends Table[RegMicroserviceRow](tag, "microservices") {   // <- not changing table name to regmicroservices because i do not want to cause a db schema change
+class RegMicroservices(tag: Tag) extends Table[RegMicroserviceRow](tag, "devmicros") {   // <- not changing table name to regmicroservices because i do not want to cause a db schema change
   def msId = column[String]("msid", O.PrimaryKey)     // we form this key as <deviceId>|<url>
   def deviceId = column[String]("deviceid")
   def url = column[String]("url")

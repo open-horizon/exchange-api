@@ -110,6 +110,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = swaggerHack("orgid")
     val ident = credsAndLog().authenticate().authorizeTo(TAgbot(OrgAndId(orgid,"*").toString),Access.READ)
     val superUser = ident.isSuperUser
+    val resp = response
     //var q = AgbotsTQ.rows.subquery
     var q = AgbotsTQ.getAllAgbots(orgid)
     params.get("idfilter").foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
@@ -119,7 +120,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     db.run(q.result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/agbots result size: "+list.size)
       val agbots = new MutableHashMap[String,Agbot]
-      for (a <- list) agbots.put(a.id, a.toAgbot(superUser))
+      if (list.nonEmpty) for (a <- list) agbots.put(a.id, a.toAgbot(superUser))
+      else resp.setStatus(HttpCode.NOT_FOUND)
       GetAgbotsResponse(agbots.toMap, 0)
     })
   })
@@ -375,9 +377,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary("Returns all agreements this agbot is in")
       notes("""Returns all agreements in the exchange DB that this agbot is part of. Can be run by the owning user or the agbot.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
@@ -407,9 +406,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary("Returns an agreement for a agbot")
       notes("""Returns the agreement with the specified agid for the specified agbot id in the exchange DB. Can be run by the owning user or the agbot. **Because of a swagger bug this method can not be run via swagger.**
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
@@ -491,7 +487,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     })
   })
 
-  // =========== DELETE /agbots/{id}/agreements ===============================
+  // =========== DELETE /orgs/{orgid}/agbots/{id}/agreements ===============================
   val deleteAgbotAllAgreement =
     (apiOperation[ApiResponse]("deleteAgbotAllAgreement")
       summary "Deletes all agreements of a agbot"
@@ -502,7 +498,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         )
       )
 
-  delete("/agbots/:id/agreements", operation(deleteAgbotAllAgreement)) ({
+  delete("/orgs/:orgid/agbots/:id/agreements", operation(deleteAgbotAllAgreement)) ({
     val orgid = swaggerHack("orgid")
     val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
@@ -524,7 +520,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     })
   })
 
-  // =========== DELETE /agbots/{id}/agreements/{agid} ===============================
+  // =========== DELETE /orgs/{orgid}/agbots/{id}/agreements/{agid} ===============================
   val deleteAgbotAgreement =
     (apiOperation[ApiResponse]("deleteAgbotAgreement")
       summary "Deletes an agreement of a agbot"
@@ -536,7 +532,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         )
       )
 
-  delete("/agbots/:id/agreements/:agid", operation(deleteAgbotAgreement)) ({
+  delete("/orgs/:orgid/agbots/:id/agreements/:agid", operation(deleteAgbotAgreement)) ({
     val orgid = swaggerHack("orgid")
     val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
@@ -807,9 +803,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary("Returns all msgs sent to this agbot")
       notes("""Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
@@ -838,7 +831,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     })
   })
 
-  // =========== DELETE /agbots/{id}/msgs/{msgid} ===============================
+  // =========== DELETE /orgs/{orgid}/agbots/{id}/msgs/{msgid} ===============================
   val deleteAgbotMsg =
     (apiOperation[ApiResponse]("deleteAgbotMsg")
       summary "Deletes an msg of a agbot"
@@ -850,7 +843,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         )
       )
 
-  delete("/agbots/:id/msgs/:msgid", operation(deleteAgbotMsg)) ({
+  delete("/orgs/:orgid/agbots/:id/msgs/:msgid", operation(deleteAgbotMsg)) ({
     val orgid = swaggerHack("orgid")
     val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString

@@ -253,6 +253,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
+  /*
   // =========== POST /admin/migratedb ===============================
   val postAdminMigrateDb =
     (apiOperation[ApiResponse]("postAdminMigrateDb")
@@ -300,6 +301,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       }
     })
   })
+  */
 
   // =========== POST /admin/upgradedb ===============================
   val postAdminUpgradeDb =
@@ -321,6 +323,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     // Assemble the list of db actions to: alter schema of existing tables, and create tables that are new in this version
     // val dbActions = DBIO.seq(ExchangeApiTables.alterTables, ExchangeApiTables.createNewTables)
     val dbActions = ExchangeApiTables.createNewTables
+    //todo: add alterTables if its not null
 
     db.run(dbActions.transactionally.asTry).map({ xs =>
       logger.debug("POST /admin/upgradedb result: "+xs.toString)
@@ -353,6 +356,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     // Assemble the list of db actions to: delete tables that are new in this version, and unalter schema changes made to existing tables
     // val dbActions = DBIO.seq(ExchangeApiTables.deleteNewTables, ExchangeApiTables.unAlterTables)
     val dbActions = ExchangeApiTables.deleteNewTables
+    //todo: add unAlterTables if its not null
 
     // This should stop performing the actions if any of them fail. Currently intentionally not running it all as a transaction
     db.run(dbActions.asTry).map({ xs =>
@@ -452,6 +456,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   })
 
+  /*
   // =========== GET /admin/tables/{table} ===============================
   val getAdminTable =
     (apiOperation[Seq[String]]("getAdminTable")
@@ -525,6 +530,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       case _ => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Unrecognized table name: "+table+" (use the table name in the postgres DB)"))
     }
   })
+  */
 
   // =========== GET /admin/status ===============================
   val getAdminStatus =

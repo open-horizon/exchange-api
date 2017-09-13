@@ -81,21 +81,28 @@ services in the exchange.
 ### Todos left to be finished
 
 - Add 'admin' field to user
+- PUT orgs/{org}/devices/{device}/agreements/{agreementid} to be changed to take "microservices":[{"url":"ms url","org":"myorg"}] instead of an array of url strings like it is now.  Same change for agbots (url for workload and an org inside an object)
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST
+- Any other schema changes?
 
 ### Limitations
 
-- Need to dropdb and initdb
+- Need to dropdb and initdb, and re-enter data
 
 ### External Incompatible changes
 
 - All resource except /admin are now under /org/{orgid}. By convention we will use "IBM" for our orgid.
 - All identities must be prefixed by "{orgid}/". E.g. IBM/myuser, IBM/mydeviceid, IBM/myagbotid (as a special case, the root user is root/root). This includes identities listed in owner and definedBy fields.
+- Added 'public' field to microservices and workloads
+- Change returned http code to 404 when there are no resource found for GET /org/{orgid}/users, /org/{orgid}/devices, /org/{orgid}/agbots
 
 ### Done in this version
 
--
+- Added the /orgs/{orgid} resource
+- Moved under /orgs/{orgid}: users, agbots, microservices, workloads
+- Updated ACL to only only access within your org (with a few exceptions)
+- Added 'public' field to microservices and workloads
 
 ## Changes Between v1.26.0 and v1.27.0
 

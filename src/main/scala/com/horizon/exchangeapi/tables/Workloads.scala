@@ -7,14 +7,14 @@ import slick.jdbc.PostgresProfile.api._
 
 /** Contains the object representations of the DB tables related to workloads. */
 
-case class WorkloadRow(workload: String, owner: String, label: String, description: String, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: String, userInput: String, workloads: String, lastUpdated: String) {
+case class WorkloadRow(workload: String, orgid: String, owner: String, label: String, description: String, public: Boolean, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: String, userInput: String, workloads: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toWorkload: Workload = {
     val spec = if (apiSpec != "") read[List[Map[String,String]]](apiSpec) else List[Map[String,String]]()
     val input = if (userInput != "") read[List[Map[String,String]]](userInput) else List[Map[String,String]]()
     val wrk = if (workloads != "") read[List[Map[String,String]]](workloads) else List[Map[String,String]]()
-    new Workload(owner, label, description, workloadUrl, version, arch, downloadUrl, spec, input, wrk, lastUpdated)
+    new Workload(owner, label, description, public, workloadUrl, version, arch, downloadUrl, spec, input, wrk, lastUpdated)
   }
 
   // update returns a DB action to update this row
@@ -26,10 +26,12 @@ case class WorkloadRow(workload: String, owner: String, label: String, descripti
 
 /** Mapping of the workloads db table to a scala class */
 class Workloads(tag: Tag) extends Table[WorkloadRow](tag, "workloads") {
-  def workload = column[String]("workload", O.PrimaryKey)
+  def workload = column[String]("workload", O.PrimaryKey)    // the content of this is orgid/workload
+  def orgid = column[String]("orgid")
   def owner = column[String]("owner")
   def label = column[String]("label")
   def description = column[String]("description")
+  def public = column[Boolean]("public")
   def workloadUrl = column[String]("workloadurl")
   def version = column[String]("version")
   def arch = column[String]("arch")
@@ -39,19 +41,22 @@ class Workloads(tag: Tag) extends Table[WorkloadRow](tag, "workloads") {
   def workloads = column[String]("workloads")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (workload, owner, label, description, workloadUrl, version, arch, downloadUrl, apiSpec, userInput, workloads, lastUpdated) <> (WorkloadRow.tupled, WorkloadRow.unapply)
+  def * = (workload, orgid, owner, label, description, public, workloadUrl, version, arch, downloadUrl, apiSpec, userInput, workloads, lastUpdated) <> (WorkloadRow.tupled, WorkloadRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 // Instance to access the workloads table
 object WorkloadsTQ {
   val rows = TableQuery[Workloads]
 
+  def getAllWorkloads(orgid: String) = rows.filter(_.orgid === orgid)
   def getWorkload(workload: String) = rows.filter(_.workload === workload)
   def getOwner(workload: String) = rows.filter(_.workload === workload).map(_.owner)
   def getNumOwned(owner: String) = rows.filter(_.owner === owner).length
   def getLabel(workload: String) = rows.filter(_.workload === workload).map(_.label)
   def getDescription(workload: String) = rows.filter(_.workload === workload).map(_.description)
+  def getPublic(workload: String) = rows.filter(_.workload === workload).map(_.public)
   def getWorkloadUrl(workload: String) = rows.filter(_.workload === workload).map(_.workloadUrl)
   def getVersion(workload: String) = rows.filter(_.workload === workload).map(_.version)
   def getArch(workload: String) = rows.filter(_.workload === workload).map(_.arch)
@@ -69,6 +74,7 @@ object WorkloadsTQ {
       case "owner" => filter.map(_.owner)
       case "label" => filter.map(_.label)
       case "description" => filter.map(_.description)
+      case "public" => filter.map(_.public)
       case "workloadUrl" => filter.map(_.workloadUrl)
       case "version" => filter.map(_.version)
       case "arch" => filter.map(_.arch)
@@ -86,7 +92,7 @@ object WorkloadsTQ {
 }
 
 // This is the workload table minus the key - used as the data structure to return to the REST clients
-class Workload(var owner: String, var label: String, var description: String, var workloadUrl: String, var version: String, var arch: String, var downloadUrl: String, var apiSpec: List[Map[String,String]], var userInput: List[Map[String,String]], var workloads: List[Map[String,String]], var lastUpdated: String) {
-  def copy = new Workload(owner, label, description, workloadUrl, version, arch, downloadUrl, apiSpec, userInput, workloads, lastUpdated)
+class Workload(var owner: String, var label: String, var description: String, var public: Boolean, var workloadUrl: String, var version: String, var arch: String, var downloadUrl: String, var apiSpec: List[Map[String,String]], var userInput: List[Map[String,String]], var workloads: List[Map[String,String]], var lastUpdated: String) {
+  def copy = new Workload(owner, label, description, public, workloadUrl, version, arch, downloadUrl, apiSpec, userInput, workloads, lastUpdated)
 }
 

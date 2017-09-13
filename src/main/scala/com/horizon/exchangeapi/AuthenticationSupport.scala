@@ -455,7 +455,7 @@ trait AuthenticationSupport extends ScalatraBase {
         if (isTokenValid(creds.token, creds.id)) return toIUser
         else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
       }
-      for ((k, v) <- AuthCache.users.things) { logger.debug("users cache entry: "+k+" "+v) }
+      //for ((k, v) <- AuthCache.users.things) { logger.debug("users cache entry: "+k+" "+v) }
       if (AuthCache.users.isValid(creds)) return toIUser
       if (AuthCache.devices.isValid(creds)) return toIDevice
       if (AuthCache.agbots.isValid(creds)) return toIAgbot

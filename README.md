@@ -80,11 +80,17 @@ services in the exchange.
 
 ### Todos left to be finished
 
+- Rename devices to nodes
+- Modify PUT devices/{id}/agreements/{id} body to include the pattern and workload
+- Modify /search/devices for patterns
 - Add 'admin' field to user
 - PUT orgs/{org}/devices/{device}/agreements/{agreementid} to be changed to take "microservices":[{"url":"ms url","org":"myorg"}] instead of an array of url strings like it is now.  Same change for agbots (url for workload and an org inside an object)
+- Add list of orgs/patterns to agbot resource
+- Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices, IBM agbots can read all devices
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST
 - Any other schema changes?
+- Do consistency checking of patterns
 
 ### Limitations
 
@@ -100,7 +106,7 @@ services in the exchange.
 ### Done in this version
 
 - Added the /orgs/{orgid} resource
-- Moved under /orgs/{orgid}: users, agbots, microservices, workloads
+- Moved under /orgs/{orgid}: users, devices, agbots, microservices, workloads
 - Updated ACL to only only access within your org (with a few exceptions)
 - Added 'public' field to microservices and workloads
 

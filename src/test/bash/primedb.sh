@@ -143,6 +143,26 @@ else
     echo "orgs/$orgid/users/$user exists"
 fi
 
+rc=$(curlfind $userauth "orgs/$orgid/devices/$deviceid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/devices/$deviceid" '{"token": "'$devicetoken'", "name": "rpi1",
+  "registeredMicroservices": [
+    {
+      "url": "https://bluehorizon.network/microservices/network",
+      "numAgreements": 1,
+      "policy": "{json policy for rpi1 netspeed}",
+      "properties": [
+        { "name": "arch", "value": "arm", "propType": "string", "op": "in" },
+        { "name": "version", "value": "1.0.0", "propType": "version", "op": "in" }
+      ]
+    }
+  ],
+  "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+else
+    echo "orgs/$orgid/devices/$deviceid exists"
+fi
+
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then

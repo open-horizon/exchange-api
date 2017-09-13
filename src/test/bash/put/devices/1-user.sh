@@ -1,7 +1,7 @@
 # Updates device 1
 source `dirname $0`/../../functions.sh PUT $*
 
-curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic $EXCHANGE_USER:$EXCHANGE_PW" -d '{
+curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic $EXCHANGE_ORG/$EXCHANGE_USER:$EXCHANGE_PW" -d '{
   "token": "abc123",
   "name": "rpi1",
   "registeredMicroservices": [
@@ -65,4 +65,4 @@ curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/j
   "msgEndPoint": "whisper-id",
   "softwareVersions": {"horizon": "3.2.1"},
   "publicKey": "ABC"
-}' $EXCHANGE_URL_ROOT/v1/devices/1 | $parse
+}' $EXCHANGE_URL_ROOT/v1/orgs/IBM/devices/1 | $parse

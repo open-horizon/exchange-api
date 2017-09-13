@@ -98,6 +98,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 - **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or  ID (orgid/agbotid) of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("idfilter", DataType.String, Option[String]("Filter results to only include agbots with this id (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
@@ -137,6 +138,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 - **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire device resource (including microservices) will be returned."), paramType=ParamType.Query, required=false)
@@ -190,6 +192,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 }
 ```"""
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be added/updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PutAgbotsRequest],
@@ -263,6 +266,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 - **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the PATCH method to see the response format instead.**"""
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchAgbotsRequest],
@@ -309,6 +313,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary "Deletes a agbot"
       notes "Deletes a agbot (Agreement Bot) from the exchange DB, and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the devices and agbot). Can be run by the owning user or the agbot."
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -344,6 +349,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary "Tells the exchange this agbot is still operating"
       notes "Lets the exchange know this agbot is still active. Can be run by the owning user or the agbot."
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -379,6 +385,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -408,6 +415,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
         Parameter("agid", DataType.String, Option[String]("ID of the agreement."), paramType=ParamType.Query),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -444,6 +452,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 }
 ```"""
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add/update this agreement."), paramType = ParamType.Query),
         Parameter("agid", DataType.String, Option[String]("ID of the agreement to be added/updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -493,6 +502,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary "Deletes all agreements of a agbot"
       notes "Deletes all of the current agreements of a agbot from the exchange DB. Can be run by the owning user or the agbot."
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -526,6 +536,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary "Deletes an agreement of a agbot"
       notes "Deletes an agreement of a agbot from the exchange DB. Can be run by the owning user or the agbot."
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
         Parameter("agid", DataType.String, Option[String]("ID of the agreement to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -742,6 +753,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 ```
       """
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to send a msg to."), paramType = ParamType.Path),
         // Device id/token must be in the header
         Parameter("body", DataType[PostAgbotsMsgsRequest],
@@ -805,6 +817,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -837,6 +850,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary "Deletes an msg of a agbot"
       notes "Deletes an msg that was sent to a agbot. This should be done by the agbot after each msg is read. Can be run by the owning user or the agbot."
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be deleted."), paramType = ParamType.Path),
         Parameter("msgid", DataType.String, Option[String]("ID of the msg to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)

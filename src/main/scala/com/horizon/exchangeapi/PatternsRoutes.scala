@@ -155,13 +155,6 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "label": "My Pattern",
   "description": "blah blah",
   "public": true,       // whether or not it can be viewed by other organizations
-  "microservices": [
-    {
-      "specRef": "https://bluehorizon.network/documentation/microservice/gps",
-      "version": "1.0.0",
-      "arch": "amd64"
-    }
-  ],
   "workloads": [
     {
    	  "workloadUrl":"https://bluehorizon.network/workloads/weather",
@@ -169,6 +162,14 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
    	  "arch":"amd64",
    	  "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
    	  "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
+    }
+  ],
+  // All of the entries below can usually just be empty lists or objects
+  "microservices": [
+    {
+      "specRef": "https://bluehorizon.network/documentation/microservice/gps",
+      "version": "1.0.0",
+      "arch": "amd64"
     }
   ],
   "dataVerification": {
@@ -259,13 +260,6 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "label": "My Pattern",
   "description": "blah blah",
   "public": true,       // whether or not it can be viewed by other organizations
-  "microservices": [
-    {
-      "specRef": "https://bluehorizon.network/documentation/microservice/gps",
-      "version": "1.0.0",
-      "arch": "amd64"
-    }
-  ],
   "workloads": [
     {
    	  "workloadUrl":"https://bluehorizon.network/workloads/weather",
@@ -273,6 +267,14 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
    	  "arch":"amd64",
    	  "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
    	  "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
+    }
+  ],
+  // All of the entries below can usually just be empty lists or objects
+  "microservices": [
+    {
+      "specRef": "https://bluehorizon.network/documentation/microservice/gps",
+      "version": "1.0.0",
+      "arch": "amd64"
     }
   ],
   "dataVerification": {
@@ -354,13 +356,6 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "label": "My Pattern",
   "description": "blah blah",
   "public": true,       // whether or not it can be viewed by other organizations
-  "microservices": [
-    {
-      "specRef": "https://bluehorizon.network/documentation/microservice/gps",
-      "version": "1.0.0",
-      "arch": "amd64"
-    }
-  ],
   "workloads": [
     {
    	  "workloadUrl":"https://bluehorizon.network/workloads/weather",
@@ -368,6 +363,14 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
    	  "arch":"amd64",
    	  "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
    	  "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
+    }
+  ],
+  // All of the entries below can usually just be empty lists or objects
+  "microservices": [
+    {
+      "specRef": "https://bluehorizon.network/documentation/microservice/gps",
+      "version": "1.0.0",
+      "arch": "amd64"
     }
   ],
   "dataVerification": {

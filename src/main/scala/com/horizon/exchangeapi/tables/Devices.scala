@@ -8,7 +8,7 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}   //rena
 
 /** Contains the object representations of the DB tables related to devices. */
 
-case class DeviceRow(id: String, token: String, name: String, owner: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String) {
+case class DeviceRow(id: String, orgid: String, token: String, name: String, owner: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toDevice(superUser: Boolean): Device = {
@@ -27,21 +27,22 @@ case class DeviceRow(id: String, token: String, name: String, owner: String, msg
   def upsert: DBIO[_] = {
     // Note: this currently does not do the right thing for a blank token
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (owner == "root/root") DevicesTQ.rows.map(d => (d.id, d.token, d.name, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey)).insertOrUpdate((id, tok, name, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
-    else DevicesTQ.rows.insertOrUpdate(DeviceRow(id, tok, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    if (owner == "root/root") DevicesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey)).insertOrUpdate((id, orgid, tok, name, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    else DevicesTQ.rows.insertOrUpdate(DeviceRow(id, orgid, tok, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
   }
 
   def update: DBIO[_] = {
     // Note: this currently does not do the right thing for a blank token
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (owner == "") (for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.token,d.name,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey)).update((id, tok, name, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
-    else (for { d <- DevicesTQ.rows if d.id === id } yield d).update(DeviceRow(id, tok, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    if (owner == "") (for { d <- DevicesTQ.rows if d.id === id } yield (d.id,d.orgid,d.token,d.name,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey)).update((id, orgid, tok, name, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    else (for { d <- DevicesTQ.rows if d.id === id } yield d).update(DeviceRow(id, orgid, tok, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
   }
 }
 
 /** Mapping of the devices db table to a scala class */
 class Devices(tag: Tag) extends Table[DeviceRow](tag, "devices") {
   def id = column[String]("id", O.PrimaryKey)
+  def orgid = column[String]("orgid")
   def token = column[String]("token")
   def name = column[String]("name")
   def owner = column[String]("owner", O.Default("root/root"))  // root is the default because during upserts by root, we do not want root to take over the device if it already exists
@@ -50,8 +51,9 @@ class Devices(tag: Tag) extends Table[DeviceRow](tag, "devices") {
   def lastHeartbeat = column[String]("lastheartbeat")
   def publicKey = column[String]("publickey")     // this is last because that is where alter table in upgradedb puts it
   // this describes what you get back when you return rows from a query
-  def * = (id, token, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey) <> (DeviceRow.tupled, DeviceRow.unapply)
+  def * = (id, orgid, token, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey) <> (DeviceRow.tupled, DeviceRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 // Instance to access the devices table
@@ -61,6 +63,7 @@ class Devices(tag: Tag) extends Table[DeviceRow](tag, "devices") {
 object DevicesTQ {
   val rows = TableQuery[Devices]
 
+  def getAllDevices(orgid: String) = rows.filter(_.orgid === orgid)
   def getDevice(id: String) = rows.filter(_.id === id)
   def getToken(id: String) = rows.filter(_.id === id).map(_.token)
   def getOwner(id: String) = rows.filter(_.id === id).map(_.owner)

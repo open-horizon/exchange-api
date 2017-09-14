@@ -76,7 +76,7 @@ services in the exchange.
 
 - The properties used for advertising and searching should always have its value element be a string. For example the memory property value should be `"300"` instead of `300`. This is because scalatra is automatically converting the json to scala data structures, and i don't know how to have the data structures that vary in type.
 
-## Changes Between v1.27.0 and v1.28.0 (not done yet!)
+## Changes Between v1.27.0 and v1.28.0
 
 ### Todos left to be finished
 

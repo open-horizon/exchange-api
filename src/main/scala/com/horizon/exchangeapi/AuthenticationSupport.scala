@@ -733,6 +733,7 @@ trait AuthenticationSupport extends ScalatraBase {
     def authorizeTo(target: Target, access: Access): Identity = {
       // Transform any generic access into specific access
       var access2: Access = null
+      //todo: This makes anonymous never work, which might be what we want. Decide what to do about it.
       if (!isMyOrg(target)) {
         access2 = access match {
           case Access.READ => Access.READ_OTHER_ORGS
@@ -911,7 +912,7 @@ trait AuthenticationSupport extends ScalatraBase {
     AuthCache.users.get(username) match {
       // case Some(userTok) => if (userTok.unhashed != "") Token.isValid(token, userTok.unhashed) else Token.isValid(token, userTok.hashed)
       case Some(userTok) => Token.isValid(token, userTok.hashed)
-      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "username not found"))
+      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
     }
   }
 

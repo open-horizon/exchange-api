@@ -763,6 +763,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       )
   val postAgbotsMsgs2 = (apiOperation[PostAgbotsMsgsRequest]("postAgbotsMsgs2") summary("a") notes("a"))
 
+  // The credentials for this are usually a device id
   post("/orgs/:orgid/agbots/:id/msgs", operation(postAgbotsMsgs)) ({
     val orgid = swaggerHack("orgid")
     val id = params("id")   // but do not have a hack/fix for the name

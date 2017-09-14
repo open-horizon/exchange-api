@@ -238,13 +238,39 @@ if [[ $rc != 200 ]]; then
 else
     echo "orgs/$orgid/patterns/$patid exists"
 fi
-exit
 
-curlcreate "PUT" $userauth "orgs/$orgid/devices/$deviceid" '{"token": "'$devicetoken'", "name": "pi", "registeredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-device-api", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "arm", "propType": "string", "op": "in"},{"name": "version", "value": "1.0", "propType": "version", "op": "in"}]}], "msgEndPoint": "whisper-id", "softwareVersions": {"horizon": "3.2.1"}, "publicKey": "ABC"}'
-curlcreate "PUT" $deviceauth "orgs/$orgid/devices/$deviceid/agreements/$agreementid" '{"microservice": "sdr", "state": "negotiating"}'
 
+rc=$(curlfind $userauth "orgs/$orgid/devices/$deviceid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/devices/$deviceid" '{"token": "'$devicetoken'", "name": "pi",
+      "registeredMicroservices": [{
+        "url": "https://bluehorizon.network/documentation/sdr-device-api",
+        "numAgreements": 1,
+        "policy": "{blob}",
+        "properties": [
+          {"name": "arch", "value": "arm", "propType": "string", "op": "in"},
+          {"name": "version", "value": "1.0", "propType": "version", "op": "in"}
+        ]
+      }],
+      "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC"}'
+else
+    echo "orgs/$orgid/devices/$deviceid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/devices/$deviceid/agreements/$agreementid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $deviceauth "orgs/$orgid/devices/$deviceid/agreements/$agreementid" '{"microservices": ["sdr"], "state": "negotiating"}'
+else
+    echo "orgs/$orgid/devices/$deviceid/agreements/$agreementid exists"
+fi
+
+# Do not have a good way to know what msg id they will have, but it is ok to create additional msgs
 curlputpost "POST" $agbotauth "orgs/$orgid/devices/$deviceid/msgs" '{"message": "hey there", "ttl": 300}'
 curlputpost "POST" $deviceauth "orgs/$orgid/agbots/$agbotid/msgs" '{"message": "hey there", "ttl": 300}'
 
 #curlcreate "PUT" $userauth "bctypes/$bctypebase" '{"description": "abc", "details": "escaped json"}'
 #curlcreate "PUT" $userauth "bctypes/$bctypeid/blockchains/$blockchainbase" '{"description": "abc", "details": "escaped json"}'
+
+echo "All resources added successfully"

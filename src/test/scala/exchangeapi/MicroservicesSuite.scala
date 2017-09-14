@@ -28,33 +28,41 @@ class MicroservicesSuite extends FunSuite {
   val localUrlRoot = "http://localhost:8080"
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
   val runningLocally = (urlRoot == localUrlRoot)
-  val URL = urlRoot+"/v1"
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
+  val orgid = "IBM"
+  val authpref=orgid+"/"
+  val URL = urlRoot+"/v1/orgs/"+orgid
+  //val NOORGURL = urlRoot+"/v1"
   val user = "9997"
+  val orguser = authpref+user
   val pw = user+"pw"
-  val USERAUTH = ("Authorization","Basic "+user+":"+pw)
+  val USERAUTH = ("Authorization","Basic "+orguser+":"+pw)
   val user2 = "9998"
+  val orguser2 = authpref+user2
   val pw2 = user2+"pw"
-  val USER2AUTH = ("Authorization","Basic "+user2+":"+pw2)
+  val USER2AUTH = ("Authorization","Basic "+orguser2+":"+pw2)
   val rootuser = "root/root"
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "Horizon-Rul3s")      // need to put this root pw in config.json
+  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val deviceId = "9911"     // the 1st device created, that i will use to run some rest methods
   val deviceToken = deviceId+"tok"
-  val DEVICEAUTH = ("Authorization","Basic "+deviceId+":"+deviceToken)
+  val DEVICEAUTH = ("Authorization","Basic "+authpref+deviceId+":"+deviceToken)
   val agbotId = "9946"
   val agbotToken = agbotId+"tok"
-  val AGBOTAUTH = ("Authorization","Basic "+agbotId+":"+agbotToken)
+  val AGBOTAUTH = ("Authorization","Basic "+authpref+agbotId+":"+agbotToken)
   val msBase = "ms9920"
   val msUrl = "http://" + msBase
   val microservice = msBase + "_1.0.0_arm"
+  val orgmicroservice = authpref+microservice
   val msBase2 = "ms9921"
   val msUrl2 = "http://" + msBase2
   val microservice2 = msBase2 + "_1.0.0_arm"
+  val orgmicroservice2 = authpref+microservice2
   val msBase3 = "ms9922"
   val msUrl3 = "http://" + msBase3
   val microservice3 = msBase3 + "_1.0.0_arm"
+  //val orgmicroservice3 = authpref+microservice3
   var numExistingMicroservices = 0    // this will be set later
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
@@ -70,18 +78,19 @@ class MicroservicesSuite extends FunSuite {
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the microservices, because they are deleted when the user is deleted. */
   test("Begin - DELETE all test users") {
+    if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
     deleteAllUsers()
   }
 
   /** Add users, device, microservice for future tests */
   test("Add users, device, microservice for future tests") {
     var userInput = PutUsersRequest(pw, user+"@hotmail.com")
-    var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).asString    // Note: no AUTH
+    var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
     userInput = PutUsersRequest(pw2, user2+"@hotmail.com")
-    userResponse = Http(URL+"/users/"+user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).asString    // Note: no AUTH
+    userResponse = Http(URL+"/users/"+user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
@@ -99,7 +108,7 @@ class MicroservicesSuite extends FunSuite {
     assert(agbotResponse.code === HttpCode.PUT_OK)
   }
 
-  test("GET /microservices - get initial number of microservices in the db") {
+  test("GET /orgs/"+orgid+"/microservices - get initial number of microservices in the db") {
     val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -109,51 +118,51 @@ class MicroservicesSuite extends FunSuite {
     info("initially "+numExistingMicroservices+" microservices")
   }
 
-  test("PUT /microservices/"+microservice+" - update MS that is not there yet - should fail") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", msUrl, "1.0.0", "arm", "singleton", "updated", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("PUT /orgs/"+orgid+"/microservices/"+microservice+" - update MS that is not there yet - should fail") {
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "updated", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/microservices/"+microservice).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
-  test("POST /microservices - add "+microservice+" as user") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", msUrl, "1.0.0", "arm", "singleton", "", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("POST /orgs/"+orgid+"/microservices - add "+microservice+" as user") {
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val respObj = parse(response.body).extract[ApiResponse]
-    assert(respObj.msg.contains("microservice '"+microservice+"' created"))
+    assert(respObj.msg.contains("microservice '"+orgmicroservice+"' created"))
   }
 
-  test("POST /microservices - add "+microservice+" again - should fail") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", msUrl, "1.0.0", "arm", "singleton", "", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("POST /orgs/"+orgid+"/microservices - add "+microservice+" again - should fail") {
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ALREADY_EXISTS)
   }
 
-  test("PUT /microservices/"+microservice+" - update as same user") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", msUrl, "1.0.0", "arm", "singleton", "updated", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("PUT /orgs/"+orgid+"/microservices/"+microservice+" - update as same user") {
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "updated", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/microservices/"+microservice).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("PUT /microservices/"+microservice+" - update as 2nd user - should fail") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", msUrl, "1.0.0", "arm", "singleton", "should not work", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("PUT /orgs/"+orgid+"/microservices/"+microservice+" - update as 2nd user - should fail") {
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "should not work", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/microservices/"+microservice).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
-  test("PUT /microservices/"+microservice+" - update as agbot - should fail") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", msUrl, "1.0.0", "arm", "singleton", "", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("PUT /orgs/"+orgid+"/microservices/"+microservice+" - update as agbot - should fail") {
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/microservices/"+microservice).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
-  test("PUT /microservices/"+microservice2+" - invalid microservice body") {
+  test("PUT /orgs/"+orgid+"/microservices/"+microservice2+" - invalid microservice body") {
     val badJsonInput = """{
       "labelxx": "GPS x86_64"
     }"""
@@ -162,22 +171,22 @@ class MicroservicesSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
-  test("POST /microservices - add "+microservice2+" as device - should fail") {
-    val input = PostPutMicroserviceRequest(msBase2+" arm", "desc", msUrl2, "1.0.0", "arm", "singleton", "", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("POST /orgs/"+orgid+"/microservices - add "+microservice2+" as device - should fail") {
+    val input = PostPutMicroserviceRequest(msBase2+" arm", "desc", false, msUrl2, "1.0.0", "arm", "singleton", "", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
-  test("POST /microservices - add "+microservice2+" as 2nd user") {
-    val input = PostPutMicroserviceRequest(msBase2+" arm", "desc", msUrl2, "1.0.0", "arm", "singleton", "", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("POST /orgs/"+orgid+"/microservices - add "+microservice2+" as 2nd user") {
+    val input = PostPutMicroserviceRequest(msBase2+" arm", "desc", false, msUrl2, "1.0.0", "arm", "singleton", "", Map("usbDeviceIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
-/*todo: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
-test("POST /microservices - with low maxMicroservices - should fail") {
+/*todo: when all test suites are run at the same time, there are sometimes timing problems with them all setting config values...
+test("POST /orgs/"+orgid+"/microservices - with low maxMicroservices - should fail") {
   if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
     // Get the current config value so we can restore it afterward
     ExchConfig.load()
@@ -206,7 +215,7 @@ test("POST /microservices - with low maxMicroservices - should fail") {
 }
 */
 
-test("GET /microservices") {
+test("GET /orgs/"+orgid+"/microservices") {
   val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(USERAUTH).asString
   info("code: "+response.code)
   // info("code: "+response.code+", response.body: "+response.body)
@@ -214,28 +223,28 @@ test("GET /microservices") {
   val respObj = parse(response.body).extract[GetMicroservicesResponse]
   assert(respObj.microservices.size === 2 + numExistingMicroservices)
 
-  assert(respObj.microservices.contains(microservice))
-  var ms = respObj.microservices.get(microservice).get     // the 2nd get turns the Some(val) into val
+  assert(respObj.microservices.contains(orgmicroservice))
+  var ms = respObj.microservices.get(orgmicroservice).get     // the 2nd get turns the Some(val) into val
   assert(ms.label === msBase+" arm")
-  assert(ms.owner === user)
+  assert(ms.owner === orguser)
 
-  assert(respObj.microservices.contains(microservice2))
-  ms = respObj.microservices.get(microservice2).get     // the 2nd get turns the Some(val) into val
+  assert(respObj.microservices.contains(orgmicroservice2))
+  ms = respObj.microservices.get(orgmicroservice2).get     // the 2nd get turns the Some(val) into val
   assert(ms.label === msBase2+" arm")
-  assert(ms.owner === user2)
+  assert(ms.owner === orguser2)
 }
 
-test("GET /microservices - filter owner and specRef") {
-  val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(USERAUTH).param("owner",user2).param("specRef",msUrl2+"%").asString
+test("GET /orgs/"+orgid+"/microservices - filter owner and specRef") {
+  val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("specRef",msUrl2+"%").asString
   info("code: "+response.code)
   // info("code: "+response.code+", response.body: "+response.body)
   assert(response.code === HttpCode.OK)
   val respObj = parse(response.body).extract[GetMicroservicesResponse]
   assert(respObj.microservices.size === 1)
-  assert(respObj.microservices.contains(microservice2))
+  assert(respObj.microservices.contains(orgmicroservice2))
 }
 
-test("GET /microservices - as device") {
+test("GET /orgs/"+orgid+"/microservices - as device") {
   val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(DEVICEAUTH).asString
   info("code: "+response.code)
   // info("code: "+response.code+", response.body: "+response.body)
@@ -244,7 +253,7 @@ test("GET /microservices - as device") {
   assert(respObj.microservices.size === 2 + numExistingMicroservices)
 }
 
-test("GET /microservices - as agbot") {
+test("GET /orgs/"+orgid+"/microservices - as agbot") {
   val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(AGBOTAUTH).asString
   info("code: "+response.code)
   // info("code: "+response.code+", response.body: "+response.body)
@@ -253,7 +262,7 @@ test("GET /microservices - as agbot") {
   assert(respObj.microservices.size === 2 + numExistingMicroservices)
 }
 
-test("GET /microservices/"+microservice+" - as user") {
+test("GET /orgs/"+orgid+"/microservices/"+microservice+" - as user") {
   val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice).headers(ACCEPT).headers(USERAUTH).asString
   info("code: "+response.code)
   // info("code: "+response.code+", response.body: "+response.body)
@@ -261,8 +270,8 @@ test("GET /microservices/"+microservice+" - as user") {
   val respObj = parse(response.body).extract[GetMicroservicesResponse]
   assert(respObj.microservices.size === 1)
 
-  assert(respObj.microservices.contains(microservice))
-  val ms = respObj.microservices.get(microservice).get     // the 2nd get turns the Some(val) into val
+  assert(respObj.microservices.contains(orgmicroservice))
+  val ms = respObj.microservices.get(orgmicroservice).get     // the 2nd get turns the Some(val) into val
   assert(ms.label === msBase+" arm")
 
   // Verify the lastUpdated from the PUT above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
@@ -271,7 +280,7 @@ test("GET /microservices/"+microservice+" - as user") {
   assert(now - lastUp <= 3)    // should not be more than 3 seconds from the time the put was done above
 }
 
-test("PATCH /microservices/"+microservice+" - as user") {
+test("PATCH /orgs/"+orgid+"/microservices/"+microservice+" - as user") {
   val jsonInput = """{
     "downloadUrl": "this is now patched"
   }"""
@@ -280,7 +289,7 @@ test("PATCH /microservices/"+microservice+" - as user") {
   assert(response.code === HttpCode.PUT_OK)
 }
 
-test("PATCH /microservices/"+microservice+" - as user2 - should fail") {
+test("PATCH /orgs/"+orgid+"/microservices/"+microservice+" - as user2 - should fail") {
   val jsonInput = """{
     "downloadUrl": "this is now patched"
   }"""
@@ -289,7 +298,7 @@ test("PATCH /microservices/"+microservice+" - as user2 - should fail") {
   assert(response.code === HttpCode.ACCESS_DENIED)
 }
 
-test("GET /microservices/"+microservice+" - as agbot, check patch by getting that 1 attr") {
+test("GET /orgs/"+orgid+"/microservices/"+microservice+" - as agbot, check patch by getting that 1 attr") {
   val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","downloadUrl").asString
   info("code: "+response.code)
   // info("code: "+response.code+", response.body: "+response.body)
@@ -299,7 +308,7 @@ test("GET /microservices/"+microservice+" - as agbot, check patch by getting tha
   assert(respObj.value === "this is now patched")
 }
 
-test("GET /microservices/"+microservice+"notthere - as user - should fail") {
+test("GET /orgs/"+orgid+"/microservices/"+microservice+"notthere - as user - should fail") {
   val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice+"notthere").headers(ACCEPT).headers(USERAUTH).asString
   info("code: "+response.code)
   // info("code: "+response.code+", response.body: "+response.body)
@@ -308,13 +317,13 @@ test("GET /microservices/"+microservice+"notthere - as user - should fail") {
   assert(getMicroserviceResp.microservices.size === 0)
 }
 
-test("DELETE /microservices/"+microservice) {
+test("DELETE /orgs/"+orgid+"/microservices/"+microservice) {
   val response = Http(URL+"/microservices/"+microservice).method("delete").headers(ACCEPT).headers(USERAUTH).asString
   info("code: "+response.code+", response.body: "+response.body)
   assert(response.code === HttpCode.DELETED)
 }
 
-test("GET /microservices/"+microservice+" - as user - verify gone") {
+test("GET /orgs/"+orgid+"/microservices/"+microservice+" - as user - verify gone") {
   val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice).headers(ACCEPT).headers(USERAUTH).asString
   info("code: "+response.code)
   // info("code: "+response.code+", response.body: "+response.body)
@@ -323,13 +332,13 @@ test("GET /microservices/"+microservice+" - as user - verify gone") {
   assert(getMicroserviceResp.microservices.size === 0)
 }
 
-test("DELETE /users/"+user2+" - which should also delete microservice2") {
+test("DELETE /orgs/"+orgid+"/users/"+user2+" - which should also delete microservice2") {
   val response = Http(URL+"/users/"+user2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
   info("code: "+response.code+", response.body: "+response.body)
   assert(response.code === HttpCode.DELETED)
 }
 
-test("GET /microservices/"+microservice2+" - as user - verify gone") {
+test("GET /orgs/"+orgid+"/microservices/"+microservice2+" - as user - verify gone") {
   val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice2).headers(ACCEPT).headers(USERAUTH).asString
   info("code: "+response.code)
   // info("code: "+response.code+", response.body: "+response.body)

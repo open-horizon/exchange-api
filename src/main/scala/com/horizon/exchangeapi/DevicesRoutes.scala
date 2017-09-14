@@ -21,7 +21,7 @@ import scalaj.http._
 case class GetDevicesResponse(devices: Map[String,Device], lastIndex: Int)
 case class GetDeviceAttributeResponse(attribute: String, value: String)
 
-/** Input for POST /search/devices */
+/** Input for POST /orgs/"+orgid+"/search/devices */
 case class PostSearchDevicesRequest(desiredMicroservices: List[RegMicroserviceSearch], secondsStale: Int, propertiesToReturn: List[String], startIndex: Int, numEntries: Int) {
   /** Halts the request with an error msg if the user input is invalid. */
   def validate() = {
@@ -354,7 +354,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     }
   })
 
-  // ======== POST /search/devices ========================
+  // ======== POST /orgs/{orgid}/search/devices ========================
   val postSearchDevices =
     (apiOperation[PostSearchDevicesResponse]("postSearchDevices")
       summary("Returns matching devices")
@@ -364,7 +364,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 {
   "desiredMicroservices": [    // list of data microservices you are interested in
     {
-      "url": "https://bluehorizon.network/documentation/sdr-device-api",
+      "url": "https://bluehorizon.network/microservices/rtlsdr",
       "properties": [    // list of properties to match specific devices/microservices
         {
           "name": "arch",         // typical property names are: arch, version, dataVerification, memory
@@ -394,31 +394,34 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       )
   val postSearchDevices2 = (apiOperation[PostSearchDevicesRequest]("postSearchDevices2") summary("a") notes("a"))
 
-  /** Handles POST /search/devices. Normally called by the agbot to search for available devices. */
-  post("/search/devices", operation(postSearchDevices)) ({
-    credsAndLog().authenticate().authorizeTo(TDevice("*"),Access.READ)
+  /** Normally called by the agbot to search for available devices. */
+  post("/orgs/:orgid/search/devices", operation(postSearchDevices)) ({
+    val orgid = swaggerHack("orgid")
+    credsAndLog().authenticate().authorizeTo(TDevice(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostSearchDevicesRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     searchProps.validate()
-    logger.debug("/search/devices criteria: "+searchProps.desiredMicroservices.toString)
+    logger.debug("POST /orgs/"+orgid+"/search/devices criteria: "+searchProps.desiredMicroservices.toString)
     val resp = response
     // Narrow down the db query results as much as possible with db selects, then searchProps.matchesDbResults will do the rest
     var q = for {
-      ((d, m), p) <- DevicesTQ.rows joinLeft RegMicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
+      //TODO: use this commented out line for the special case of IBM agbots being able to search devices from all orgs
+      //((d, m), p) <- DevicesTQ.rows joinLeft RegMicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
+      ((d, m), p) <- DevicesTQ.getAllDevices(orgid) joinLeft RegMicroservicesTQ.rows on (_.id === _.deviceId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
     } yield (d, m, p)
     // Also filter out devices that are too stale (have not heartbeated recently)
     if (searchProps.secondsStale > 0) q = q.filter(_._1.lastHeartbeat >= ApiTime.pastUTC(searchProps.secondsStale))
 
     var agHash: AgreementsHash = null
     db.run(DeviceAgreementsTQ.getAgreementsWithState.result.flatMap({ agList =>
-      logger.debug("POST /search/devices aglist result size: "+agList.size)
-      logger.trace("POST /search/devices aglist result: "+agList.toString)
+      logger.debug("POST /orgs/"+orgid+"/search/devices aglist result size: "+agList.size)
+      logger.trace("POST /orgs/"+orgid+"/search/devices aglist result: "+agList.toString)
       agHash = new AgreementsHash(agList)
       q.result      // queue up our device/ms/prop query next
     })).map({ list =>
-      logger.debug("POST /search/devices result size: "+list.size)
-      // logger.trace("POST /search/devices result: "+list.toString)
-      // logger.trace("POST /search/devices agHash: "+agHash.agHash.toString)
+      logger.debug("POST /orgs/"+orgid+"/search/devices result size: "+list.size)
+      // logger.trace("POST /orgs/"+orgid+"/search/devices result: "+list.toString)
+      // logger.trace("POST /orgs/"+orgid+"/search/devices agHash: "+agHash.agHash.toString)
       if (list.nonEmpty) resp.setStatus(HttpCode.POST_OK)   //todo: this check only works if there are no devices at all
       else resp.setStatus(HttpCode.NOT_FOUND)
       val devices = DevicesTQ.parseJoin(superUser = false, list)
@@ -427,7 +430,7 @@ trait DevicesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
     /* old way...
     db.run(q.result).map({ list =>
-      logger.debug("POST /search/devices result size: "+list.size)
+      logger.debug("POST /orgs/{orgid}/search/devices result size: "+list.size)
       val devices = DevicesTQ.parseJoin(false, list)
       db.run(DeviceAgreementsTQ.getAgreementsWithState.result).map({ agList =>
         resp.setStatus(HttpCode.POST_OK)

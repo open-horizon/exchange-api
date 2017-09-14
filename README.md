@@ -80,7 +80,6 @@ services in the exchange.
 
 ### Todos left to be finished
 
-- Get automated tests to pass with pre-existing IBM org
 - Test dropdb with older compose db
 - Move bctype and blockchain under and add public field
 - Modify tests to have each suite use its own org
@@ -116,6 +115,7 @@ services in the exchange.
 - Moved under /orgs/{orgid}: users, devices, agbots, microservices, workloads
 - Updated ACL to only only access within your org (with a few exceptions)
 - Added 'public' field to microservices and workloads
+- Got automated tests to pass with pre-existing IBM org
 
 ## Changes Between v1.26.0 and v1.27.0
 

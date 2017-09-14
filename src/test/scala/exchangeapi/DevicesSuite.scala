@@ -29,38 +29,47 @@ class DevicesSuite extends FunSuite {
   val localUrlRoot = "http://localhost:8080"
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
   val runningLocally = (urlRoot == localUrlRoot)
-  val URL = urlRoot+"/v1"
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
   val SDRSPEC = "https://bluehorizon.network/documentation/sdr-device-api"
   val NETSPEEDSPEC = "https://bluehorizon.network/documentation/netspeed-device-api/"     // test the trailing / for this one
   val PWSSPEC = "https://bluehorizon.network/documentation/pws-device-api"
   val NOTTHERESPEC = "https://bluehorizon.network/documentation/notthere-device-api"
+  val orgid = "IBM"
+  val authpref=orgid+"/"
+  val URL = urlRoot+"/v1/orgs/"+orgid
+  val NOORGURL = urlRoot+"/v1"
   val user = "9980"
+  val orguser = authpref+user
   val pw = user+"pw"
-  val USERAUTH = ("Authorization","Basic "+user+":"+pw)
-  val BADAUTH = ("Authorization","Basic "+user+":"+pw+"x")
-  val rootuser = "root"
+  val USERAUTH = ("Authorization","Basic "+orguser+":"+pw)
+  val BADAUTH = ("Authorization","Basic "+orguser+":"+pw+"x")
+  val rootuser = "root/root"
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "Horizon-Rul3s")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val deviceId = "9900"     // the 1st device created, that i will use to run some rest methods
+  val orgdeviceId = authpref+deviceId
   val deviceToken = "mytok"
-  val DEVICEAUTH = ("Authorization","Basic "+deviceId+":"+deviceToken)
+  val DEVICEAUTH = ("Authorization","Basic "+orgdeviceId+":"+deviceToken)
   val deviceId2 = "9901"
+  val orgdeviceId2 = authpref+deviceId2
   val deviceToken2 = "mytok"
-  val DEVICE2AUTH = ("Authorization","Basic "+deviceId2+":"+deviceToken2)
+  val DEVICE2AUTH = ("Authorization","Basic "+orgdeviceId2+":"+deviceToken2)
   val deviceId3 = "9902"
+  val orgdeviceId3 = authpref+deviceId3
   val agreementId = "9950"
-  val creds = deviceId+":"+deviceToken
+  val creds = authpref+deviceId+":"+deviceToken
   val encodedCreds = Base64.getEncoder.encodeToString(creds.getBytes("utf-8"))
   val ENCODEDAUTH = ("Authorization","Basic "+encodedCreds)
   var numExistingDevices = 0    // this will be set later
   val agbotId = "9940"      // need to use a different id than AgbotsSuite.scala, because all of the suites run concurrently
+  val orgagbotId = authpref+agbotId
   val agbotToken = agbotId+"tok"
-  val AGBOTAUTH = ("Authorization","Basic "+agbotId+":"+agbotToken)
+  val AGBOTAUTH = ("Authorization","Basic "+orgagbotId+":"+agbotToken)
   val agbotId2 = "9941"      // need to use a different id than AgbotsSuite.scala, because all of the suites run concurrently
+  val orgagbotId2 = authpref+agbotId2
   val agbotToken2 = agbotId2+"tok"
-  val AGBOT2AUTH = ("Authorization","Basic "+agbotId2+":"+agbotToken2)
+  val AGBOT2AUTH = ("Authorization","Basic "+orgagbotId2+":"+agbotToken2)
   val agProto = "ExchangeAutomatedTest"    // using this to avoid db entries from real users and predefined ones
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
@@ -106,13 +115,14 @@ class DevicesSuite extends FunSuite {
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the devices, agbots, and
    *  agreements, because they are deleted when the user is deleted. */
   test("Begin - DELETE all test users") {
+    if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
     deleteAllUsers()
   }
 
   /** Add a normal user */
-  test("POST /users/"+user+" - normal") {
+  test("POST /orgs/"+orgid+"/users/"+user+" - normal") {
     val input = PutUsersRequest(pw, user+"@hotmail.com")
-    val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).asString    // Note: no AUTH
+    val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
@@ -131,7 +141,7 @@ class DevicesSuite extends FunSuite {
   ExchConfig.load()
   val putDevRespDisabled = ExchConfig.getBoolean("api.microservices.disable")
   /** Add a normal device */
-  test("PUT /devices/"+deviceId+" - normal") {
+  test("PUT /orgs/"+orgid+"/devices/"+deviceId+" - normal") {
     val input = PutDevicesRequest(deviceToken, "rpi"+deviceId+"-norm",
       List(
         RegMicroservice(PWSSPEC,1,"{json policy for "+deviceId+" pws}",List(
@@ -159,7 +169,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Update a normal device as user */
-  test("PUT /devices/"+deviceId+" - normal - update") {
+  test("PUT /orgs/"+orgid+"/devices/"+deviceId+" - normal - update") {
     val input = PutDevicesRequest(deviceToken, "rpi"+deviceId+"-normal-user",
       List(
         RegMicroservice(PWSSPEC,1,"{json policy for "+deviceId+" pws}",List(
@@ -187,7 +197,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Update the normal device as the device */
-  test("PUT /devices/"+deviceId+" - normal - as device") {
+  test("PUT /orgs/"+orgid+"/devices/"+deviceId+" - normal - as device") {
     val input = PutDevicesRequest(deviceToken, "rpi"+deviceId+"-normal",
       List(
         RegMicroservice(SDRSPEC,1,"{json policy for "+deviceId+" sdr}",List(
@@ -217,7 +227,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Add a device with higher memory and version */
-  test("PUT /devices/"+deviceId2+" - memory 400, version 2.0.0") {
+  test("PUT /orgs/"+orgid+"/devices/"+deviceId2+" - memory 400, version 2.0.0") {
     val input = PutDevicesRequest("mytok", "rpi9901-mem-400-vers-2", List(RegMicroservice(SDRSPEC,1,"{json policy for 9901 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
@@ -238,7 +248,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Add a device with netspeed and arch amd64 */
-  test("PUT /devices/"+deviceId3+" - netspeed") {
+  test("PUT /orgs/"+orgid+"/devices/"+deviceId3+" - netspeed") {
     val input = PutDevicesRequest("mytok", "rpi9902-netspeed-amd64", List(RegMicroservice(NETSPEEDSPEC,1,"{json policy for 9902 netspeed}",List(
       Prop("arch","amd64","string","in"),
       Prop("memory","300","int",">="),
@@ -259,7 +269,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Try adding a device with invalid integer property */
-  test("PUT /devices/9903 - bad integer property") {
+  test("PUT /orgs/"+orgid+"/devices/9903 - bad integer property") {
     val input = PutDevicesRequest("mytok", "rpi9903-bad-int", List(RegMicroservice(SDRSPEC,1,"{json policy for 9903 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400MB","int",">="),
@@ -273,7 +283,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Try adding an invalid device body */
-  test("PUT /devices/9903 - bad format") {
+  test("PUT /orgs/"+orgid+"/devices/9903 - bad format") {
     val badJsonInput = """{
       "token": "foo",
       "xname": "rpi9903-bad-format",
@@ -301,7 +311,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Try adding a device with invalid micro url - this succeeds if putDevRespDisabled */
-  test("PUT /devices/9903 - bad micro url") {
+  test("PUT /orgs/"+orgid+"/devices/9903 - bad micro url") {
     val input = PutDevicesRequest("mytok", "rpi9903-bad-url", List(RegMicroservice(NOTTHERESPEC,1,"{json policy for 9903 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
@@ -322,14 +332,14 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Add an agbot so we can test it viewing devices */
-  test("PUT /agbots/"+agbotId) {
+  test("PUT /orgs/"+orgid+"/agbots/"+agbotId) {
     val input = PutAgbotsRequest(agbotToken, agbotId+"name", "whisper-id", "AGBOTABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("GET /devices") {
+  test("GET /orgs/"+orgid+"/devices") {
     // val response: HttpResponse[String] = Http(URL+"/v1/devices").headers(("Accept","application/json")).param("id","a").param("token","a").asString
     val response: HttpResponse[String] = Http(URL+"/devices").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -339,8 +349,8 @@ class DevicesSuite extends FunSuite {
     val expectedNumDevices = (3 + numExistingDevices + (if (putDevRespDisabled) 1 else 0))
     assert(getDevResp.devices.size === expectedNumDevices || getDevResp.devices.size === expectedNumDevices+1)   // BlockchainsSuite also creates a device
 
-    assert(getDevResp.devices.contains(deviceId))
-    var dev = getDevResp.devices.get(deviceId).get     // the 2nd get turns the Some(val) into val
+    assert(getDevResp.devices.contains(orgdeviceId))
+    var dev = getDevResp.devices.get(orgdeviceId).get     // the 2nd get turns the Some(val) into val
     assert(dev.name === "rpi"+deviceId+"-normal")
     assert(dev.registeredMicroservices.length === 2)
     var micro: RegMicroservice = dev.registeredMicroservices.find(m => m.url==SDRSPEC) match {
@@ -365,8 +375,8 @@ class DevicesSuite extends FunSuite {
     assert(micro.properties.find(p => p.name=="agreementProtocols") !== None)
     assert(dev.registeredMicroservices.find(m => m.url==PWSSPEC) === None)
 
-    assert(getDevResp.devices.contains(deviceId2))
-    dev = getDevResp.devices.get(deviceId2).get     // the 2nd get turns the Some(val) into val
+    assert(getDevResp.devices.contains(orgdeviceId2))
+    dev = getDevResp.devices.get(orgdeviceId2).get     // the 2nd get turns the Some(val) into val
     assert(dev.name === "rpi9901-mem-400-vers-2")
     assert(dev.registeredMicroservices.length === 1)
     micro = dev.registeredMicroservices.head
@@ -378,8 +388,8 @@ class DevicesSuite extends FunSuite {
     assert(memProp.value === "2.0.0")
     assert(dev.softwareVersions.size === 0)
 
-    assert(getDevResp.devices.contains(deviceId3))
-    dev = getDevResp.devices.get(deviceId3).get     // the 2nd get turns the Some(val) into val
+    assert(getDevResp.devices.contains(orgdeviceId3))
+    dev = getDevResp.devices.get(orgdeviceId3).get     // the 2nd get turns the Some(val) into val
     assert(dev.name === "rpi9902-netspeed-amd64")
     assert(dev.registeredMicroservices.length === 1)
     micro = dev.registeredMicroservices.head
@@ -388,30 +398,30 @@ class DevicesSuite extends FunSuite {
     assert(archProp.value === "amd64")
   }
 
-  test("GET /devices - filter owner and name") {
-    val response: HttpResponse[String] = Http(URL+"/devices").headers(ACCEPT).headers(USERAUTH).param("owner",user).param("name","rpi%netspeed%amd64").asString
+  test("GET /orgs/"+orgid+"/devices - filter owner and name") {
+    val response: HttpResponse[String] = Http(URL+"/devices").headers(ACCEPT).headers(USERAUTH).param("owner",orgid+"/"+user).param("name","rpi%netspeed%amd64").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getDevResp = parse(response.body).extract[GetDevicesResponse]
     assert(getDevResp.devices.size === 1)
-    assert(getDevResp.devices.contains(deviceId3))
+    assert(getDevResp.devices.contains(orgdeviceId3))
   }
 
-  test("GET /devices - filter owner and idfilter") {
-    val response: HttpResponse[String] = Http(URL+"/devices").headers(ACCEPT).headers(USERAUTH).param("owner",user).param("idfilter","990%").asString
+  test("GET /orgs/"+orgid+"/devices - filter owner and idfilter") {
+    val response: HttpResponse[String] = Http(URL+"/devices").headers(ACCEPT).headers(USERAUTH).param("owner",orgid+"/"+user).param("idfilter",orgid+"/990%").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getDevResp = parse(response.body).extract[GetDevicesResponse]
     assert(getDevResp.devices.size === (if (putDevRespDisabled) 4 else 3))
-    assert(getDevResp.devices.contains(deviceId))
-    assert(getDevResp.devices.contains(deviceId2))
-    assert(getDevResp.devices.contains(deviceId3))
-    if (putDevRespDisabled) assert(getDevResp.devices.contains(deviceId3))
+    assert(getDevResp.devices.contains(orgdeviceId))
+    assert(getDevResp.devices.contains(orgdeviceId2))
+    assert(getDevResp.devices.contains(orgdeviceId3))
+    if (putDevRespDisabled) assert(getDevResp.devices.contains(orgdeviceId3))
   }
 
-  test("GET /devices - bad creds") {
+  test("GET /orgs/"+orgid+"/devices - bad creds") {
     // val response: HttpResponse[String] = Http(URL+"/v1/devices").headers(("Accept","application/json")).param("id","a").param("token","a").asString
     val response: HttpResponse[String] = Http(URL+"/devices").headers(ACCEPT).headers(BADAUTH).asString
     info("code: "+response.code)
@@ -419,7 +429,7 @@ class DevicesSuite extends FunSuite {
     assert(response.code === HttpCode.BADCREDS)
   }
 
-  test("GET /devices - by agbot") {
+  test("GET /orgs/"+orgid+"/devices - by agbot") {
     val response: HttpResponse[String] = Http(URL+"/devices").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -429,7 +439,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Heartbeat for device 9900 */
-  test("POST /devices/"+deviceId+"/heartbeat") {
+  test("POST /orgs/"+orgid+"/devices/"+deviceId+"/heartbeat") {
     val response = Http(URL+"/devices/"+deviceId+"/heartbeat").method("post").headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -437,7 +447,7 @@ class DevicesSuite extends FunSuite {
     assert(postSearchDevResp.code === ApiResponseType.OK)
   }
 
-  test("GET /devices/"+deviceId) {
+  test("GET /orgs/"+orgid+"/devices/"+deviceId) {
     val response: HttpResponse[String] = Http(URL+"/devices/"+deviceId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -445,8 +455,8 @@ class DevicesSuite extends FunSuite {
     val getDevResp = parse(response.body).extract[GetDevicesResponse]
     // assert(getDevResp.devices.size === 1)    // since the other test suites are creating some of these too, we can not know how many there are right now
 
-    assert(getDevResp.devices.contains(deviceId))
-    val dev = getDevResp.devices.get(deviceId).get // the 2nd get turns the Some(val) into val
+    assert(getDevResp.devices.contains(orgdeviceId))
+    val dev = getDevResp.devices.get(orgdeviceId).get // the 2nd get turns the Some(val) into val
     assert(dev.name === "rpi"+deviceId+"-normal")
 
     // Verify the lastHeartbeat from the POST heartbeat above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
@@ -470,7 +480,7 @@ class DevicesSuite extends FunSuite {
     assert(dev.registeredMicroservices.find(m => m.url==NETSPEEDSPEC) !== None)
   }
 
-  test("GET /devices/"+deviceId+" - as device") {
+  test("GET /orgs/"+orgid+"/devices/"+deviceId+" - as device") {
     val response: HttpResponse[String] = Http(URL+"/devices/"+deviceId).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -479,19 +489,19 @@ class DevicesSuite extends FunSuite {
     assert(getDevResp.devices.size === 1)
   }
 
-  test("GET /devices/"+deviceId+" - as device - encoded") {
+  test("GET /orgs/"+orgid+"/devices/"+deviceId+" - as device - encoded") {
     val response: HttpResponse[String] = Http(URL+"/devices/"+deviceId).headers(ACCEPT).headers(ENCODEDAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getDevResp = parse(response.body).extract[GetDevicesResponse]
     assert(getDevResp.devices.size === 1)
-    assert(getDevResp.devices.contains(deviceId))
-    val dev = getDevResp.devices.get(deviceId).get     // the 2nd get turns the Some(val) into val
+    assert(getDevResp.devices.contains(orgdeviceId))
+    val dev = getDevResp.devices.get(orgdeviceId).get     // the 2nd get turns the Some(val) into val
     assert(dev.name === "rpi"+deviceId+"-normal")
   }
 
-  test("GET /devices/"+deviceId+" - as agbot") {
+  test("GET /orgs/"+orgid+"/devices/"+deviceId+" - as agbot") {
     val response: HttpResponse[String] = Http(URL+"/devices/"+deviceId).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -500,7 +510,8 @@ class DevicesSuite extends FunSuite {
     assert(getDevResp.devices.size === 1)
   }
 
-  test("GET /devices/"+deviceId+" - as device, with token in URL parms, but no id") {
+  /* not supported anymore...
+  test("GET /orgs/"+orgid+"/devices/"+deviceId+" - as device, with token in URL parms, but no id") {
     val response: HttpResponse[String] = Http(URL+"/devices/"+deviceId+"?token="+deviceToken).headers(ACCEPT).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -508,9 +519,10 @@ class DevicesSuite extends FunSuite {
     val getDevResp = parse(response.body).extract[GetDevicesResponse]
     assert(getDevResp.devices.size === 1)
   }
+  */
 
-  test("GET /devices/"+deviceId+" - as user in the URL params") {
-    val response: HttpResponse[String] = Http(URL+"/devices/"+deviceId+"?id="+user+"&token="+pw).headers(ACCEPT).asString
+  test("GET /orgs/"+orgid+"/devices/"+deviceId+" - as user in the URL params") {
+    val response: HttpResponse[String] = Http(URL+"/devices/"+deviceId+"?id="+orguser+"&token="+pw).headers(ACCEPT).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -519,7 +531,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Update 1 attr of the device, as the device */
-  test("PATCH /devices/"+deviceId+" - as device") {
+  test("PATCH /orgs/"+orgid+"/devices/"+deviceId+" - as device") {
     val jsonInput = """{
       "publicKey": "DEVICEABC"
     }"""
@@ -528,7 +540,7 @@ class DevicesSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("GET /devices/"+deviceId+" - as device, check patch by getting that 1 attr") {
+  test("GET /orgs/"+orgid+"/devices/"+deviceId+" - as device, check patch by getting that 1 attr") {
     val response: HttpResponse[String] = Http(URL+"/devices/"+deviceId+"?attribute=publicKey").headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -538,7 +550,7 @@ class DevicesSuite extends FunSuite {
     assert(getDeviceResp.value === "DEVICEABC")
 }
 
-  test("GET /devices/9903 - should not be there") {
+  test("GET /orgs/"+orgid+"/devices/9903 - should not be there") {
     val response: HttpResponse[String] = Http(URL+"/devices/9903").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -554,7 +566,7 @@ class DevicesSuite extends FunSuite {
     }
   }
 
-  test("POST /search/devices/ - all arm devices") {
+  test("POST /orgs/"+orgid+"/search/devices/ - all arm devices") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","2","int",">="),
@@ -568,9 +580,9 @@ class DevicesSuite extends FunSuite {
     val postSearchDevResp = parse(response.body).extract[PostSearchDevicesResponse]
     val devices = postSearchDevResp.devices
     assert(devices.length === 2)     // we created 2 arm devices
-//    assert(devices.filter(d => d.id==deviceId || d.id==deviceId2).length === 2)
-    assert(devices.count(d => d.id==deviceId || d.id==deviceId2) === 2)
-    val dev = devices.find(d => d.id == deviceId).get // the 2nd get turns the Some(val) into val
+//    assert(devices.filter(d => d.id==orgdeviceId || d.id==orgdeviceId2).length === 2)
+    assert(devices.count(d => d.id==orgdeviceId || d.id==orgdeviceId2) === 2)
+    val dev = devices.find(d => d.id == orgdeviceId).get // the 2nd get turns the Some(val) into val
     assert(dev.name === "rpi"+deviceId+"-normal")
     assert(dev.microservices.length === 1)
     val micro = dev.microservices.head
@@ -581,7 +593,7 @@ class DevicesSuite extends FunSuite {
     assert(archProp.value === "arm")
   }
 
-  test("POST /search/devices/ - netspeed arch amd64 - as agbot") {
+  test("POST /orgs/"+orgid+"/search/devices/ - netspeed arch amd64 - as agbot") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(NETSPEEDSPEC,List(
       Prop("arch","amd64","string","in"),
       Prop("memory","*","int",">="),
@@ -595,10 +607,10 @@ class DevicesSuite extends FunSuite {
     val postSearchDevResp = parse(response.body).extract[PostSearchDevicesResponse]
     val devices = postSearchDevResp.devices
     assert(devices.length === 1)
-    assert(devices.count(d => d.id==deviceId3) === 1)
+    assert(devices.count(d => d.id==orgdeviceId3) === 1)
   }
 
-  test("POST /search/devices/ - netspeed arch * - as agbot") {
+  test("POST /orgs/"+orgid+"/search/devices/ - netspeed arch * - as agbot") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(NETSPEEDSPEC,List(
       Prop("arch","*","string","in"),
       Prop("memory","*","int",">="),
@@ -612,11 +624,11 @@ class DevicesSuite extends FunSuite {
     val postSearchDevResp = parse(response.body).extract[PostSearchDevicesResponse]
     val devices = postSearchDevResp.devices
     assert(devices.length === 2)
-    assert(devices.count(d => d.id==deviceId) === 1)
-    assert(devices.count(d => d.id==deviceId3) === 1)
+    assert(devices.count(d => d.id==orgdeviceId) === 1)
+    assert(devices.count(d => d.id==orgdeviceId3) === 1)
   }
 
-  test("POST /search/devices/ - netspeed and sdr - as agbot") {
+  test("POST /orgs/"+orgid+"/search/devices/ - netspeed and sdr - as agbot") {
     val input = PostSearchDevicesRequest(List(
       RegMicroserviceSearch(NETSPEEDSPEC,List(
         Prop("arch","*","string","in"),
@@ -637,14 +649,14 @@ class DevicesSuite extends FunSuite {
     val postSearchDevResp = parse(response.body).extract[PostSearchDevicesResponse]
     val devices = postSearchDevResp.devices
     assert(devices.length === 1)
-    assert(devices.count(d => d.id==deviceId) === 1)  // this confirms it did get deviceId (2 MSs) and did not get deviceId2 (only 1 of the MSs)
-    val dev = devices.find(d => d.id == deviceId).get // the 2nd get turns the Some(val) into val
+    assert(devices.count(d => d.id==orgdeviceId) === 1)  // this confirms it did get deviceId (2 MSs) and did not get deviceId2 (only 1 of the MSs)
+    val dev = devices.find(d => d.id == orgdeviceId).get // the 2nd get turns the Some(val) into val
     assert(dev.microservices.length === 2)
     assert(dev.microservices.count(m => m.url==SDRSPEC) === 1)
     assert(dev.microservices.count(m => m.url==NETSPEEDSPEC) === 1)
   }
 
-  test("POST /search/devices/ - arch list, mem 400, version 2.0.0") {
+  test("POST /orgs/"+orgid+"/search/devices/ - arch list, mem 400, version 2.0.0") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm,amd64","list","in"),
       Prop("memory","400","int",">="),
@@ -658,11 +670,11 @@ class DevicesSuite extends FunSuite {
     val postSearchDevResp = parse(response.body).extract[PostSearchDevicesResponse]
     val devices = postSearchDevResp.devices
     assert(devices.length === 1)
-    assert(devices.count(d => d.id==deviceId2) === 1)
+    assert(devices.count(d => d.id==orgdeviceId2) === 1)
   }
 
   /** Do not expect any matches on this search */
-  test("POST /search/devices/ - data verification false") {
+  test("POST /orgs/"+orgid+"/search/devices/ - data verification false") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","wildcard","in"),
       Prop("memory","","wildcard",">="),
@@ -677,7 +689,7 @@ class DevicesSuite extends FunSuite {
     assert(postSearchDevResp.devices.length === 0)
   }
 
-  test("POST /search/devices/ - invalid propType") {
+  test("POST /orgs/"+orgid+"/search/devices/ - invalid propType") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","stringx","in"),
       Prop("memory","","int",">="),
@@ -691,7 +703,7 @@ class DevicesSuite extends FunSuite {
     assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
   }
 
-  test("POST /search/devices/ - invalid op") {
+  test("POST /orgs/"+orgid+"/search/devices/ - invalid op") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","string","inx"),
       Prop("memory","","int",">="),
@@ -705,7 +717,7 @@ class DevicesSuite extends FunSuite {
     assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
   }
 
-  test("POST /search/devices/ - invalid version") {
+  test("POST /orgs/"+orgid+"/search/devices/ - invalid version") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","*","string","in"),
       Prop("memory","*","int",">="),
@@ -719,7 +731,7 @@ class DevicesSuite extends FunSuite {
     assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
   }
 
-  test("POST /search/devices/ - invalid boolean/op combo") {
+  test("POST /orgs/"+orgid+"/search/devices/ - invalid boolean/op combo") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","string","in"),
       Prop("memory","","int",">="),
@@ -733,7 +745,7 @@ class DevicesSuite extends FunSuite {
     assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
   }
 
-  test("POST /search/devices/ - invalid string/op combo") {
+  test("POST /orgs/"+orgid+"/search/devices/ - invalid string/op combo") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","string","="),
       Prop("memory","","int",">="),
@@ -747,7 +759,7 @@ class DevicesSuite extends FunSuite {
     assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
   }
 
-  test("POST /search/devices/ - invalid int/op combo") {
+  test("POST /orgs/"+orgid+"/search/devices/ - invalid int/op combo") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","string","in"),
       Prop("memory","","int","in"),
@@ -761,7 +773,7 @@ class DevicesSuite extends FunSuite {
     assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
   }
 
-  test("POST /search/devices/ - invalid version/op combo") {
+  test("POST /orgs/"+orgid+"/search/devices/ - invalid version/op combo") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","","string","in"),
       Prop("memory","","int",">="),
@@ -776,7 +788,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Add an agreement for device 9900 - as the device */
-  test("PUT /devices/"+deviceId+"/agreements/"+agreementId+" - as device") {
+  test("PUT /orgs/"+orgid+"/devices/"+deviceId+"/agreements/"+agreementId+" - as device") {
     val input = PutDeviceAgreementRequest(List[String](SDRSPEC), "signed")
     val response = Http(URL+"/devices/"+deviceId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -784,7 +796,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Update an agreement for device 9900 - as the device */
-  test("PUT /devices/"+deviceId+"/agreements/"+agreementId+" - update as device") {
+  test("PUT /orgs/"+orgid+"/devices/"+deviceId+"/agreements/"+agreementId+" - update as device") {
     val input = PutDeviceAgreementRequest(List[String](SDRSPEC), "finalized")
     val response = Http(URL+"/devices/"+deviceId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -792,14 +804,14 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Update an agreement for device 9900 - as user */
-  test("PUT /devices/"+deviceId+"/agreements/"+agreementId+" - update as user") {
+  test("PUT /orgs/"+orgid+"/devices/"+deviceId+"/agreements/"+agreementId+" - update as user") {
     val input = PutDeviceAgreementRequest(List[String](SDRSPEC), "negotiating")
     val response = Http(URL+"/devices/"+deviceId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("POST /search/devices/ - netspeed and sdr - now no devices, since 1 agreement made") {
+  test("POST /orgs/"+orgid+"/search/devices/ - netspeed and sdr - now no devices, since 1 agreement made") {
     val input = PostSearchDevicesRequest(List(
       RegMicroserviceSearch(NETSPEEDSPEC,List(
         Prop("arch","*","string","in"),
@@ -823,14 +835,14 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Add a 2nd agreement for device 9900 - as the device */
-  test("PUT /devices/"+deviceId+"/agreements/9951 - as device") {
+  test("PUT /orgs/"+orgid+"/devices/"+deviceId+"/agreements/9951 - as device") {
     val input = PutDeviceAgreementRequest(List[String]("pws"), "signed")
     val response = Http(URL+"/devices/"+deviceId+"/agreements/9951").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("GET /devices/"+deviceId+"/agreements - verify device agreement") {
+  test("GET /orgs/"+orgid+"/devices/"+deviceId+"/agreements - verify device agreement") {
     val response: HttpResponse[String] = Http(URL+"/devices/"+deviceId+"/agreements").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
@@ -844,7 +856,7 @@ class DevicesSuite extends FunSuite {
     assert(getAgResp.agreements.contains("9951"))
   }
 
-  test("GET /devices/"+deviceId+"/agreements/"+agreementId) {
+  test("GET /orgs/"+orgid+"/devices/"+deviceId+"/agreements/"+agreementId) {
     val response: HttpResponse[String] = Http(URL+"/devices/"+deviceId+"/agreements/"+agreementId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
@@ -856,21 +868,21 @@ class DevicesSuite extends FunSuite {
     assert(ag.microservices === List[String](SDRSPEC))
     assert(ag.state === "negotiating")
 
-    info("GET /devices/"+deviceId+"/agreements/"+agreementId+" output verified")
+    info("GET /orgs/"+orgid+"/devices/"+deviceId+"/agreements/"+agreementId+" output verified")
   }
 
-  test("GET /devices/"+deviceId+"/agreements/"+agreementId+" - as device") {
+  test("GET /orgs/"+orgid+"/devices/"+deviceId+"/agreements/"+agreementId+" - as device") {
     val response: HttpResponse[String] = Http(URL+"/devices/"+deviceId+"/agreements/"+agreementId).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
     val getAgResp = parse(response.body).extract[GetDeviceAgreementsResponse]
     assert(getAgResp.agreements.size === 1)
 
-    info("GET /devices/"+deviceId+"/agreements/"+agreementId+" as device output verified")
+    info("GET /orgs/"+orgid+"/devices/"+deviceId+"/agreements/"+agreementId+" as device output verified")
   }
 
   /** Run /search/devices again and we should get 1 less result, because 9900 is in contract */
-  test("POST /search/devices/ - all arm devices, "+deviceId+" in agreement") {
+  test("POST /orgs/"+orgid+"/search/devices/ - all arm devices, "+deviceId+" in agreement") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","*","int",">="),
@@ -884,11 +896,11 @@ class DevicesSuite extends FunSuite {
     val postSearchDevResp = parse(response.body).extract[PostSearchDevicesResponse]
     val devices = postSearchDevResp.devices
     assert(devices.length === 1 || devices.length === 2)     // UsersSuite may have created 1
-    assert(devices.count(d => d.id==deviceId2) === 1)
+    assert(devices.count(d => d.id==orgdeviceId2) === 1)
   }
 
   /** We should still find the netspeed MS on 9900, even though the sdr MS on 9900 is in agreement */
-  test("POST /search/devices/ - netspeed arch arm, "+deviceId+" sdr in agreement - as agbot") {
+  test("POST /orgs/"+orgid+"/search/devices/ - netspeed arch arm, "+deviceId+" sdr in agreement - as agbot") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(NETSPEEDSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","*","int",">="),
@@ -902,18 +914,18 @@ class DevicesSuite extends FunSuite {
     val postSearchDevResp = parse(response.body).extract[PostSearchDevicesResponse]
     val devices = postSearchDevResp.devices
     assert(devices.length === 1)
-    assert(devices.count(d => d.id==deviceId) === 1)
+    assert(devices.count(d => d.id==orgdeviceId) === 1)
   }
 
   /** Delete the agreement for device 9900 */
-  test("DELETE /devices/"+deviceId+"/agreements/"+agreementId+" - sdr") {
+  test("DELETE /orgs/"+orgid+"/devices/"+deviceId+"/agreements/"+agreementId+" - sdr") {
     val response = Http(URL+"/devices/"+deviceId+"/agreements/"+agreementId).method("delete").headers(ACCEPT).headers(DEVICEAUTH).asString
     info("DELETE "+agreementId+", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }
 
   /** Add an agreement for device 9900 for netspeed */
-  test("PUT /devices/"+deviceId+"/agreements/"+agreementId+" - netspeed") {
+  test("PUT /orgs/"+orgid+"/devices/"+deviceId+"/agreements/"+agreementId+" - netspeed") {
     val input = PutDeviceAgreementRequest(List[String](NETSPEEDSPEC), "signed")
     val response = Http(URL+"/devices/"+deviceId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -921,7 +933,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Make sure we do not find the netspeed MS on 9900 now */
-  test("POST /search/devices/ - netspeed arch arm, "+deviceId+" netspeed in agreement - as agbot") {
+  test("POST /orgs/"+orgid+"/search/devices/ - netspeed arch arm, "+deviceId+" netspeed in agreement - as agbot") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(NETSPEEDSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","*","int",">="),
@@ -938,7 +950,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** We should still find the sdr MS on 9900, even though the netspeed MS on 9900 is in agreement */
-  test("POST /search/devices/ - sdr arch arm, "+deviceId+" netspeed in agreement - as agbot") {
+  test("POST /orgs/"+orgid+"/search/devices/ - sdr arch arm, "+deviceId+" netspeed in agreement - as agbot") {
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","*","int",">="),
@@ -953,13 +965,13 @@ class DevicesSuite extends FunSuite {
     val postSearchDevResp = parse(response.body).extract[PostSearchDevicesResponse]
     val devices = postSearchDevResp.devices
     assert(devices.length === 2 || devices.length === 3)      // UsersSuite creates 1 too
-    assert(devices.count(d => d.id==deviceId) === 1)
+    assert(devices.count(d => d.id==orgdeviceId) === 1)
   }
 
   //TODO: add tests for searching for multiple MS URLs in 1 call
 
   /** Test the secondsStale parameter */
-  test("POST /search/devices/ - all arm devices, but all stale") {
+  test("POST /orgs/"+orgid+"/search/devices/ - all arm devices, but all stale") {
     Thread.sleep(1100)    // delay 1.5 seconds so other devices will be stale
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
@@ -977,7 +989,7 @@ class DevicesSuite extends FunSuite {
 }
 
   /** Heartbeat for device 9900 */
-  test("POST /devices/"+deviceId+"/heartbeat - again") {
+  test("POST /orgs/"+orgid+"/devices/"+deviceId+"/heartbeat - again") {
     val response = Http(URL+"/devices/"+deviceId+"/heartbeat").method("post").headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -986,7 +998,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Test the secondsStale parameter */
-  test("POST /search/devices/ - all arm devices, 1 not stale") {
+  test("POST /orgs/"+orgid+"/search/devices/ - all arm devices, 1 not stale") {
     val secondsNotStale = 1
     info("secondsNotStale: "+secondsNotStale)
     val input = PostSearchDevicesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
@@ -1003,10 +1015,10 @@ class DevicesSuite extends FunSuite {
     val postSearchDevResp = parse(response.body).extract[PostSearchDevicesResponse]
     val devices = postSearchDevResp.devices
     assert(devices.length === 1)
-    assert(devices.count(d => d.id==deviceId) === 1)
+    assert(devices.count(d => d.id==orgdeviceId) === 1)
   }
 
-  test("DELETE /devices/"+deviceId3+" - explicit delete of "+deviceId3) {
+  test("DELETE /orgs/"+orgid+"/devices/"+deviceId3+" - explicit delete of "+deviceId3) {
     var response = Http(URL+"/devices/"+deviceId3).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
@@ -1018,7 +1030,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Try to add a 3rd agreement, when max agreements is below that. */
-  test("PUT /devices/"+deviceId+"/agreements/9952 - with low maxAgreements") {
+  test("PUT /orgs/"+orgid+"/devices/"+deviceId+"/agreements/9952 - with low maxAgreements") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- already do this earlier
@@ -1026,7 +1038,7 @@ class DevicesSuite extends FunSuite {
 
       // Change the maxAgreements config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxAgreements", "1")
-      var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
@@ -1040,20 +1052,20 @@ class DevicesSuite extends FunSuite {
 
       // Restore the maxAgreements config value in the svr
       configInput = AdminConfigRequest("api.limits.maxAgreements", origMaxAgreements.toString)
-      response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
     }
   }
 
   /** Delete all agreements for device 9900 */
-  test("DELETE /devices/"+deviceId+"/agreements - all agreements") {
+  test("DELETE /orgs/"+orgid+"/devices/"+deviceId+"/agreements - all agreements") {
     val response = Http(URL+"/devices/"+deviceId+"/agreements").method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("DELETE agreements, code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }
 
-  test("GET /devices/"+deviceId+"/agreements - verify all agreements gone") {
+  test("GET /orgs/"+orgid+"/devices/"+deviceId+"/agreements - verify all agreements gone") {
     val response: HttpResponse[String] = Http(URL+"/devices/"+deviceId+"/agreements").headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND)
@@ -1062,7 +1074,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Try to add device3, when max devices is below that. */
-  test("PUT /devices/9904 - with low maxDevices") {
+  test("PUT /orgs/"+orgid+"/devices/9904 - with low maxDevices") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- already do this earlier
@@ -1071,7 +1083,7 @@ class DevicesSuite extends FunSuite {
       // Change the maxDevices config value in the svr
       // if putDevRespDisabled==true there are currently 3 devices for out tests, otherwise 4 devices (plus the ones manually created)
       var configInput = AdminConfigRequest("api.limits.maxDevices", "2")
-      var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
@@ -1088,14 +1100,14 @@ class DevicesSuite extends FunSuite {
 
       // Restore the maxDevices config value in the svr
       configInput = AdminConfigRequest("api.limits.maxDevices", origMaxDevices.toString)
-      response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
     }
   }
 
   /** Add a 2nd agbot so we can test msgs */
-  test("PUT /agbots/"+agbotId2) {
+  test("PUT /orgs/"+orgid+"/agbots/"+agbotId2) {
     val input = PutAgbotsRequest(agbotToken2, agbotId2+"name", "whisper-id", "AGBOT2ABC")
     val response = Http(URL+"/agbots/"+agbotId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1103,7 +1115,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Send a msg from agbot1 to device1 */
-  test("POST /devices/"+deviceId+"/msgs") {
+  test("POST /orgs/"+orgid+"/devices/"+deviceId+"/msgs") {
     val input = PostDevicesMsgsRequest("{msg1 from agbot1 to device1}", 300)
     val response = Http(URL+"/devices/"+deviceId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1113,7 +1125,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Send a msg from agbot1 to device1 with a very short ttl so it will expire */
-  test("POST /devices/"+deviceId+"/msgs - short ttl") {
+  test("POST /orgs/"+orgid+"/devices/"+deviceId+"/msgs - short ttl") {
     val input = PostDevicesMsgsRequest("{msg1 from agbot1 to device1 with 1 second ttl}", 1)
     val response = Http(URL+"/devices/"+deviceId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1123,7 +1135,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Send a 2nd msg from agbot1 to device1 */
-  test("POST /devices/"+deviceId+"/msgs - 2nd msg") {
+  test("POST /orgs/"+orgid+"/devices/"+deviceId+"/msgs - 2nd msg") {
     val input = PostDevicesMsgsRequest("{msg2 from agbot1 to device1}", 300)
     val response = Http(URL+"/devices/"+deviceId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1133,7 +1145,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Send a msg from agbot2 to device1 */
-  test("POST /devices/"+deviceId+"/msgs - from agbot2") {
+  test("POST /orgs/"+orgid+"/devices/"+deviceId+"/msgs - from agbot2") {
     val input = PostDevicesMsgsRequest("{msg1 from agbot2 to device1}", 300)
     val response = Http(URL+"/devices/"+deviceId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1143,7 +1155,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Send a msg from agbot2 to device2 */
-  test("POST /devices/"+deviceId2+"/msgs - from agbot2 to device2") {
+  test("POST /orgs/"+orgid+"/devices/"+deviceId2+"/msgs - from agbot2 to device2") {
     val input = PostDevicesMsgsRequest("{msg1 from agbot2 to device2}", 300)
     val response = Http(URL+"/devices/"+deviceId2+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1153,7 +1165,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Get msgs for device1 */
-  test("GET /devices/"+deviceId+"/msgs") {
+  test("GET /orgs/"+orgid+"/devices/"+deviceId+"/msgs") {
     Thread.sleep(1100)    // delay 1.1 seconds so 1 of the msgs will expire
     val response = Http(URL+"/devices/"+deviceId+"/msgs").method("get").headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1164,26 +1176,26 @@ class DevicesSuite extends FunSuite {
       case Some(m) => m
       case None => assert(false); null
     }
-    assert(msg.agbotId === agbotId)
+    assert(msg.agbotId === orgagbotId)
     assert(msg.agbotPubKey === "AGBOTABC")
 
     msg = resp.messages.find(m => m.message=="{msg2 from agbot1 to device1}") match {
       case Some(m) => m
       case None => assert(false); null
     }
-    assert(msg.agbotId === agbotId)
+    assert(msg.agbotId === orgagbotId)
     assert(msg.agbotPubKey === "AGBOTABC")
 
     msg = resp.messages.find(m => m.message=="{msg1 from agbot2 to device1}") match {
       case Some(m) => m
       case None => assert(false); null
     }
-    assert(msg.agbotId === agbotId2)
+    assert(msg.agbotId === orgagbotId2)
     assert(msg.agbotPubKey === "AGBOT2ABC")
   }
 
   /** Get msgs for device2, delete the msg, and get again to verify */
-  test("GET /devices/"+deviceId2+"/msgs - then delete and get again") {
+  test("GET /orgs/"+orgid+"/devices/"+deviceId2+"/msgs - then delete and get again") {
     var response = Http(URL+"/devices/"+deviceId2+"/msgs").method("get").headers(ACCEPT).headers(DEVICE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -1193,7 +1205,7 @@ class DevicesSuite extends FunSuite {
       case Some(m) => m
       case None => assert(false); null
     }
-    assert(msg.agbotId === agbotId2)
+    assert(msg.agbotId === orgagbotId2)
     assert(msg.agbotPubKey === "AGBOT2ABC")
     val msgId = msg.msgId
 
@@ -1210,7 +1222,7 @@ class DevicesSuite extends FunSuite {
 
 
   /** Send a msg from device1 to agbot1 */
-  test("POST /agbots/"+agbotId+"/msgs") {
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs") {
     val input = PostAgbotsMsgsRequest("{msg1 from device1 to agbot1}", 300)
     val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1220,7 +1232,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Send a msg from device1 to agbot1 with a very short ttl so it will expire */
-  test("POST /agbots/"+agbotId+"/msgs - short ttl") {
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - short ttl") {
     val input = PostAgbotsMsgsRequest("{msg1 from device1 to agbot1 with 1 second ttl}", 1)
     val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1230,7 +1242,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Send a 2nd msg from device1 to agbot1 */
-  test("POST /agbots/"+agbotId+"/msgs - 2nd msg") {
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - 2nd msg") {
     val input = PostAgbotsMsgsRequest("{msg2 from device1 to agbot1}", 300)
     val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1240,7 +1252,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Send a msg from device2 to agbot1 */
-  test("POST /agbots/"+agbotId+"/msgs - from device2") {
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - from device2") {
     val input = PostAgbotsMsgsRequest("{msg1 from device2 to agbot1}", 300)
     val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1250,7 +1262,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Send a msg from device2 to agbot2 */
-  test("POST /agbots/"+agbotId2+"/msgs - from device2 to agbot2") {
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId2+"/msgs - from device2 to agbot2") {
     val input = PostAgbotsMsgsRequest("{msg1 from device2 to agbot2}", 300)
     val response = Http(URL+"/agbots/"+agbotId2+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1260,7 +1272,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Get msgs for agbot1 */
-  test("GET /agbots/"+agbotId+"/msgs") {
+  test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/msgs") {
     Thread.sleep(1100)    // delay 1.1 seconds so 1 of the msgs will expire
     val response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1271,26 +1283,26 @@ class DevicesSuite extends FunSuite {
       case Some(m) => m
       case None => assert(false); null
     }
-    assert(msg.deviceId === deviceId)
+    assert(msg.deviceId === orgdeviceId)
     assert(msg.devicePubKey === "DEVICEABC")
 
     msg = resp.messages.find(m => m.message=="{msg2 from device1 to agbot1}") match {
       case Some(m) => m
       case None => assert(false); null
     }
-    assert(msg.deviceId === deviceId)
+    assert(msg.deviceId === orgdeviceId)
     assert(msg.devicePubKey === "DEVICEABC")
 
     msg = resp.messages.find(m => m.message=="{msg1 from device2 to agbot1}") match {
       case Some(m) => m
       case None => assert(false); null
     }
-    assert(msg.deviceId === deviceId2)
+    assert(msg.deviceId === orgdeviceId2)
     assert(msg.devicePubKey === "DEVICE2ABC")
   }
 
   /** Get msgs for agbot2, delete the msg, and get again to verify */
-  test("GET /agbots/"+agbotId2+"/msgs - then delete and get again") {
+  test("GET /orgs/"+orgid+"/agbots/"+agbotId2+"/msgs - then delete and get again") {
     var response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("get").headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -1300,7 +1312,7 @@ class DevicesSuite extends FunSuite {
       case Some(m) => m
       case None => assert(false); null
     }
-    assert(msg.deviceId === deviceId2)
+    assert(msg.deviceId === orgdeviceId2)
     assert(msg.devicePubKey === "DEVICE2ABC")
     val msgId = msg.msgId
 
@@ -1316,7 +1328,7 @@ class DevicesSuite extends FunSuite {
   }
 
   /** Try to add a 4th msg to agbot1, when max msgs is below that. */
-  test("POST /agbots/"+agbotId+"/msgs - with low maxMessagesInMailbox") {
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - with low maxMessagesInMailbox") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- already do this earlier
@@ -1324,7 +1336,7 @@ class DevicesSuite extends FunSuite {
 
       // Change the maxMessagesInMailbox config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", "3")
-      var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
@@ -1352,14 +1364,14 @@ class DevicesSuite extends FunSuite {
 
       // Restore the maxMessagesInMailbox config value in the svr
       configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", origMaxMessagesInMailbox.toString)
-      response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
     }
   }
 
   /** Try to add a 4th msg to device1, when max msgs is below that. */
-  test("POST /devices/"+deviceId+"/msgs - with low maxMessagesInMailbox") {
+  test("POST /orgs/"+orgid+"/devices/"+deviceId+"/msgs - with low maxMessagesInMailbox") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- already do this earlier
@@ -1367,7 +1379,7 @@ class DevicesSuite extends FunSuite {
 
       // Change the maxMessagesInMailbox config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", "3")
-      var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
@@ -1395,7 +1407,7 @@ class DevicesSuite extends FunSuite {
 
       // Restore the maxMessagesInMailbox config value in the svr
       configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", origMaxMessagesInMailbox.toString)
-      response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
     }

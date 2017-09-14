@@ -28,7 +28,7 @@ class AdminSuite extends FunSuite {
   val URL = urlRoot+"/v1"
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
-  val rootuser = "root"
+  val rootuser = "root/root"
   val rootpw = sys.env.get("EXCHANGE_ROOTPW").getOrElse("Horizon-Rul3s")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
 

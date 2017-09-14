@@ -62,11 +62,19 @@ object Access extends Enumeration {
   val READ_ALL_WORKLOADS = Value("READ_ALL_WORKLOADS")
   val WRITE_ALL_WORKLOADS = Value("WRITE_ALL_WORKLOADS")
   val CREATE_WORKLOADS = Value("CREATE_WORKLOADS")
+  val READ_MY_PATTERNS = Value("READ_MY_PATTERNS")
+  val WRITE_MY_PATTERNS = Value("WRITE_MY_PATTERNS")
+  val READ_ALL_PATTERNS = Value("READ_ALL_PATTERNS")
+  val WRITE_ALL_PATTERNS = Value("WRITE_ALL_PATTERNS")
+  val CREATE_PATTERNS = Value("CREATE_PATTERNS")
   val READ_MY_ORGS = Value("READ_MY_ORGS")
   val WRITE_MY_ORGS = Value("WRITE_MY_ORGS")
   val READ_ALL_ORGS = Value("READ_ALL_ORGS")
   val WRITE_ALL_ORGS = Value("WRITE_ALL_ORGS")
   val CREATE_ORGS = Value("CREATE_ORGS")
+  val READ_OTHER_ORGS = Value("READ_OTHER_ORGS")
+  val WRITE_OTHER_ORGS = Value("WRITE_OTHER_ORGS")
+  val CREATE_IN_OTHER_ORGS = Value("CREATE_IN_OTHER_ORGS")
   val ADMIN = Value("ADMIN")
   val STATUS = Value("STATUS")
   val ALL = Value("ALL")
@@ -123,13 +131,45 @@ object Role {
   /** Returns true if the role has the specified access */
   def hasAuthorization(role: Set[String], access: Access): Boolean = { role.contains(Access.ALL.toString) || role.contains(access.toString) }
 
-  def superUser = "root"
+  def superUser = "root/root"
   def isSuperUser(username: String): Boolean = return username == superUser    // only checks the username, does not verify the pw
 }
 
 case class Creds(id: String, token: String) {     // id and token are generic names and their values can actually be username and password
   def isAnonymous: Boolean = (id == "" && token == "")
   //todo: add an optional hint to this so when they specify creds as username/password we know to try to authenticate as a user 1st
+}
+
+case class OrgAndId(org: String, id: String) {
+  override def toString = org + "/" + id
+}
+
+case class CompositeId(compositeId: String) {
+  def getOrg: String = {
+    val reg = """^(\S+?)/.*""".r
+    compositeId match {
+      case reg(org) => return org
+      case _ => return ""
+    }
+  }
+
+  def getId: String = {
+    val reg = """^\S+?/(\S+)$""".r
+    compositeId match {
+      case reg(id) => return id
+      case _ => return ""
+    }
+  }
+
+  def split: (String, String) = {
+    val reg = """^(\S*?)/(\S*)$""".r
+    compositeId match {
+      case reg(org,id) => return (org,id)
+      case reg(org,_) => return (org,"")
+      case reg(_,id) => return ("",id)
+      case _ => return ("", "")
+    }
+  }
 }
 
 /** In-memory cache of the user/pw, device id/token, and agbot id/token, where the pw and tokens are not hashed to speed up validation */
@@ -164,6 +204,7 @@ object AuthCache {
         case "blockchains" => db.run(BlockchainsTQ.rows.map(x => (x.name, x.bctype, x.definedBy)).result).map({ list => this._initBCs(list) })
         case "microservices" => db.run(MicroservicesTQ.rows.map(x => (x.microservice, x.owner)).result).map({ list => this._initMicroservices(list) })
         case "workloads" => db.run(WorkloadsTQ.rows.map(x => (x.workload, x.owner)).result).map({ list => this._initWorkloads(list) })
+        case "patterns" => db.run(PatternsTQ.rows.map(x => (x.pattern, x.owner)).result).map({ list => this._initPatterns(list) })
       }
     }
 
@@ -213,6 +254,13 @@ object AuthCache {
       }
     }
 
+    /** Put owners of patterns in the cache */
+    def _initPatterns(credList: Seq[(String,String)]): Unit = {
+      for ((pattern,owner) <- credList) {
+        if (owner != "") _putOwner(pattern, owner)
+      }
+    }
+
     /** Returns Some(Tokens) from the cache for this user/id (but verifies with the db 1st), or None if does not exist */
     def get(id: String): Option[Tokens] = {
       if (Role.isSuperUser(id)) return _get(id)     // root is always initialized from config.json and put in the cache, and should not be changed at runtime
@@ -226,7 +274,7 @@ object AuthCache {
         case "devices" => DevicesTQ.getToken(id).result
         case "agbots" => AgbotsTQ.getToken(id).result
       }
-      //TODO: this db access should go at the beginning of every rest api db access, using flatmap to move on to the db access the rest api is really for
+      //todo: this db access should go at the beginning of every rest api db access, using flatmap to move on to the db access the rest api is really for
       val dbHashedTok: String = try {
         val tokVector = Await.result(db.run(a), Duration(3000, MILLISECONDS))
         if (tokVector.nonEmpty) tokVector.head else ""
@@ -301,6 +349,7 @@ object AuthCache {
         case "blockchains" => BlockchainsTQ.getOwner2(id).result
         case "microservices" => MicroservicesTQ.getOwner(id).result
         case "workloads" => WorkloadsTQ.getOwner(id).result
+        case "patterns" => PatternsTQ.getOwner(id).result
       }
       try {
         val ownerVector = Await.result(db.run(a), Duration(3000, MILLISECONDS))
@@ -374,6 +423,7 @@ object AuthCache {
   val blockchains = new Cache("blockchains")
   val microservices = new Cache("microservices")
   val workloads = new Cache("workloads")
+  val patterns = new Cache("patterns")
 }
 
 /** Authenticates the client credentials and then checks the ACLs for authorization. */
@@ -405,6 +455,7 @@ trait AuthenticationSupport extends ScalatraBase {
         if (isTokenValid(creds.token, creds.id)) return toIUser
         else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
       }
+      //for ((k, v) <- AuthCache.users.things) { logger.debug("users cache entry: "+k+" "+v) }
       if (AuthCache.users.isValid(creds)) return toIUser
       if (AuthCache.devices.isValid(creds)) return toIDevice
       if (AuthCache.agbots.isValid(creds)) return toIAgbot
@@ -412,6 +463,26 @@ trait AuthenticationSupport extends ScalatraBase {
     }
 
     def authorizeTo(target: Target, access: Access): Identity
+
+    def getOrg: String = {
+      val reg = """^(\S+?)/.*""".r
+      creds.id match {
+        case reg(org) => return org
+        case _ => return ""
+      }
+    }
+
+    def getIdentity: String = {
+      val reg = """^\S+?/(\S+)$""".r
+      creds.id match {
+        case reg(id) => return id
+        case _ => return ""
+      }
+    }
+
+    def isMyOrg(target: Target): Boolean = {
+      return target.getOrg == getOrg
+    }
   }
 
   /** A generic identity before we have run authenticate to figure out what type of credentials this is */
@@ -425,57 +496,73 @@ trait AuthenticationSupport extends ScalatraBase {
     def authorizeTo(target: Target, access: Access): Identity = {
       val role = if (isSuperUser) Role.SUPERUSER else Role.USER
       // Transform any generic access into specific access
-      val access2 = target match {
-        case TUser(id) => access match {     // a user accessing a user
+      var access2: Access = null
+      if (!isMyOrg(target)) {
+        access2 = access match {
+          case Access.READ => Access.READ_OTHER_ORGS
+          case Access.WRITE => Access.WRITE_OTHER_ORGS
+          case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
+          case _ => access
+        }
+      } else {      // the target is in the same org as the identity
+        access2 = target match {
+          case TUser(id) => access match { // a user accessing a user
             case Access.READ => if (id == creds.id) Access.READ_MYSELF else Access.READ_ALL_USERS
             case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else Access.WRITE_ALL_USERS
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-        case TDevice(_) => access match {     // a user accessing a device
+          case TDevice(_) => access match { // a user accessing a device
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_DEVICES else Access.READ_ALL_DEVICES
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_DEVICES else Access.WRITE_ALL_DEVICES
-            case Access.CREATE => Access.CREATE_DEVICE    // not used, because WRITE is used for create also
+            case Access.CREATE => Access.CREATE_DEVICE // not used, because WRITE is used for create also
             case _ => access
           }
-        case TAgbot(_) => access match {     // a user accessing a agbot
+          case TAgbot(_) => access match { // a user accessing a agbot
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-        case TBctype(_) => access match {     // a user accessing a bctype
+          case TBctype(_) => access match { // a user accessing a bctype
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_BCTYPES else Access.READ_ALL_BCTYPES
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_BCTYPES else Access.WRITE_ALL_BCTYPES
             case Access.CREATE => Access.CREATE_BCTYPES
             case _ => access
           }
-        case TBlockchain(_) => access match {     // a user accessing a blockchain
+          case TBlockchain(_) => access match { // a user accessing a blockchain
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_BLOCKCHAINS else Access.READ_ALL_BLOCKCHAINS
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_BLOCKCHAINS else Access.WRITE_ALL_BLOCKCHAINS
             case Access.CREATE => Access.CREATE_BLOCKCHAINS
             case _ => access
           }
-        case TMicroservice(_) => access match {     // a user accessing a microservice
-          case Access.READ => if (iOwnTarget(target)) Access.READ_MY_MICROSERVICES else Access.READ_ALL_MICROSERVICES
-          case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_MICROSERVICES else Access.WRITE_ALL_MICROSERVICES
-          case Access.CREATE => Access.CREATE_MICROSERVICES
-          case _ => access
+          case TMicroservice(_) => access match { // a user accessing a microservice
+            case Access.READ => if (iOwnTarget(target)) Access.READ_MY_MICROSERVICES else Access.READ_ALL_MICROSERVICES
+            case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_MICROSERVICES else Access.WRITE_ALL_MICROSERVICES
+            case Access.CREATE => Access.CREATE_MICROSERVICES
+            case _ => access
+          }
+          case TWorkload(_) => access match { // a user accessing a workload
+            case Access.READ => if (iOwnTarget(target)) Access.READ_MY_WORKLOADS else Access.READ_ALL_WORKLOADS
+            case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_WORKLOADS else Access.WRITE_ALL_WORKLOADS
+            case Access.CREATE => Access.CREATE_WORKLOADS
+            case _ => access
+          }
+          case TPattern(_) => access match { // a user accessing a pattern
+            case Access.READ => if (iOwnTarget(target)) Access.READ_MY_PATTERNS else Access.READ_ALL_PATTERNS
+            case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_PATTERNS else Access.WRITE_ALL_PATTERNS
+            case Access.CREATE => Access.CREATE_PATTERNS
+            case _ => access
+          }
+          case TOrg(_) => access match { // a user accessing a org
+            //TODO: the way this is coded now, only root will be able to do these things. Add a user role for admin and add method isMyOrg()
+            case Access.READ => Access.READ_ALL_ORGS
+            case Access.WRITE => Access.WRITE_ALL_ORGS
+            case Access.CREATE => Access.CREATE_ORGS
+            case _ => access
+          }
+          case TAction(_) => access // a user running an action
         }
-        case TWorkload(_) => access match {     // a user accessing a workload
-          case Access.READ => if (iOwnTarget(target)) Access.READ_MY_WORKLOADS else Access.READ_ALL_WORKLOADS
-          case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_WORKLOADS else Access.WRITE_ALL_WORKLOADS
-          case Access.CREATE => Access.CREATE_WORKLOADS
-          case _ => access
-        }
-        case TOrg(_) => access match {     // a user accessing a org
-          //todo: the way this is coded now, only root will be able to do these things. Add a user role for admin and add method isMyOrg()
-          case Access.READ => Access.READ_ALL_ORGS
-          case Access.WRITE => Access.WRITE_ALL_ORGS
-          case Access.CREATE => Access.CREATE_ORGS
-          case _ => access
-        }
-        case TAction(_) => access      // a user running an action
       }
       logger.trace("IUser.authorizeTo() access2: "+access2)
       if (Role.hasAuthorization(role, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
@@ -493,6 +580,7 @@ trait AuthenticationSupport extends ScalatraBase {
           case TBlockchain(id) => AuthCache.blockchains.getOwner(id)
           case TMicroservice(id) => AuthCache.microservices.getOwner(id)
           case TWorkload(id) => AuthCache.workloads.getOwner(id)
+          case TPattern(id) => AuthCache.patterns.getOwner(id)
           case _ => return false
         }
         owner match {
@@ -549,6 +637,12 @@ trait AuthenticationSupport extends ScalatraBase {
           case Access.CREATE => Access.CREATE_WORKLOADS
           case _ => access
         }
+        case TPattern(_) => access match { // a user accessing a pattern
+          case Access.READ => Access.READ_ALL_PATTERNS
+          case Access.WRITE => Access.WRITE_ALL_PATTERNS
+          case Access.CREATE => Access.CREATE_PATTERNS
+          case _ => access
+        }
         case TOrg(_) => access match {     // a device accessing a org
           case Access.READ => Access.READ_ALL_ORGS
           case Access.WRITE => Access.WRITE_ALL_ORGS
@@ -564,56 +658,72 @@ trait AuthenticationSupport extends ScalatraBase {
   case class IAgbot(creds: Creds) extends Identity {
     def authorizeTo(target: Target, access: Access): Identity = {
       // Transform any generic access into specific access
-      val access2 = target match {
-        case TUser(id) => access match {     // a agbot accessing a user
+      var access2: Access = null
+      if (!isMyOrg(target)) {
+        access2 = access match {
+          case Access.READ => Access.READ_OTHER_ORGS
+          case Access.WRITE => Access.WRITE_OTHER_ORGS
+          case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
+          case _ => access
+        }
+      } else { // the target is in the same org as the identity
+        access2 = target match {
+          case TUser(id) => access match { // a agbot accessing a user
             case Access.READ => Access.READ_ALL_USERS
             case Access.WRITE => Access.WRITE_ALL_USERS
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-        case TDevice(_) => access match {     // a agbot accessing a device
+          case TDevice(_) => access match { // a agbot accessing a device
             case Access.READ => Access.READ_ALL_DEVICES
             case Access.WRITE => Access.WRITE_ALL_DEVICES
             case Access.CREATE => Access.CREATE_DEVICE
             case _ => access
           }
-        case TAgbot(id) => access match {     // a agbot accessing a agbot
+          case TAgbot(id) => access match { // a agbot accessing a agbot
             case Access.READ => if (id == creds.id) Access.READ_MYSELF else if (target.mine) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
             case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (target.mine) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-        case TBctype(_) => access match {     // a agbot accessing a bctype
+          case TBctype(_) => access match { // a agbot accessing a bctype
             case Access.READ => Access.READ_ALL_BCTYPES
             case Access.WRITE => Access.WRITE_ALL_BCTYPES
             case Access.CREATE => Access.CREATE_BCTYPES
             case _ => access
           }
-        case TBlockchain(_) => access match {     // a agbot accessing a blockchain
+          case TBlockchain(_) => access match { // a agbot accessing a blockchain
             case Access.READ => Access.READ_ALL_BLOCKCHAINS
             case Access.WRITE => Access.WRITE_ALL_BLOCKCHAINS
             case Access.CREATE => Access.CREATE_BLOCKCHAINS
             case _ => access
           }
-        case TMicroservice(_) => access match {     // a agbot accessing a microservice
-          case Access.READ => Access.READ_ALL_MICROSERVICES
-          case Access.WRITE => Access.WRITE_ALL_MICROSERVICES
-          case Access.CREATE => Access.CREATE_MICROSERVICES
-          case _ => access
+          case TMicroservice(_) => access match { // a agbot accessing a microservice
+            case Access.READ => Access.READ_ALL_MICROSERVICES
+            case Access.WRITE => Access.WRITE_ALL_MICROSERVICES
+            case Access.CREATE => Access.CREATE_MICROSERVICES
+            case _ => access
+          }
+          case TWorkload(_) => access match { // a agbot accessing a workload
+            case Access.READ => Access.READ_ALL_WORKLOADS
+            case Access.WRITE => Access.WRITE_ALL_WORKLOADS
+            case Access.CREATE => Access.CREATE_WORKLOADS
+            case _ => access
+          }
+          case TPattern(_) => access match { // a user accessing a pattern
+            case Access.READ => Access.READ_ALL_PATTERNS
+            case Access.WRITE => Access.WRITE_ALL_PATTERNS
+            case Access.CREATE => Access.CREATE_PATTERNS
+            case _ => access
+          }
+          case TOrg(_) => access match { // a agbot accessing a org
+            case Access.READ => Access.READ_ALL_ORGS
+            case Access.WRITE => Access.WRITE_ALL_ORGS
+            case Access.CREATE => Access.CREATE_ORGS
+            case _ => access
+          }
+          case TAction(_) => access // a agbot running an action
         }
-        case TWorkload(_) => access match {     // a agbot accessing a workload
-          case Access.READ => Access.READ_ALL_WORKLOADS
-          case Access.WRITE => Access.WRITE_ALL_WORKLOADS
-          case Access.CREATE => Access.CREATE_WORKLOADS
-          case _ => access
-        }
-        case TOrg(_) => access match {     // a agbot accessing a org
-          case Access.READ => Access.READ_ALL_ORGS
-          case Access.WRITE => Access.WRITE_ALL_ORGS
-          case Access.CREATE => Access.CREATE_ORGS
-          case _ => access
-        }
-        case TAction(_) => access      // a agbot running an action
       }
       if (Role.hasAuthorization(Role.AGBOT, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }    
@@ -622,56 +732,73 @@ trait AuthenticationSupport extends ScalatraBase {
   case class IAnonymous(creds: Creds) extends Identity {
     def authorizeTo(target: Target, access: Access): Identity = {
       // Transform any generic access into specific access
-      val access2 = target match {
-        case TUser(id) => access match {     // a anonymous accessing a user
+      var access2: Access = null
+      //todo: This makes anonymous never work, which might be what we want. Decide what to do about it.
+      if (!isMyOrg(target)) {
+        access2 = access match {
+          case Access.READ => Access.READ_OTHER_ORGS
+          case Access.WRITE => Access.WRITE_OTHER_ORGS
+          case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
+          case _ => access
+        }
+      } else { // the target is in the same org as the identity
+        access2 = target match {
+          case TUser(id) => access match { // a anonymous accessing a user
             case Access.READ => Access.READ_ALL_USERS
             case Access.WRITE => Access.WRITE_ALL_USERS
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-        case TDevice(_) => access match {     // a anonymous accessing a device
+          case TDevice(_) => access match { // a anonymous accessing a device
             case Access.READ => Access.READ_ALL_DEVICES
             case Access.WRITE => Access.WRITE_ALL_DEVICES
             case Access.CREATE => Access.CREATE_DEVICE
             case _ => access
           }
-        case TAgbot(_) => access match {     // a anonymous accessing a agbot
+          case TAgbot(_) => access match { // a anonymous accessing a agbot
             case Access.READ => Access.READ_ALL_AGBOTS
             case Access.WRITE => Access.WRITE_ALL_AGBOTS
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-        case TBctype(_) => access match {     // a anonymous accessing a bctype
+          case TBctype(_) => access match { // a anonymous accessing a bctype
             case Access.READ => Access.READ_ALL_BCTYPES
             case Access.WRITE => Access.WRITE_ALL_BCTYPES
             case Access.CREATE => Access.CREATE_BCTYPES
             case _ => access
           }
-        case TBlockchain(_) => access match {     // a anonymous accessing a blockchain
+          case TBlockchain(_) => access match { // a anonymous accessing a blockchain
             case Access.READ => Access.READ_ALL_BLOCKCHAINS
             case Access.WRITE => Access.WRITE_ALL_BLOCKCHAINS
             case Access.CREATE => Access.CREATE_BLOCKCHAINS
             case _ => access
           }
-        case TMicroservice(_) => access match {     // a anonymous accessing a microservice
-          case Access.READ => Access.READ_ALL_MICROSERVICES
-          case Access.WRITE => Access.WRITE_ALL_MICROSERVICES
-          case Access.CREATE => Access.CREATE_MICROSERVICES
-          case _ => access
+          case TMicroservice(_) => access match { // a anonymous accessing a microservice
+            case Access.READ => Access.READ_ALL_MICROSERVICES
+            case Access.WRITE => Access.WRITE_ALL_MICROSERVICES
+            case Access.CREATE => Access.CREATE_MICROSERVICES
+            case _ => access
+          }
+          case TWorkload(_) => access match { // a anonymous accessing a workload
+            case Access.READ => Access.READ_ALL_WORKLOADS
+            case Access.WRITE => Access.WRITE_ALL_WORKLOADS
+            case Access.CREATE => Access.CREATE_WORKLOADS
+            case _ => access
+          }
+          case TPattern(_) => access match { // a user accessing a pattern
+            case Access.READ => Access.READ_ALL_PATTERNS
+            case Access.WRITE => Access.WRITE_ALL_PATTERNS
+            case Access.CREATE => Access.CREATE_PATTERNS
+            case _ => access
+          }
+          case TOrg(_) => access match { // a anonymous accessing a org
+            case Access.READ => Access.READ_ALL_ORGS
+            case Access.WRITE => Access.WRITE_ALL_ORGS
+            case Access.CREATE => Access.CREATE_ORGS
+            case _ => access
+          }
+          case TAction(_) => access // a anonymous running an action
         }
-        case TWorkload(_) => access match {     // a anonymous accessing a workload
-          case Access.READ => Access.READ_ALL_WORKLOADS
-          case Access.WRITE => Access.WRITE_ALL_WORKLOADS
-          case Access.CREATE => Access.CREATE_WORKLOADS
-          case _ => access
-        }
-        case TOrg(_) => access match {     // a anonymous accessing a org
-          case Access.READ => Access.READ_ALL_ORGS
-          case Access.WRITE => Access.WRITE_ALL_ORGS
-          case Access.CREATE => Access.CREATE_ORGS
-          case _ => access
-        }
-        case TAction(_) => access      // a anonymous running an action
       }
       if (Role.hasAuthorization(Role.ANONYMOUS, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }    
@@ -679,9 +806,27 @@ trait AuthenticationSupport extends ScalatraBase {
 
   /** This and its subclasses are used to identify the target resource the rest api method goes after */
   abstract class Target {
-    def id: String
-    def all: Boolean = return id == "*"
-    def mine: Boolean = return id == "#"
+    def id: String    // this is the composite id, e.g. orgid/username
+    def all: Boolean = return getId == "*"
+    def mine: Boolean = return getId == "#"
+
+    // Returns just the orgid part of the resource
+    def getOrg: String = {
+      val reg = """^(\S+?)/.*""".r
+      id match {
+        case reg(org) => return org
+        case _ => return ""
+      }
+    }
+
+    // Returns just the id or username part of the resource
+    def getId: String = {
+      val reg = """^\S+?/(\S+)$""".r
+      id match {
+        case reg(id) => return id
+        case _ => return ""
+      }
+    }
   }
 
   case class TOrg(id: String) extends Target
@@ -692,6 +837,7 @@ trait AuthenticationSupport extends ScalatraBase {
   case class TBlockchain(id: String) extends Target   // this id is a composite of the bc name and bctype
   case class TMicroservice(id: String) extends Target      // for microservices only the user that created it can update/delete it
   case class TWorkload(id: String) extends Target      // for workloads only the user that created it can update/delete it
+  case class TPattern(id: String) extends Target      // for patterns only the user that created it can update/delete it
   case class TAction(id: String = "") extends Target    // for post rest api methods that do not target any specific resource (e.g. admin operations)
 
 
@@ -766,7 +912,7 @@ trait AuthenticationSupport extends ScalatraBase {
     AuthCache.users.get(username) match {
       // case Some(userTok) => if (userTok.unhashed != "") Token.isValid(token, userTok.unhashed) else Token.isValid(token, userTok.hashed)
       case Some(userTok) => Token.isValid(token, userTok.hashed)
-      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "username not found"))
+      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
     }
   }
 

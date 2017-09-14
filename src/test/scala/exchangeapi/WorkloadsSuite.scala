@@ -28,30 +28,36 @@ class WorkloadsSuite extends FunSuite {
   val localUrlRoot = "http://localhost:8080"
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
   val runningLocally = (urlRoot == localUrlRoot)
-  val URL = urlRoot+"/v1"
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
+  val orgid = "IBM"
+  val authpref=orgid+"/"
+  val URL = urlRoot+"/v1/orgs/"+orgid
   val user = "9999"
+  val orguser = authpref+user
   val pw = user+"pw"
-  val USERAUTH = ("Authorization","Basic "+user+":"+pw)
+  val USERAUTH = ("Authorization","Basic "+orguser+":"+pw)
   val user2 = "10000"
+  val orguser2 = authpref+user2
   val pw2 = user2+"pw"
-  val USER2AUTH = ("Authorization","Basic "+user2+":"+pw2)
-  val rootuser = "root"
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "Horizon-Rul3s")      // need to put this root pw in config.json
+  val USER2AUTH = ("Authorization","Basic "+orguser2+":"+pw2)
+  val rootuser = "root/root"
+  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val deviceId = "9912"     // the 1st device created, that i will use to run some rest methods
   val deviceToken = deviceId+"tok"
-  val DEVICEAUTH = ("Authorization","Basic "+deviceId+":"+deviceToken)
+  val DEVICEAUTH = ("Authorization","Basic "+authpref+deviceId+":"+deviceToken)
   val agbotId = "9947"
   val agbotToken = agbotId+"tok"
-  val AGBOTAUTH = ("Authorization","Basic "+agbotId+":"+agbotToken)
+  val AGBOTAUTH = ("Authorization","Basic "+authpref+agbotId+":"+agbotToken)
   val wkBase = "wk9920"
   val wkUrl = "http://" + wkBase
   val workload = wkBase + "_1.0.0_arm"
+  val orgworkload = authpref+workload
   val wkBase2 = "wk9921"
   val wkUrl2 = "http://" + wkBase2
   val workload2 = wkBase2 + "_1.0.0_arm"
+  val orgworkload2 = authpref+workload2
   val wkBase3 = "wk9922"
   val wkUrl3 = "http://" + wkBase3
   val workload3 = wkBase3 + "_1.0.0_arm"
@@ -70,18 +76,19 @@ class WorkloadsSuite extends FunSuite {
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the workloads, because they are deleted when the user is deleted. */
   test("Begin - DELETE all test users") {
+    if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
     deleteAllUsers()
   }
 
   /** Add users, device, workload for future tests */
   test("Add users, device, workload for future tests") {
     var userInput = PutUsersRequest(pw, user+"@hotmail.com")
-    var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).asString    // Note: no AUTH
+    var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
     userInput = PutUsersRequest(pw2, user2+"@hotmail.com")
-    userResponse = Http(URL+"/users/"+user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).asString    // Note: no AUTH
+    userResponse = Http(URL+"/users/"+user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
@@ -99,7 +106,7 @@ class WorkloadsSuite extends FunSuite {
     assert(agbotResponse.code === HttpCode.PUT_OK)
   }
 
-  test("GET /workloads - get initial number of workloads in the db") {
+  test("GET /orgs/"+orgid+"/workloads - get initial number of workloads in the db") {
     val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -109,52 +116,52 @@ class WorkloadsSuite extends FunSuite {
     info("initially "+numExistingWorkloads+" workloads")
   }
 
-  test("PUT /workloads/"+workload+" - update WK that is not there yet - should fail") {
+  test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update WK that is not there yet - should fail") {
     // PostPutWorkloadRequest(label: String, description: String, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: List[Map[String,String]], userInput: List[Map[String,String]], workloads: List[Map[String,String]]) {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", wkUrl, "1.0.0", "arm", "updated", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "updated", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/workloads/"+workload).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
-  test("POST /workloads - add "+workload+" as user") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", wkUrl, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("POST /orgs/"+orgid+"/workloads - add "+workload+" as user") {
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val respObj = parse(response.body).extract[ApiResponse]
-    assert(respObj.msg.contains("workload '"+workload+"' created"))
+    assert(respObj.msg.contains("workload '"+orgworkload+"' created"))
   }
 
-  test("POST /workloads - add "+workload+" again - should fail") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", wkUrl, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("POST /orgs/"+orgid+"/workloads - add "+workload+" again - should fail") {
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ALREADY_EXISTS)
   }
 
-  test("PUT /workloads/"+workload+" - update as same user") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", wkUrl, "1.0.0", "arm", "updated", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update as same user") {
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "updated", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/workloads/"+workload).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("PUT /workloads/"+workload+" - update as 2nd user - should fail") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", wkUrl, "1.0.0", "arm", "should not work", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update as 2nd user - should fail") {
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "should not work", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/workloads/"+workload).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
-  test("PUT /workloads/"+workload+" - update as agbot - should fail") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", wkUrl, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update as agbot - should fail") {
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/workloads/"+workload).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
-  test("PUT /workloads/"+workload2+" - invalid workload body") {
+  test("PUT /orgs/"+orgid+"/workloads/"+workload2+" - invalid workload body") {
     val badJsonInput = """{
       "labelxx": "GPS x86_64"
     }"""
@@ -163,22 +170,22 @@ class WorkloadsSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
-  test("POST /workloads - add "+workload2+" as device - should fail") {
-    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", wkUrl2, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("POST /orgs/"+orgid+"/workloads - add "+workload2+" as device - should fail") {
+    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", false, wkUrl2, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
-  test("POST /workloads - add "+workload2+" as 2nd user") {
-    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", wkUrl2, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl2")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+  test("POST /orgs/"+orgid+"/workloads - add "+workload2+" as 2nd user") {
+    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", false, wkUrl2, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl2")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
   /*todo: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
-  test("POST /workloads - with low maxWorkloads - should fail") {
+  test("POST /orgs/"+orgid+"/workloads - with low maxWorkloads - should fail") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       ExchConfig.load()
@@ -207,7 +214,7 @@ class WorkloadsSuite extends FunSuite {
   }
   */
 
-  test("GET /workloads") {
+  test("GET /orgs/"+orgid+"/workloads") {
     val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -215,28 +222,28 @@ class WorkloadsSuite extends FunSuite {
     val respObj = parse(response.body).extract[GetWorkloadsResponse]
     assert(respObj.workloads.size === 2 + numExistingWorkloads)
 
-    assert(respObj.workloads.contains(workload))
-    var wk = respObj.workloads.get(workload).get     // the 2nd get turns the Some(val) into val
+    assert(respObj.workloads.contains(orgworkload))
+    var wk = respObj.workloads.get(orgworkload).get     // the 2nd get turns the Some(val) into val
     assert(wk.label === wkBase+" arm")
-    assert(wk.owner === user)
+    assert(wk.owner === orguser)
 
-    assert(respObj.workloads.contains(workload2))
-    wk = respObj.workloads.get(workload2).get     // the 2nd get turns the Some(val) into val
+    assert(respObj.workloads.contains(orgworkload2))
+    wk = respObj.workloads.get(orgworkload2).get     // the 2nd get turns the Some(val) into val
     assert(wk.label === wkBase2+" arm")
-    assert(wk.owner === user2)
+    assert(wk.owner === orguser2)
   }
 
-  test("GET /workloads - filter owner and workloadUrl") {
-    val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(USERAUTH).param("owner",user2).param("specRef","%msurl2").asString
+  test("GET /orgs/"+orgid+"/workloads - filter owner and workloadUrl") {
+    val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("specRef","%msurl2").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetWorkloadsResponse]
     assert(respObj.workloads.size === 1)
-    assert(respObj.workloads.contains(workload2))
+    assert(respObj.workloads.contains(orgworkload2))
   }
 
-  test("GET /workloads - as device") {
+  test("GET /orgs/"+orgid+"/workloads - as device") {
     val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(DEVICEAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -245,7 +252,7 @@ class WorkloadsSuite extends FunSuite {
     assert(respObj.workloads.size === 2 + numExistingWorkloads)
   }
 
-  test("GET /workloads - as agbot") {
+  test("GET /orgs/"+orgid+"/workloads - as agbot") {
     val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -254,7 +261,7 @@ class WorkloadsSuite extends FunSuite {
     assert(respObj.workloads.size === 2 + numExistingWorkloads)
   }
 
-  test("GET /workloads/"+workload+" - as user") {
+  test("GET /orgs/"+orgid+"/workloads/"+workload+" - as user") {
     val response: HttpResponse[String] = Http(URL+"/workloads/"+workload).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -262,8 +269,8 @@ class WorkloadsSuite extends FunSuite {
     val respObj = parse(response.body).extract[GetWorkloadsResponse]
     assert(respObj.workloads.size === 1)
 
-    assert(respObj.workloads.contains(workload))
-    val wk = respObj.workloads.get(workload).get     // the 2nd get turns the Some(val) into val
+    assert(respObj.workloads.contains(orgworkload))
+    val wk = respObj.workloads.get(orgworkload).get     // the 2nd get turns the Some(val) into val
     assert(wk.label === wkBase+" arm")
 
     // Verify the lastUpdated from the PUT above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
@@ -272,7 +279,7 @@ class WorkloadsSuite extends FunSuite {
     assert(now - lastUp <= 3)    // should not be more than 3 seconds from the time the put was done above
   }
 
-  test("PATCH /workloads/"+workload+" - as user") {
+  test("PATCH /orgs/"+orgid+"/workloads/"+workload+" - as user") {
     val jsonInput = """{
       "downloadUrl": "this is now patched"
     }"""
@@ -281,7 +288,7 @@ class WorkloadsSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("PATCH /workloads/"+workload+" - as user2 - should fail") {
+  test("PATCH /orgs/"+orgid+"/workloads/"+workload+" - as user2 - should fail") {
     val jsonInput = """{
       "downloadUrl": "this is now patched"
     }"""
@@ -290,7 +297,7 @@ class WorkloadsSuite extends FunSuite {
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
-  test("GET /workloads/"+workload+" - as agbot, check patch by getting that 1 attr") {
+  test("GET /orgs/"+orgid+"/workloads/"+workload+" - as agbot, check patch by getting that 1 attr") {
     val response: HttpResponse[String] = Http(URL+"/workloads/"+workload).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","downloadUrl").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -300,7 +307,7 @@ class WorkloadsSuite extends FunSuite {
     assert(respObj.value === "this is now patched")
   }
 
-  test("GET /workloads/"+workload+"notthere - as user - should fail") {
+  test("GET /orgs/"+orgid+"/workloads/"+workload+"notthere - as user - should fail") {
     val response: HttpResponse[String] = Http(URL+"/workloads/"+workload+"notthere").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -309,13 +316,13 @@ class WorkloadsSuite extends FunSuite {
     assert(getWorkloadResp.workloads.size === 0)
   }
 
-  test("DELETE /workloads/"+workload) {
+  test("DELETE /orgs/"+orgid+"/workloads/"+workload) {
     val response = Http(URL+"/workloads/"+workload).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }
 
-  test("GET /workloads/"+workload+" - as user - verify gone") {
+  test("GET /orgs/"+orgid+"/workloads/"+workload+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(URL+"/workloads/"+workload).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -324,13 +331,13 @@ class WorkloadsSuite extends FunSuite {
     assert(getWorkloadResp.workloads.size === 0)
   }
 
-  test("DELETE /users/"+user2+" - which should also delete workload2") {
+  test("DELETE /orgs/"+orgid+"/users/"+user2+" - which should also delete workload2") {
     val response = Http(URL+"/users/"+user2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }
 
-  test("GET /workloads/"+workload2+" - as user - verify gone") {
+  test("GET /orgs/"+orgid+"/workloads/"+workload2+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(URL+"/workloads/"+workload2).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)

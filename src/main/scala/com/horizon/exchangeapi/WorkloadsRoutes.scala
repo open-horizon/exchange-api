@@ -1,4 +1,4 @@
-/** Services routes for all of the /workloads api methods. */
+/** Services routes for all of the /orgs/{orgid}/workloads api methods. */
 package com.horizon.exchangeapi
 
 import org.json4s._
@@ -14,14 +14,14 @@ import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.util._
 import java.net._
 
-//====== These are the input and output structures for /workloads routes. Swagger and/or json seem to require they be outside the trait.
+//====== These are the input and output structures for /orgs/{orgid}/workloads routes. Swagger and/or json seem to require they be outside the trait.
 
-/** Output format for GET /workloads */
+/** Output format for GET /orgs/{orgid}/workloads */
 case class GetWorkloadsResponse(workloads: Map[String,Workload], lastIndex: Int)
 case class GetWorkloadAttributeResponse(attribute: String, value: String)
 
-/** Input format for POST /microservices or PUT /workloads/<workload-id> */
-case class PostPutWorkloadRequest(label: String, description: String, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: List[Map[String,String]], userInput: List[Map[String,String]], workloads: List[Map[String,String]]) {
+/** Input format for POST /microservices or PUT /orgs/{orgid}/workloads/<workload-id> */
+case class PostPutWorkloadRequest(label: String, description: String, public: Boolean, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: List[Map[String,String]], userInput: List[Map[String,String]], workloads: List[Map[String,String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
     // Check the workloadUrl is a valid URL
@@ -34,26 +34,27 @@ case class PostPutWorkloadRequest(label: String, description: String, workloadUr
     if (!Version(version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version is not valid version format."))
   }
 
-  def formId(): String = {
+  def formId(orgid: String): String = {
     // Remove the https:// from the beginning of workloadUrl and replace troublesome chars with a dash. It has already been checked as a valid URL in validate().
     val workloadUrl2 = """^[A-Za-z0-9+.-]*?://""".r replaceFirstIn (workloadUrl, "")
     val workloadUrl3 = """[$!*,;/?@&~=%]""".r replaceAllIn (workloadUrl2, "-")     // I think possible chars in valid urls are: $_.+!*,;/?:@&~=%-
-    return workloadUrl3 + "_" + version + "_" + arch
+    return OrgAndId(orgid, workloadUrl3 + "_" + version + "_" + arch).toString
   }
 
-  def toWorkloadRow(workload: String, owner: String) = WorkloadRow(workload, owner, label, description, workloadUrl, version, arch, downloadUrl, write(apiSpec), write(userInput), write(workloads), ApiTime.nowUTC)
+  def toWorkloadRow(workload: String, orgid: String, owner: String) = WorkloadRow(workload, orgid, owner, label, description, public, workloadUrl, version, arch, downloadUrl, write(apiSpec), write(userInput), write(workloads), ApiTime.nowUTC)
 }
 
-case class PatchWorkloadRequest(label: Option[String], description: Option[String], workloadUrl: Option[String], version: Option[String], arch: Option[String], downloadUrl: Option[String]) {
+case class PatchWorkloadRequest(label: Option[String], description: Option[String], public: Option[Boolean], workloadUrl: Option[String], version: Option[String], arch: Option[String], downloadUrl: Option[String]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the workload, and the attribute name being updated. */
-  def getDbUpdate(workload: String): (DBIO[_],String) = {
+  def getDbUpdate(workload: String, orgid: String): (DBIO[_],String) = {
     val lastUpdated = ApiTime.nowUTC
     //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this workload
     label match { case Some(lab) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.label,d.lastUpdated)).update((workload, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.description,d.lastUpdated)).update((workload, desc, lastUpdated)), "description"); case _ => ; }
+    public match { case Some(pub) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.public,d.lastUpdated)).update((workload, pub, lastUpdated)), "description"); case _ => ; }
     workloadUrl match { case Some(url) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.workloadUrl,d.lastUpdated)).update((workload, url, lastUpdated)), "workloadUrl"); case _ => ; }
     version match { case Some(ver) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.version,d.lastUpdated)).update((workload, ver, lastUpdated)), "version"); case _ => ; }
     arch match { case Some(ar) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.arch,d.lastUpdated)).update((workload, ar, lastUpdated)), "arch"); case _ => ; }
@@ -64,23 +65,21 @@ case class PatchWorkloadRequest(label: Option[String], description: Option[Strin
 
 
 
-/** Implementation for all of the /workloads routes */
+/** Implementation for all of the /orgs/{orgid}/workloads routes */
 trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
   def db: Database      // get access to the db object in ExchangeApiApp
   def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
 
-  /* ====== GET /workloads ================================ */
+  /* ====== GET /orgs/{orgid}/workloads ================================ */
   val getWorkloads =
     (apiOperation[GetWorkloadsResponse]("getWorkloads")
       summary("Returns all workloads")
       notes("""Returns all workload definitions in the exchange DB. Can be run by any user, device, or agbot.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("owner", DataType.String, Option[String]("Filter results to only include workloads with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
@@ -91,11 +90,12 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         )
       )
 
-  /** Handles GET /workloads. Can be called by anyone. */
-  get("/workloads", operation(getWorkloads)) ({
-    credsAndLog().authenticate().authorizeTo(TWorkload("*"),Access.READ)
+  get("/orgs/:orgid/workloads", operation(getWorkloads)) ({
+    val orgid = swaggerHack("orgid")
+    credsAndLog().authenticate().authorizeTo(TWorkload(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
-    var q = WorkloadsTQ.rows.subquery
+    //var q = WorkloadsTQ.rows.subquery
+    var q = WorkloadsTQ.getAllWorkloads(orgid)
     // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
     params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
     params.get("workloadUrl").foreach(workloadUrl => { if (workloadUrl.contains("%")) q = q.filter(_.workloadUrl like workloadUrl) else q = q.filter(_.workloadUrl === workloadUrl) })
@@ -110,7 +110,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     })
 
     db.run(q.result).map({ list =>
-      logger.debug("GET /workloads result size: "+list.size)
+      logger.debug("GET /orgs/"+orgid+"/workloads result size: "+list.size)
       val workloads = new MutableHashMap[String,Workload]
       if (list.nonEmpty) for (a <- list) workloads.put(a.workload, a.toWorkload)
       else resp.setStatus(HttpCode.NOT_FOUND)
@@ -118,17 +118,15 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     })
   })
 
-  /* ====== GET /workloads/{workload} ================================ */
+  /* ====== GET /orgs/{orgid}/workloads/{workload} ================================ */
   val getOneWorkload =
     (apiOperation[GetWorkloadsResponse]("getOneWorkload")
       summary("Returns a workload")
       notes("""Returns the workload with the specified id in the exchange DB. Can be run by a user, device, or agbot.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -136,9 +134,10 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         )
       )
 
-  /** Handles GET /workloads/{workload}. Can be called by anyone. */
-  get("/workloads/:workload", operation(getOneWorkload)) ({
-    val workload = swaggerHack("workload")
+  get("/orgs/:orgid/workloads/:workload", operation(getOneWorkload)) ({
+    val orgid = swaggerHack("orgid")
+    val bareWorkload = params("workload")   // but do not have a hack/fix for the name
+    val workload = OrgAndId(orgid,bareWorkload).toString
     credsAndLog().authenticate().authorizeTo(TWorkload(workload),Access.READ)
     val resp = response
     params.get("attribute") match {
@@ -146,7 +145,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         val q = WorkloadsTQ.getAttribute(workload, attribute)       // get the proper db query for this attribute
         if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Workload attribute name '"+attribute+"' is not an attribute of the workload resource."))
         db.run(q.result).map({ list =>
-          logger.trace("GET /workloads/"+workload+" attribute result: "+list.toString)
+          logger.trace("GET /orgs/"+orgid+"/workloads/"+bareWorkload+" attribute result: "+list.toString)
           if (list.nonEmpty) {
             GetWorkloadAttributeResponse(attribute, list.head.toString)
           } else {
@@ -157,7 +156,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
 
       case None => ;  // Return the whole workload resource
         db.run(WorkloadsTQ.getWorkload(workload).result).map({ list =>
-          logger.debug("GET /workloads/"+workload+" result: "+list.toString)
+          logger.debug("GET /orgs/"+orgid+"/workloads/"+bareWorkload+" result: "+list.toString)
           val workloads = new MutableHashMap[String,Workload]
           if (list.nonEmpty) for (a <- list) workloads.put(a.workload, a.toWorkload)
           else resp.setStatus(HttpCode.NOT_FOUND)
@@ -166,7 +165,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     }
   })
 
-  // =========== POST /workloads ===============================
+  // =========== POST /orgs/{orgid}/workloads ===============================
   val postWorkloads =
     (apiOperation[ApiResponse]("postWorkloads")
       summary "Adds a workload"
@@ -176,11 +175,11 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
 {
   "label": "Location for x86_64",     // for the registration UI
   "description": "blah blah",
+  "public": true,       // whether or not it can be viewed by other organizations
   "workloadUrl": "https://bluehorizon.network/documentation/workload/location",   // the unique identifier of this MS
   "version": "1.0.0",
   "arch": "amd64",
   "downloadUrl": "",    // not used yet
-  // Hints to the edge node about how to tell if it has physical sensors supported by the MS
   "apiSpec": [
     {
       "specRef": "https://bluehorizon.network/documentation/microservice/gps",
@@ -207,7 +206,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
 }
 ```"""
       parameters(
-      Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Query),
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
       Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
       Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
       Parameter("body", DataType[PostPutWorkloadRequest],
@@ -217,26 +216,25 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       )
   val postWorkloads2 = (apiOperation[PostPutWorkloadRequest]("postWorkloads2") summary("a") notes("a"))  // for some bizarre reason, the PostWorkloadRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
-  /** Handles POST /workload. Called by a user to update (must be same user that created it). */
-  post("/workloads", operation(postWorkloads)) ({
-//    val workload = swaggerHack("workload")
-    val ident = credsAndLog().authenticate().authorizeTo(TWorkload(""),Access.CREATE)
+  post("/orgs/:orgid/workloads", operation(postWorkloads)) ({
+    val orgid = swaggerHack("orgid")
+    val ident = credsAndLog().authenticate().authorizeTo(TWorkload(OrgAndId(orgid,"").toString),Access.CREATE)
     val workloadReq = try { parse(request.body).extract[PostPutWorkloadRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     workloadReq.validate()
-    val workload = workloadReq.formId()
+    val workload = workloadReq.formId(orgid)
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
     db.run(WorkloadsTQ.getNumOwned(owner).result.flatMap({ xs =>
-      logger.debug("POST /workloads num owned by "+owner+": "+xs)
+      logger.debug("POST /orgs/"+orgid+"/workloads num owned by "+owner+": "+xs)
       val numOwned = xs
       val maxWorkloads = ExchConfig.getInt("api.limits.maxWorkloads")
       if (numOwned <= maxWorkloads) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
-        workloadReq.toWorkloadRow(workload, owner).insert.asTry
+        workloadReq.toWorkloadRow(workload, orgid, owner).insert.asTry
       }
       else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxWorkloads+ " workloads")).asTry
     })).map({ xs =>
-      logger.debug("POST /workloads result: "+xs.toString)
+      logger.debug("POST /orgs/"+orgid+"/workloads result: "+xs.toString)
       xs match {
         case Success(_) => if (owner != "") AuthCache.workloads.putOwner(workload, owner)     // currently only users are allowed to update workload resources, so owner should never be blank
           resp.setStatus(HttpCode.POST_OK)
@@ -255,7 +253,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     })
   })
 
-  // =========== PUT /workloads/{workload} ===============================
+  // =========== PUT /orgs/{orgid}/workloads/{workload} ===============================
   val putWorkloads =
     (apiOperation[ApiResponse]("putWorkloads")
       summary "Updates a workload"
@@ -264,12 +262,12 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
 ```
 {
   "label": "Location for x86_64",     // for the registration UI
-  "description": "blah blah"
+  "description": "blah blah",
+  "public": true,       // whether or not it can be viewed by other organizations
   "workloadUrl": "https://bluehorizon.network/documentation/workload/location",   // the unique identifier of this MS
   "version": "1.0.0",
   "arch": "amd64",
   "downloadUrl": "",    // not used yet
-  // Hints to the edge node about how to tell if it has physical sensors supported by the MS
   "apiSpec": [
     {
       "specRef": "https://bluehorizon.network/documentation/microservice/gps",
@@ -296,38 +294,29 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
 }
 ```"""
       parameters(
-      Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Query),
-      Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
-      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PostPutWorkloadRequest],
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Query),
+        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PostPutWorkloadRequest],
         Option[String]("Workload object that needs to be updated in the exchange. See details in the Implementation Notes above."),
         paramType = ParamType.Body)
     )
       )
   val putWorkloads2 = (apiOperation[PostPutWorkloadRequest]("putWorkloads2") summary("a") notes("a"))  // for some bizarre reason, the PutWorkloadRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
-  /** Handles PUT /workload/{workload}. Called by a user to update (must be same user that created it). */
-  put("/workloads/:workload", operation(putWorkloads)) ({
-    val workload = swaggerHack("workload")
+  put("/orgs/:orgid/workloads/:workload", operation(putWorkloads)) ({
+    val orgid = swaggerHack("orgid")
+    val bareWorkload = params("workload")   // but do not have a hack/fix for the name
+    val workload = OrgAndId(orgid,bareWorkload).toString
     val ident = credsAndLog().authenticate().authorizeTo(TWorkload(workload),Access.WRITE)
     val workloadReq = try { parse(request.body).extract[PostPutWorkloadRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     workloadReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
-    /* this is pure update, no creation if it does not exist
-    db.run(WorkloadsTQ.getNumOwned(owner).result.flatMap({ xs =>
-      logger.debug("PUT /workloads/"+workload+" num owned: "+xs)
-      val numOwned = xs
-      val maxWorkloads = ExchConfig.getInt("api.limits.maxWorkloads")
-      if (numOwned <= maxWorkloads) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
-        workloadReq.toWorkloadRow(workload, owner).update.asTry
-      }
-      else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxWorkloads+ " workloads")).asTry
-    })).map({ xs =>
-    */
-    db.run(workloadReq.toWorkloadRow(workload, owner).update.asTry).map({ xs =>
-      logger.debug("PUT /workloads/"+workload+" result: "+xs.toString)
+    db.run(workloadReq.toWorkloadRow(workload, orgid, owner).update.asTry).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/workloads/"+bareWorkload+" result: "+xs.toString)
       xs match {
         case Success(n) => try {
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
@@ -346,7 +335,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     })
   })
 
-  // =========== PATCH /workloads/{workload} ===============================
+  // =========== PATCH /orgs/{orgid}/workloads/{workload} ===============================
   val patchWorkloads =
     (apiOperation[Map[String,String]]("patchWorkloads")
       summary "Partially updates a workload"
@@ -355,19 +344,16 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
 ```
 {
   "label": "GPS x86_64",     // for the registration UI
-  "description": "blah blah"
+  "description": "blah blah",
+  "public": true,       // whether or not it can be viewed by other organizations
   "workloadUrl": "https://bluehorizon.network/documentation/workload/gps",   // the unique identifier of this workload
   "version": "1.0.0",
   "arch": "amd64",
   "downloadUrl": ""    // not used yet
 }
-```
-
-**Notes about the response format:**
-
-- **The format may change in the future.**
-- **Due to a swagger bug, the format shown below is incorrect. Run the PATCH method to see the response format instead.**"""
+```"""
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -378,18 +364,19 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       )
   val patchWorkloads2 = (apiOperation[PatchWorkloadRequest]("patchWorkloads2") summary("a") notes("a"))  // for some bizarre reason, the PatchWorkloadRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
-  /** Handles PATCH /workload/{workload}. Must be called by the same user that created it. */
-  patch("/workloads/:workload", operation(patchWorkloads)) ({
-    val workload = swaggerHack("workload")
+  patch("/orgs/:orgid/workloads/:workload", operation(patchWorkloads)) ({
+    val orgid = swaggerHack("orgid")
+    val bareWorkload = params("workload")   // but do not have a hack/fix for the name
+    val workload = OrgAndId(orgid,bareWorkload).toString
     credsAndLog().authenticate().authorizeTo(TWorkload(workload),Access.WRITE)
     val workloadReq = try { parse(request.body).extract[PatchWorkloadRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    logger.trace("PATCH /workloads/"+workload+" input: "+workloadReq.toString)
+    logger.trace("PATCH /orgs/"+orgid+"/workloads/"+bareWorkload+" input: "+workloadReq.toString)
     val resp = response
-    val (action, attrName) = workloadReq.getDbUpdate(workload)
+    val (action, attrName) = workloadReq.getDbUpdate(workload, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid workload attribute specified"))
     db.run(action.transactionally.asTry).map({ xs =>
-      logger.debug("PATCH /workloads/"+workload+" result: "+xs.toString)
+      logger.debug("PATCH /orgs/"+orgid+"/workloads/"+bareWorkload+" result: "+xs.toString)
       xs match {
         case Success(v) => try {
             val numUpdated = v.toString.toInt     // v comes to us as type Any
@@ -407,26 +394,28 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     })
   })
 
-  // =========== DELETE /workloads/{workload} ===============================
+  // =========== DELETE /orgs/{orgid}/workloads/{workload} ===============================
   val deleteWorkloads =
     (apiOperation[ApiResponse]("deleteWorkloads")
       summary "Deletes a workload"
       notes "Deletes a workload from the exchange DB. Can only be run by the owning user."
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       )
 
-  /** Handles DELETE /workloads/{workload}. Must be called by user. */
-  delete("/workloads/:workload", operation(deleteWorkloads)) ({
-    val workload = swaggerHack("workload")
+  delete("/orgs/:orgid/workloads/:workload", operation(deleteWorkloads)) ({
+    val orgid = swaggerHack("orgid")
+    val bareWorkload = params("workload")   // but do not have a hack/fix for the name
+    val workload = OrgAndId(orgid,bareWorkload).toString
     credsAndLog().authenticate().authorizeTo(TWorkload(workload),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
     db.run(WorkloadsTQ.getWorkload(workload).delete.transactionally.asTry).map({ xs =>
-      logger.debug("DELETE /workloads/"+workload+" result: "+xs.toString)
+      logger.debug("DELETE /orgs/"+orgid+"/workloads/"+bareWorkload+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
             AuthCache.workloads.removeOwner(workload)

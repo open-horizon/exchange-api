@@ -76,6 +76,47 @@ services in the exchange.
 
 - The properties used for advertising and searching should always have its value element be a string. For example the memory property value should be `"300"` instead of `300`. This is because scalatra is automatically converting the json to scala data structures, and i don't know how to have the data structures that vary in type.
 
+## Changes Between v1.27.0 and v1.28.0
+
+### Todos left to be finished
+
+- Test dropdb with older compose db
+- Move bctype and blockchain under and add public field
+- Modify tests to have each suite use its own org
+- Rename devices to nodes
+- Modify PUT devices/{id}/agreements/{id} body to include the pattern and workload
+- See if maxAgreements=0 is supported as unlimited
+- Modify /search/devices for patterns
+- Add 'admin' field to user, enable admin users to do everything in their org (including create other users)
+- PUT orgs/{org}/devices/{device}/agreements/{agreementid} to be changed to take "microservices":[{"url":"ms url","org":"myorg"}] instead of an array of url strings like it is now.  Same change for agbots (url for workload and an org inside an object)
+- Add list of orgs/patterns to agbot resource
+- Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all devices
+- Do consistency checking of patterns and workloads
+- See if there is a way to fix the swagger hack for 2 level resources
+- Consider changing all creates to POST
+- Any other schema changes?
+
+### Limitations
+
+- Need to dropdb and initdb, and re-enter data
+
+### External Incompatible changes
+
+- All resource except /admin are now under /org/{orgid}. By convention we will use "IBM" for our orgid.
+- All identities must be prefixed by "{orgid}/". E.g. IBM/myuser, IBM/mydeviceid, IBM/myagbotid (as a special case, the root user is root/root). This includes identities listed in owner and definedBy fields.
+- Added 'public' field to microservices and workloads
+- Change returned http code to 404 when there are no resource found for GET /org/{orgid}/users, /org/{orgid}/devices, /org/{orgid}/agbots
+- Anonymous POST user/{username} (to create user) and POST user/{username}/reset are no longer supported (because we can't let them do that in any org)
+- This rare case is no longer supported: no id is specified in the credentials and it defaults to the device/agbot id in the url
+
+### Done in this version
+
+- Added the /orgs/{orgid} resource
+- Moved under /orgs/{orgid}: users, devices, agbots, microservices, workloads
+- Updated ACL to only only access within your org (with a few exceptions)
+- Added 'public' field to microservices and workloads
+- Got automated tests to pass with pre-existing IBM org
+
 ## Changes Between v1.26.0 and v1.27.0
 
 - Added org resource (still need to implement ACLs for it and move other resources under it)

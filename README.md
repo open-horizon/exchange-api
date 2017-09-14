@@ -72,18 +72,14 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
-## Limitations/Restrictions of Current Version
-
-- The properties used for advertising and searching should always have its value element be a string. For example the memory property value should be `"300"` instead of `300`. This is because scalatra is automatically converting the json to scala data structures, and i don't know how to have the data structures that vary in type.
-
-## Changes Between v1.27.0 and v1.28.0
+## Changes Between v1.28.0 and v1.29.0
 
 ### Todos left to be finished
 
-- Test dropdb with older compose db
+- Rename devices to nodes
+- Add schemaversion table and key upgradedb off of that
 - Move bctype and blockchain under and add public field
 - Modify tests to have each suite use its own org
-- Rename devices to nodes
 - Modify PUT devices/{id}/agreements/{id} body to include the pattern and workload
 - See if maxAgreements=0 is supported as unlimited
 - Modify /search/devices for patterns
@@ -95,6 +91,21 @@ services in the exchange.
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST
 - Any other schema changes?
+
+### Limitations
+
+- Need to dropdb and initdb, and re-enter data
+
+### External Incompatible changes
+
+- Users, devices, and agbots can now read their own org resource
+
+### Internal things done in this version
+
+- Test dropdb with older compose db
+-
+
+## Changes Between v1.27.0 and v1.28.0
 
 ### Limitations
 

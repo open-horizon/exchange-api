@@ -554,10 +554,9 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => Access.CREATE_PATTERNS
             case _ => access
           }
-          case TOrg(_) => access match { // a user accessing a org
-            //TODO: the way this is coded now, only root will be able to do these things. Add a user role for admin and add method isMyOrg()
-            case Access.READ => Access.READ_ALL_ORGS
-            case Access.WRITE => Access.WRITE_ALL_ORGS
+          case TOrg(_) => access match {    // a user accessing his org resource
+            case Access.READ => Access.READ_MY_ORGS
+            case Access.WRITE => Access.WRITE_MY_ORGS
             case Access.CREATE => Access.CREATE_ORGS
             case _ => access
           }
@@ -643,9 +642,9 @@ trait AuthenticationSupport extends ScalatraBase {
           case Access.CREATE => Access.CREATE_PATTERNS
           case _ => access
         }
-        case TOrg(_) => access match {     // a device accessing a org
-          case Access.READ => Access.READ_ALL_ORGS
-          case Access.WRITE => Access.WRITE_ALL_ORGS
+        case TOrg(_) => access match {     // a device accessing his org resource
+          case Access.READ => Access.READ_MY_ORGS
+          case Access.WRITE => Access.WRITE_MY_ORGS
           case Access.CREATE => Access.CREATE_ORGS
           case _ => access
         }
@@ -716,9 +715,9 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => Access.CREATE_PATTERNS
             case _ => access
           }
-          case TOrg(_) => access match { // a agbot accessing a org
-            case Access.READ => Access.READ_ALL_ORGS
-            case Access.WRITE => Access.WRITE_ALL_ORGS
+          case TOrg(_) => access match { // a agbot accessing his org resource
+            case Access.READ => Access.READ_MY_ORGS
+            case Access.WRITE => Access.WRITE_MY_ORGS
             case Access.CREATE => Access.CREATE_ORGS
             case _ => access
           }
@@ -791,9 +790,9 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => Access.CREATE_PATTERNS
             case _ => access
           }
-          case TOrg(_) => access match { // a anonymous accessing a org
-            case Access.READ => Access.READ_ALL_ORGS
-            case Access.WRITE => Access.WRITE_ALL_ORGS
+          case TOrg(_) => access match { // a anonymous accessing his org resource
+            case Access.READ => Access.READ_MY_ORGS
+            case Access.WRITE => Access.WRITE_MY_ORGS
             case Access.CREATE => Access.CREATE_ORGS
             case _ => access
           }

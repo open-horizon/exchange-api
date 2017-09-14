@@ -9,8 +9,8 @@ import org.json4s.jackson.JsonMethods._
 import org.scalatra.swagger._
 import org.slf4j._
 import java.util.Properties
-import scala.collection.immutable._
-import scala.collection.mutable.ListBuffer
+//import scala.collection.immutable._
+//import scala.collection.mutable.ListBuffer
 import scala.util._
 
 case class AdminHashpwRequest(password: String)
@@ -56,7 +56,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         )
       )
 
-  /** Handles POST /admin/reload. */
   post("/admin/reload", operation(postAdminReload)) ({
     // validateUser(BaseAccess.ADMIN, "")
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
@@ -81,7 +80,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
   val postAdminHashPw2 = (apiOperation[AdminHashpwRequest]("postAdminHashPw2") summary("a") notes("a"))
 
-  /** Handles POST /admin/hashpw. */
   post("/admin/hashpw", operation(postAdminHashPw)) ({
     // validateUser(BaseAccess.ADMIN, "")
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
@@ -106,7 +104,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
   val putAdminLogLevel2 = (apiOperation[AdminLogLevelRequest]("putAdminLogLevel2") summary("a") notes("a"))
 
-  /** Handles POST /admin/loglevel. */
   post("/admin/loglevel", operation(putAdminLogLevel)) ({
     // validateUser(BaseAccess.ADMIN, "")
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
@@ -131,9 +128,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         )
       )
 
-  /** Handles POST /admin/initdb. */
   post("/admin/initdb", operation(postAdminInitDb)) ({
-    // validateRoot(BaseAccess.ADMIN)
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     // db.run(ExchangeApiTables.setup).flatMap[ApiResponse]({ x =>
@@ -150,6 +145,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   })
 
   // =========== POST /admin/initnewtables ===============================
+  /*
   val postAdminInitNewTables =
     (apiOperation[ApiResponse]("postAdminInitNewTables")
       summary "Creates the schema for the new tables in this version"
@@ -159,10 +155,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       )
+      */
 
-  /** Handles POST /admin/initnewtables. */
-  post("/admin/initnewtables", operation(postAdminInitNewTables)) ({
-    // validateRoot(BaseAccess.ADMIN)
+  post("/admin/initnewtables" /*, operation(postAdminInitNewTables)*/ ) ({
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     db.run(ExchangeApiTables.createNewTables.transactionally.asTry).map({ xs =>
@@ -187,9 +182,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         )
       )
 
-  /** Handles GET /admin/dropdb/token. */
   get("/admin/dropdb/token", operation(getDropdbToken)) ({
-    // validateRoot(BaseAccess.ADMIN)
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     //status_=(HttpCode.POST_OK)
     AdminDropdbTokenResponse(createToken("root/root"))
@@ -206,7 +199,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         )
       )
 
-  /** Handles POST /admin/dropdb. */
   post("/admin/dropdb", operation(postAdminDropDb)) ({
     // validateToken(BaseAccess.ADMIN, "")     // the token was generated for root, so will only work for root
     credsAndLog().authenticate("token").authorizeTo(TAction(),Access.ADMIN)
@@ -227,6 +219,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   })
 
   // =========== POST /admin/dropnewtables ===============================
+  /*
   val postAdminDropNewTables =
     (apiOperation[ApiResponse]("postAdminDropNewTables")
       summary "Deletes the tables that are new in this version"
@@ -236,10 +229,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("password", DataType.String, Option[String]("The token received from GET /admin/dropdb/token. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       )
+      */
 
-  /** Handles POST /admin/dropnewtables. */
-  post("/admin/dropnewtables", operation(postAdminDropNewTables)) ({
-    // validateRoot(BaseAccess.ADMIN)
+  post("/admin/dropnewtables" /*, operation(postAdminDropNewTables)*/ ) ({
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     db.run(ExchangeApiTables.deleteNewTables.transactionally.asTry).map({ xs =>
@@ -266,12 +258,10 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         )
       )
 
-  /** Handles POST /admin/migratedb. */
   post("/admin/migratedb", operation(postAdminMigrateDb)) ({
-    // validateRoot(BaseAccess.ADMIN)
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val skipLoad: Boolean = if (params.get("skipLoad").orNull != null && params("skipload").toLowerCase == "yes") true else false
-    // val skipLoad: Boolean = true    //TODO: ExchangeApiTables.load() tries to read the json file content immediately, instead of waiting until they have been dumped
+    // val skipLoad: Boolean = true    //Note: ExchangeApiTables.load() tries to read the json file content immediately, instead of waiting until they have been dumped
     migratingDb = true      // lock non-root people out of rest api calls
     val resp = response
 
@@ -314,9 +304,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         )
       )
 
-  /** Handles POST /admin/upgradedb. */
   post("/admin/upgradedb", operation(postAdminUpgradeDb)) ({
-    // validateRoot(BaseAccess.ADMIN)
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
 
@@ -347,9 +335,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         )
       )
 
-  /** Handles POST /admin/unupgradedb. */
   post("/admin/unupgradedb", operation(postAdminUnupgradeDb)) ({
-    // validateRoot(BaseAccess.ADMIN)
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
 
@@ -371,6 +357,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   })
 
   // =========== POST /admin/dumptables ===============================
+  /*
   val postAdminDumpTables =
     (apiOperation[Seq[String]]("postAdminDumpTables")
       summary "Dumps all the DB tables"
@@ -380,9 +367,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       )
+      */
 
-  /** Handles POST /admin/dumptables. */
-  post("/admin/dumptables", operation(postAdminDumpTables)) ({
+  post("/admin/dumptables" /*, operation(postAdminDumpTables)*/ ) ({
     // validateUser(BaseAccess.ADMIN, "")
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
@@ -425,6 +412,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   })
 
   // =========== POST /admin/loadtables ===============================
+  /*
   val postAdminLoadTables =
     (apiOperation[Seq[String]]("postAdminLoadTables")
       summary "Loads content for all the DB tables"
@@ -434,9 +422,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       )
+      */
 
-  /** Handles POST /admin/loadtables. */
-  post("/admin/loadtables", operation(postAdminLoadTables)) ({
+  post("/admin/loadtables" /*, operation(postAdminLoadTables) */) ({
     // validateUser(BaseAccess.ADMIN, "")
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
@@ -468,7 +456,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         )
       )
 
-  /** Handles GET /admin/tables/{table}. */
   get("/admin/tables/:table", operation(getAdminTable)) ({
     // validateUser(BaseAccess.ADMIN, "")
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
@@ -504,9 +491,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         )
       )
 
-  /** Handles PUT /admin/tables/{table}. */
   put("/admin/tables/:table", operation(putAdminTable)) ({
-    // validateRoot(BaseAccess.ADMIN)
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val table = params("table")
     val resp = response
@@ -543,7 +528,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         )
       )
 
-  /** Handles GET /admin/status. */
   get("/admin/status", operation(getAdminStatus)) ({
     // validateUser(BaseAccess.STATUS, "")
     credsAndLog().authenticate().authorizeTo(TAction(),Access.STATUS)
@@ -601,10 +585,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
-  /** Handles PUT /admin/config - set 1 or more variables in the in-memory config (so it does not do the right thing in multi-node mode).
+  /** set 1 or more variables in the in-memory config (so it does not do the right thing in multi-node mode).
    * Intentionally not put swagger, because only used by automated tests. */
   put("/admin/config") ({
-    // validateRoot(BaseAccess.ADMIN)
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     val mod = try { parse(request.body).extract[AdminConfigRequest] }

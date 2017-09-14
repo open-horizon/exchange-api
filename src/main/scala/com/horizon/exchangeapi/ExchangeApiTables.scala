@@ -14,21 +14,35 @@ import com.horizon.exchangeapi.tables._
 object ExchangeApiTables {
 
   // Create all of the current version's tables - used in /admin/initdb and /admin/migratedb
-  val create = (OrgsTQ.rows.schema ++ UsersTQ.rows.schema ++ DevicesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ PatternsTQ.rows.schema).create
+  val create = (
+    OrgsTQ.rows.schema ++ UsersTQ.rows.schema
+      ++ DevicesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema
+      ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema
+      ++ DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema
+      ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ PatternsTQ.rows.schema
+    ).create
 
   // Alter the schema of existing tables - used in /admin/upgradedb
   // Note: the compose/bluemix version of postgresql does not support the 'if not exists' option
   // val alterTables = DBIO.seq(sqlu"alter table devices add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
   // val alterTables = DBIO.seq(sqlu"alter table devices drop column publickey", sqlu"alter table agbots drop column publickey")
+  val alterTables = null
 
   // Used to create just the new tables in this version, so we do not have to disrupt the existing tables - used in /admin/initnewtables and /admin/upgradedb
   //val createNewTables = (MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema).create  // <-- this is not in prod yet
   val createNewTables = (OrgsTQ.rows.schema).create
 
-  // Delete all of the current tables
+  // Delete all of the current tables - the tables that are depended on need to be last in this list
   // Note: doing this with raw sql stmts because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints (only adding), we should be ok with the drops below?
 //  val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
-  val delete = DBIO.seq(sqlu"drop table if exists patterns", sqlu"drop table if exists workloads", sqlu"drop table if exists microservices", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes", sqlu"drop table if exists devmsgs", sqlu"drop table if exists agbotmsgs", sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots", sqlu"drop table if exists devagreements", sqlu"drop table if exists properties", sqlu"drop table if exists devmicros", sqlu"drop table if exists devices", sqlu"drop table if exists users", sqlu"drop table if exists orgs")
+  val delete = DBIO.seq(
+    sqlu"drop table if exists patterns", sqlu"drop table if exists workloads", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes",  // no table depends on these
+    sqlu"drop table if exists mmicroservices",       // from older schema
+    sqlu"drop table if exists devmsgs", sqlu"drop table if exists agbotmsgs",     // these depend on both devices and agbots
+    sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots",
+    sqlu"drop table if exists devagreements", sqlu"drop table if exists properties", sqlu"drop table if exists microservices", sqlu"drop table if exists devmicros", sqlu"drop table if exists devices",
+    sqlu"drop table if exists users", sqlu"drop table if exists orgs"
+  )
 
   // Delete the previous version's (v1.24.0) tables - used by /admin/migratedb
   //val deletePrevious = DBIO.seq(sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
@@ -37,6 +51,7 @@ object ExchangeApiTables {
   // Remove the alters of existing tables - used by /admin/unupgradedb
   // val unAlterTables = DBIO.seq(sqlu"alter table devices drop column publickey", sqlu"alter table agbots drop column publickey")
   // val unAlterTables = DBIO.seq(sqlu"alter table devices add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
+  val unAlterTables = null
 
   // Used to delete just the new tables in this version (so we can recreate), so we do not have to disrupt the existing tables - used by /admin/dropnewtables and /admin/unupgradedb
   //val deleteNewTables = DBIO.seq(sqlu"drop table mmicroservices", sqlu"drop table workloads")  // <-- this is not in prod yet

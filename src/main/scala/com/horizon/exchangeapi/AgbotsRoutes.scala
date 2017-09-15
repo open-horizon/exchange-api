@@ -26,7 +26,7 @@ case class PutAgbotsRequestOld(token: String, name: String, msgEndPoint: String)
 /** Input format for PUT /orgs/{orgid}/agbots/<agbot-id> */
 case class PutAgbotsRequest(token: String, name: String, msgEndPoint: String, publicKey: String) {
   def validate() = {
-    // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /devices/{id}/msgs checks for the publicKey
+    // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /nodes/{id}/msgs checks for the publicKey
     if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token specified must not be blank"))
   }
 
@@ -141,7 +141,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire device resource (including microservices) will be returned."), paramType=ParamType.Query, required=false)
+        Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire node resource (including microservices) will be returned."), paramType=ParamType.Query, required=false)
         )
       )
 
@@ -188,7 +188,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   "token": "abc",       // agbot token, set by user when adding this agbot
   "name": "agbot3",         // agbot name that you pick
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this agbot to be contacted by agbots, empty string to use the built-in Exchange msg service
-  "publicKey"      // used by devices to encrypt msgs sent to this agbot using the built-in Exchange msg service
+  "publicKey"      // used by nodes to encrypt msgs sent to this agbot using the built-in Exchange msg service
 }
 ```"""
       parameters(
@@ -311,7 +311,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val deleteAgbots =
     (apiOperation[ApiResponse]("deleteAgbots")
       summary "Deletes a agbot"
-      notes "Deletes a agbot (Agreement Bot) from the exchange DB, and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the devices and agbot). Can be run by the owning user or the agbot."
+      notes "Deletes a agbot (Agreement Bot) from the exchange DB, and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the nodes and agbot). Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be deleted."), paramType = ParamType.Path),
@@ -742,8 +742,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   // =========== POST /orgs/{orgid}/agbots/{id}/msgs ===============================
   val postAgbotsMsgs =
     (apiOperation[ApiResponse]("postAgbotsMsgs")
-      summary "Sends a msg from a device to a agbot"
-      notes """Sends a msg from a device to a agbot. The device must 1st sign the msg (with its private key) and then encrypt the msg (with the agbots's public key). Can be run by any device. The **request body** structure:
+      summary "Sends a msg from a node to a agbot"
+      notes """Sends a msg from a node to a agbot. The node must 1st sign the msg (with its private key) and then encrypt the msg (with the agbots's public key). Can be run by any node. The **request body** structure:
 
 ```
 {
@@ -755,7 +755,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to send a msg to."), paramType = ParamType.Path),
-        // Device id/token must be in the header
+        // Node id/token must be in the header
         Parameter("body", DataType[PostAgbotsMsgsRequest],
           Option[String]("Signed/encrypted message to send to the agbot. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
@@ -763,17 +763,17 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       )
   val postAgbotsMsgs2 = (apiOperation[PostAgbotsMsgsRequest]("postAgbotsMsgs2") summary("a") notes("a"))
 
-  // The credentials for this are usually a device id
+  // The credentials for this are usually a node id
   post("/orgs/:orgid/agbots/:id/msgs", operation(postAgbotsMsgs)) ({
     val orgid = swaggerHack("orgid")
     val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
     val ident = credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.SEND_MSG_TO_AGBOT)
-    val devId = ident.creds.id      //todo: handle the case where the acls allow users to send msgs
+    val nodeId = ident.creds.id      //todo: handle the case where the acls allow users to send msgs
     val msg = try { parse(request.body).extract[PostAgbotsMsgsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
-    // Remove msgs whose TTL is past, then check the mailbox is not full, then get the device publicKey, then write the agbotmsgs row, all in the same db.run thread
+    // Remove msgs whose TTL is past, then check the mailbox is not full, then get the node publicKey, then write the agbotmsgs row, all in the same db.run thread
     db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs delete expired result: "+xs.toString)
       AgbotMsgsTQ.getNumOwned(compositeId).result
@@ -781,13 +781,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs mailbox size: "+xs)
       val mailboxSize = xs
       val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
-      if (mailboxSize < maxMessagesInMailbox) DevicesTQ.getPublicKey(devId).result.asTry
+      if (mailboxSize < maxMessagesInMailbox) NodesTQ.getPublicKey(nodeId).result.asTry
       else DBIO.failed(new Throwable("Access Denied: the message mailbox of "+compositeId+" is full ("+maxMessagesInMailbox+ " messages)")).asTry
     }).flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs device publickey result: "+xs.toString)
+      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs node publickey result: "+xs.toString)
       xs match {
-        case Success(v) => val devicePubKey = v.head
-          if (devicePubKey != "") AgbotMsgRow(0, compositeId, devId, devicePubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
+        case Success(v) => val nodePubKey = v.head
+          if (nodePubKey != "") AgbotMsgRow(0, compositeId, nodeId, nodePubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
           else DBIO.failed(new Throwable("Invalid Input: the message sender must have their public key registered with the Exchange")).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }

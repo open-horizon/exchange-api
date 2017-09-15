@@ -1,10 +1,10 @@
-# Searches for devices that should be in the exchange as user
+# Searches for nodes that should be in the exchange as user
 source `dirname $0`/../../../functions.sh POST $*
 
 curl $copts -X POST -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic $EXCHANGE_USER:$EXCHANGE_PW" -d '{
   "desiredMicroservices": [
     {
-      "url": "https://bluehorizon.network/documentation/sdr-device-api",
+      "url": "https://bluehorizon.network/documentation/sdr-node-api",
       "properties": [
         {
           "name": "arch",
@@ -45,4 +45,4 @@ curl $copts -X POST -H 'Content-Type: application/json' -H 'Accept: application/
   ],
   "startIndex": 0,
   "numEntries": 0
-}' $EXCHANGE_URL_ROOT/v1/search/devices | $parse
+}' $EXCHANGE_URL_ROOT/v1/search/nodes | $parse

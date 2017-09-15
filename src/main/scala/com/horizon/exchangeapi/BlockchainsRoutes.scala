@@ -23,7 +23,7 @@ case class GetBctypeAttributeResponse(attribute: String, value: String)
 case class PutBctypeRequest(description: String, details: String) {
   // protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
-    // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /devices/{id}/msgs checks for the publicKey
+    // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /nodes/{id}/msgs checks for the publicKey
   }
 
   // def toBctypeRow(bctype: String, owner: String) = BctypeRow(bctype, description, owner, write(containerInfo), ApiTime.nowUTC)
@@ -106,12 +106,12 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val getBctypes =
     (apiOperation[GetBctypesResponse]("getBctypes")
       summary("Returns all blockchain types")
-      notes("""Returns all Blockchain type definitions in the exchange DB. Can be run by any user, device, or agbot.
+      notes("""Returns all Blockchain type definitions in the exchange DB. Can be run by any user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("bctype", DataType.String, Option[String]("Filter results to only include bctypes with this bctype (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("description", DataType.String, Option[String]("Filter results to only include bctypes with this description (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("definedBy", DataType.String, Option[String]("Filter results to only include bctypes defined by this user (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
@@ -140,13 +140,13 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val getOneBctype =
     (apiOperation[GetBctypesResponse]("getOneBctype")
       summary("Returns a blockchain type")
-      notes("""Returns the blockchain type with the specified type name in the exchange DB. Can be run by a user, device, or agbot.
+      notes("""Returns the blockchain type with the specified type name in the exchange DB. Can be run by a user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire bctype resource will be returned."), paramType=ParamType.Query, required=false)
         )
       )
@@ -331,12 +331,12 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val getBlockchains =
     (apiOperation[GetBlockchainsResponse]("getBlockchains")
       summary("Returns all blockchains of this blockchain type")
-      notes("""Returns all blockchain instances that are this blockchain type. Can be run by any user, device, or agbot.
+      notes("""Returns all blockchain instances that are this blockchain type. Can be run by any user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Token of the bctype. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       )
@@ -360,13 +360,13 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val getOneBlockchain =
     (apiOperation[GetBlockchainsResponse]("getOneBlockchain")
       summary("Returns a blockchain for a blockchain type")
-      notes("""Returns the blockchain definition with the specified name for the specified blockchain type in the exchange DB. Can be run by any user, device, or agbot. **Because of a swagger bug this method can not be run via swagger.**
+      notes("""Returns the blockchain definition with the specified name for the specified blockchain type in the exchange DB. Can be run by any user, node, or agbot. **Because of a swagger bug this method can not be run via swagger.**
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
         Parameter("name", DataType.String, Option[String]("Name of the blockchain."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Token of the bctype. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire blockchain resource will be returned."), paramType=ParamType.Query, required=false)
         )

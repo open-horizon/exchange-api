@@ -75,13 +75,13 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val getWorkloads =
     (apiOperation[GetWorkloadsResponse]("getWorkloads")
       summary("Returns all workloads")
-      notes("""Returns all workload definitions in the exchange DB. Can be run by any user, device, or agbot.
+      notes("""Returns all workload definitions in the exchange DB. Can be run by any user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("owner", DataType.String, Option[String]("Filter results to only include workloads with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("workloadUrl", DataType.String, Option[String]("Filter results to only include workloads with this workloadUrl (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("version", DataType.String, Option[String]("Filter results to only include workloads with this version (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
@@ -122,14 +122,14 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val getOneWorkload =
     (apiOperation[GetWorkloadsResponse]("getOneWorkload")
       summary("Returns a workload")
-      notes("""Returns the workload with the specified id in the exchange DB. Can be run by a user, device, or agbot.
+      notes("""Returns the workload with the specified id in the exchange DB. Can be run by a user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire workload resource will be returned."), paramType=ParamType.Query, required=false)
         )
       )
@@ -187,7 +187,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       "arch": "amd64"
     }
   ],
-  // Values the device owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
+  // Values the node owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
   "userInput": [
     {
       "name": "foo",
@@ -275,7 +275,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       "arch": "amd64"
     }
   ],
-  // Values the device owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
+  // Values the node owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
   "userInput": [
     {
       "name": "foo",

@@ -6,7 +6,7 @@ curl $copts -X $method -H 'Accept: application/json' -H "Authorization:Basic roo
 
 # Some examples of custom jq parsing:
 # jq .users.bp
-# jq '.devices[] | {token,name}'
-# jq '.devices[] | .token'
-# jq '.devices | .["1"]'
-# jq .devices.d2.token
+# jq '.nodes[] | {token,name}'
+# jq '.nodes[] | .token'
+# jq '.nodes | .["1"]'
+# jq .nodes.d2.token

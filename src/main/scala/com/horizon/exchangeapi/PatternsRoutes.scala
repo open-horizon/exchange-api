@@ -21,14 +21,17 @@ case class GetPatternsResponse(patterns: Map[String,Pattern], lastIndex: Int)
 case class GetPatternAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST /microservices or PUT /orgs/{orgid}/patterns/<pattern-id> */
-case class PostPutPatternRequest(label: String, description: String, public: Boolean, microservices: List[Map[String,String]], workloads: List[PWorkloads], dataVerification: PDataVerification, agreementProtocols: List[Map[String,String]], properties: List[Map[String,Any]], counterPartyProperties: Map[String,List[Map[String,Any]]], maxAgreements: Int) {
+//case class PostPutPatternRequest(label: String, description: String, public: Boolean, microservices: List[Map[String,String]], workloads: List[PWorkloads], dataVerification: PDataVerification, agreementProtocols: List[Map[String,String]], properties: List[Map[String,Any]], counterPartyProperties: Map[String,List[Map[String,Any]]], maxAgreements: Int) {
+case class PostPutPatternRequest(label: String, description: String, public: Boolean, workloads: List[PWorkloads], dataVerification: PDataVerification, agreementProtocols: List[Map[String,String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {}
 
-  def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(microservices), write(workloads), write(dataVerification), write(agreementProtocols), write(properties), write(counterPartyProperties), maxAgreements, ApiTime.nowUTC)
+  //def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(microservices), write(workloads), write(dataVerification), write(agreementProtocols), write(properties), write(counterPartyProperties), maxAgreements, ApiTime.nowUTC)
+  def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(workloads), write(dataVerification), write(agreementProtocols), ApiTime.nowUTC)
 }
 
-case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], microservices: Option[List[Map[String,String]]], workloads: Option[List[PWorkloads]], dataVerification: Option[PDataVerification], agreementProtocols: Option[List[Map[String,String]]], properties: Option[List[Map[String,Any]]], counterPartyProperties: Option[Map[String,List[Map[String,Any]]]], maxAgreements: Option[Int]) {
+//case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], microservices: Option[List[Map[String,String]]], workloads: Option[List[PWorkloads]], dataVerification: Option[PDataVerification], agreementProtocols: Option[List[Map[String,String]]], properties: Option[List[Map[String,Any]]], counterPartyProperties: Option[Map[String,List[Map[String,Any]]]], maxAgreements: Option[Int]) {
+case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], workloads: Option[List[PWorkloads]], dataVerification: Option[PDataVerification], agreementProtocols: Option[List[Map[String,String]]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the pattern, and the attribute name being updated. */
@@ -39,13 +42,13 @@ case class PatchPatternRequest(label: Option[String], description: Option[String
     label match { case Some(lab) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.label,d.lastUpdated)).update((pattern, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.description,d.lastUpdated)).update((pattern, desc, lastUpdated)), "description"); case _ => ; }
     public match { case Some(pub) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.public,d.lastUpdated)).update((pattern, pub, lastUpdated)), "description"); case _ => ; }
-    microservices match { case Some(ms) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.microservices,d.lastUpdated)).update((pattern, write(ms), lastUpdated)), "workloadUrl"); case _ => ; }
+    //microservices match { case Some(ms) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.microservices,d.lastUpdated)).update((pattern, write(ms), lastUpdated)), "workloadUrl"); case _ => ; }
     workloads match { case Some(wk) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.workloads,d.lastUpdated)).update((pattern, write(wk), lastUpdated)), "vv"); case _ => ; }
     dataVerification match { case Some(dv) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.dataVerification,d.lastUpdated)).update((pattern, write(dv), lastUpdated)), "arch"); case _ => ; }
     agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "downloadUrl"); case _ => ; }
-    properties match { case Some(prop) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.properties,d.lastUpdated)).update((pattern, write(prop), lastUpdated)), "downloadUrl"); case _ => ; }
-    counterPartyProperties match { case Some(cpp) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.counterPartyProperties,d.lastUpdated)).update((pattern, write(cpp), lastUpdated)), "downloadUrl"); case _ => ; }
-    maxAgreements match { case Some(maxa) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.maxAgreements,d.lastUpdated)).update((pattern, maxa, lastUpdated)), "downloadUrl"); case _ => ; }
+    //properties match { case Some(prop) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.properties,d.lastUpdated)).update((pattern, write(prop), lastUpdated)), "downloadUrl"); case _ => ; }
+    //counterPartyProperties match { case Some(cpp) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.counterPartyProperties,d.lastUpdated)).update((pattern, write(cpp), lastUpdated)), "downloadUrl"); case _ => ; }
+    //maxAgreements match { case Some(maxa) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.maxAgreements,d.lastUpdated)).update((pattern, maxa, lastUpdated)), "downloadUrl"); case _ => ; }
     return (null, null)
   }
 }
@@ -62,13 +65,13 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val getPatterns =
     (apiOperation[GetPatternsResponse]("getPatterns")
       summary("Returns all patterns")
-      notes("""Returns all pattern definitions in this organization. Can be run by any user, device, or agbot.
+      notes("""Returns all pattern definitions in this organization. Can be run by any user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("idfilter", DataType.String, Option[String]("Filter results to only include patterns with this id (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("owner", DataType.String, Option[String]("Filter results to only include patterns with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("label", DataType.String, Option[String]("Filter results to only include patterns with this label (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
@@ -101,14 +104,14 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val getOnePattern =
     (apiOperation[GetPatternsResponse]("getOnePattern")
       summary("Returns a pattern")
-      notes("""Returns the pattern with the specified id in the exchange DB. Can be run by a user, device, or agbot.
+      notes("""Returns the pattern with the specified id in the exchange DB. Can be run by a user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire pattern resource will be returned."), paramType=ParamType.Query, required=false)
         )
       )
@@ -165,13 +168,6 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     }
   ],
   // All of the entries below can usually just be empty lists or objects
-  "microservices": [
-    {
-      "specRef": "https://bluehorizon.network/documentation/microservice/gps",
-      "version": "1.0.0",
-      "arch": "amd64"
-    }
-  ],
   "dataVerification": {
     "enabled": true,
     "URL": "",
@@ -184,19 +180,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     {
       "name": "Basic"
     }
-  ],
-  "properties": [
-    {
-      "name": "iame2edev",
-      "value": true
-    }
-  ],
-  "counterPartyProperties": {
-    "and":[
-      {"name":"neverfound", "value":true}
-    ]
-  },
-  "maxAgreements": 0
+  ]
 }
 ```"""
       parameters(
@@ -270,13 +254,6 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     }
   ],
   // All of the entries below can usually just be empty lists or objects
-  "microservices": [
-    {
-      "specRef": "https://bluehorizon.network/documentation/microservice/gps",
-      "version": "1.0.0",
-      "arch": "amd64"
-    }
-  ],
   "dataVerification": {
     "enabled": true,
     "URL": "",
@@ -289,19 +266,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     {
       "name": "Basic"
     }
-  ],
-  "properties": [
-    {
-      "name": "iame2edev",
-      "value": true
-    }
-  ],
-  "counterPartyProperties": {
-    "and":[
-      {"name":"neverfound", "value":true}
-    ]
-  },
-  "maxAgreements": 0
+  ]
 }
 ```"""
       parameters(
@@ -365,14 +330,6 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
    	  "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
     }
   ],
-  // All of the entries below can usually just be empty lists or objects
-  "microservices": [
-    {
-      "specRef": "https://bluehorizon.network/documentation/microservice/gps",
-      "version": "1.0.0",
-      "arch": "amd64"
-    }
-  ],
   "dataVerification": {
     "enabled": true,
     "URL": "",
@@ -385,19 +342,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     {
       "name": "Basic"
     }
-  ],
-  "properties": [
-    {
-      "name": "iame2edev",
-      "value": true
-    }
-  ],
-  "counterPartyProperties": {
-    "and":[
-      {"name":"neverfound", "value":true}
-    ]
-  },
-  "maxAgreements": 0
+  ]
 }
 ```"""
       parameters(

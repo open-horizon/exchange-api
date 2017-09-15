@@ -22,14 +22,14 @@ object Access extends Enumeration {
   val READ = Value("READ")       // these 1st 3 are generic and will be changed to specific ones below based on the identity and target
   val WRITE = Value("WRITE")       // implies READ and includes delete
   val CREATE = Value("CREATE")
-  val READ_MYSELF = Value("READ_MYSELF")      // is used for users, devices, agbots
+  val READ_MYSELF = Value("READ_MYSELF")      // is used for users, nodes, agbots
   val WRITE_MYSELF = Value("WRITE_MYSELF")
-  val CREATE_DEVICE = Value("CREATE_DEVICE")       // we use WRITE_MY_DEVICES instead of this
-  val READ_MY_DEVICES = Value("READ_MY_DEVICES")     // when an device tries to do this it means other device owned by the same user
-  val WRITE_MY_DEVICES = Value("WRITE_MY_DEVICES")
-  val READ_ALL_DEVICES = Value("READ_ALL_DEVICES")
-  val WRITE_ALL_DEVICES = Value("WRITE_ALL_DEVICES")
-  val SEND_MSG_TO_DEVICE = Value("SEND_MSG_TO_DEVICE")
+  val CREATE_NODE = Value("CREATE_NODE")       // we use WRITE_MY_NODES instead of this
+  val READ_MY_NODES = Value("READ_MY_NODES")     // when an node tries to do this it means other node owned by the same user
+  val WRITE_MY_NODES = Value("WRITE_MY_NODES")
+  val READ_ALL_NODES = Value("READ_ALL_NODES")
+  val WRITE_ALL_NODES = Value("WRITE_ALL_NODES")
+  val SEND_MSG_TO_NODE = Value("SEND_MSG_TO_NODE")
   val CREATE_AGBOT = Value("CREATE_AGBOT")       // we use WRITE_MY_AGBOTS instead of this
   val READ_MY_AGBOTS = Value("READ_MY_AGBOTS")     // when an agbot tries to do this it means other agbots owned by the same user
   val WRITE_MY_AGBOTS = Value("WRITE_MY_AGBOTS")
@@ -86,10 +86,10 @@ import com.horizon.exchangeapi.Access._
 object Role {
   /*
   val ANONYMOUS = Set(Access.CREATE_USER, Access.RESET_USER_PW)
-  val USER = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.RESET_USER_PW, Access.CREATE_DEVICE, Access.READ_MY_DEVICES, Access.WRITE_MY_DEVICES, Access.READ_ALL_DEVICES, Access.CREATE_AGBOT, Access.READ_MY_AGBOTS, Access.WRITE_MY_AGBOTS, Access.DATA_HEARTBEAT_MY_AGBOTS, Access.READ_ALL_AGBOTS, Access.STATUS, Access.READ_MY_BLOCKCHAINS, Access.READ_ALL_BLOCKCHAINS, Access.WRITE_MY_BLOCKCHAINS, Access.CREATE_BLOCKCHAINS, Access.READ_MY_BCTYPES, Access.READ_ALL_BCTYPES, Access.WRITE_MY_BCTYPES, Access.CREATE_BCTYPES)
+  val USER = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.RESET_USER_PW, Access.CREATE_NODE, Access.READ_MY_NODES, Access.WRITE_MY_NODES, Access.READ_ALL_NODES, Access.CREATE_AGBOT, Access.READ_MY_AGBOTS, Access.WRITE_MY_AGBOTS, Access.DATA_HEARTBEAT_MY_AGBOTS, Access.READ_ALL_AGBOTS, Access.STATUS, Access.READ_MY_BLOCKCHAINS, Access.READ_ALL_BLOCKCHAINS, Access.WRITE_MY_BLOCKCHAINS, Access.CREATE_BLOCKCHAINS, Access.READ_MY_BCTYPES, Access.READ_ALL_BCTYPES, Access.WRITE_MY_BCTYPES, Access.CREATE_BCTYPES)
   val SUPERUSER = Set(Access.ALL)
-  val DEVICE = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.READ_MY_DEVICES, Access.SEND_MSG_TO_AGBOT, Access.READ_ALL_BLOCKCHAINS, Access.READ_ALL_BCTYPES)
-  val AGBOT = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.DATA_HEARTBEAT_MY_AGBOTS, Access.READ_MY_AGBOTS, Access.READ_ALL_DEVICES, Access.SEND_MSG_TO_DEVICE, Access.READ_ALL_BLOCKCHAINS, Access.READ_ALL_BCTYPES)
+  val NODE = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.READ_MY_NODES, Access.SEND_MSG_TO_AGBOT, Access.READ_ALL_BLOCKCHAINS, Access.READ_ALL_BCTYPES)
+  val AGBOT = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.DATA_HEARTBEAT_MY_AGBOTS, Access.READ_MY_AGBOTS, Access.READ_ALL_NODES, Access.SEND_MSG_TO_NODE, Access.READ_ALL_BLOCKCHAINS, Access.READ_ALL_BCTYPES)
   def hasAuthorization(role: Set[Access], access: Access): Boolean = { role.contains(Access.ALL) || role.contains(access) }
   */
 
@@ -97,7 +97,7 @@ object Role {
   var ANONYMOUS = Set[String]()
   var USER = Set[String]()
   var SUPERUSER = Set[String]()
-  var DEVICE = Set[String]()
+  var NODE = Set[String]()
   var AGBOT = Set[String]()
 
   /** Sets the set of access values to the specified role */
@@ -106,7 +106,7 @@ object Role {
       case "ANONYMOUS" => ANONYMOUS = accessValues
       case "USER" => USER = accessValues
       case "SUPERUSER" => SUPERUSER = accessValues
-      case "DEVICE" => DEVICE = accessValues
+      case "NODE" => NODE = accessValues
       case "AGBOT" => AGBOT = accessValues
       case _ => return Failure(new Exception("invalid role"))
     }
@@ -172,11 +172,11 @@ case class CompositeId(compositeId: String) {
   }
 }
 
-/** In-memory cache of the user/pw, device id/token, and agbot id/token, where the pw and tokens are not hashed to speed up validation */
+/** In-memory cache of the user/pw, node id/token, and agbot id/token, where the pw and tokens are not hashed to speed up validation */
 object AuthCache {
   val logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
 
-  /** 1 set of things (user/pw, device id/token, agbot id/token, bctype/owner, bc/owner, microservice/owner, workload/owner) */
+  /** 1 set of things (user/pw, node id/token, agbot id/token, bctype/owner, bc/owner, microservice/owner, workload/owner) */
   class Cache(val whichTab: String) {     //TODO: i am sure there is a better way to handle the different tables
     // Throughout the implementation of this class, id and token are used generically, meaning in the case of users they are user and pw.
     // Our goal is for the token to be unhashed, but we have to handle the case where the user gives us an already hashed token.
@@ -187,7 +187,7 @@ object AuthCache {
 
     // The in-memory cache
     val things = new MutableHashMap[String,Tokens]()     // key is username or id, value is the unhashed and hashed pw's or token's
-    val owners = new MutableHashMap[String,String]()     // key is device or agbot id, value is the username that owns it. (Not used for users)
+    val owners = new MutableHashMap[String,String]()     // key is node or agbot id, value is the username that owns it. (Not used for users)
     val whichTable = whichTab
 
     var db: Database = _       // filled in my init() below
@@ -198,7 +198,7 @@ object AuthCache {
       whichTable match {
         //TODO: do we add org here?
         case "users" => db.run(UsersTQ.rows.map(x => (x.username, x.password)).result).map({ list => this._initUsers(list, skipRoot = true) })
-        case "devices" => db.run(DevicesTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
+        case "nodes" => db.run(NodesTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
         case "agbots" => db.run(AgbotsTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
         case "bctypes" => db.run(BctypesTQ.rows.map(x => (x.bctype, x.definedBy)).result).map({ list => this._initBctypes(list) })
         case "blockchains" => db.run(BlockchainsTQ.rows.map(x => (x.name, x.bctype, x.definedBy)).result).map({ list => this._initBCs(list) })
@@ -208,7 +208,7 @@ object AuthCache {
       }
     }
 
-    /** Put all of the devices or agbots in the cache */
+    /** Put all of the nodes or agbots in the cache */
     def _initIds(credList: Seq[(String,String,String)]): Unit = {
       for ((id,token,owner) <- credList) {
         val tokens: Tokens = if (Password.isHashed(token)) Tokens("", token) else Tokens(token, Password.hash(token))
@@ -271,7 +271,7 @@ object AuthCache {
       // The db is the source of truth, so get that pw 1st. It should always be the hashed pw/token.
       val a = whichTable match {
         case "users" => UsersTQ.getPassword(id).result
-        case "devices" => DevicesTQ.getToken(id).result
+        case "nodes" => NodesTQ.getToken(id).result
         case "agbots" => AgbotsTQ.getToken(id).result
       }
       //todo: this db access should go at the beginning of every rest api db access, using flatmap to move on to the db access the rest api is really for
@@ -343,7 +343,7 @@ object AuthCache {
       // We are doing this only so we can fall back to the cache's last known owner if the Await.result() times out.
       val a = whichTable match {
         case "users" => return None
-        case "devices" => DevicesTQ.getOwner(id).result
+        case "nodes" => NodesTQ.getOwner(id).result
         case "agbots" => AgbotsTQ.getOwner(id).result
         case "bctypes" => BctypesTQ.getOwner(id).result
         case "blockchains" => BlockchainsTQ.getOwner2(id).result
@@ -417,7 +417,7 @@ object AuthCache {
   }     // end of Cache class
 
   val users = new Cache("users")
-  val devices = new Cache("devices")
+  val nodes = new Cache("nodes")
   val agbots = new Cache("agbots")
   val bctypes = new Cache("bctypes")
   val blockchains = new Cache("blockchains")
@@ -442,7 +442,7 @@ trait AuthenticationSupport extends ScalatraBase {
   abstract class Identity {
     def creds: Creds
     def toIUser = IUser(creds)
-    def toIDevice = IDevice(creds)
+    def toINode = INode(creds)
     def toIAgbot = IAgbot(creds)
     def toIAnonymous = IAnonymous(Creds("",""))
     def isSuperUser = false       // IUser overrides this
@@ -457,7 +457,7 @@ trait AuthenticationSupport extends ScalatraBase {
       }
       //for ((k, v) <- AuthCache.users.things) { logger.debug("users cache entry: "+k+" "+v) }
       if (AuthCache.users.isValid(creds)) return toIUser
-      if (AuthCache.devices.isValid(creds)) return toIDevice
+      if (AuthCache.nodes.isValid(creds)) return toINode
       if (AuthCache.agbots.isValid(creds)) return toIAgbot
       halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
     }
@@ -512,10 +512,10 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-          case TDevice(_) => access match { // a user accessing a device
-            case Access.READ => if (iOwnTarget(target)) Access.READ_MY_DEVICES else Access.READ_ALL_DEVICES
-            case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_DEVICES else Access.WRITE_ALL_DEVICES
-            case Access.CREATE => Access.CREATE_DEVICE // not used, because WRITE is used for create also
+          case TNode(_) => access match { // a user accessing a node
+            case Access.READ => if (iOwnTarget(target)) Access.READ_MY_NODES else Access.READ_ALL_NODES
+            case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_NODES else Access.WRITE_ALL_NODES
+            case Access.CREATE => Access.CREATE_NODE // not used, because WRITE is used for create also
             case _ => access
           }
           case TAgbot(_) => access match { // a user accessing a agbot
@@ -573,7 +573,7 @@ trait AuthenticationSupport extends ScalatraBase {
       else {
         val owner = target match {
           case TUser(id) => return id == creds.id
-          case TDevice(id) => AuthCache.devices.getOwner(id)
+          case TNode(id) => AuthCache.nodes.getOwner(id)
           case TAgbot(id) => AuthCache.agbots.getOwner(id)
           case TBctype(id) => AuthCache.bctypes.getOwner(id)
           case TBlockchain(id) => AuthCache.blockchains.getOwner(id)
@@ -590,47 +590,47 @@ trait AuthenticationSupport extends ScalatraBase {
     }
   }
 
-  case class IDevice(creds: Creds) extends Identity {
+  case class INode(creds: Creds) extends Identity {
     def authorizeTo(target: Target, access: Access): Identity = {
       // Transform any generic access into specific access
       val access2 = target match {
-        case TUser(id) => access match {     // a device accessing a user
+        case TUser(id) => access match {     // a node accessing a user
             case Access.READ => Access.READ_ALL_USERS
             case Access.WRITE => Access.WRITE_ALL_USERS
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-        case TDevice(id) => access match {     // a device accessing a device
-            case Access.READ => if (id == creds.id) Access.READ_MYSELF else if (target.mine) Access.READ_MY_DEVICES else Access.READ_ALL_DEVICES
-            case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (target.mine) Access.WRITE_MY_DEVICES else Access.WRITE_ALL_DEVICES
-            case Access.CREATE => Access.CREATE_DEVICE
+        case TNode(id) => access match {     // a node accessing a node
+            case Access.READ => if (id == creds.id) Access.READ_MYSELF else if (target.mine) Access.READ_MY_NODES else Access.READ_ALL_NODES
+            case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (target.mine) Access.WRITE_MY_NODES else Access.WRITE_ALL_NODES
+            case Access.CREATE => Access.CREATE_NODE
             case _ => access
           }
-        case TAgbot(_) => access match {     // a device accessing a agbot
+        case TAgbot(_) => access match {     // a node accessing a agbot
             case Access.READ => Access.READ_ALL_AGBOTS
             case Access.WRITE => Access.WRITE_ALL_AGBOTS
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-        case TBctype(_) => access match {     // a device accessing a bctype
+        case TBctype(_) => access match {     // a node accessing a bctype
             case Access.READ => Access.READ_ALL_BCTYPES
             case Access.WRITE => Access.WRITE_ALL_BCTYPES
             case Access.CREATE => Access.CREATE_BCTYPES
             case _ => access
           }
-        case TBlockchain(_) => access match {     // a device accessing a blockchain
+        case TBlockchain(_) => access match {     // a node accessing a blockchain
             case Access.READ => Access.READ_ALL_BLOCKCHAINS
             case Access.WRITE => Access.WRITE_ALL_BLOCKCHAINS
             case Access.CREATE => Access.CREATE_BLOCKCHAINS
             case _ => access
           }
-        case TMicroservice(_) => access match {     // a device accessing a microservice
+        case TMicroservice(_) => access match {     // a node accessing a microservice
           case Access.READ => Access.READ_ALL_MICROSERVICES
           case Access.WRITE => Access.WRITE_ALL_MICROSERVICES
           case Access.CREATE => Access.CREATE_MICROSERVICES
           case _ => access
         }
-        case TWorkload(_) => access match {     // a device accessing a workload
+        case TWorkload(_) => access match {     // a node accessing a workload
           case Access.READ => Access.READ_ALL_WORKLOADS
           case Access.WRITE => Access.WRITE_ALL_WORKLOADS
           case Access.CREATE => Access.CREATE_WORKLOADS
@@ -642,15 +642,15 @@ trait AuthenticationSupport extends ScalatraBase {
           case Access.CREATE => Access.CREATE_PATTERNS
           case _ => access
         }
-        case TOrg(_) => access match {     // a device accessing his org resource
+        case TOrg(_) => access match {     // a node accessing his org resource
           case Access.READ => Access.READ_MY_ORGS
           case Access.WRITE => Access.WRITE_MY_ORGS
           case Access.CREATE => Access.CREATE_ORGS
           case _ => access
         }
-        case TAction(_) => access      // a device running an action
+        case TAction(_) => access      // a node running an action
       }
-      if (Role.hasAuthorization(Role.DEVICE, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
+      if (Role.hasAuthorization(Role.NODE, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }    
   }
 
@@ -673,10 +673,10 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-          case TDevice(_) => access match { // a agbot accessing a device
-            case Access.READ => Access.READ_ALL_DEVICES
-            case Access.WRITE => Access.WRITE_ALL_DEVICES
-            case Access.CREATE => Access.CREATE_DEVICE
+          case TNode(_) => access match { // a agbot accessing a node
+            case Access.READ => Access.READ_ALL_NODES
+            case Access.WRITE => Access.WRITE_ALL_NODES
+            case Access.CREATE => Access.CREATE_NODE
             case _ => access
           }
           case TAgbot(id) => access match { // a agbot accessing a agbot
@@ -748,10 +748,10 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-          case TDevice(_) => access match { // a anonymous accessing a device
-            case Access.READ => Access.READ_ALL_DEVICES
-            case Access.WRITE => Access.WRITE_ALL_DEVICES
-            case Access.CREATE => Access.CREATE_DEVICE
+          case TNode(_) => access match { // a anonymous accessing a node
+            case Access.READ => Access.READ_ALL_NODES
+            case Access.WRITE => Access.WRITE_ALL_NODES
+            case Access.CREATE => Access.CREATE_NODE
             case _ => access
           }
           case TAgbot(_) => access match { // a anonymous accessing a agbot
@@ -830,7 +830,7 @@ trait AuthenticationSupport extends ScalatraBase {
 
   case class TOrg(id: String) extends Target
   case class TUser(id: String) extends Target
-  case class TDevice(id: String) extends Target
+  case class TNode(id: String) extends Target
   case class TAgbot(id: String) extends Target
   case class TBctype(id: String) extends Target      // for bctypes and blockchains only the user that created it can update/delete it
   case class TBlockchain(id: String) extends Target   // this id is a composite of the bc name and bctype

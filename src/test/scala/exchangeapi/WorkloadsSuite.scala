@@ -44,9 +44,9 @@ class WorkloadsSuite extends FunSuite {
   val rootuser = "root/root"
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
-  val deviceId = "9912"     // the 1st device created, that i will use to run some rest methods
-  val deviceToken = deviceId+"tok"
-  val DEVICEAUTH = ("Authorization","Basic "+authpref+deviceId+":"+deviceToken)
+  val nodeId = "9912"     // the 1st node created, that i will use to run some rest methods
+  val nodeToken = nodeId+"tok"
+  val NODEAUTH = ("Authorization","Basic "+authpref+nodeId+":"+nodeToken)
   val agbotId = "9947"
   val agbotToken = agbotId+"tok"
   val AGBOTAUTH = ("Authorization","Basic "+authpref+agbotId+":"+agbotToken)
@@ -80,8 +80,8 @@ class WorkloadsSuite extends FunSuite {
     deleteAllUsers()
   }
 
-  /** Add users, device, workload for future tests */
-  test("Add users, device, workload for future tests") {
+  /** Add users, node, workload for future tests */
+  test("Add users, node, workload for future tests") {
     var userInput = PutUsersRequest(pw, user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
@@ -92,11 +92,11 @@ class WorkloadsSuite extends FunSuite {
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
-    val devInput = PutDevicesRequest(deviceToken, "bc dev test", List(RegMicroservice("foo",1,"{}",List(
+    val devInput = PutNodesRequest(nodeToken, "bc dev test", List(RegMicroservice("foo",1,"{}",List(
       Prop("arch","arm","string","in"),
       Prop("version","2.0.0","version","in"),
-      Prop("blockchainProtocols","agProto","list","in")))), "whisper-id", Map(), "DEVICEABC")
-    val devResponse = Http(URL+"/devices/"+deviceId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+      Prop("blockchainProtocols","agProto","list","in")))), "whisper-id", Map(), "NODEABC")
+    val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK)
 
@@ -170,9 +170,9 @@ class WorkloadsSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
-  test("POST /orgs/"+orgid+"/workloads - add "+workload2+" as device - should fail") {
+  test("POST /orgs/"+orgid+"/workloads - add "+workload2+" as node - should fail") {
     val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", false, wkUrl2, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
-    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
+    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
@@ -243,8 +243,8 @@ class WorkloadsSuite extends FunSuite {
     assert(respObj.workloads.contains(orgworkload2))
   }
 
-  test("GET /orgs/"+orgid+"/workloads - as device") {
-    val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(DEVICEAUTH).asString
+  test("GET /orgs/"+orgid+"/workloads - as node") {
+    val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)

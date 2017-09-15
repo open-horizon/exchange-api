@@ -56,10 +56,10 @@ class SlickSuite extends FunSuite {
     //}
   }
 
-  ignore("device info") {
+  ignore("node info") {
     // val cpds = new ComboPooledDataSource
     // val db = Database.forDataSource(cpds)
-    // db.run(ExchangeApiTables.listUserDevices.result).map({ xs =>
+    // db.run(ExchangeApiTables.listUserNodes.result).map({ xs =>
     //   println(xs)
     // })
   }
@@ -73,10 +73,10 @@ class SlickSuite extends FunSuite {
     //xs.onComplete = println("foobar")
   }
 
-  ignore("db-devices") {
+  ignore("db-nodes") {
     // val cpds = new ComboPooledDataSource
     // val db = Database.forDataSource(cpds)
-    // db.run(ExchangeApiTables.listUserDevices.result) map { xs =>
+    // db.run(ExchangeApiTables.listUserNodes.result) map { xs =>
     //   println(xs)
     //   assert(xs != null)
       //for (user <- xs){

@@ -1,6 +1,6 @@
 # Horizon Data Exchange Server and REST API
 
-The data exchange API provides API services for the exchange web UI (future), the edge devices, and agreement Bots.
+The data exchange API provides API services for the exchange web UI (future), the edge nodes, and agreement Bots.
 
 The exchange service also provides a few key services for BH for areas in which the decentralized P2P tools
 do not scale well enough yet. As soon as the decentralized tools are sufficient, they will replace these
@@ -47,7 +47,7 @@ services in the exchange.
 - `./sbt`
 - `jetty:start`
 - Or to have the server restart automatically when code changes: `~;jetty:stop;jetty:start`
-- Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/devices?id=a&token=b](http://localhost:8080/v1/devices?id=a&token=b)
+- Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/nodes?id=a&token=b](http://localhost:8080/v1/orgs/IBM/nodes?id=a&token=b)
 - To see the swagger output, browse: [http://localhost:8080/api](http://localhost:8080/api)
 - Run the automated tests (with the exchange server still running): `./sbt test`
 - Run just 1 of the the automated test suites (with the exchange server still running): `./sbt "test-only exchangeapi.AgbotsSuite"`
@@ -60,14 +60,14 @@ services in the exchange.
     - Build the build container: `make .docker-bld`
     - Build the code from your local exchange repo in the build container: `make docker-compile`
     - Build the exchange api container and run it locally: `make .docker-exec-run`
-- Manually test container locally: `curl -# -X GET -H "Accept: application/json" -H "Authorization:Basic bp:mypw" http://localhost:8080/v1/devices | jq .`
+- Manually test container locally: `curl -# -X GET -H "Accept: application/json" -H "Authorization:Basic bp:mypw" http://localhost:8080/v1/orgs/IBM/nodes | jq .`
     - Note: the container can not access a postgres db running locally on the docker host if the db is only listening for unix domain sockets.
 - Run the automated tests: `./sbt test`
 - Export environment variable `DOCKER_REGISTRY` with a value of the hostname of the docker registry to push newly built containers to (for the make target in the next step)
 - Push container to our docker registry: `make docker-push-only`
 - Deploy the new container to a docker host
     - Ensure that no changes are needed to the /etc/horizon/exchange/config.json file
-- Test the new container : `curl -# -X GET -H "Accept: application/json" -H "Authorization:Basic myuser:mypw" https://<exchange-host>/v1/devices | jq .` (or may be https, depending on your deployment)
+- Test the new container : `curl -# -X GET -H "Accept: application/json" -H "Authorization:Basic myuser:mypw" https://<exchange-host>/v1/orgs/IBM/nodes | jq .` (or may be https, depending on your deployment)
 - To see the swagger info from the container: `https://<exchange-host>/api`
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
@@ -76,17 +76,16 @@ services in the exchange.
 
 ### Todos left to be finished
 
-- Rename devices to nodes
-- Add schemaversion table and key upgradedb off of that
 - Move bctype and blockchain under and add public field
-- Modify tests to have each suite use its own org
-- Modify PUT devices/{id}/agreements/{id} body to include the pattern and workload
-- See if maxAgreements=0 is supported as unlimited
-- Modify /search/devices for patterns
+- Add support for data power headers
 - Add 'admin' field to user, enable admin users to do everything in their org (including create other users)
-- PUT orgs/{org}/devices/{device}/agreements/{agreementid} to be changed to take "microservices":[{"url":"ms url","org":"myorg"}] instead of an array of url strings like it is now.  Same change for agbots (url for workload and an org inside an object)
+- Add schemaversion table and key upgradedb off of that
+- Modify tests to have each suite use its own org
+- Modify PUT orgs/{org}/nodes/{id}/agreements/{agreementid} to include the pattern and workload, and take "microservices":[{"url":"ms url","org":"myorg"}] instead of an array of url strings like it is now.  Same change for agbots (url for workload and an org inside an object)
+- See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
+- Implement /org/{orgid}/patterns/{pat-id}/search
 - Add list of orgs/patterns to agbot resource
-- Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all devices
+- Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all nodes
 - Do consistency checking of patterns and workloads
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST
@@ -98,11 +97,13 @@ services in the exchange.
 
 ### External Incompatible changes
 
-- Users, devices, and agbots can now read their own org resource
+- Users, nodes, and agbots can now read their own org resource
+- Renamed devices to nodes
+- Removed properties, counterPartyProperties, microservices, maxAgreements from pattern resource
 
 ### Internal things done in this version
 
-- Test dropdb with older compose db
+- Tested dropdb with older compose db
 -
 
 ## Changes Between v1.27.0 and v1.28.0

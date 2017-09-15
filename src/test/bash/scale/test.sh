@@ -15,7 +15,7 @@ fi
 
 # Test configuration. You can override these before invoking the script, if you want.
 EX_NUM_USERS="${EX_NUM_USERS:-20}"
-EX_NUM_DEVICES="${EX_NUM_DEVICES:-40}"
+EX_NUM_node="${EX_NUM_node:-40}"
 EX_NUM_AGBOTS="${EX_NUM_AGBOTS:-20}"
 EX_NUM_AGREEMENTS="${EX_NUM_AGREEMENTS:-40}"
 EX_NUM_MSGS="${EX_NUM_MSGS:-40}"
@@ -37,10 +37,10 @@ user="${userbase}1"
 pw=pw
 userauth="$user:$pw"
 
-devicebase="${namebase}d"
-deviceid="${devicebase}1"
-devicetoken=abc123
-deviceauth="$deviceid:$devicetoken"
+nodebase="${namebase}d"
+nodeid="${nodebase}1"
+nodetoken=abc123
+nodeauth="$nodeid:$nodetoken"
 
 agbotbase="${namebase}a"
 agbotid="${agbotbase}1"
@@ -83,7 +83,7 @@ function divide {
 }
 
 # set -x
-# curl -X GET $curlBasicArgs -H "Authorization:Basic$userauth" $EX_URL_ROOT/v1/devices
+# curl -X GET $curlBasicArgs -H "Authorization:Basic$userauth" $EX_URL_ROOT/v1/node
 # exit
 
 # Args: numtimes, auth, url
@@ -175,7 +175,7 @@ function curldelete {
 	echo " total=${total}s, num=$numtimes, each=$(divide $total $numtimes)s"
 }
 
-# Get all the msgs for this device and delete them 1 by 1
+# Get all the msgs for this node and delete them 1 by 1
 function deletemsgs {
     auth=$1
     urlbase=$2
@@ -207,22 +207,22 @@ curldelete $EX_NUM_USERS $rootauth "users/$userbase" "NOT_FOUND_OK"
 
 # testings when adding new rest methods...
 #curlcreate "POST" 1 "" "users/$userbase" '{"password": "pw", "email": "foo@gmail.com"}'
-#curlcreate "PUT" 1 $userauth "devices/$devicebase" '{"token": "'$devicetoken'", "name": "pi", "registeredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-device-api", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "arm", "propType": "string", "op": "in"},{"name": "version", "value": "1.0", "propType": "version", "op": "in"}]}], "msgEndPoint": "whisper-id", "softwareVersions": {"horizon": "3.2.1"}, "publicKey": "ABC"}'
+#curlcreate "PUT" 1 $userauth "node/$nodebase" '{"token": "'$nodetoken'", "name": "pi", "registeredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-node-api", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "arm", "propType": "string", "op": "in"},{"name": "version", "value": "1.0", "propType": "version", "op": "in"}]}], "msgEndPoint": "whisper-id", "softwareVersions": {"horizon": "3.2.1"}, "publicKey": "ABC"}'
 #curlcreate "PUT" 1 $userauth "agbots/$agbotbase" '{"token": "'$agbottoken'", "name": "agbot", "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
-#curlputpost "POST" 2 $agbotauth "devices/$deviceid/msgs" '{"message": "hey there", "ttl": 300}'
-#curlget 1 $deviceauth "devices/$deviceid/msgs"
-#deletemsgs $deviceauth "devices/$deviceid/msgs"
-#curlputpost "POST" 2 $deviceauth "agbots/$agbotid/msgs" '{"message": "hey there", "ttl": 300}'
+#curlputpost "POST" 2 $agbotauth "node/$nodeid/msgs" '{"message": "hey there", "ttl": 300}'
+#curlget 1 $nodeauth "node/$nodeid/msgs"
+#deletemsgs $nodeauth "node/$nodeid/msgs"
+#curlputpost "POST" 2 $nodeauth "agbots/$agbotid/msgs" '{"message": "hey there", "ttl": 300}'
 #curlget 1 $agbotauth "agbots/$agbotid/msgs"
 #deletemsgs $agbotauth "agbots/$agbotid/msgs"
 #curlcreate "PUT" 1 $userauth "bctypes/$bctypebase" '{"description": "abc", "details": "escaped json"}'
 #curlputpost "PUT" 1 $userauth "bctypes/$bctypeid" '{"description": "abc", "details": "escaped json"}'
-#curlget 1 $deviceauth bctypes
-#curlget 1 $deviceauth bctypes/$bctypeid
+#curlget 1 $nodeauth bctypes
+#curlget 1 $nodeauth bctypes/$bctypeid
 #curlcreate "PUT" 1 $userauth "bctypes/$bctypeid/blockchains/$blockchainbase" '{"description": "abc", "details": "escaped json"}'
 #curlputpost "PUT" 1 $userauth "bctypes/$bctypeid/blockchains/$blockchainid" '{"description": "abc", "details": "escaped json"}'
-#curlget 1 $deviceauth "bctypes/$bctypeid/blockchains"
-#curlget 1 $deviceauth "bctypes/$bctypeid/blockchains/$blockchainid"
+#curlget 1 $nodeauth "bctypes/$bctypeid/blockchains"
+#curlget 1 $nodeauth "bctypes/$bctypeid/blockchains/$blockchainid"
 #exit
 
 # Users =================================================
@@ -242,22 +242,22 @@ curlget $EX_PERF_REPEAT $userauth "users/$user"
 # Post users/u1/confirm
 curlputpost "POST" $EX_PERF_REPEAT $userauth users/$user/confirm
 
-# Devices =================================================
+# node =================================================
 
-# Put (create) devices d*
-curlcreate "PUT" $EX_NUM_DEVICES $userauth "devices/$devicebase" '{"token": "'$devicetoken'", "name": "pi", "registeredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-device-api", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "arm", "propType": "string", "op": "in"},{"name": "version", "value": "1.0", "propType": "version", "op": "in"}]}], "msgEndPoint": "whisper-id", "softwareVersions": {"horizon": "3.2.1"}, "publicKey": "ABC"}'
+# Put (create) node d*
+curlcreate "PUT" $EX_NUM_node $userauth "node/$nodebase" '{"token": "'$nodetoken'", "name": "pi", "registeredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-node-api", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "arm", "propType": "string", "op": "in"},{"name": "version", "value": "1.0", "propType": "version", "op": "in"}]}], "msgEndPoint": "whisper-id", "softwareVersions": {"horizon": "3.2.1"}, "publicKey": "ABC"}'
 
-# Put (update) devices/d1
-curlputpost "PUT" $EX_PERF_REPEAT $deviceauth "devices/$deviceid" '{"token": "'$devicetoken'", "name": "pi", "registeredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-device-api", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "arm", "propType": "string", "op": "in"},{"name": "version", "value": "1.0", "propType": "version", "op": "in"}]}], "msgEndPoint": "whisper-id", "softwareVersions": {"horizon": "3.2.1"}, "publicKey": "ABC"}'
+# Put (update) node/d1
+curlputpost "PUT" $EX_PERF_REPEAT $nodeauth "node/$nodeid" '{"token": "'$nodetoken'", "name": "pi", "registeredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-node-api", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "arm", "propType": "string", "op": "in"},{"name": "version", "value": "1.0", "propType": "version", "op": "in"}]}], "msgEndPoint": "whisper-id", "softwareVersions": {"horizon": "3.2.1"}, "publicKey": "ABC"}'
 
-# Get all devices
-curlget $EX_PERF_REPEAT $userauth devices
+# Get all node
+curlget $EX_PERF_REPEAT $userauth node
 
-# Get devices/d1
-curlget $EX_PERF_REPEAT $deviceauth devices/$deviceid
+# Get node/d1
+curlget $EX_PERF_REPEAT $nodeauth node/$nodeid
 
-# Post devices/d1/heartbeat
-curlputpost "POST" $EX_PERF_REPEAT $deviceauth devices/$deviceid/heartbeat
+# Post node/d1/heartbeat
+curlputpost "POST" $EX_PERF_REPEAT $nodeauth node/$nodeid/heartbeat
 
 # Agbots =================================================
 
@@ -276,22 +276,22 @@ curlget $EX_PERF_REPEAT $agbotauth agbots/$agbotid
 # Post agbots/a1/heartbeat
 curlputpost "POST" $EX_PERF_REPEAT $agbotauth agbots/$agbotid/heartbeat
 
-# Post search/devices
-curlputpost "POST" $EX_PERF_REPEAT $agbotauth search/devices '{"desiredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-device-api", "properties": [{"name": "arch", "value": "arm", "propType": "wildcard", "op": "in"}, {"name": "version", "value": "*", "propType": "version", "op": "in"}]}], "secondsStale": 0, "propertiesToReturn": ["string"], "startIndex": 0, "numEntries": 0}'
+# Post search/node
+curlputpost "POST" $EX_PERF_REPEAT $agbotauth search/node '{"desiredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-node-api", "properties": [{"name": "arch", "value": "arm", "propType": "wildcard", "op": "in"}, {"name": "version", "value": "*", "propType": "version", "op": "in"}]}], "secondsStale": 0, "propertiesToReturn": ["string"], "startIndex": 0, "numEntries": 0}'
 
 # Agreements =================================================
 
-# Put (create) device d1 agreements agr*
-curlcreate "PUT" $EX_NUM_AGREEMENTS $deviceauth "devices/$deviceid/agreements/$agreementbase" '{"microservice": "sdr", "state": "negotiating"}'
+# Put (create) node d1 agreements agr*
+curlcreate "PUT" $EX_NUM_AGREEMENTS $nodeauth "node/$nodeid/agreements/$agreementbase" '{"microservice": "sdr", "state": "negotiating"}'
 
-# Put (update) device d1 agreement agr1
-curlputpost "PUT" $EX_PERF_REPEAT $deviceauth "devices/$deviceid/agreements/$agreementid" '{"microservice": "sdr", "state": "negotiating"}'
+# Put (update) node d1 agreement agr1
+curlputpost "PUT" $EX_PERF_REPEAT $nodeauth "node/$nodeid/agreements/$agreementid" '{"microservice": "sdr", "state": "negotiating"}'
 
-# Get all device d1 agreements
-curlget $EX_PERF_REPEAT $deviceauth "devices/$deviceid/agreements"
+# Get all node d1 agreements
+curlget $EX_PERF_REPEAT $nodeauth "node/$nodeid/agreements"
 
-# Get device d1 agreement agr1
-curlget $EX_PERF_REPEAT $deviceauth "devices/$deviceid/agreements/$agreementid"
+# Get node d1 agreement agr1
+curlget $EX_PERF_REPEAT $nodeauth "node/$nodeid/agreements/$agreementid"
 
 # Put (create) agbot a1 agreements agr*
 curlcreate "PUT" $EX_NUM_AGREEMENTS $agbotauth "agbots/$agbotid/agreements/$agreementbase" '{"workload": "sdr-arm.json", "state": "negotiating"}'
@@ -307,14 +307,14 @@ curlget $EX_PERF_REPEAT $agbotauth "agbots/$agbotid/agreements/$agreementid"
 
 # Msgs =================================================
 
-# Post (create) device d1 msgs
-curlputpost "POST" $EX_NUM_MSGS $agbotauth "devices/$deviceid/msgs" '{"message": "hey there", "ttl": 300}'
+# Post (create) node d1 msgs
+curlputpost "POST" $EX_NUM_MSGS $agbotauth "node/$nodeid/msgs" '{"message": "hey there", "ttl": 300}'
 
-# Get all device d1 msgs
-curlget $EX_PERF_REPEAT $deviceauth "devices/$deviceid/msgs"
+# Get all node d1 msgs
+curlget $EX_PERF_REPEAT $nodeauth "node/$nodeid/msgs"
 
 # Post (create) agbot a1 msgs
-curlputpost "POST" $EX_NUM_MSGS $deviceauth "agbots/$agbotid/msgs" '{"message": "hey there", "ttl": 300}'
+curlputpost "POST" $EX_NUM_MSGS $nodeauth "agbots/$agbotid/msgs" '{"message": "hey there", "ttl": 300}'
 
 # Get all agbot a1 msgs
 curlget $EX_PERF_REPEAT $agbotauth "agbots/$agbotid/msgs"
@@ -328,10 +328,10 @@ curlcreate "PUT" $EX_NUM_BCTYPES $userauth "bctypes/$bctypebase" '{"description"
 curlputpost "PUT" $EX_PERF_REPEAT $userauth "bctypes/$bctypeid" '{"description": "abc", "details": "escaped json"}'
 
 # Get all bctypes
-curlget $EX_PERF_REPEAT $deviceauth bctypes
+curlget $EX_PERF_REPEAT $nodeauth bctypes
 
 # Get bctypes/d1
-curlget $EX_PERF_REPEAT $deviceauth bctypes/$bctypeid
+curlget $EX_PERF_REPEAT $nodeauth bctypes/$bctypeid
 
 # Blockchains =================================================
 
@@ -342,10 +342,10 @@ curlcreate "PUT" $EX_NUM_BLOCKCHAINS $userauth "bctypes/$bctypeid/blockchains/$b
 curlputpost "PUT" $EX_PERF_REPEAT $userauth "bctypes/$bctypeid/blockchains/$blockchainid" '{"description": "abc", "details": "escaped json"}'
 
 # Get all bctype bt1 blockchains
-curlget $EX_PERF_REPEAT $deviceauth "bctypes/$bctypeid/blockchains"
+curlget $EX_PERF_REPEAT $nodeauth "bctypes/$bctypeid/blockchains"
 
 # Get bctype bt1 blockchain bc1
-curlget $EX_PERF_REPEAT $deviceauth "bctypes/$bctypeid/blockchains/$blockchainid"
+curlget $EX_PERF_REPEAT $nodeauth "bctypes/$bctypeid/blockchains/$blockchainid"
 
 # Admin =================================================
 
@@ -363,20 +363,20 @@ curldelete $EX_NUM_BLOCKCHAINS $userauth "bctypes/$bctypeid/blockchains/$blockch
 # Delete bctypes bt*
 curldelete $EX_NUM_BCTYPES $userauth "bctypes/$bctypebase"
 
-# Delete devices d1 msgs
-deletemsgs $deviceauth "devices/$deviceid/msgs"
+# Delete node d1 msgs
+deletemsgs $nodeauth "node/$nodeid/msgs"
 
 # Delete agbot a1 msgs
 deletemsgs $agbotauth "agbots/$agbotid/msgs"
 
-# Delete devices d1 agreements agr*
-curldelete $EX_NUM_AGREEMENTS $deviceauth "devices/$deviceid/agreements/$agreementbase"
+# Delete node d1 agreements agr*
+curldelete $EX_NUM_AGREEMENTS $nodeauth "node/$nodeid/agreements/$agreementbase"
 
 # Delete agbot a1 agreements agr*
 curldelete $EX_NUM_AGREEMENTS $agbotauth "agbots/$agbotid/agreements/$agreementbase"
 
-# Delete devices d*
-curldelete $EX_NUM_DEVICES $userauth "devices/$devicebase"
+# Delete node d*
+curldelete $EX_NUM_node $userauth "node/$nodebase"
 
 # Delete agbot a*
 curldelete $EX_NUM_AGBOTS $userauth "agbots/$agbotbase"

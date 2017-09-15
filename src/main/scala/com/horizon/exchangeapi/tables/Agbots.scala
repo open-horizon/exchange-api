@@ -119,9 +119,9 @@ object AgbotAgreementsTQ {
 case class AgbotAgreement(workload: String, state: String, lastUpdated: String, dataLastReceived: String)
 
 
-/** The agbotmsgs table holds the msgs sent to agbots by devices */
-case class AgbotMsgRow(msgId: Int, agbotId: String, deviceId: String, devicePubKey: String, message: String, timeSent: String, timeExpires: String) {
-  def toAgbotMsg = AgbotMsg(msgId, deviceId, devicePubKey, message, timeSent, timeExpires)
+/** The agbotmsgs table holds the msgs sent to agbots by nodes */
+case class AgbotMsgRow(msgId: Int, agbotId: String, nodeId: String, nodePubKey: String, message: String, timeSent: String, timeExpires: String) {
+  def toAgbotMsg = AgbotMsg(msgId, nodeId, nodePubKey, message, timeSent, timeExpires)
 
   def insert: DBIO[_] = ((AgbotMsgsTQ.rows returning AgbotMsgsTQ.rows.map(_.msgId)) += this)  // inserts the row and returns the msgId of the new row
   def upsert: DBIO[_] = AgbotMsgsTQ.rows.insertOrUpdate(this)    // do not think we need this
@@ -130,14 +130,14 @@ case class AgbotMsgRow(msgId: Int, agbotId: String, deviceId: String, devicePubK
 class AgbotMsgs(tag: Tag) extends Table[AgbotMsgRow](tag, "agbotmsgs") {
   def msgId = column[Int]("msgid", O.PrimaryKey, O.AutoInc)    // this enables them to delete a msg and helps us deliver them in order
   def agbotId = column[String]("agbotid")       // msg recipient
-  def deviceId = column[String]("deviceid")     // msg sender
-  def devicePubKey = column[String]("devicepubkey")
+  def nodeId = column[String]("nodeid")     // msg sender
+  def nodePubKey = column[String]("nodepubkey")
   def message = column[String]("message")
   def timeSent = column[String]("timesent")
   def timeExpires = column[String]("timeexpires")
-  def * = (msgId, agbotId, deviceId, devicePubKey, message, timeSent, timeExpires) <> (AgbotMsgRow.tupled, AgbotMsgRow.unapply)
+  def * = (msgId, agbotId, nodeId, nodePubKey, message, timeSent, timeExpires) <> (AgbotMsgRow.tupled, AgbotMsgRow.unapply)
   def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def device = foreignKey("device_fk", deviceId, DevicesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 object AgbotMsgsTQ {
@@ -149,4 +149,4 @@ object AgbotMsgsTQ {
   def getNumOwned(agbotId: String) = rows.filter(_.agbotId === agbotId).length
 }
 
-case class AgbotMsg(msgId: Int, deviceId: String, devicePubKey: String, message: String, timeSent: String, timeExpires: String)
+case class AgbotMsg(msgId: Int, nodeId: String, nodePubKey: String, message: String, timeSent: String, timeExpires: String)

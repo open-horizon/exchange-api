@@ -451,7 +451,7 @@ class AgbotsSuite extends FunSuite {
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
-  // Note: testing of msgs is in DevicesSuite.scala
+  // Note: testing of msgs is in NodesSuite.scala
 
   /** Clean up, delete all the test agbots */
   test("Cleanup - DELETE all test agbots and agreements") {

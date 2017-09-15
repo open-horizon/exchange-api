@@ -135,7 +135,7 @@ class UsersSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getUserResp = parse(response.body).extract[GetUsersResponse]
-    // Both DevicesSuite and AgbotsSuite create 1 user, which may/may not be in numExistingUsers and may/may not exist now
+    // Both NodesSuite and AgbotsSuite create 1 user, which may/may not be in numExistingUsers and may/may not exist now
     // assert(getUserResp.users.size === numExistingUsers + 1)
 
     assert(getUserResp.users.contains(orguser))

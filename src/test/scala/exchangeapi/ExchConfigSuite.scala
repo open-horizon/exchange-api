@@ -13,13 +13,13 @@ import com.horizon.exchangeapi._
 class ExchConfigSuite extends FunSuite {
   test("ExchConfig tests") {
     ExchConfig.load
-    assert(ExchConfig.getInt("api.limits.maxDevices") === 1000)
+    assert(ExchConfig.getInt("api.limits.maxNodes") === 1000)
     assert(ExchConfig.getInt("api.limits.maxAgbots") === 1000)
     assert(ExchConfig.getInt("api.limits.maxAgreements") === 1000)
     assert(ExchConfig.getInt("api.limits.maxMessagesInMailbox") === 500)
     
     assert(ExchConfig.getString("api.specRef.prefix") === "https://bluehorizon.network/documentation/")
-    assert(ExchConfig.getString("api.specRef.suffix") === "-device-api")
+    assert(ExchConfig.getString("api.specRef.suffix") === "-node-api")
     
     assert(ExchConfig.getString("api.objStoreTmpls.prefix") === "https://tor01.objectstorage.softlayer.net/v1/AUTH_bd05f276-e42f-4fa1-b7b3-780e8544769f")
     assert(ExchConfig.getString("api.objStoreTmpls.microDir") === "microservice-templates")

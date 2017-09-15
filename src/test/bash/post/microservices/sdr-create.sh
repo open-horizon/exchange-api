@@ -21,7 +21,7 @@ curl $copts -X POST -H 'Content-Type: application/json' -H 'Accept: application/
   ],
   "workloads": [
     {
-      "deployment": "{\"services\":{\"rtlsdr\":{\"image\":\"summit.hovitos.engineering/armhf/rtlsdr:volcano\",\"privileged\":true,\"devices\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
+      "deployment": "{\"services\":{\"rtlsdr\":{\"image\":\"summit.hovitos.engineering/armhf/rtlsdr:volcano\",\"privileged\":true,\"nodes\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
       "deployment_signature": "EURzSkDyk66qE6esYUDkLWLzM=",
       "torrent": "{\"url\":\"https://images.bluehorizon.network/28f57c.torrent\",\"images\":[{\"file\":\"d98bf.tar.gz\",\"signature\":\"kckH14DUj3bX=\"}]}"
     }

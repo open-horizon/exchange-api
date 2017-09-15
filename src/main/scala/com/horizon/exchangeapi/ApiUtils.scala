@@ -60,7 +60,7 @@ object ExchConfig {
     }
 
     // Read the ACLs and set them in our Role object
-    for (role <- List("ANONYMOUS", "USER", "SUPERUSER", "DEVICE", "AGBOT")) {
+    for (role <- List("ANONYMOUS", "USER", "SUPERUSER", "NODE", "AGBOT")) {
       val accessList = getStringList("api.acls."+role)
       if (accessList.nonEmpty) {
         val accessSet = accessList.toSet

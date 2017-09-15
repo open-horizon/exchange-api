@@ -45,9 +45,9 @@ class BlockchainsSuite extends FunSuite {
   val rootuser = "root/root"
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
-  val deviceId = "9910"     // the 1st device created, that i will use to run some rest methods
-  val deviceToken = deviceId+"tok"
-  val DEVICEAUTH = ("Authorization","Basic "+authpref+deviceId+":"+deviceToken)
+  val nodeId = "9910"     // the 1st node created, that i will use to run some rest methods
+  val nodeToken = nodeId+"tok"
+  val NODEAUTH = ("Authorization","Basic "+authpref+nodeId+":"+nodeToken)
   val agbotId = "9945"
   val agbotToken = agbotId+"tok"
   val AGBOTAUTH = ("Authorization","Basic "+authpref+agbotId+":"+agbotToken)
@@ -76,8 +76,8 @@ class BlockchainsSuite extends FunSuite {
     deleteAllUsers()
   }
 
-  /** Add users, device, bctype for future tests */
-  test("Add users, device, bctype for future tests") {
+  /** Add users, node, bctype for future tests */
+  test("Add users, node, bctype for future tests") {
     var userInput = PutUsersRequest(pw, user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).asString    // Note: no AUTH
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
@@ -88,11 +88,11 @@ class BlockchainsSuite extends FunSuite {
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
-    val devInput = PutDevicesRequest(deviceToken, "bc dev test", List(RegMicroservice("foo",1,"{}",List(
+    val devInput = PutNodesRequest(nodeToken, "bc dev test", List(RegMicroservice("foo",1,"{}",List(
       Prop("arch","arm","string","in"),
       Prop("version","2.0.0","version","in"),
-      Prop("blockchainProtocols","agProto","list","in")))), "whisper-id", Map(), "DEVICEABC")
-    val devResponse = Http(URL+"/devices/"+deviceId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+      Prop("blockchainProtocols","agProto","list","in")))), "whisper-id", Map(), "NODEABC")
+    val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK)
 
@@ -142,9 +142,9 @@ class BlockchainsSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)     // for now this is what is returned when the json-to-scala conversion fails
   }
 
-  test("PUT /orgs/"+orgid+"/bctypes/"+bctype2+" - as device - should fail") {
+  test("PUT /orgs/"+orgid+"/bctypes/"+bctype2+" - as node - should fail") {
     val input = PutBctypeRequest(bctype2+" desc", "json escaped string")
-    val response = Http(URL+"/bctypes/"+bctype2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
+    val response = Http(URL+"/bctypes/"+bctype2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
@@ -220,8 +220,8 @@ class BlockchainsSuite extends FunSuite {
     assert(getBctypeResp.bctypes.contains(bctype2))
   }
 
-  test("GET /orgs/"+orgid+"/bctypes - as device") {
-    val response: HttpResponse[String] = Http(URL+"/bctypes").headers(ACCEPT).headers(DEVICEAUTH).asString
+  test("GET /orgs/"+orgid+"/bctypes - as node") {
+    val response: HttpResponse[String] = Http(URL+"/bctypes").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -256,8 +256,8 @@ class BlockchainsSuite extends FunSuite {
     assert(now - lastUp <= 3)    // should not now be more than 3 seconds from the time the heartbeat was done above
   }
 
-  test("GET /orgs/"+orgid+"/bctypes/"+bctype+" - as device") {       // will do agbot soon
-    val response: HttpResponse[String] = Http(URL+"/bctypes/"+bctype).headers(ACCEPT).headers(DEVICEAUTH).asString
+  test("GET /orgs/"+orgid+"/bctypes/"+bctype+" - as node") {       // will do agbot soon
+    val response: HttpResponse[String] = Http(URL+"/bctypes/"+bctype).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -353,9 +353,9 @@ class BlockchainsSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
-  test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname2+" - as device - should fail") {
+  test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname2+" - as node - should fail") {
     val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", "json escaped string")
-    val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
+    val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
@@ -436,8 +436,8 @@ class BlockchainsSuite extends FunSuite {
     assert(getBcResp.blockchains.contains(bcname2))
   }
 
-  test("GET /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains - as device") {
-    val response: HttpResponse[String] = Http(URL+"/bctypes/"+bctype+"/blockchains").headers(ACCEPT).headers(DEVICEAUTH).asString
+  test("GET /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains - as node") {
+    val response: HttpResponse[String] = Http(URL+"/bctypes/"+bctype+"/blockchains").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
     val getBcResp = parse(response.body).extract[GetBlockchainsResponse]
@@ -463,8 +463,8 @@ class BlockchainsSuite extends FunSuite {
     assert(now - lastUp <= 3)    // should not now be more than 3 seconds from the time the heartbeat was done above
   }
 
-  test("GET /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - as device") {
-    val response: HttpResponse[String] = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).headers(ACCEPT).headers(DEVICEAUTH).asString
+  test("GET /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - as node") {
+    val response: HttpResponse[String] = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
     val getBcResp = parse(response.body).extract[GetBlockchainsResponse]
@@ -510,8 +510,8 @@ class BlockchainsSuite extends FunSuite {
     assert(getBcResp.blockchains.size === 0)
   }
 
-  test("DELETE /bctypes/"+bctype+"/blockchains/"+bcname+" - as device - should fail") {
-    val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).method("delete").headers(ACCEPT).headers(DEVICEAUTH).asString
+  test("DELETE /bctypes/"+bctype+"/blockchains/"+bcname+" - as node - should fail") {
+    val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).method("delete").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
@@ -536,8 +536,8 @@ class BlockchainsSuite extends FunSuite {
     assert(response.code === HttpCode.DELETED)
   }
 
-  test("GET /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - as device - verify gone") {
-    val response: HttpResponse[String] = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).headers(ACCEPT).headers(DEVICEAUTH).asString
+  test("GET /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - as node - verify gone") {
+    val response: HttpResponse[String] = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND)
     val getBcResp = parse(response.body).extract[GetBlockchainsResponse]

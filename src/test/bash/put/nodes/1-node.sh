@@ -65,4 +65,4 @@ curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/j
   "msgEndPoint": "whisper-id",
   "softwareVersions": {"horizon": "3.2.1"},
   "publicKey": "ABC"
-}' $EXCHANGE_URL_ROOT/v1/nodes/n1 | $parse
+}' $EXCHANGE_URL_ROOT/v1/orgs/$EXCHANGE_ORG/nodes/n1 | $parse

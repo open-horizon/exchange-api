@@ -52,11 +52,9 @@ workid="bluehorizon.network-workloads-netspeed_1.0.0_amd64"
 
 patid="standard-horizon-edge-node"
 
-#bctypebase="${namebase}bt"
-#bctypeid="${bctypebase}1"
-#
-#blockchainbase="${namebase}bc"
-#blockchainid="${blockchainbase}1"
+bctypeid="bct1"
+
+blockchainid="bc1"
 
 #curlBasicArgs="-s -w %{http_code} --output /dev/null $accept"
 curlBasicArgs="-s -w %{http_code} $accept"
@@ -171,6 +169,14 @@ else
     echo "orgs/$orgid/agbots/$agbotid exists"
 fi
 
+rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid" '{"microservices": ["sdr"], "state": "negotiating"}'
+else
+    echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid exists"
+fi
+
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
@@ -229,38 +235,24 @@ else
     echo "orgs/$orgid/patterns/$patid exists"
 fi
 
-
-rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "pi",
-      "registeredMicroservices": [{
-        "url": "https://bluehorizon.network/documentation/sdr-node-api",
-        "numAgreements": 1,
-        "policy": "{blob}",
-        "properties": [
-          {"name": "arch", "value": "arm", "propType": "string", "op": "in"},
-          {"name": "version", "value": "1.0", "propType": "version", "op": "in"}
-        ]
-      }],
-      "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC"}'
-else
-    echo "orgs/$orgid/nodes/$nodeid exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid" '{"microservices": ["sdr"], "state": "negotiating"}'
-else
-    echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid exists"
-fi
-
 # Do not have a good way to know what msg id they will have, but it is ok to create additional msgs
 curlputpost "POST" $agbotauth "orgs/$orgid/nodes/$nodeid/msgs" '{"message": "hey there", "ttl": 300}'
 curlputpost "POST" $nodeauth "orgs/$orgid/agbots/$agbotid/msgs" '{"message": "hey there", "ttl": 300}'
 
-#curlcreate "PUT" $userauth "bctypes/$bctypebase" '{"description": "abc", "details": "escaped json"}'
-#curlcreate "PUT" $userauth "bctypes/$bctypeid/blockchains/$blockchainbase" '{"description": "abc", "details": "escaped json"}'
+rc=$(curlfind $userauth "orgs/$orgid/bctypes/$bctypeid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/bctypes/$bctypeid" '{"description": "abc", "details": "escaped json"}'
+else
+    echo "orgs/$orgid/bctypes/$bctypeid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/bctypes/$bctypeid/blockchains/$blockchainid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/bctypes/$bctypeid/blockchains/$blockchainid" '{"description": "abc", "public": true, "details": "escaped json"}'
+else
+    echo "orgs/$orgid/bctypes/$bctypeid/blockchains/$blockchainid exists"
+fi
 
 echo "All resources added successfully"

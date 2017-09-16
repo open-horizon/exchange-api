@@ -76,7 +76,7 @@ services in the exchange.
 
 ### Todos left to be finished
 
-- Move bctype and blockchain under and add public field
+- Move bctype and blockchain under /org/{orgid} and add public field
 - Add support for data power headers
 - Add 'admin' field to user, enable admin users to do everything in their org (including create other users)
 - Add schemaversion table and key upgradedb off of that
@@ -100,6 +100,7 @@ services in the exchange.
 - Users, nodes, and agbots can now read their own org resource
 - Renamed devices to nodes
 - Removed properties, counterPartyProperties, microservices, maxAgreements from pattern resource
+- Nodes can now read their own /org/{orgid} resource
 
 ### Internal things done in this version
 

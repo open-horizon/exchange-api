@@ -5,7 +5,7 @@ import slick.jdbc.PostgresProfile.api._
 
 /** Contains the object representations of the DB tables related to bctypes. */
 
-case class BctypeRow(bctype: String, description: String, definedBy: String, details: String, lastUpdated: String) {
+case class BctypeRow(bctype: String, orgid: String, description: String, definedBy: String, details: String, lastUpdated: String) {
   // protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toBctype: Bctype = {
@@ -18,20 +18,23 @@ case class BctypeRow(bctype: String, description: String, definedBy: String, det
 
 /** Mapping of the bctypes db table to a scala class */
 class Bctypes(tag: Tag) extends Table[BctypeRow](tag, "bctypes") {
-  def bctype = column[String]("bctype", O.PrimaryKey)
+  def bctype = column[String]("bctype", O.PrimaryKey)    // the content of this is orgid/workload
+  def orgid = column[String]("orgid")
   def description = column[String]("description")
   def definedBy = column[String]("definedby")
   def details = column[String]("details")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (bctype, description, definedBy, details, lastUpdated) <> (BctypeRow.tupled, BctypeRow.unapply)
+  def * = (bctype, orgid, description, definedBy, details, lastUpdated) <> (BctypeRow.tupled, BctypeRow.unapply)
   def user = foreignKey("user_fk", definedBy, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 // Instance to access the bctypes table
 object BctypesTQ {
   val rows = TableQuery[Bctypes]
 
+  def getAllBctypes(orgid: String) = rows.filter(_.orgid === orgid)
   def getBctype(bctype: String) = rows.filter(_.bctype === bctype)
   def getDescription(bctype: String) = rows.filter(_.bctype === bctype).map(_.description)
   def getOwner(bctype: String) = rows.filter(_.bctype === bctype).map(_.definedBy)
@@ -62,9 +65,9 @@ class Bctype(var description: String, var definedBy: String, var details: String
 }
 
 /** One instance of a blockchain. From a rest api perspective, this is a sub-resource of bctype. */
-case class BlockchainRow(name: String, bctype: String, description: String, definedBy: String, details: String, lastUpdated: String) {
+case class BlockchainRow(name: String, bctype: String, orgid: String, description: String, definedBy: String, public: Boolean, details: String, lastUpdated: String) {
   def toBlockchain: Blockchain = {
-    Blockchain(description, definedBy, details, lastUpdated)
+    Blockchain(description, definedBy, public, details, lastUpdated)
   }
 
   def upsert: DBIO[_] = BlockchainsTQ.rows.insertOrUpdate(this)     //TODO: this might work now, the fix might be in 3.2 or 3.2.1 which came out in 7/2017. This currently does not work due to this bug: https://github.com/slick/slick/issues/966
@@ -76,28 +79,33 @@ class Blockchains(tag: Tag) extends Table[BlockchainRow](tag, "blockchains") {
   // def name = column[String]("name", O.PrimaryKey)     // name is not necessarily unique across all BC types, so need the type as a 2nd key
   def name = column[String]("name")     // name is not necessarily unique across all BC types, so need the type as a 2nd key
   def bctype = column[String]("bctype")
+  def orgid = column[String]("orgid")
   def description = column[String]("description")
   def definedBy = column[String]("definedby")
+  def public = column[Boolean]("public")
   def details = column[String]("details")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (name, bctype, description, definedBy, details, lastUpdated) <> (BlockchainRow.tupled, BlockchainRow.unapply)
+  def * = (name, bctype, orgid, description, definedBy, public, details, lastUpdated) <> (BlockchainRow.tupled, BlockchainRow.unapply)
   def primKey = primaryKey("pk_bc", (name, bctype))
   // def idx = index("idx_bc", (name, bctype), unique = true)
   def bctypekey = foreignKey("bctype_fk", bctype, BctypesTQ.rows)(_.bctype, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def user = foreignKey("user_fk", definedBy, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 object BlockchainsTQ {
   val rows = TableQuery[Blockchains]
 
+  def getAllBlockchains(orgid: String) = rows.filter(_.orgid === orgid)
   def getBlockchains(bctype: String) = rows.filter(_.bctype === bctype)
   def getBlockchain(bctype: String, name: String) = rows.filter( r => {r.bctype === bctype && r.name === name} )
   def getOwner(bctype: String, name: String) = rows.filter( r => {r.bctype === bctype && r.name === name} ).map(_.definedBy)
 
   /** The id is the name and bctype concatenated together */
   def getOwner2(id: String) = {
-    val (name, bctype) = id.split("""\|""", 2) match {
+    //val (name, bctype) = id.split("""\|""", 2) match {
+    val (bctype, name) = id.split("""\|""", 2) match {
       case Array(s) => (s, "")
       case Array(s1, s2) => (s1, s2)
       case _ => ("", "")
@@ -121,4 +129,4 @@ object BlockchainsTQ {
   }
 }
 
-case class Blockchain(description: String, definedBy: String, details: String, lastUpdated: String)
+case class Blockchain(description: String, definedBy: String, public: Boolean, details: String, lastUpdated: String)

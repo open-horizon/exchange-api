@@ -235,7 +235,8 @@ object AuthCache {
     /** Put owners of bc instances in the cache */
     def _initBCs(credList: Seq[(String,String,String)]): Unit = {
       for ((name,bctype,definedBy) <- credList) {
-        val key = name+"|"+bctype
+        //val key = name+"|"+bctype
+        val key = bctype+"|"+name
         if (definedBy != "") _putOwner(key, definedBy)
       }
     }

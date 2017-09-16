@@ -32,27 +32,32 @@ class BlockchainsSuite extends FunSuite {
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
   val orgid = "IBM"
-//  val authpref=orgid+"/"
-//  val URL = urlRoot+"/v1/orgs/"+orgid
-  val authpref=""
-  val URL = urlRoot+"/v1"
+  val authpref=orgid+"/"
+  val URL = urlRoot+"/v1/orgs/"+orgid
+  val NOORGURL = urlRoot+"/v1"
   val user = "9995"
+  val orguser = authpref+user
   val pw = user+"pw"
-  val USERAUTH = ("Authorization","Basic "+authpref+user+":"+pw)
+  val USERAUTH = ("Authorization","Basic "+orguser+":"+pw)
   val user2 = "9996"
+  val orguser2 = authpref+user2
   val pw2 = user2+"pw"
-  val USER2AUTH = ("Authorization","Basic "+authpref+user2+":"+pw2)
+  val USER2AUTH = ("Authorization","Basic "+orguser2+":"+pw2)
   val rootuser = "root/root"
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val nodeId = "9910"     // the 1st node created, that i will use to run some rest methods
+  val orgnodeId = authpref+nodeId
   val nodeToken = nodeId+"tok"
-  val NODEAUTH = ("Authorization","Basic "+authpref+nodeId+":"+nodeToken)
+  val NODEAUTH = ("Authorization","Basic "+orgnodeId+":"+nodeToken)
   val agbotId = "9945"
+  val orgagbotId = authpref+agbotId
   val agbotToken = agbotId+"tok"
-  val AGBOTAUTH = ("Authorization","Basic "+authpref+agbotId+":"+agbotToken)
+  val AGBOTAUTH = ("Authorization","Basic "+orgagbotId+":"+agbotToken)
   val bctype = "9920"
+  val orgbctype = authpref+bctype
   val bctype2 = "9921"
+  val orgbctype2 = authpref+bctype2
   val bctype3 = "9922"
   val bcname = "9925"
   val bcname2 = "9926"
@@ -79,12 +84,12 @@ class BlockchainsSuite extends FunSuite {
   /** Add users, node, bctype for future tests */
   test("Add users, node, bctype for future tests") {
     var userInput = PutUsersRequest(pw, user+"@hotmail.com")
-    var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).asString    // Note: no AUTH
+    var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
     userInput = PutUsersRequest(pw2, user2+"@hotmail.com")
-    userResponse = Http(URL+"/users/"+user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).asString    // Note: no AUTH
+    userResponse = Http(URL+"/users/"+user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
@@ -171,7 +176,7 @@ class BlockchainsSuite extends FunSuite {
 
       // Change the maxBlockchains config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxBlockchains", "0")    // user only owns 1 currently
-      var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
@@ -185,7 +190,7 @@ class BlockchainsSuite extends FunSuite {
 
       // Restore the maxBlockchains config value in the svr
       configInput = AdminConfigRequest("api.limits.maxBlockchains", origMaxBlockchains.toString)
-      response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
     }
@@ -199,25 +204,25 @@ class BlockchainsSuite extends FunSuite {
     val getBctypeResp = parse(response.body).extract[GetBctypesResponse]
     assert(getBctypeResp.bctypes.size === 2+numExistingBctypes)
 
-    assert(getBctypeResp.bctypes.contains(bctype))
-    var bt = getBctypeResp.bctypes.get(bctype).get     // the 2nd get turns the Some(val) into val
+    assert(getBctypeResp.bctypes.contains(orgbctype))
+    var bt = getBctypeResp.bctypes.get(orgbctype).get     // the 2nd get turns the Some(val) into val
     assert(bt.description === bctype+" new desc")
-    assert(bt.definedBy === user)
+    assert(bt.definedBy === orguser)
 
-    assert(getBctypeResp.bctypes.contains(bctype2))
-    bt = getBctypeResp.bctypes.get(bctype2).get     // the 2nd get turns the Some(val) into val
+    assert(getBctypeResp.bctypes.contains(orgbctype2))
+    bt = getBctypeResp.bctypes.get(orgbctype2).get     // the 2nd get turns the Some(val) into val
     assert(bt.description === bctype2+" desc")
-    assert(bt.definedBy === user2)
+    assert(bt.definedBy === orguser2)
   }
 
   test("GET /orgs/"+orgid+"/bctypes - filter owner and description") {
-    val response: HttpResponse[String] = Http(URL+"/bctypes").headers(ACCEPT).headers(USERAUTH).param("owner",user2).param("description",bctype2+"%").asString
+    val response: HttpResponse[String] = Http(URL+"/bctypes").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("description",bctype2+"%").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getBctypeResp = parse(response.body).extract[GetBctypesResponse]
     assert(getBctypeResp.bctypes.size === 1)
-    assert(getBctypeResp.bctypes.contains(bctype2))
+    assert(getBctypeResp.bctypes.contains(orgbctype2))
   }
 
   test("GET /orgs/"+orgid+"/bctypes - as node") {
@@ -246,8 +251,8 @@ class BlockchainsSuite extends FunSuite {
     val getBctypeResp = parse(response.body).extract[GetBctypesResponse]
     assert(getBctypeResp.bctypes.size === 1)
 
-    assert(getBctypeResp.bctypes.contains(bctype))
-    val bt = getBctypeResp.bctypes.get(bctype).get     // the 2nd get turns the Some(val) into val
+    assert(getBctypeResp.bctypes.contains(orgbctype))
+    val bt = getBctypeResp.bctypes.get(orgbctype).get     // the 2nd get turns the Some(val) into val
     assert(bt.description === bctype+" new desc")
 
     // Verify the lastHeartbeat from the POST heartbeat above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
@@ -323,21 +328,21 @@ class BlockchainsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - add as user") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname+" desc", "json escaped string")
+    val input = PutBlockchainRequest(bctype+"-"+bcname+" desc", true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - update as same user") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname+" new desc", "json escaped string")
+    val input = PutBlockchainRequest(bctype+"-"+bcname+" new desc", true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - update as 2nd user - should fail") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname+" yet another desc", "json escaped string")
+    val input = PutBlockchainRequest(bctype+"-"+bcname+" yet another desc", true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -354,28 +359,28 @@ class BlockchainsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname2+" - as node - should fail") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", "json escaped string")
+    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname2+" - as agbot - should fail") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", "json escaped string")
+    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname2+" - add bcname2 as user2") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", "json escaped string")
+    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype2+"/blockchains/"+bcname2+" - as user2 - and duplicate bcname should be ok") {
-    val input = PutBlockchainRequest(bctype2+"-"+bcname2+" desc", "json escaped string")
+    val input = PutBlockchainRequest(bctype2+"-"+bcname2+" desc", true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype2+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -389,12 +394,12 @@ class BlockchainsSuite extends FunSuite {
 
       // Change the maxBlockchains config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxBlockchains", "1")    // user owns 2 currently
-      var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
       // Now try adding another blockchain - expect it to be rejected
-      val input = PutBlockchainRequest(bctype+"-"+bcname3+" desc", "json escaped string")
+      val input = PutBlockchainRequest(bctype+"-"+bcname3+" desc", true, "json escaped string")
       response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
@@ -403,7 +408,7 @@ class BlockchainsSuite extends FunSuite {
 
       // Restore the maxBlockchains config value in the svr
       configInput = AdminConfigRequest("api.limits.maxBlockchains", origMaxBlockchains.toString)
-      response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
     }
@@ -419,16 +424,16 @@ class BlockchainsSuite extends FunSuite {
     assert(getBcResp.blockchains.contains(bcname))
     var bc = getBcResp.blockchains.get(bcname).get     // the 2nd get turns the Some(val) into val
     assert(bc.description === bctype+"-"+bcname+" new desc")
-    assert(bc.definedBy === user)
+    assert(bc.definedBy === orguser)
 
     assert(getBcResp.blockchains.contains(bcname2))
     bc = getBcResp.blockchains.get(bcname2).get     // the 2nd get turns the Some(val) into val
     assert(bc.description === bctype+"-"+bcname2+" desc")
-    assert(bc.definedBy === user2)
+    assert(bc.definedBy === orguser2)
   }
 
   test("GET /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains - filter owner and description") {
-    val response: HttpResponse[String] = Http(URL+"/bctypes/"+bctype+"/blockchains").headers(ACCEPT).headers(USERAUTH).param("owner",user2).param("description",bctype2+"%").asString
+    val response: HttpResponse[String] = Http(URL+"/bctypes/"+bctype+"/blockchains").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("description",bctype2+"%").asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
     val getBcResp = parse(response.body).extract[GetBlockchainsResponse]
@@ -510,13 +515,13 @@ class BlockchainsSuite extends FunSuite {
     assert(getBcResp.blockchains.size === 0)
   }
 
-  test("DELETE /bctypes/"+bctype+"/blockchains/"+bcname+" - as node - should fail") {
+  test("DELETE /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - as node - should fail") {
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).method("delete").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
-  test("DELETE /bctypes/"+bctype+"/blockchains/"+bcname+" - as user2 - should fail") {
+  test("DELETE /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - as user2 - should fail") {
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).method("delete").headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -530,7 +535,7 @@ class BlockchainsSuite extends FunSuite {
     assert(getBcResp.blockchains.size === 1)
   }
 
-  test("DELETE /bctypes/"+bctype+"/blockchains/"+bcname+" - as user") {
+  test("DELETE /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - as user") {
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
@@ -544,7 +549,7 @@ class BlockchainsSuite extends FunSuite {
     assert(getBcResp.blockchains.size === 0)
   }
 
-  test("DELETE /bctypes/"+bctype+" - which should also delete bcname2") {
+  test("DELETE /orgs/"+orgid+"/bctypes/"+bctype+" - which should also delete bcname2") {
     val response = Http(URL+"/bctypes/"+bctype).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
@@ -567,7 +572,7 @@ class BlockchainsSuite extends FunSuite {
     assert(getBctypeResp.bctypes.size === 0)
   }
 
-  test("DELETE /users/"+user2+" - which should also delete bctype2 and bcname2") {
+  test("DELETE /orgs/"+orgid+"/users/"+user2+" - which should also delete bctype2 and bcname2") {
     val response = Http(URL+"/users/"+user2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)

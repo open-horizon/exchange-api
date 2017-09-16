@@ -323,7 +323,7 @@ object AuthCache {
               else {    // the specified token is unhashed, but we do not have the unhashed token in our cache yet
                 if (Password.check(creds.token, tokens.hashed)) {
                   // now we have the unhashed version of the token so updated our cache with that
-                  logger.debug("updating auth cache with unhashed pw/token for '"+creds.id+"'")
+                  //logger.debug("updating auth cache with unhashed pw/token for '"+creds.id+"'")
                   _put(creds.id, Tokens(creds.token, tokens.hashed))
                   true
                 } else false

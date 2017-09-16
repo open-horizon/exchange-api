@@ -63,9 +63,9 @@ case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEn
 case class GetAgbotAgreementsResponse(agreements: Map[String,AgbotAgreement], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/agbots/{id}/agreements/<agreement-id> */
-case class PutAgbotAgreementRequest(workload: String, state: String) {
+case class PutAgbotAgreementRequest(workload: AAWorkload, state: String) {
   def toAgbotAgreement = AgbotAgreement(workload, state, ApiTime.nowUTC, "")
-  def toAgbotAgreementRow(agbotId: String, agrId: String) = AgbotAgreementRow(agrId, agbotId, workload, state, ApiTime.nowUTC, "")
+  def toAgbotAgreementRow(agbotId: String, agrId: String) = AgbotAgreementRow(agrId, agbotId, workload.orgid, workload.pattern, workload.url, state, ApiTime.nowUTC, "")
 }
 
 case class PostAgbotsIsRecentDataRequest(secondsStale: Int, agreementIds: List[String])     // the strings in the list are agreement ids
@@ -447,7 +447,11 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
 ```
 {
-  "workload": "sdr-arm.json",    // workload template name
+  "workload": {
+    "orgid": "myorg",
+    "pattern": "mynodetype",       // if CS type agreement, leave this blank
+    "url": "https://bluehorizon.network/workloads/sdr"
+  },
   "state": "negotiating"    // current agreement state: negotiating, signed, finalized, etc.
 }
 ```"""
@@ -566,7 +570,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     })
   })
 
-  /*
+  /* Not using these for data verification, but might in the future...
   // =========== POST /agbots/{id}/dataheartbeat ===============================
   val postAgbotsDataHeartbeat =
     (apiOperation[ApiResponse]("postAgbotsDataHeartbeat")
@@ -580,9 +584,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           paramType = ParamType.Body)
         )
       )
-  */
-
-  /** Handles POST /agbots/{id}/dataheartbeat.
   post("/agbots/:id/dataheartbeat", operation(postAgbotsDataHeartbeat)) ({
     val id = swaggerHack("id")
     // validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
@@ -591,7 +592,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val agreementIds = agrIds.toSet
 
-    todo: implement persistence
+    need to implement persistence
     // Find the agreement ids in any of this user's agbots
     val owner = TempDb.agbots.get(id) match {       // 1st find owner (user)
       case Some(agbot) => agbot.owner
@@ -614,9 +615,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     status_=(HttpCode.NOT_IMPLEMENTED)
     ApiResponse(ApiResponseType.NOT_IMPLEMENTED, "data heartbeats not implemented yet")
   })
-  */
 
-  /*
   // =========== POST /agbots/{id}/isrecentdata ===============================
   val postAgbotsIsRecentData =
     (apiOperation[List[PostAgbotsIsRecentDataElement]]("postAgbotsIsRecentData")
@@ -631,9 +630,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         )
       )
   val postAgbotsIsRecentData2 = (apiOperation[PostAgbotsIsRecentDataRequest]("postAgbotsIsRecentData2") summary("a") notes("a"))
-  */
-
-  /** Handles POST /agbots/{id}/isrecentdata.
   post("/agbots/:id/isrecentdata", operation(postAgbotsIsRecentData)) ({
     val id = swaggerHack("id")
     // validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
@@ -643,7 +639,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val secondsStale = req.secondsStale
     val agreementIds = req.agreementIds.toSet
 
-    todo: implement persistence
+    need to implement persistence
     // Find the agreement ids in any of this user's agbots
     val owner = TempDb.agbots.get(id) match {       // 1st find owner (user)
       case Some(agbot) => agbot.owner

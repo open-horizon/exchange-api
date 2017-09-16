@@ -6,13 +6,14 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import scalaj.http._
 import org.json4s._
-import org.json4s.JsonDSL._
+//import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import com.horizon.exchangeapi._
+import com.horizon.exchangeapi.tables._
 import scala.collection.immutable._
 import java.time._
-import java.util.Properties
+//import java.util.Properties
 
 /**
  * Tests for the /agbots routes. To run
@@ -54,6 +55,7 @@ class AgbotsSuite extends FunSuite {
   val agbot3Token = agbot3Id+"tok"
   val AGBOT3AUTH = ("Authorization","Basic "+orgagbot3Id+":"+agbot3Token)
   val agreementId = "9950"
+  val pattern = "mypattern"
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -152,7 +154,7 @@ class AgbotsSuite extends FunSuite {
     // assert(getAgbotResp.agbots.size === 1)   // since the other test suites are creating some of these too, we can not know how many there are right now
 
     assert(getAgbotResp.agbots.contains(orgagbotId))
-    var dev = getAgbotResp.agbots.get(orgagbotId).get     // the 2nd get turns the Some(val) into val
+    val dev = getAgbotResp.agbots.get(orgagbotId).get // the 2nd get turns the Some(val) into val
     assert(dev.name === "agbot"+agbotId+"-normal")
   }
 
@@ -184,7 +186,7 @@ class AgbotsSuite extends FunSuite {
     assert(getAgbotResp.agbots.size === 1)
 
     assert(getAgbotResp.agbots.contains(orgagbotId))
-    var agbot = getAgbotResp.agbots.get(orgagbotId).get     // the 2nd get turns the Some(val) into val
+    val agbot = getAgbotResp.agbots.get(orgagbotId).get // the 2nd get turns the Some(val) into val
     assert(agbot.name === "agbot"+agbotId+"-normal")
 
     // Verify the lastHeartbeat from the POST heartbeat above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
@@ -253,7 +255,7 @@ class AgbotsSuite extends FunSuite {
 
   /** Add an agreement for agbot 9930 - as the agbot */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" - as agbot") {
-    val input = PutAgbotAgreementRequest("sdr", "signed")
+    val input = PutAgbotAgreementRequest(AAWorkload(orgid, pattern, "sdr"), "signed")
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -261,7 +263,7 @@ class AgbotsSuite extends FunSuite {
 
   /** Update an agreement for agbot 9930 - as the agbot */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" - update as agbot") {
-    val input = PutAgbotAgreementRequest("sdr", "finalized")
+    val input = PutAgbotAgreementRequest(AAWorkload(orgid, pattern, "sdr"), "finalized")
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -269,7 +271,7 @@ class AgbotsSuite extends FunSuite {
 
   /** Update the agreement for agbot 9930 - as user */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" - as user") {
-    val input = PutAgbotAgreementRequest("sdr", "negotiating")
+    val input = PutAgbotAgreementRequest(AAWorkload(orgid, pattern, "sdr"), "negotiating")
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -277,7 +279,7 @@ class AgbotsSuite extends FunSuite {
 
   /** Add a 2nd agreement for agbot 9930 - as the agbot */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/9951 - 2nd agreement as agbot") {
-    val input = PutAgbotAgreementRequest("netspeed", "signed")
+    val input = PutAgbotAgreementRequest(AAWorkload(orgid, pattern, "netspeed"), "signed")
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/9951").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -287,7 +289,7 @@ class AgbotsSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/9952 - with low maxAgreements") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
-      ExchConfig.load
+      ExchConfig.load()
       val origMaxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
 
       // Change the maxAgreements config value in the svr
@@ -297,7 +299,7 @@ class AgbotsSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
 
       // Now try adding another agreement - expect it to be rejected
-      val input = PutAgbotAgreementRequest("netspeed", "signed")
+      val input = PutAgbotAgreementRequest(AAWorkload(orgid, pattern, "netspeed"), "signed")
       response = Http(URL+"/agbots/"+agbotId+"/agreements/9952").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
@@ -320,8 +322,8 @@ class AgbotsSuite extends FunSuite {
     assert(getAgResp.agreements.size === 2)
 
     assert(getAgResp.agreements.contains(agreementId))
-    var ag = getAgResp.agreements.get(agreementId).get     // the 2nd get turns the Some(val) into val
-    assert(ag.workload === "sdr")
+    val ag = getAgResp.agreements.get(agreementId).get // the 2nd get turns the Some(val) into val
+    assert(ag.workload.url === "sdr")
     assert(ag.state === "negotiating")
     assert(getAgResp.agreements.contains("9951"))
   }
@@ -334,8 +336,8 @@ class AgbotsSuite extends FunSuite {
     assert(getAgResp.agreements.size === 1)
 
     assert(getAgResp.agreements.contains(agreementId))
-    var ag = getAgResp.agreements.get(agreementId).get     // the 2nd get turns the Some(val) into val
-    assert(ag.workload === "sdr")
+    val ag = getAgResp.agreements.get(agreementId).get // the 2nd get turns the Some(val) into val
+    assert(ag.workload.url === "sdr")
     assert(ag.state === "negotiating")
 
     info("GET /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" output verified")
@@ -457,7 +459,7 @@ class AgbotsSuite extends FunSuite {
   test("Cleanup - DELETE all test agbots and agreements") {
     // deleteAllAgreements   <- these now get deleted when the user is deleted
     // deleteAllAgbots
-    deleteAllUsers
+    deleteAllUsers()
   }
 
 }

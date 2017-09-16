@@ -172,7 +172,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid" '{"microservices": ["sdr"], "state": "negotiating"}'
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid" '{"microservices": [], "workload": {"orgid": "myorg", "pattern": "mynodetype", "url": "https://bluehorizon.network/workloads/sdr"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid exists"
 fi
@@ -180,7 +180,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $agbotauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid" '{"workload": "sdr-arm.json", "state": "negotiating"}'
+    curlcreate "PUT" $agbotauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid" '{"workload": {"orgid": "myorg", "pattern": "mynodetype", "url": "https://bluehorizon.network/workloads/sdr"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid/agbots/$agbotid/agreements/$agreementid exists"
 fi

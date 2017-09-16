@@ -212,15 +212,14 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], msgEnd
 
 // class PutNodesResponse extends Map[String,String]    // key is micro url (specRef), value is micro template (download info)
 
-
 /** Output format for GET /orgs/{orgid}/nodes/{id}/agreements */
 case class GetNodeAgreementsResponse(agreements: Map[String,NodeAgreement], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/{id}/agreements/<agreement-id> */
-case class PutNodeAgreementRequest(microservices: List[String], state: String) {
+case class PutNodeAgreementRequest(microservices: List[NAMicroservice], workload: NAWorkload, state: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def toNodeAgreement = NodeAgreement(microservices, state, ApiTime.nowUTC)
-  def toNodeAgreementRow(nodeId: String, agId: String) = NodeAgreementRow(agId, nodeId, write(microservices), state, ApiTime.nowUTC)
+  def toNodeAgreement = NodeAgreement(microservices, workload, state, ApiTime.nowUTC)
+  def toNodeAgreementRow(nodeId: String, agId: String) = NodeAgreementRow(agId, nodeId, write(microservices), workload.orgid, workload.pattern, workload.url, state, ApiTime.nowUTC)
 }
 
 
@@ -428,7 +427,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       searchProps.matches(nodes, agHash)
     })
 
-    /* old way...
+    /* the old way, kept here for reference...
     db.run(q.result).map({ list =>
       logger.debug("POST /orgs/{orgid}/search/nodes result size: "+list.size)
       val nodes = NodesTQ.parseJoin(false, list)
@@ -725,7 +724,14 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
 ```
 {
-  "microservices": ["https://bluehorizon.network/documentation/sdr-node-api"],    // url (API spec ref)
+  "microservices": [          // specify this for CS-type agreements
+    {"orgid": "myorg", "url": "https://bluehorizon.network/microservices/rtlsdr"}    // url is API spec ref
+  ],
+  "workload": {          // specify this for patter-type agreements
+    "orgid": "myorg",
+    "pattern": "mynodetype",
+    "url": "https://bluehorizon.network/workloads/sdr"
+  },
   "state": "negotiating"    // current agreement state: negotiating, signed, finalized, etc.
 }
 ```"""

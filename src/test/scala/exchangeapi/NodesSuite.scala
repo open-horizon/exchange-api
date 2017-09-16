@@ -789,7 +789,7 @@ class NodesSuite extends FunSuite {
 
   /** Add an agreement for node 9900 - as the node */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - as node") {
-    val input = PutNodeAgreementRequest(List[String](SDRSPEC), "signed")
+    val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)), NAWorkload("","",""), "signed")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -797,7 +797,7 @@ class NodesSuite extends FunSuite {
 
   /** Update an agreement for node 9900 - as the node */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update as node") {
-    val input = PutNodeAgreementRequest(List[String](SDRSPEC), "finalized")
+    val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)), NAWorkload("","",""), "finalized")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -805,7 +805,7 @@ class NodesSuite extends FunSuite {
 
   /** Update an agreement for node 9900 - as user */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update as user") {
-    val input = PutNodeAgreementRequest(List[String](SDRSPEC), "negotiating")
+    val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)), NAWorkload("","",""), "negotiating")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -836,7 +836,7 @@ class NodesSuite extends FunSuite {
 
   /** Add a 2nd agreement for node 9900 - as the node */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/9951 - as node") {
-    val input = PutNodeAgreementRequest(List[String]("pws"), "signed")
+    val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,"pws")), NAWorkload("","",""), "signed")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/9951").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -851,7 +851,7 @@ class NodesSuite extends FunSuite {
 
     assert(getAgResp.agreements.contains(agreementId))
     val ag = getAgResp.agreements.get(agreementId).get // the 2nd get turns the Some(val) into val
-    assert(ag.microservices === List[String](SDRSPEC))
+    assert(ag.microservices === List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)))
     assert(ag.state === "negotiating")
     assert(getAgResp.agreements.contains("9951"))
   }
@@ -865,7 +865,7 @@ class NodesSuite extends FunSuite {
 
     assert(getAgResp.agreements.contains(agreementId))
     val ag = getAgResp.agreements.get(agreementId).get // the 2nd get turns the Some(val) into val
-    assert(ag.microservices === List[String](SDRSPEC))
+    assert(ag.microservices === List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)))
     assert(ag.state === "negotiating")
 
     info("GET /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" output verified")
@@ -926,7 +926,7 @@ class NodesSuite extends FunSuite {
 
   /** Add an agreement for node 9900 for netspeed */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - netspeed") {
-    val input = PutNodeAgreementRequest(List[String](NETSPEEDSPEC), "signed")
+    val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,NETSPEEDSPEC)), NAWorkload("","",""), "signed")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -1043,7 +1043,7 @@ class NodesSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
 
       // Now try adding another agreement - expect it to be rejected
-      val input = PutNodeAgreementRequest(List[String]("netspeed"), "signed")
+      val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,"netspeed")), NAWorkload("","",""), "signed")
       response = Http(URL+"/nodes/"+nodeId+"/agreements/9952").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)

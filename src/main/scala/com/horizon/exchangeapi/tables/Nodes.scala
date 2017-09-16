@@ -134,18 +134,19 @@ class Node(var token: String, var name: String, var owner: String, var registere
   def copy = new Node(token, name, owner, registeredMicroservices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey)
 }
 
-case class NodeAgreementRow(agId: String, nodeId: String, microservices: String, state: String, lastUpdated: String) {
+
+case class NAMicroservice(orgid: String, url: String)
+case class NAWorkload(orgid: String, pattern: String, url: String)
+
+case class NodeAgreementRow(agId: String, nodeId: String, microservices: String, workloadOrgid: String, workloadPattern: String, workloadUrl: String, state: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  // Provides backward compat for when microservices was just 1 string (not a json list)
-  def getMicroservices: List[String] = {
-    try { if (microservices != "") read[List[String]](microservices) else List[String]() }
-    catch { case _: Exception => return List[String](microservices) }
-  }
+  // Translates the MS string into a data structure
+  def getMicroservices: List[NAMicroservice] = if (microservices != "") read[List[NAMicroservice]](microservices) else List[NAMicroservice]()
+  def getWorkloads = NAWorkload(workloadOrgid, workloadPattern, workloadUrl)
 
   def toNodeAgreement = {
-//    val ms = if (microservices != "") read[List[String]](microservices) else List[String]()
-    NodeAgreement(getMicroservices, state, lastUpdated)
+    NodeAgreement(getMicroservices, getWorkloads, state, lastUpdated)
   }
 
   def upsert: DBIO[_] = NodeAgreementsTQ.rows.insertOrUpdate(this)
@@ -155,9 +156,12 @@ class NodeAgreements(tag: Tag) extends Table[NodeAgreementRow](tag, "nodeagreeme
   def agId = column[String]("agid", O.PrimaryKey)     // ethereum agreeement ids are unique
   def nodeId = column[String]("nodeid")
   def microservices = column[String]("microservice")
+  def workloadOrgid = column[String]("workloadorgid")
+  def workloadPattern = column[String]("workloadpattern")
+  def workloadUrl = column[String]("workloadurl")
   def state = column[String]("state")
   def lastUpdated = column[String]("lastUpdated")
-  def * = (agId, nodeId, microservices, state, lastUpdated) <> (NodeAgreementRow.tupled, NodeAgreementRow.unapply)
+  def * = (agId, nodeId, microservices, workloadOrgid, workloadPattern, workloadUrl, state, lastUpdated) <> (NodeAgreementRow.tupled, NodeAgreementRow.unapply)
   def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
@@ -170,54 +174,31 @@ object NodeAgreementsTQ {
   def getAgreementsWithState = rows.filter(_.state =!= "")
 }
 
-case class NodeAgreement(microservices: List[String], state: String, lastUpdated: String)
+case class NodeAgreement(microservices: List[NAMicroservice], workload: NAWorkload, state: String, lastUpdated: String)
 
-/** Builds a hash of the current number of agreements for each node and microservice, so we can check them quickly */
-//class AgreementsHash(tempDbNodesAgreements: MutableHashMap[String,MutableHashMap[String,NodeAgreement]], dbNodesAgreements: Seq[NodeAgreementRow]) {
+/** Builds a hash of the current number of agreements for each node and microservice in the org, so we can check them quickly */
 class AgreementsHash(dbNodesAgreements: Seq[NodeAgreementRow]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-
-  // Alternate constructors, where they supply only 1 of the args
-  //  def this(tempDbNodesAgreements: MutableHashMap[String,MutableHashMap[String,NodeAgreement]]) = this(tempDbNodesAgreements, null)
-  //  def this(dbNodesAgreements: Seq[NodeAgreementRow]) = this(null, dbNodesAgreements)
 
   // The 1st level key of this hash is the node id, the 2nd level key is the microservice url, the leaf value is current number of agreements
   var agHash = new MutableHashMap[String,MutableHashMap[String,Int]]()
 
-  /*
-  if (tempDbNodesAgreements != null) {
-    for ((nodeid,d) <- tempDbNodesAgreements) {
-      for ((_,ag) <- d; if ag.state != "" ) {
-        // negotiation has at least started for this agreement, record it in the hash
-        agHash.get(nodeid) match {
-          case Some(nodeHash) => val numAgs = nodeHash.get(ag.microservices) // node hash is there so find or create the microservice hash within it
-            numAgs match {
-              case Some(numAgs2) => nodeHash.put(ag.microservices, numAgs2+1)
-              case None => nodeHash.put(ag.microservices, 1)
-            }
-          case None => agHash += ((nodeid, new MutableHashMap[String,Int]() += ((ag.microservices, 1)) ))   // this node is not in the hash yet, so create it and add the 1 microservice
-        }
-      }
-    }
-  } else if (dbNodesAgreements != null) {
-  */
   for (a <- dbNodesAgreements) {
 //    val micros = if (a.microservices != "") read[List[String]](a.microservices) else List[String]()
     val micros = a.getMicroservices
     agHash.get(a.nodeId) match {
       case Some(nodeHash) => for (ms <- micros) {
-          val numAgs = nodeHash.get(ms) // node hash is there so find or create the microservice hashes within it
+          val numAgs = nodeHash.get(ms.url) // node hash is there so find or create the microservice hashes within it
           numAgs match {
-            case Some(numAgs2) => nodeHash.put(ms, numAgs2 + 1)
-            case None => nodeHash.put(ms, 1)
+            case Some(numAgs2) => nodeHash.put(ms.url, numAgs2 + 1)
+            case None => nodeHash.put(ms.url, 1)
           }
         }
       case None => val nodeHash = new MutableHashMap[String,Int]()   // this node is not in the hash yet, so create it and add the microservice hashes
-        for (ms <- micros) { nodeHash.put(ms, 1) }
+        for (ms <- micros) { nodeHash.put(ms.url, 1) }
         agHash += ((a.nodeId, nodeHash ))
     }
   }
-  //} else {}
 }
 
 

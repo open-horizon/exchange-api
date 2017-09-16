@@ -90,8 +90,11 @@ class Agbot(var token: String, var name: String, var owner: String, var msgEndPo
   def copy = new Agbot(token, name, owner, msgEndPoint, lastHeartbeat, publicKey)
 }
 
-case class AgbotAgreementRow(agrId: String, agbotId: String, workload: String, state: String, lastUpdated: String, dataLastReceived: String) {
-  def toAgbotAgreement = AgbotAgreement(workload, state, lastUpdated, dataLastReceived)
+
+case class AAWorkload(orgid: String, pattern: String, url: String)
+
+case class AgbotAgreementRow(agrId: String, agbotId: String, workloadOrgid: String, workloadPattern: String, workloadUrl: String, state: String, lastUpdated: String, dataLastReceived: String) {
+  def toAgbotAgreement = AgbotAgreement(AAWorkload(workloadOrgid, workloadPattern, workloadUrl), state, lastUpdated, dataLastReceived)
 
   def upsert: DBIO[_] = AgbotAgreementsTQ.rows.insertOrUpdate(this)
 }
@@ -99,11 +102,13 @@ case class AgbotAgreementRow(agrId: String, agbotId: String, workload: String, s
 class AgbotAgreements(tag: Tag) extends Table[AgbotAgreementRow](tag, "agbotagreements") {
   def agrId = column[String]("agrid", O.PrimaryKey)     // ethereum agreeement ids are unique
   def agbotId = column[String]("agbotid")
-  def workload = column[String]("workload")
+  def workloadOrgid = column[String]("workloadorgid")
+  def workloadPattern = column[String]("workloadpattern")
+  def workloadUrl = column[String]("workloadurl")
   def state = column[String]("state")
   def lastUpdated = column[String]("lastUpdated")
   def dataLastReceived = column[String]("dataLastReceived")
-  def * = (agrId, agbotId, workload, state, lastUpdated, dataLastReceived) <> (AgbotAgreementRow.tupled, AgbotAgreementRow.unapply)
+  def * = (agrId, agbotId, workloadOrgid, workloadPattern, workloadUrl, state, lastUpdated, dataLastReceived) <> (AgbotAgreementRow.tupled, AgbotAgreementRow.unapply)
   def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
@@ -116,7 +121,7 @@ object AgbotAgreementsTQ {
   def getAgreementsWithState = rows.filter(_.state =!= "")
 }
 
-case class AgbotAgreement(workload: String, state: String, lastUpdated: String, dataLastReceived: String)
+case class AgbotAgreement(workload: AAWorkload, state: String, lastUpdated: String, dataLastReceived: String)
 
 
 /** The agbotmsgs table holds the msgs sent to agbots by nodes */

@@ -76,15 +76,14 @@ services in the exchange.
 
 ### Todos left to be finished
 
-- Move bctype and blockchain under /org/{orgid} and add public field
+- Add list of orgs/patterns to agbot resource
 - Add support for data power headers
 - Add 'admin' field to user, enable admin users to do everything in their org (including create other users)
+-
+- Implement /org/{orgid}/patterns/{pat-id}/search
 - Add schemaversion table and key upgradedb off of that
 - Modify tests to have each suite use its own org
-- Modify PUT orgs/{org}/nodes/{id}/agreements/{agreementid} to include the pattern and workload, and take "microservices":[{"url":"ms url","org":"myorg"}] instead of an array of url strings like it is now.  Same change for agbots (url for workload and an org inside an object)
 - See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
-- Implement /org/{orgid}/patterns/{pat-id}/search
-- Add list of orgs/patterns to agbot resource
 - Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all nodes
 - Do consistency checking of patterns and workloads
 - See if there is a way to fix the swagger hack for 2 level resources
@@ -94,6 +93,7 @@ services in the exchange.
 ### Limitations
 
 - Need to dropdb and initdb, and re-enter data
+- Cross-org access only works with root for now
 
 ### External Incompatible changes
 
@@ -101,6 +101,9 @@ services in the exchange.
 - Renamed devices to nodes
 - Removed properties, counterPartyProperties, microservices, maxAgreements from pattern resource
 - Nodes can now read their own /org/{orgid} resource
+- Moved bctype and blockchain under /org/{orgid} and added public field
+- Modified PUT orgs/{org}/nodes/{id}/agreements/{agreementid} to include the pattern and workload, and to accept "microservices":[{"url":"ms url","org":"myorg"}] instead of an array of url strings like it is now.
+- Modified PUT orgs/{org}/agbots/{id}/agreements/{agreementid} to accept workload orgid, pattern, and url, instead of just the url
 
 ### Internal things done in this version
 

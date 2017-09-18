@@ -31,7 +31,7 @@ class BlockchainsSuite extends FunSuite {
   val runningLocally = (urlRoot == localUrlRoot)
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
-  val orgid = "IBM"
+  val orgid = "BlockchainsSuiteTests"
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
   val NOORGURL = urlRoot+"/v1"
@@ -62,7 +62,7 @@ class BlockchainsSuite extends FunSuite {
   val bcname = "9925"
   val bcname2 = "9926"
   val bcname3 = "9927"
-  var numExistingBctypes = 0    // this will be set later
+  //var numExistingBctypes = 0    // this will be set later
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -73,6 +73,19 @@ class BlockchainsSuite extends FunSuite {
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
+  }
+
+  /** Create an org to use for this test */
+  test("POST /orgs/"+orgid+" - create org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+
+    val input = PostPutOrgRequest("My Org", "desc")
+    response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
   }
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the bctypes and
@@ -101,12 +114,13 @@ class BlockchainsSuite extends FunSuite {
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK)
 
-    val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", "whisper-id", "ABC")
+    val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", List[APattern](), "whisper-id", "ABC")
     val agbotResponse = Http(URL+"/agbots/"+agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+agbotResponse.code+", agbotResponse.body: "+agbotResponse.body)
     assert(agbotResponse.code === HttpCode.PUT_OK)
   }
 
+  /*
   test("GET /orgs/"+orgid+"/bctypes - get initial number of bctypes in the db") {
     val response: HttpResponse[String] = Http(URL+"/bctypes").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -116,6 +130,7 @@ class BlockchainsSuite extends FunSuite {
     numExistingBctypes = getBctypeResp.bctypes.size
     info("initially "+numExistingBctypes+" bctypes")
   }
+  */
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+" - add as user") {
     val input = PutBctypeRequest(bctype+" desc", "json escaped string")
@@ -202,7 +217,7 @@ class BlockchainsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getBctypeResp = parse(response.body).extract[GetBctypesResponse]
-    assert(getBctypeResp.bctypes.size === 2+numExistingBctypes)
+    assert(getBctypeResp.bctypes.size === 2)
 
     assert(getBctypeResp.bctypes.contains(orgbctype))
     var bt = getBctypeResp.bctypes.get(orgbctype).get     // the 2nd get turns the Some(val) into val
@@ -231,7 +246,7 @@ class BlockchainsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getBctypeResp = parse(response.body).extract[GetBctypesResponse]
-    assert(getBctypeResp.bctypes.size === 2+numExistingBctypes)
+    assert(getBctypeResp.bctypes.size === 2)
   }
 
   test("GET /orgs/"+orgid+"/bctypes - as agbot") {
@@ -240,7 +255,7 @@ class BlockchainsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getBctypeResp = parse(response.body).extract[GetBctypesResponse]
-    assert(getBctypeResp.bctypes.size === 2+numExistingBctypes)
+    assert(getBctypeResp.bctypes.size === 2)
   }
 
   test("GET /orgs/"+orgid+"/bctypes/"+bctype+" - as user") {
@@ -598,6 +613,14 @@ class BlockchainsSuite extends FunSuite {
   /** Clean up, delete all the test bctypes */
   test("Cleanup - DELETE all test bctypes and blockchains") {
     deleteAllUsers()
+  }
+
+  /** Delete the org we used for this test */
+  test("POST /orgs/"+orgid+" - delete org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
   }
 
 }

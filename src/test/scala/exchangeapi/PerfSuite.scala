@@ -1,17 +1,20 @@
 package exchangeapi
 
 import org.scalatest.FunSuite
-
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
+
 import scalaj.http._
 import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
+//import org.json4s.JsonDSL._
+//import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import com.horizon.exchangeapi._
+
 import scala.collection.immutable._
-import java.time._
+//import java.time._
+
+import com.horizon.exchangeapi.tables._
 
 //TODO: have not decided if i should use this or stick with the scr/test/bash/scale scripts (which can easily have multiple instances run concurrently, and from different clients)
 
@@ -19,7 +22,7 @@ import java.time._
 @RunWith(classOf[JUnitRunner])
 class PerfSuite extends FunSuite {
 
-  val urlRoot = sys.env.get("EXCHANGE_URL_ROOT").getOrElse("http://localhost:8080")
+  val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080")
   val URL = urlRoot+"/v1"
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
@@ -33,13 +36,13 @@ class PerfSuite extends FunSuite {
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
   def createAgbot = {
-    val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", "whisper-id", "ABC")
+    val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", List[APattern](), "whisper-id", "ABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  def getAgbots = {
+  def doGetAgbots() = {
     val response: HttpResponse[String] = Http(URL+"/agbots").headers(ACCEPT).headers(AUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -52,8 +55,8 @@ class PerfSuite extends FunSuite {
 
   ignore("Time GET /agbots") {
     createAgbot
-    for (i <- 1 to 5) {
-      getAgbots
+    for (_ <- 1 to 5) {
+      doGetAgbots()
     }
   }
 }

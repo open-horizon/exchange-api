@@ -41,14 +41,14 @@ case class PatchPatternRequest(label: Option[String], description: Option[String
     // find the 1st attribute that was specified in the body and create a db action to update it for this pattern
     label match { case Some(lab) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.label,d.lastUpdated)).update((pattern, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.description,d.lastUpdated)).update((pattern, desc, lastUpdated)), "description"); case _ => ; }
-    public match { case Some(pub) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.public,d.lastUpdated)).update((pattern, pub, lastUpdated)), "description"); case _ => ; }
-    //microservices match { case Some(ms) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.microservices,d.lastUpdated)).update((pattern, write(ms), lastUpdated)), "workloadUrl"); case _ => ; }
-    workloads match { case Some(wk) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.workloads,d.lastUpdated)).update((pattern, write(wk), lastUpdated)), "vv"); case _ => ; }
-    dataVerification match { case Some(dv) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.dataVerification,d.lastUpdated)).update((pattern, write(dv), lastUpdated)), "arch"); case _ => ; }
-    agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "downloadUrl"); case _ => ; }
-    //properties match { case Some(prop) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.properties,d.lastUpdated)).update((pattern, write(prop), lastUpdated)), "downloadUrl"); case _ => ; }
-    //counterPartyProperties match { case Some(cpp) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.counterPartyProperties,d.lastUpdated)).update((pattern, write(cpp), lastUpdated)), "downloadUrl"); case _ => ; }
-    //maxAgreements match { case Some(maxa) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.maxAgreements,d.lastUpdated)).update((pattern, maxa, lastUpdated)), "downloadUrl"); case _ => ; }
+    public match { case Some(pub) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.public,d.lastUpdated)).update((pattern, pub, lastUpdated)), "public"); case _ => ; }
+    //microservices match { case Some(ms) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.microservices,d.lastUpdated)).update((pattern, write(ms), lastUpdated)), "microservices"); case _ => ; }
+    workloads match { case Some(wk) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.workloads,d.lastUpdated)).update((pattern, write(wk), lastUpdated)), "workloads"); case _ => ; }
+    dataVerification match { case Some(dv) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.dataVerification,d.lastUpdated)).update((pattern, write(dv), lastUpdated)), "dataVerification"); case _ => ; }
+    agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "agreementProtocols"); case _ => ; }
+    //properties match { case Some(prop) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.properties,d.lastUpdated)).update((pattern, write(prop), lastUpdated)), "properties"); case _ => ; }
+    //counterPartyProperties match { case Some(cpp) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.counterPartyProperties,d.lastUpdated)).update((pattern, write(cpp), lastUpdated)), "counterPartyProperties"); case _ => ; }
+    //maxAgreements match { case Some(maxa) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.maxAgreements,d.lastUpdated)).update((pattern, maxa, lastUpdated)), "maxAgreements"); case _ => ; }
     return (null, null)
   }
 }

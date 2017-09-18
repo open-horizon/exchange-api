@@ -54,7 +54,7 @@ case class PatchWorkloadRequest(label: Option[String], description: Option[Strin
     // find the 1st attribute that was specified in the body and create a db action to update it for this workload
     label match { case Some(lab) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.label,d.lastUpdated)).update((workload, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.description,d.lastUpdated)).update((workload, desc, lastUpdated)), "description"); case _ => ; }
-    public match { case Some(pub) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.public,d.lastUpdated)).update((workload, pub, lastUpdated)), "description"); case _ => ; }
+    public match { case Some(pub) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.public,d.lastUpdated)).update((workload, pub, lastUpdated)), "public"); case _ => ; }
     workloadUrl match { case Some(url) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.workloadUrl,d.lastUpdated)).update((workload, url, lastUpdated)), "workloadUrl"); case _ => ; }
     version match { case Some(ver) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.version,d.lastUpdated)).update((workload, ver, lastUpdated)), "version"); case _ => ; }
     arch match { case Some(ar) => return ((for { d <- WorkloadsTQ.rows if d.workload === workload } yield (d.workload,d.arch,d.lastUpdated)).update((workload, ar, lastUpdated)), "arch"); case _ => ; }

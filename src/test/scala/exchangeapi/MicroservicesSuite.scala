@@ -30,7 +30,7 @@ class MicroservicesSuite extends FunSuite {
   val runningLocally = (urlRoot == localUrlRoot)
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
-  val orgid = "IBM"
+  val orgid = "MicroservicesSuiteTests"
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
   //val NOORGURL = urlRoot+"/v1"
@@ -63,7 +63,7 @@ class MicroservicesSuite extends FunSuite {
   val msUrl3 = "http://" + msBase3
   val microservice3 = msBase3 + "_1.0.0_arm"
   //val orgmicroservice3 = authpref+microservice3
-  var numExistingMicroservices = 0    // this will be set later
+  //var numExistingMicroservices = 0    // this will be set later
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -74,6 +74,19 @@ class MicroservicesSuite extends FunSuite {
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
+  }
+
+  /** Create an org to use for this test */
+  test("POST /orgs/"+orgid+" - create org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+
+    val input = PostPutOrgRequest("My Org", "desc")
+    response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
   }
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the microservices, because they are deleted when the user is deleted. */
@@ -102,12 +115,13 @@ class MicroservicesSuite extends FunSuite {
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK)
 
-    val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", "whisper-id", "ABC")
+    val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", List[APattern](), "whisper-id", "ABC")
     val agbotResponse = Http(URL+"/agbots/"+agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+agbotResponse.code+", agbotResponse.body: "+agbotResponse.body)
     assert(agbotResponse.code === HttpCode.PUT_OK)
   }
 
+  /*
   test("GET /orgs/"+orgid+"/microservices - get initial number of microservices in the db") {
     val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -117,6 +131,7 @@ class MicroservicesSuite extends FunSuite {
     numExistingMicroservices = getMicroserviceResp.microservices.size
     info("initially "+numExistingMicroservices+" microservices")
   }
+  */
 
   test("PUT /orgs/"+orgid+"/microservices/"+microservice+" - update MS that is not there yet - should fail") {
     val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "updated", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
@@ -221,7 +236,7 @@ test("GET /orgs/"+orgid+"/microservices") {
   // info("code: "+response.code+", response.body: "+response.body)
   assert(response.code === HttpCode.OK)
   val respObj = parse(response.body).extract[GetMicroservicesResponse]
-  assert(respObj.microservices.size === 2 + numExistingMicroservices)
+  assert(respObj.microservices.size === 2)
 
   assert(respObj.microservices.contains(orgmicroservice))
   var ms = respObj.microservices.get(orgmicroservice).get     // the 2nd get turns the Some(val) into val
@@ -250,7 +265,7 @@ test("GET /orgs/"+orgid+"/microservices - as node") {
   // info("code: "+response.code+", response.body: "+response.body)
   assert(response.code === HttpCode.OK)
   val respObj = parse(response.body).extract[GetMicroservicesResponse]
-  assert(respObj.microservices.size === 2 + numExistingMicroservices)
+  assert(respObj.microservices.size === 2)
 }
 
 test("GET /orgs/"+orgid+"/microservices - as agbot") {
@@ -259,7 +274,7 @@ test("GET /orgs/"+orgid+"/microservices - as agbot") {
   // info("code: "+response.code+", response.body: "+response.body)
   assert(response.code === HttpCode.OK)
   val respObj = parse(response.body).extract[GetMicroservicesResponse]
-  assert(respObj.microservices.size === 2 + numExistingMicroservices)
+  assert(respObj.microservices.size === 2)
 }
 
 test("GET /orgs/"+orgid+"/microservices/"+microservice+" - as user") {
@@ -351,5 +366,13 @@ test("GET /orgs/"+orgid+"/microservices/"+microservice2+" - as user - verify gon
 test("Cleanup - DELETE all test microservices") {
   deleteAllUsers()
 }
+
+  /** Delete the org we used for this test */
+  test("POST /orgs/"+orgid+" - delete org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
 
 }

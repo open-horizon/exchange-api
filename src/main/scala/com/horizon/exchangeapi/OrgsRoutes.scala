@@ -64,7 +64,6 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
         )
       )
 
-  /** Handles GET /orgs. Can be called by anyone. */
   get("/orgs", operation(getOrgs)) ({
     credsAndLog().authenticate().authorizeTo(TOrg("*"),Access.READ)
     val resp = response
@@ -96,7 +95,6 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
         )
       )
 
-  /** Handles GET /orgs/{org}. Can be called by any user in this org. */
   get("/orgs/:orgid", operation(getOneOrg)) ({
     val orgId = swaggerHack("orgid")
     credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.READ)
@@ -135,7 +133,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 ```
 {
   "label": "MyCompany Inc.",
-  "description": "blah blah",
+  "description": "blah blah"
 }
 ```"""
       parameters(
@@ -149,7 +147,6 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
       )
   val postOrgs2 = (apiOperation[PostPutOrgRequest]("postOrgs2") summary("a") notes("a"))  // for some bizarre reason, the PostOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
-  /** Handles POST /org. Called by a user to update (must be same user that created it). */
   post("/orgs/:orgid", operation(postOrgs)) ({
     val orgId = swaggerHack("orgid")
     credsAndLog().authenticate().authorizeTo(TOrg(""),Access.CREATE)
@@ -185,7 +182,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 ```
 {
   "label": "MyCompany Inc.",
-  "description": "blah blah",
+  "description": "blah blah"
 }
 ```"""
       parameters(
@@ -199,7 +196,6 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
       )
   val putOrgs2 = (apiOperation[PostPutOrgRequest]("putOrgs2") summary("a") notes("a"))  // for some bizarre reason, the PutOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
-  /** Handles PUT /org/{org}. Called by a user to update (must be same user that created it). */
   put("/orgs/:orgid", operation(putOrgs)) ({
     val orgId = swaggerHack("orgid")
     credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
@@ -245,8 +241,10 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
 ```
 {
-  "label": "MyCompany, Inc."
-}"""
+  "label": "MyCompany, Inc.",
+  |"description": "blah blah"
+}
+```"""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
@@ -258,7 +256,6 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
       )
   val patchOrgs2 = (apiOperation[PatchOrgRequest]("patchOrgs2") summary("a") notes("a"))  // for some bizarre reason, the PatchOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
-  /** Handles PATCH /org/{org}. Must be called by the same user that created it. */
   patch("/orgs/:orgid", operation(patchOrgs)) ({
     val orgId = swaggerHack("orgid")
     credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
@@ -299,7 +296,6 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
         )
       )
 
-  /** Handles DELETE /orgs/{org}. Must be called by user. */
   delete("/orgs/:orgid", operation(deleteOrgs)) ({
     val orgId = swaggerHack("orgid")
     credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.WRITE)

@@ -30,7 +30,7 @@ class WorkloadsSuite extends FunSuite {
   val runningLocally = (urlRoot == localUrlRoot)
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
-  val orgid = "IBM"
+  val orgid = "WorkloadsSuiteTests"
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
   val user = "9999"
@@ -61,7 +61,7 @@ class WorkloadsSuite extends FunSuite {
   val wkBase3 = "wk9922"
   val wkUrl3 = "http://" + wkBase3
   val workload3 = wkBase3 + "_1.0.0_arm"
-  var numExistingWorkloads = 0    // this will be set later
+  //var numExistingWorkloads = 0    // this will be set later
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -72,6 +72,19 @@ class WorkloadsSuite extends FunSuite {
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
+  }
+
+  /** Create an org to use for this test */
+  test("POST /orgs/"+orgid+" - create org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+
+    val input = PostPutOrgRequest("My Org", "desc")
+    response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
   }
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the workloads, because they are deleted when the user is deleted. */
@@ -100,12 +113,13 @@ class WorkloadsSuite extends FunSuite {
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK)
 
-    val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", "whisper-id", "ABC")
+    val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", List[APattern](), "whisper-id", "ABC")
     val agbotResponse = Http(URL+"/agbots/"+agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+agbotResponse.code+", agbotResponse.body: "+agbotResponse.body)
     assert(agbotResponse.code === HttpCode.PUT_OK)
   }
 
+  /*
   test("GET /orgs/"+orgid+"/workloads - get initial number of workloads in the db") {
     val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -115,6 +129,7 @@ class WorkloadsSuite extends FunSuite {
     numExistingWorkloads = getWorkloadResp.workloads.size
     info("initially "+numExistingWorkloads+" workloads")
   }
+  */
 
   test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update WK that is not there yet - should fail") {
     // PostPutWorkloadRequest(label: String, description: String, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: List[Map[String,String]], userInput: List[Map[String,String]], workloads: List[Map[String,String]]) {
@@ -220,7 +235,7 @@ class WorkloadsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetWorkloadsResponse]
-    assert(respObj.workloads.size === 2 + numExistingWorkloads)
+    assert(respObj.workloads.size === 2)
 
     assert(respObj.workloads.contains(orgworkload))
     var wk = respObj.workloads.get(orgworkload).get     // the 2nd get turns the Some(val) into val
@@ -249,7 +264,7 @@ class WorkloadsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetWorkloadsResponse]
-    assert(respObj.workloads.size === 2 + numExistingWorkloads)
+    assert(respObj.workloads.size === 2)
   }
 
   test("GET /orgs/"+orgid+"/workloads - as agbot") {
@@ -258,7 +273,7 @@ class WorkloadsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetWorkloadsResponse]
-    assert(respObj.workloads.size === 2 + numExistingWorkloads)
+    assert(respObj.workloads.size === 2)
   }
 
   test("GET /orgs/"+orgid+"/workloads/"+workload+" - as user") {
@@ -349,6 +364,14 @@ class WorkloadsSuite extends FunSuite {
   /** Clean up, delete all the test workloads */
   test("Cleanup - DELETE all test workloads") {
     deleteAllUsers()
+  }
+
+  /** Delete the org we used for this test */
+  test("POST /orgs/"+orgid+" - delete org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
   }
 
 }

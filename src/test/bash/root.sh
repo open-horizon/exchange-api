@@ -2,7 +2,7 @@
 source `dirname $0`/functions.sh $1 ${@:3}
 
 resource=${2#/}     # remove leading slash in case there, because we will add it below
-if [[ ${resource:0:6} == "admin/" ]]; then
+if [[ ${resource:0:6} == "admin/" || ${resource:0:4} == "orgs" ]]; then
   org=""     # the admin methods are not under the org resource
 else
   org="orgs/$EXCHANGE_ORG/"

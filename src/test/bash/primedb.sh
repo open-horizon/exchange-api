@@ -164,7 +164,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
+    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "patterns": [{ "orgid": "myorg", "pattern": "mypattern" }], "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
 else
     echo "orgs/$orgid/agbots/$agbotid exists"
 fi

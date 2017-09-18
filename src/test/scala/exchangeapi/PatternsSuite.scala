@@ -30,7 +30,7 @@ class PatternsSuite extends FunSuite {
   val runningLocally = (urlRoot == localUrlRoot)
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
-  val orgid = "IBM"
+  val orgid = "PatternsSuiteTests"
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
   val user = "9999"
@@ -61,7 +61,7 @@ class PatternsSuite extends FunSuite {
   val ptBase3 = "pt9922"
   //val ptUrl3 = "http://" + ptBase3
   val pattern3 = ptBase3
-  var numExistingPatterns = 0    // this will be set later
+  //var numExistingPatterns = 0    // this will be set later
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -72,6 +72,19 @@ class PatternsSuite extends FunSuite {
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
+  }
+
+  /** Create an org to use for this test */
+  test("POST /orgs/"+orgid+" - create org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+
+    val input = PostPutOrgRequest("My Org", "desc")
+    response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
   }
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the patterns, because they are deleted when the user is deleted. */
@@ -100,12 +113,13 @@ class PatternsSuite extends FunSuite {
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK)
 
-    val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", "whisper-id", "ABC")
+    val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", List[APattern](), "whisper-id", "ABC")
     val agbotResponse = Http(URL+"/agbots/"+agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+agbotResponse.code+", agbotResponse.body: "+agbotResponse.body)
     assert(agbotResponse.code === HttpCode.PUT_OK)
   }
 
+  /*
   test("GET /orgs/"+orgid+"/patterns - get initial number of patterns in the db") {
     val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -115,6 +129,7 @@ class PatternsSuite extends FunSuite {
     numExistingPatterns = getPatternResp.patterns.size
     info("initially "+numExistingPatterns+" patterns")
   }
+  */
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update pattern that is not there yet - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
@@ -251,7 +266,7 @@ class PatternsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetPatternsResponse]
-    assert(respObj.patterns.size === 2 + numExistingPatterns)
+    assert(respObj.patterns.size === 2)
 
     assert(respObj.patterns.contains(orgpattern))
     var pt = respObj.patterns.get(orgpattern).get     // the 2nd get turns the Some(val) into val
@@ -280,7 +295,7 @@ class PatternsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetPatternsResponse]
-    assert(respObj.patterns.size === 2 + numExistingPatterns)
+    assert(respObj.patterns.size === 2)
   }
 
   test("GET /orgs/"+orgid+"/patterns - as agbot") {
@@ -289,7 +304,7 @@ class PatternsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetPatternsResponse]
-    assert(respObj.patterns.size === 2 + numExistingPatterns)
+    assert(respObj.patterns.size === 2)
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+" - as user") {
@@ -380,6 +395,14 @@ class PatternsSuite extends FunSuite {
   /** Clean up, delete all the test patterns */
   test("Cleanup - DELETE all test patterns") {
     deleteAllUsers()
+  }
+
+  /** Delete the org we used for this test */
+  test("POST /orgs/"+orgid+" - delete org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
   }
 
 }

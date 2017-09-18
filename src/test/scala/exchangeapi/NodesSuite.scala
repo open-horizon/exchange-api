@@ -35,7 +35,7 @@ class NodesSuite extends FunSuite {
   val NETSPEEDSPEC = "https://bluehorizon.network/documentation/netspeed-node-api/"     // test the trailing / for this one
   val PWSSPEC = "https://bluehorizon.network/documentation/pws-node-api"
   val NOTTHERESPEC = "https://bluehorizon.network/documentation/notthere-node-api"
-  val orgid = "IBM"
+  val orgid = "NodesSuiteTests"
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
   val NOORGURL = urlRoot+"/v1"
@@ -61,7 +61,7 @@ class NodesSuite extends FunSuite {
   val creds = authpref+nodeId+":"+nodeToken
   val encodedCreds = Base64.getEncoder.encodeToString(creds.getBytes("utf-8"))
   val ENCODEDAUTH = ("Authorization","Basic "+encodedCreds)
-  var numExistingNodes = 0    // this will be set later
+  //var numExistingNodes = 0    // this will be set later
   val agbotId = "9940"      // need to use a different id than AgbotsSuite.scala, because all of the suites run concurrently
   val orgagbotId = authpref+agbotId
   val agbotToken = agbotId+"tok"
@@ -112,6 +112,19 @@ class NodesSuite extends FunSuite {
     }
   }
 
+  /** Create an org to use for this test */
+  test("POST /orgs/"+orgid+" - create org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+
+    val input = PostPutOrgRequest("My Org", "desc")
+    response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the nodes, agbots, and
    *  agreements, because they are deleted when the user is deleted. */
   test("Begin - DELETE all test users") {
@@ -127,6 +140,7 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
   }
 
+  /*
   // Get the number of existing nodes so we can later check the number we added
   test("GET number of existing nodes") {
     val response: HttpResponse[String] = Http(URL+"/nodes").headers(ACCEPT).headers(USERAUTH).asString
@@ -137,6 +151,7 @@ class NodesSuite extends FunSuite {
     numExistingNodes = getNodeResp.nodes.size
     info("Set number of existing nodes")
   }
+  */
 
   ExchConfig.load()
   val putDevRespDisabled = ExchConfig.getBoolean("api.microservices.disable")
@@ -333,7 +348,7 @@ class NodesSuite extends FunSuite {
 
   /** Add an agbot so we can test it viewing nodes */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId) {
-    val input = PutAgbotsRequest(agbotToken, agbotId+"name", "whisper-id", "AGBOTABC")
+    val input = PutAgbotsRequest(agbotToken, agbotId+"name", List[APattern](), "whisper-id", "AGBOTABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -346,7 +361,7 @@ class NodesSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getDevResp = parse(response.body).extract[GetNodesResponse]
-    val expectedNumNodes = (3 + numExistingNodes + (if (putDevRespDisabled) 1 else 0))
+    val expectedNumNodes = (3 + (if (putDevRespDisabled) 1 else 0))
     assert(getDevResp.nodes.size === expectedNumNodes || getDevResp.nodes.size === expectedNumNodes+1)   // BlockchainsSuite also creates a node
 
     assert(getDevResp.nodes.contains(orgnodeId))
@@ -1108,7 +1123,7 @@ class NodesSuite extends FunSuite {
 
   /** Add a 2nd agbot so we can test msgs */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId2) {
-    val input = PutAgbotsRequest(agbotToken2, agbotId2+"name", "whisper-id", "AGBOT2ABC")
+    val input = PutAgbotsRequest(agbotToken2, agbotId2+"name", List[APattern](), "whisper-id", "AGBOT2ABC")
     val response = Http(URL+"/agbots/"+agbotId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -1417,11 +1432,21 @@ class NodesSuite extends FunSuite {
   test("Cleanup - DELETE everything and confirm they are gone") {
     deleteAllUsers()
 
+    /*
     val response: HttpResponse[String] = Http(URL+"/nodes").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === numExistingNodes)
+    */
+  }
+
+  /** Delete the org we used for this test */
+  test("POST /orgs/"+orgid+" - delete org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
   }
 }

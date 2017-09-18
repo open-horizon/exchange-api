@@ -76,13 +76,11 @@ services in the exchange.
 
 ### Todos left to be finished
 
-- Add list of orgs/patterns to agbot resource
 - Add support for data power headers
 - Add 'admin' field to user, enable admin users to do everything in their org (including create other users)
 -
 - Implement /org/{orgid}/patterns/{pat-id}/search
 - Add schemaversion table and key upgradedb off of that
-- Modify tests to have each suite use its own org
 - See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
 - Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all nodes
 - Do consistency checking of patterns and workloads
@@ -104,10 +102,12 @@ services in the exchange.
 - Moved bctype and blockchain under /org/{orgid} and added public field
 - Modified PUT orgs/{org}/nodes/{id}/agreements/{agreementid} to include the pattern and workload, and to accept "microservices":[{"url":"ms url","org":"myorg"}] instead of an array of url strings like it is now.
 - Modified PUT orgs/{org}/agbots/{id}/agreements/{agreementid} to accept workload orgid, pattern, and url, instead of just the url
+- Added list of orgs/patterns to agbot resource
 
 ### Internal things done in this version
 
 - Tested dropdb with older compose db
+- Modify tests to have each suite use its own org
 -
 
 ## Changes Between v1.27.0 and v1.28.0

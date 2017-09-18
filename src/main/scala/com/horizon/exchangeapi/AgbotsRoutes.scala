@@ -4,6 +4,7 @@ package com.horizon.exchangeapi
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization.write
 import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
@@ -18,26 +19,28 @@ import scala.util._
 case class GetAgbotsResponse(agbots: Map[String,Agbot], lastIndex: Int)
 case class GetAgbotAttributeResponse(attribute: String, value: String)
 
-/** For backward compatibility for before i added the publicKey field */
+/** Left for reference: For backward compatibility for before i added the publicKey field
 case class PutAgbotsRequestOld(token: String, name: String, msgEndPoint: String) {
   def toPutAgbotsRequest = PutAgbotsRequest(token, name, msgEndPoint, "")
 }
+  */
 
 /** Input format for PUT /orgs/{orgid}/agbots/<agbot-id> */
-case class PutAgbotsRequest(token: String, name: String, msgEndPoint: String, publicKey: String) {
+case class PutAgbotsRequest(token: String, name: String, patterns: List[APattern], msgEndPoint: String, publicKey: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
     // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /nodes/{id}/msgs checks for the publicKey
     if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token specified must not be blank"))
   }
 
   /** Get the db queries to insert or update the agbot */
-  def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, msgEndPoint, ApiTime.nowUTC, publicKey).upsert
+  def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, write(patterns), msgEndPoint, ApiTime.nowUTC, publicKey).upsert
 
   /** Get the db queries to update the agbot */
-  def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, msgEndPoint, ApiTime.nowUTC, publicKey).update
+  def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, write(patterns), msgEndPoint, ApiTime.nowUTC, publicKey).update
 }
 
-case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], publicKey: Option[String]) {
+case class PatchAgbotsRequest(token: Option[String], name: Option[String], patterns: Option[List[APattern]], msgEndPoint: Option[String], publicKey: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the agbot, and the attribute name being updated. */
@@ -52,6 +55,7 @@ case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEn
       case _ => ;
     }
     name match { case Some(name2) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name2, lastHeartbeat)), "name"); case _ => ; }
+    patterns match { case Some(pat) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.patterns,d.lastHeartbeat)).update((id, write(pat), lastHeartbeat)), "patterns"); case _ => ; }
     msgEndPoint match { case Some(msgEndPoint2) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint2, lastHeartbeat)), "msgEndPoint"); case _ => ; }
     publicKey match { case Some(publicKey2) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey2, lastHeartbeat)), "publicKey"); case _ => ; }
     return (null, null)
@@ -187,6 +191,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 {
   "token": "abc",       // agbot token, set by user when adding this agbot
   "name": "agbot3",         // agbot name that you pick
+  "patterns": [          // the patterns this agbot should serve
+    { "orgid": "myorg", "pattern": "mypattern" }
+  ],
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this agbot to be contacted by agbots, empty string to use the built-in Exchange msg service
   "publicKey"      // used by nodes to encrypt msgs sent to this agbot using the built-in Exchange msg service
 }
@@ -209,13 +216,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val ident = credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val agbot = try { parse(request.body).extract[PutAgbotsRequest] }
     catch {
-      case e: Exception => if (e.getMessage.contains("No usable value for publicKey")) {    // the specific exception is MappingException
+      case e: Exception => /* Left here for reference, how to make a resource change backward compatible: if (e.getMessage.contains("No usable value for publicKey")) {    // the specific exception is MappingException
           // try parsing again with the old structure
           val agbotOld = try { parse(request.body).extract[PutAgbotsRequestOld] }
           catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
           agbotOld.toPutAgbotsRequest
         }
-        else halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e))
+        else*/ halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e))
     }
     agbot.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
@@ -229,6 +236,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         action.asTry
       }
       else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxAgbots+ " agbots")).asTry
+    //todo: insert another map() here to verify that patterns referenced actually exist
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
       xs match {
@@ -256,6 +264,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 {
   "token": "abc",       // agbot token, set by user when adding this agbot.
   "name": "rpi3",         // agbot name that you pick
+  "patterns": [          // the patterns this agbot should serve
+    { "orgid": "myorg", "pattern": "mypattern" }
+  ],
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this agbot to be contacted by agbots, empty string to use the built-in Exchange msg service
   "publicKey"      // used by agbots to encrypt msgs sent to this agbot using the built-in Exchange msg service
 }

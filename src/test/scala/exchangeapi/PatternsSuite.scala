@@ -121,8 +121,8 @@ class PatternsSuite extends FunSuite {
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update pattern that is not there yet - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
-      List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
-      PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
+      List( PWorkloads("https://wkurl", "", "", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
+      PDataVerification( false, "", "", "", 0, 0, Map[String,Any]() ),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -132,8 +132,8 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as user") {
     val input = PostPutPatternRequest(ptBase, "desc", false,
-      List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
-      PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
+      List( PWorkloads("https://wkurl", "", "", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
+      PDataVerification( false, "", "", "", 0, 0, Map[String,Any]() ),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -145,8 +145,8 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" again - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
-      List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
-      PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
+      List( PWorkloads("https://wkurl", "", "", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
+      PDataVerification( false, "", "", "", 0, 0, Map[String,Any]() ),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -156,8 +156,8 @@ class PatternsSuite extends FunSuite {
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as same user") {
     val input = PostPutPatternRequest(ptBase+" amd64", "desc", false,
-      List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
-      PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
+      List( PWorkloads("https://wkurl", "", "", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
+      PDataVerification( false, "", "", "", 0, 0, Map[String,Any]() ),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -167,8 +167,8 @@ class PatternsSuite extends FunSuite {
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as 2nd user - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
-      List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
-      PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
+      List( PWorkloads("https://wkurl", "", "", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
+      PDataVerification( false, "", "", "", 0, 0, Map[String,Any]() ),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
@@ -178,8 +178,8 @@ class PatternsSuite extends FunSuite {
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as agbot - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
-      List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
-      PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
+      List( PWorkloads("https://wkurl", "", "", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
+      PDataVerification( false, "", "", "", 0, 0, Map[String,Any]() ),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -198,8 +198,8 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as node - should fail") {
     val input = PostPutPatternRequest("Bad Pattern2", "desc", false,
-      List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
-      PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
+      List( PWorkloads("https://wkurl", "", "", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
+      PDataVerification( false, "", "", "", 0, 0, Map[String,Any]() ),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
@@ -209,8 +209,8 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as 2nd user") {
     val input = PostPutPatternRequest(ptBase2+" amd64", "desc", false,
-      List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
-      PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
+      List( PWorkloads("https://wkurl", "", "", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
+      PDataVerification( false, "", "", "", 0, 0, Map[String,Any]() ),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString

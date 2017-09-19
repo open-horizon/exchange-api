@@ -218,6 +218,8 @@ if [[ $rc != 200 ]]; then
    	  "workloadUrl":"https://bluehorizon.network/workloads/weather",
    	  "version":"1.0.1",
    	  "arch":"amd64",
+   	  "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+      "deployment_overrides_signature": "",
    	  "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
    	  "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
     }
@@ -228,6 +230,7 @@ if [[ $rc != 200 ]]; then
     "user": "",
     "password": "",
     "interval": 240,
+    "check_rate": 15,
     "metering" : {"tokens":1, "per_time_unit":"min", "notification_interval":30}
   },
   "agreementProtocols": [{ "name": "Basic" }] }'

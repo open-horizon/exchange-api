@@ -195,7 +195,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     { "orgid": "myorg", "pattern": "mypattern" }
   ],
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this agbot to be contacted by agbots, empty string to use the built-in Exchange msg service
-  "publicKey"      // used by nodes to encrypt msgs sent to this agbot using the built-in Exchange msg service
+  "publicKey": "ABCDEF"      // used by nodes to encrypt msgs sent to this agbot using the built-in Exchange msg service
 }
 ```"""
       parameters(
@@ -268,7 +268,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     { "orgid": "myorg", "pattern": "mypattern" }
   ],
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this agbot to be contacted by agbots, empty string to use the built-in Exchange msg service
-  "publicKey"      // used by agbots to encrypt msgs sent to this agbot using the built-in Exchange msg service
+  "publicKey": "ABCDEF"      // used by agbots to encrypt msgs sent to this agbot using the built-in Exchange msg service
 }
 ```
 

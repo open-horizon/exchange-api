@@ -9,9 +9,9 @@ import slick.jdbc.PostgresProfile.api._
 
 //case class PPriority(priority_value: Int, retries: Int, retry_durations: Int, verified_durations: Int)
 //case class PUpgradePolicy(lifecycle: String, time: String)
-case class PWorkloads(workloadUrl: String, version: String, arch: String, priority: Map[String,Int], upgradePolicy: Map[String,String])
+case class PWorkloads(workloadUrl: String, version: String, arch: String, deployment_overrides: String, deployment_overrides_signature: String, priority: Map[String,Int], upgradePolicy: Map[String,String])
 //case class PMetering(tokens: Int, per_time_unit: String, notification_interval: Int)
-case class PDataVerification(enabled: Boolean, URL: String, user: String, password: String, interval: Int, metering: Map[String,Any])
+case class PDataVerification(enabled: Boolean, URL: String, user: String, password: String, interval: Int, check_rate: Int, metering: Map[String,Any])
 
 //case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, microservices: String, workloads: String, dataVerification: String, agreementProtocols: String, properties: String, counterPartyProperties: String, maxAgreements: Int, lastUpdated: String) {
 case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, workloads: String, dataVerification: String, agreementProtocols: String, lastUpdated: String) {
@@ -19,8 +19,8 @@ case class PatternRow(pattern: String, orgid: String, owner: String, label: Stri
 
   def toPattern: Pattern = {
     //val micro = if (microservices != "") read[List[Map[String,String]]](microservices) else List[Map[String,String]]()
-    val wrk = if (workloads != "") read[List[PWorkloads]](workloads) else List[PWorkloads](PWorkloads("","","",Map[String,Int](),Map[String,String]()))
-    val dv = if (dataVerification != "") read[PDataVerification](dataVerification) else PDataVerification(false,"","","",0,Map[String,Any]())
+    val wrk = if (workloads != "") read[List[PWorkloads]](workloads) else List[PWorkloads]()
+    val dv = if (dataVerification != "") read[PDataVerification](dataVerification) else PDataVerification(false,"","","",0,0,Map[String,Any]())
     val agproto = if (agreementProtocols != "") read[List[Map[String,String]]](agreementProtocols) else List[Map[String,String]]()
     //val prop = if (properties != "") read[List[Map[String,Any]]](properties) else List[Map[String,Any]]()
     //val conprop = if (counterPartyProperties != "") read[Map[String,List[Map[String,Any]]]](counterPartyProperties) else Map[String,List[Map[String,Any]]]()

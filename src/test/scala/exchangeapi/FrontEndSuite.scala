@@ -361,8 +361,8 @@ class FrontEndSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - creat "+pattern) {
     val input = PostPutPatternRequest(ptBase, "desc", false,
-      List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
-      PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
+      List( PWorkloads("https://wkurl", "", "", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
+      PDataVerification( false, "", "", "", 0, 0, Map[String,Any]() ),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString

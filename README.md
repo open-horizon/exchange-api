@@ -72,12 +72,13 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
-## Changes Between v1.28.0 and v1.29.0
+## Changes Between v1.29.0 and v1.30.0
 
 ### Todos left to be finished
 
+- Add check_rate (int) in the dataVerification
+- Fix bugs: Put root/root in the db, so foreign keys work correctly
 - Add 'admin' field to user, enable admin users to do everything in their org (including create other users)
--
 - Implement /org/{orgid}/patterns/{pat-id}/search
 - Add schemaversion table and key upgradedb off of that
 - See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
@@ -92,8 +93,23 @@ services in the exchange.
 ### Limitations
 
 - Need to dropdb and initdb, and re-enter data
+
+### External Incompatible changes
+
+- Added deployment_overrides and deployment_overrides_signature to patterns.workloads
+-
+
+### Internal things done in this version
+
+-
+
+## Changes Between v1.28.0 and v1.29.0
+
+### Limitations
+
+- Need to dropdb and initdb, and re-enter data
 - Cross-org access only works with root for now
-- Before nodes, microservices, workloads, or patterns are created via front end auth, you have to create the user (and then use that person-type auth) so the owner foreign key succeeds
+- Before nodes, agbots, microservices, workloads, or patterns are created via front end auth, you have to create the user (and then use that person-type auth) so the owner foreign key succeeds
 
 ### External Incompatible changes
 
@@ -105,6 +121,7 @@ services in the exchange.
 - Modified PUT orgs/{org}/nodes/{id}/agreements/{agreementid} to include the pattern and workload, and to accept "microservices":[{"url":"ms url","org":"myorg"}] instead of an array of url strings like it is now.
 - Modified PUT orgs/{org}/agbots/{id}/agreements/{agreementid} to accept workload orgid, pattern, and url, instead of just the url
 - Added list of orgs/patterns to agbot resource
+- A new setting `"frontEndHeader": "issuer"` is required in the `root` section of config.json to use data power in front of exchange
 
 ### Internal things done in this version
 
@@ -196,103 +213,3 @@ services in the exchange.
 - now log who each rest api call is from
 - root user is now saved in the persistent db (but still loaded/updated from config.json at startup)
 - deleting a user will now delete all of its devices, agbots, and agreements (we now have a proper foreign key between users and devices/agbots, and we use the sql on delete cascade option, so now the db completely takes care of object referencial integrity)
-
-## Changes Between v1.18.0 and v1.19.0
-
-- added fallback for getting device/agbot owner from the db during authentication
-- automated tests can now use environment variables to run against a different exchange svr
-- split the create part of PUT /users/{u} to POST /users/{u} so it can be rate limited. (Except PUT can still be used to creates users as root.)
-- fixed but that didn't let POST /users/{u}/reset be called with no creds
-- fixed schema of users table to have username be the primary key
-
-## Changes Between v1.17.0 and v1.18.0
-
-- Added support for putting token, but not id, in URL parms
-
-## Changes Between v1.16.0 and v1.17.0
-
-- Fixed bug when user creds are passed into url parms
-- Increased timeouts when comparing auth cache to db, and temporarily fall back to cached
-
-## Changes Between v1.15.0 and v1.16.0
-
-- Added synchronization (locking) around the auth cache
-
-## Changes Between v1.14.0 and v1.15.0
-
-- DB persistence complete. Remove `api.db.memoryDb` from your config.json to use (the default is to use it). Specifically in this update:
-    - Fixed some of the /users routes in the persistence case
-    - Modified the auth cache to verify with the db when running in persistence mode (still a few changes needed for agbots)
-    - Added error handling to /users routes in persistence mode
-    - Got UsersSuite tests working for persistence (the device and agbot calls within there are still skipped in persistence mode)
-    - Added persistence for all /devices routes, including transactions where needed
-    - Added persistence for all /agbots routes, including transactions where needed
-- Added POST /agreements/confirm
-- Added config.json flag to disable getting microservices templates (because that part is a little slow). In this case, PUT /devices/{id} just returns an empty map `{}`
-- DELETE /devices/{id} and /agbots/{id} now delete their agreements too
-
-## Changes Between v1.13.0 and v1.14.0
-
-- Changed field daysStale to secondsStale in POST /search/devices. **This is not a backward compatible change.**
-- Caught json parsing exceptions so they don't directly get returned to the client.
-- Finished db persistence for GET /devices and /devices/{id}
-
-## Changes Between v1.12.0 and v1.13.0
-
-- Added POST /agbots/{agid}/dataheartbeat and POST /agbots/{agid}/isrecentdata (experimental)
-- Added POST /admin/initdb and /admin/dropdb to create the db schema. Still experimenting about whether we want these.
-- Added POST /admin/loglevel to change the logging level on the fly
-- Fixed bug: users and id's were not getting removed from the auth cache when they were deleted from the db.
-- Fixed bug: an agreement for 1 MS of a device prevented the other MS from being returned in POST /search/devices
-- Must for now set `db.memoryDb: true` in config.json file, like this:
-
-```
-{
-	"api": {
-		"db": {
-			"memoryDb": true
-		}
-	}
-}
-```
-
-## Changes Between v1.11.0 and v1.12.0
-
-- Fixed poor error msg when root email in config.json is blank
-- Added in-memory cache of non-hashed pw/tokens. Increased speed by more than 10x.
-- (No external changes in this version AFAIK)
-
-## Changes Between v1.10.0 and v1.11.0
-
-- added scale/performance tests
-- added a softwareVersions section of input to PUT /devices/{id} so devices can report their sw levels to the exchange. See swagger for details.
-- POST /users/{username}/reset is now implemented and will email a timed pw reset token to the user's email address
-- Made the logging level configurable via the config.json file
-
-
-## Changes Between v1.9.0 and v1.10.0
-
-- Now it hashes all of the passwords and tokens before storing them in the db
-- Add 2 /admin routes that can only be run as root: reload (reload the config file) and hashpw (return a hash the given pw)
-- Added support for the root pw in the config file to be a hashed value
-- To run the automated tests you must now create a local config file with the root pw in it (see above)
-- Straightened out some of the Makefile variables and dependencies
-
-## Changes Between v1.8.0 and v1.9.0
-
-- Added support for using an osgi version range in POST /search/devices
-- Made GET / return html that lists available exchange services (so far just a link to the api swagger info)
-- Fixed bug where PUT /devices/{id} created the device in the db even if the microservice url was wrong such that micro templates could not be returned
-- Made the microservice url input to PUT /devices/{id} tolerant of a trailing /
-- Added support for /etc/horizon/exchange/config.json. If that config file doesn't exist, the server will still run with default values appropriate for local development.
-- Updated all of the bash test scripts to use a real microservice url.
-
-## Changes Between v1.7.0 and v1.8.0
-
-- PUT /devices/{id} now returns a hash with keys of specRef and values of microservice template json blob
-
-## Changes Between v1.6.0 and v1.7.0
-
-- Fixed bug: agbot couldn't run POST /search/devices
-- Fixed a few other, more minor, access problems
-- Updated swagger info to clarify who can run what

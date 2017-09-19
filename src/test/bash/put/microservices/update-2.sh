@@ -10,7 +10,7 @@ curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/j
   "sharable": "singleton",
   "downloadUrl": "this should not work",
   "matchHardware": {
-    "usbDeviceIds": "1546:01a7",
+    "usbnodeIds": "1546:01a7",
     "devFiles": "/dev/ttyUSB*"
   },
   "userInput": [
@@ -23,7 +23,7 @@ curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/j
   ],
   "workloads": [
     {
-      "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:2.0.3\",\"privileged\":true,\"devices\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
+      "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:2.0.3\",\"privileged\":true,\"nodes\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
       "deployment_signature": "EURzSkDyk66qE6esYUDkLWLzM=",
       "torrent": "{\"url\":\"https://images.bluehorizon.network/28f57c.torrent\",\"images\":[{\"file\":\"d98bf.tar.gz\",\"signature\":\"kckH14DUj3bX=\"}]}"
     }

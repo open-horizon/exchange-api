@@ -2,31 +2,33 @@ package com.horizon.exchangeapi.tables
 // import slick.driver.PostgresDriver.api._
 import com.horizon.exchangeapi._
 import org.json4s._
+import org.json4s.jackson.Serialization.read
 import slick.jdbc.PostgresProfile.api._
 
 
 /** Contains the object representations of the DB tables related to agbots. */
+case class APattern(orgid: String, pattern: String)
 
-// case class AgbotRow(id: String, token: String, name: String, owner: String, msgEndPoint: String, lastHeartbeat: String) {
-case class AgbotRow(id: String, orgid: String, token: String, name: String, owner: String, msgEndPoint: String, lastHeartbeat: String, publicKey: String) {
+case class AgbotRow(id: String, orgid: String, token: String, name: String, owner: String, patterns: String, msgEndPoint: String, lastHeartbeat: String, publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toAgbot(superUser: Boolean): Agbot = {
     val tok = if (superUser) token else StrConstants.hiddenPw
-    new Agbot(tok, name, owner, msgEndPoint, lastHeartbeat, publicKey)
+    val pat = if (patterns != "") read[List[APattern]](patterns) else List[APattern]()
+    new Agbot(tok, name, owner, pat, msgEndPoint, lastHeartbeat, publicKey)
   }
 
   def upsert: DBIO[_] = {
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
     // If owner is root, do not set owner so we do not take over a user's agbot. It will default to root if upsert turns out to be a insert
-    if (owner == "root/root") AgbotsTQ.rows.map(a => (a.id, a.orgid, a.token, a.name, a.msgEndPoint, a.lastHeartbeat, a.publicKey)).insertOrUpdate((id, orgid, tok, name, msgEndPoint, lastHeartbeat, publicKey))
-    else AgbotsTQ.rows.insertOrUpdate(AgbotRow(id, orgid, tok, name, owner, msgEndPoint, lastHeartbeat, publicKey))
+    if (owner == "root/root") AgbotsTQ.rows.map(a => (a.id, a.orgid, a.token, a.name, a.patterns, a.msgEndPoint, a.lastHeartbeat, a.publicKey)).insertOrUpdate((id, orgid, tok, name, patterns, msgEndPoint, lastHeartbeat, publicKey))
+    else AgbotsTQ.rows.insertOrUpdate(AgbotRow(id, orgid, tok, name, owner, patterns, msgEndPoint, lastHeartbeat, publicKey))
   }
 
   def update: DBIO[_] = {
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (owner == "") (for { a <- AgbotsTQ.rows if a.id === id } yield (a.id,a.orgid,a.token,a.name,a.msgEndPoint,a.lastHeartbeat,a.publicKey)).update((id, orgid, tok, name, msgEndPoint, lastHeartbeat, publicKey))
-    else (for { a <- AgbotsTQ.rows if a.id === id } yield a).update(AgbotRow(id, orgid, tok, name, owner, msgEndPoint, lastHeartbeat, publicKey))
+    if (owner == "") (for { a <- AgbotsTQ.rows if a.id === id } yield (a.id,a.orgid,a.token,a.name,a.patterns,a.msgEndPoint,a.lastHeartbeat,a.publicKey)).update((id, orgid, tok, name, patterns, msgEndPoint, lastHeartbeat, publicKey))
+    else (for { a <- AgbotsTQ.rows if a.id === id } yield a).update(AgbotRow(id, orgid, tok, name, owner, patterns, msgEndPoint, lastHeartbeat, publicKey))
   }
 }
 
@@ -37,19 +39,17 @@ class Agbots(tag: Tag) extends Table[AgbotRow](tag, "agbots") {
   def token = column[String]("token")
   def name = column[String]("name")
   def owner = column[String]("owner", O.Default("root/root"))  // root is the default because during upserts by root, we do not want root to take over the agbot if it already exists
+  def patterns = column[String]("patterns")
   def msgEndPoint = column[String]("msgendpoint")
   def lastHeartbeat = column[String]("lastheartbeat")
   def publicKey = column[String]("publickey")
   // this describes what you get back when you return rows from a query
-  def * = (id, orgid, token, name, owner, msgEndPoint, lastHeartbeat, publicKey) <> (AgbotRow.tupled, AgbotRow.unapply)
+  def * = (id, orgid, token, name, owner, patterns, msgEndPoint, lastHeartbeat, publicKey) <> (AgbotRow.tupled, AgbotRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 // Instance to access the agbots table
-// object agbots extends TableQuery(new Agbots(_)) {
-//   def listUserAgbots(username: String) = this.filter(_.owner === username)
-// }
 object AgbotsTQ {
   val rows = TableQuery[Agbots]
 
@@ -75,23 +75,18 @@ object AgbotsTQ {
       case _ => null
     }
   }
-
-  /** Returns the actions to delete the agbot and the agreements that reference it
-  def getDeleteActions(id: String): DBIO[_] = DBIO.seq(
-      // now with all the foreign keys set up correctly and onDelete=cascade, the db will automatically delete these associated rows
-      // AgbotAgreementsTQ.getAgreements(id).delete,            // delete agreements that reference this agbot
-      getAgbot(id).delete    // delete the agbot
-    )
-  */
 }
 
 // This is the agbot table minus the key - used as the data structure to return to the REST clients
-class Agbot(var token: String, var name: String, var owner: String, var msgEndPoint: String, var lastHeartbeat: String, var publicKey: String) {
-  def copy = new Agbot(token, name, owner, msgEndPoint, lastHeartbeat, publicKey)
+class Agbot(var token: String, var name: String, var owner: String, var patterns: List[APattern], var msgEndPoint: String, var lastHeartbeat: String, var publicKey: String) {
+  def copy = new Agbot(token, name, owner, patterns, msgEndPoint, lastHeartbeat, publicKey)
 }
 
-case class AgbotAgreementRow(agrId: String, agbotId: String, workload: String, state: String, lastUpdated: String, dataLastReceived: String) {
-  def toAgbotAgreement = AgbotAgreement(workload, state, lastUpdated, dataLastReceived)
+
+case class AAWorkload(orgid: String, pattern: String, url: String)
+
+case class AgbotAgreementRow(agrId: String, agbotId: String, workloadOrgid: String, workloadPattern: String, workloadUrl: String, state: String, lastUpdated: String, dataLastReceived: String) {
+  def toAgbotAgreement = AgbotAgreement(AAWorkload(workloadOrgid, workloadPattern, workloadUrl), state, lastUpdated, dataLastReceived)
 
   def upsert: DBIO[_] = AgbotAgreementsTQ.rows.insertOrUpdate(this)
 }
@@ -99,11 +94,13 @@ case class AgbotAgreementRow(agrId: String, agbotId: String, workload: String, s
 class AgbotAgreements(tag: Tag) extends Table[AgbotAgreementRow](tag, "agbotagreements") {
   def agrId = column[String]("agrid", O.PrimaryKey)     // ethereum agreeement ids are unique
   def agbotId = column[String]("agbotid")
-  def workload = column[String]("workload")
+  def workloadOrgid = column[String]("workloadorgid")
+  def workloadPattern = column[String]("workloadpattern")
+  def workloadUrl = column[String]("workloadurl")
   def state = column[String]("state")
   def lastUpdated = column[String]("lastUpdated")
   def dataLastReceived = column[String]("dataLastReceived")
-  def * = (agrId, agbotId, workload, state, lastUpdated, dataLastReceived) <> (AgbotAgreementRow.tupled, AgbotAgreementRow.unapply)
+  def * = (agrId, agbotId, workloadOrgid, workloadPattern, workloadUrl, state, lastUpdated, dataLastReceived) <> (AgbotAgreementRow.tupled, AgbotAgreementRow.unapply)
   def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
@@ -116,12 +113,12 @@ object AgbotAgreementsTQ {
   def getAgreementsWithState = rows.filter(_.state =!= "")
 }
 
-case class AgbotAgreement(workload: String, state: String, lastUpdated: String, dataLastReceived: String)
+case class AgbotAgreement(workload: AAWorkload, state: String, lastUpdated: String, dataLastReceived: String)
 
 
-/** The agbotmsgs table holds the msgs sent to agbots by devices */
-case class AgbotMsgRow(msgId: Int, agbotId: String, deviceId: String, devicePubKey: String, message: String, timeSent: String, timeExpires: String) {
-  def toAgbotMsg = AgbotMsg(msgId, deviceId, devicePubKey, message, timeSent, timeExpires)
+/** The agbotmsgs table holds the msgs sent to agbots by nodes */
+case class AgbotMsgRow(msgId: Int, agbotId: String, nodeId: String, nodePubKey: String, message: String, timeSent: String, timeExpires: String) {
+  def toAgbotMsg = AgbotMsg(msgId, nodeId, nodePubKey, message, timeSent, timeExpires)
 
   def insert: DBIO[_] = ((AgbotMsgsTQ.rows returning AgbotMsgsTQ.rows.map(_.msgId)) += this)  // inserts the row and returns the msgId of the new row
   def upsert: DBIO[_] = AgbotMsgsTQ.rows.insertOrUpdate(this)    // do not think we need this
@@ -130,14 +127,14 @@ case class AgbotMsgRow(msgId: Int, agbotId: String, deviceId: String, devicePubK
 class AgbotMsgs(tag: Tag) extends Table[AgbotMsgRow](tag, "agbotmsgs") {
   def msgId = column[Int]("msgid", O.PrimaryKey, O.AutoInc)    // this enables them to delete a msg and helps us deliver them in order
   def agbotId = column[String]("agbotid")       // msg recipient
-  def deviceId = column[String]("deviceid")     // msg sender
-  def devicePubKey = column[String]("devicepubkey")
+  def nodeId = column[String]("nodeid")     // msg sender
+  def nodePubKey = column[String]("nodepubkey")
   def message = column[String]("message")
   def timeSent = column[String]("timesent")
   def timeExpires = column[String]("timeexpires")
-  def * = (msgId, agbotId, deviceId, devicePubKey, message, timeSent, timeExpires) <> (AgbotMsgRow.tupled, AgbotMsgRow.unapply)
+  def * = (msgId, agbotId, nodeId, nodePubKey, message, timeSent, timeExpires) <> (AgbotMsgRow.tupled, AgbotMsgRow.unapply)
   def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def device = foreignKey("device_fk", deviceId, DevicesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 object AgbotMsgsTQ {
@@ -149,4 +146,4 @@ object AgbotMsgsTQ {
   def getNumOwned(agbotId: String) = rows.filter(_.agbotId === agbotId).length
 }
 
-case class AgbotMsg(msgId: Int, deviceId: String, devicePubKey: String, message: String, timeSent: String, timeExpires: String)
+case class AgbotMsg(msgId: Int, nodeId: String, nodePubKey: String, message: String, timeSent: String, timeExpires: String)

@@ -19,7 +19,7 @@ EXCHANGE_ORG="${EXCHANGE_ORG:-myorg}"
 EXCHANGE_USER="${EXCHANGE_USER:-me}"
 EXCHANGE_PW="${EXCHANGE_PW:-mypw}"
 EXCHANGE_EMAIL="${EXCHANGE_EMAIL:-me@email.com}"
-EXCHANGE_DEVAUTH="${EXCHANGE_DEVAUTH:-'d1:abc123'}"
+EXCHANGE_NODEAUTH="${EXCHANGE_NODEAUTH:-'n1:abc123'}"
 EXCHANGE_AGBOTAUTH="${EXCHANGE_AGBOTAUTH:-'a1:abcdef'}"
 
 appjson="application/json"
@@ -35,9 +35,9 @@ pw=$EXCHANGE_PW
 userauth="$EXCHANGE_ORG/$user:$pw"
 email=$EXCHANGE_EMAIL
 
-deviceid=$(echo "$EXCHANGE_DEVAUTH" | cut -d: -f 1)
-devicetoken=$(echo "$EXCHANGE_DEVAUTH" | cut -d: -f 2)
-deviceauth="$EXCHANGE_ORG/$deviceid:$devicetoken"
+nodeid=$(echo "$EXCHANGE_NODEAUTH" | cut -d: -f 1)
+nodetoken=$(echo "$EXCHANGE_NODEAUTH" | cut -d: -f 2)
+nodeauth="$EXCHANGE_ORG/$nodeid:$nodetoken"
 
 agbotid=$(echo "$EXCHANGE_AGBOTAUTH" | cut -d: -f 1)
 agbottoken=$(echo "$EXCHANGE_AGBOTAUTH" | cut -d: -f 2)
@@ -52,11 +52,9 @@ workid="bluehorizon.network-workloads-netspeed_1.0.0_amd64"
 
 patid="standard-horizon-edge-node"
 
-#bctypebase="${namebase}bt"
-#bctypeid="${bctypebase}1"
-#
-#blockchainbase="${namebase}bc"
-#blockchainid="${blockchainbase}1"
+bctypeid="bct1"
+
+blockchainid="bc1"
 
 #curlBasicArgs="-s -w %{http_code} --output /dev/null $accept"
 curlBasicArgs="-s -w %{http_code} $accept"
@@ -143,10 +141,10 @@ else
     echo "orgs/$orgid/users/$user exists"
 fi
 
-rc=$(curlfind $userauth "orgs/$orgid/devices/$deviceid")
+rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/devices/$deviceid" '{"token": "'$devicetoken'", "name": "rpi1",
+    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1",
   "registeredMicroservices": [
     {
       "url": "https://bluehorizon.network/microservices/network",
@@ -160,21 +158,29 @@ if [[ $rc != 200 ]]; then
   ],
   "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
 else
-    echo "orgs/$orgid/devices/$deviceid exists"
+    echo "orgs/$orgid/nodes/$nodeid exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
+    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "patterns": [{ "orgid": "myorg", "pattern": "mypattern" }], "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
 else
     echo "orgs/$orgid/agbots/$agbotid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid" '{"microservices": [], "workload": {"orgid": "myorg", "pattern": "mynodetype", "url": "https://bluehorizon.network/workloads/sdr"}, "state": "negotiating"}'
+else
+    echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $agbotauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid" '{"workload": "sdr-arm.json", "state": "negotiating"}'
+    curlcreate "PUT" $agbotauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid" '{"workload": {"orgid": "myorg", "pattern": "mynodetype", "url": "https://bluehorizon.network/workloads/sdr"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid/agbots/$agbotid/agreements/$agreementid exists"
 fi
@@ -207,13 +213,6 @@ rc=$(curlfind $userauth "orgs/$orgid/patterns/$patid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/patterns/$patid" '{"label": "My Pattern", "description": "blah blah", "public": true,
-  "microservices": [
-    {
-      "specRef": "https://bluehorizon.network/microservices/gps",
-      "version": "1.0.0",
-      "arch": "amd64"
-    }
-  ],
   "workloads": [
     {
    	  "workloadUrl":"https://bluehorizon.network/workloads/weather",
@@ -231,46 +230,29 @@ if [[ $rc != 200 ]]; then
     "interval": 240,
     "metering" : {"tokens":1, "per_time_unit":"min", "notification_interval":30}
   },
-  "agreementProtocols": [{ "name": "Basic" }],
-  "properties": [{ "name": "iame2edev", "value": true }],
-  "counterPartyProperties": { "and": [{"name": "neverfound", "value": true}] },
-  "maxAgreements": 0 }'
+  "agreementProtocols": [{ "name": "Basic" }] }'
 else
     echo "orgs/$orgid/patterns/$patid exists"
 fi
 
-
-rc=$(curlfind $userauth "orgs/$orgid/devices/$deviceid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/devices/$deviceid" '{"token": "'$devicetoken'", "name": "pi",
-      "registeredMicroservices": [{
-        "url": "https://bluehorizon.network/documentation/sdr-device-api",
-        "numAgreements": 1,
-        "policy": "{blob}",
-        "properties": [
-          {"name": "arch", "value": "arm", "propType": "string", "op": "in"},
-          {"name": "version", "value": "1.0", "propType": "version", "op": "in"}
-        ]
-      }],
-      "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC"}'
-else
-    echo "orgs/$orgid/devices/$deviceid exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/devices/$deviceid/agreements/$agreementid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $deviceauth "orgs/$orgid/devices/$deviceid/agreements/$agreementid" '{"microservices": ["sdr"], "state": "negotiating"}'
-else
-    echo "orgs/$orgid/devices/$deviceid/agreements/$agreementid exists"
-fi
-
 # Do not have a good way to know what msg id they will have, but it is ok to create additional msgs
-curlputpost "POST" $agbotauth "orgs/$orgid/devices/$deviceid/msgs" '{"message": "hey there", "ttl": 300}'
-curlputpost "POST" $deviceauth "orgs/$orgid/agbots/$agbotid/msgs" '{"message": "hey there", "ttl": 300}'
+curlputpost "POST" $agbotauth "orgs/$orgid/nodes/$nodeid/msgs" '{"message": "hey there", "ttl": 300}'
+curlputpost "POST" $nodeauth "orgs/$orgid/agbots/$agbotid/msgs" '{"message": "hey there", "ttl": 300}'
 
-#curlcreate "PUT" $userauth "bctypes/$bctypebase" '{"description": "abc", "details": "escaped json"}'
-#curlcreate "PUT" $userauth "bctypes/$bctypeid/blockchains/$blockchainbase" '{"description": "abc", "details": "escaped json"}'
+rc=$(curlfind $userauth "orgs/$orgid/bctypes/$bctypeid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/bctypes/$bctypeid" '{"description": "abc", "details": "escaped json"}'
+else
+    echo "orgs/$orgid/bctypes/$bctypeid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/bctypes/$bctypeid/blockchains/$blockchainid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/bctypes/$bctypeid/blockchains/$blockchainid" '{"description": "abc", "public": true, "details": "escaped json"}'
+else
+    echo "orgs/$orgid/bctypes/$bctypeid/blockchains/$blockchainid exists"
+fi
 
 echo "All resources added successfully"

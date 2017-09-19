@@ -76,13 +76,13 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val getMicroservices =
     (apiOperation[GetMicroservicesResponse]("getMicroservices")
       summary("Returns all microservices")
-      notes("""Returns all microservice definitions in the exchange DB. Can be run by any user, device, or agbot.
+      notes("""Returns all microservice definitions in the exchange DB. Can be run by any user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("owner", DataType.String, Option[String]("Filter results to only include microservices with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("specRef", DataType.String, Option[String]("Filter results to only include microservices with this specRef (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("version", DataType.String, Option[String]("Filter results to only include microservices with this version (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
@@ -115,14 +115,14 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val getOneMicroservice =
     (apiOperation[GetMicroservicesResponse]("getOneMicroservice")
       summary("Returns a microservice")
-      notes("""Returns the microservice with the specified id in the exchange DB. Can be run by a user, device, or agbot.
+      notes("""Returns the microservice with the specified id in the exchange DB. Can be run by a user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("microservice", DataType.String, Option[String]("Microservice id (orgid/micro-id)."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the device or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire microservice resource will be returned."), paramType=ParamType.Query, required=false)
         )
       )
@@ -178,10 +178,10 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   // Hints to the edge node about how to tell if it has physical sensors supported by the MS
   "matchHardware": {
     // Normally will only set 1 of these values
-    "usbDeviceIds": ["1546:01a7"],
+    "usbNodeIds": ["1546:01a7"],
     "devFiles": ["/dev/ttyUSB*", "/dev/ttyACM*"]
   },
-  // Values the device owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
+  // Values the node owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
   "userInput": [
     {
       "name": "foo",
@@ -192,7 +192,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   ],
   "workloads": [
     {
-      "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:2.0.3\",\"privileged\":true,\"devices\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
+      "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:2.0.3\",\"privileged\":true,\"nodes\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
       "deployment_signature": "EURzSk=",
       "torrent": {
         "url": "https://images.bluehorizon.network/28f57c91243c56caaf0362deeb6620099a0ba1a3.torrent",
@@ -274,10 +274,10 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   // Hints to the edge node about how to tell if it has physical sensors supported by the MS
   "matchHardware": {
     // Normally will only set 1 of these values
-    "usbDeviceIds": ["1546:01a7"],
+    "usbNodeIds": ["1546:01a7"],
     "devFiles": ["/dev/ttyUSB*", "/dev/ttyACM*"]
   },
-  // Values the device owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
+  // Values the node owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
   "userInput": [
     {
       "name": "foo",
@@ -288,7 +288,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   ],
   "workloads": [
     {
-      "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:2.0.3\",\"privileged\":true,\"devices\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
+      "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:2.0.3\",\"privileged\":true,\"nodes\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
       "deployment_signature": "EURzSk=",
       "torrent": {
         "url": "https://images.bluehorizon.network/28f57c91243c56caaf0362deeb6620099a0ba1a3.torrent",

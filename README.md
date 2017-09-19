@@ -1,6 +1,6 @@
 # Horizon Data Exchange Server and REST API
 
-The data exchange API provides API services for the exchange web UI (future), the edge devices, and agreement Bots.
+The data exchange API provides API services for the exchange web UI (future), the edge nodes, and agreement Bots.
 
 The exchange service also provides a few key services for BH for areas in which the decentralized P2P tools
 do not scale well enough yet. As soon as the decentralized tools are sufficient, they will replace these
@@ -47,7 +47,7 @@ services in the exchange.
 - `./sbt`
 - `jetty:start`
 - Or to have the server restart automatically when code changes: `~;jetty:stop;jetty:start`
-- Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/devices?id=a&token=b](http://localhost:8080/v1/devices?id=a&token=b)
+- Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/nodes?id=a&token=b](http://localhost:8080/v1/orgs/IBM/nodes?id=a&token=b)
 - To see the swagger output, browse: [http://localhost:8080/api](http://localhost:8080/api)
 - Run the automated tests (with the exchange server still running): `./sbt test`
 - Run just 1 of the the automated test suites (with the exchange server still running): `./sbt "test-only exchangeapi.AgbotsSuite"`
@@ -60,41 +60,59 @@ services in the exchange.
     - Build the build container: `make .docker-bld`
     - Build the code from your local exchange repo in the build container: `make docker-compile`
     - Build the exchange api container and run it locally: `make .docker-exec-run`
-- Manually test container locally: `curl -# -X GET -H "Accept: application/json" -H "Authorization:Basic bp:mypw" http://localhost:8080/v1/devices | jq .`
+- Manually test container locally: `curl -# -X GET -H "Accept: application/json" -H "Authorization:Basic bp:mypw" http://localhost:8080/v1/orgs/IBM/nodes | jq .`
     - Note: the container can not access a postgres db running locally on the docker host if the db is only listening for unix domain sockets.
 - Run the automated tests: `./sbt test`
 - Export environment variable `DOCKER_REGISTRY` with a value of the hostname of the docker registry to push newly built containers to (for the make target in the next step)
 - Push container to our docker registry: `make docker-push-only`
 - Deploy the new container to a docker host
     - Ensure that no changes are needed to the /etc/horizon/exchange/config.json file
-- Test the new container : `curl -# -X GET -H "Accept: application/json" -H "Authorization:Basic myuser:mypw" https://<exchange-host>/v1/devices | jq .` (or may be https, depending on your deployment)
+- Test the new container : `curl -# -X GET -H "Accept: application/json" -H "Authorization:Basic myuser:mypw" https://<exchange-host>/v1/orgs/IBM/nodes | jq .` (or may be https, depending on your deployment)
 - To see the swagger info from the container: `https://<exchange-host>/api`
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
-## Limitations/Restrictions of Current Version
-
-- The properties used for advertising and searching should always have its value element be a string. For example the memory property value should be `"300"` instead of `300`. This is because scalatra is automatically converting the json to scala data structures, and i don't know how to have the data structures that vary in type.
-
-## Changes Between v1.27.0 and v1.28.0
+## Changes Between v1.28.0 and v1.29.0
 
 ### Todos left to be finished
 
-- Test dropdb with older compose db
-- Move bctype and blockchain under and add public field
-- Modify tests to have each suite use its own org
-- Rename devices to nodes
-- Modify PUT devices/{id}/agreements/{id} body to include the pattern and workload
-- See if maxAgreements=0 is supported as unlimited
-- Modify /search/devices for patterns
 - Add 'admin' field to user, enable admin users to do everything in their org (including create other users)
-- PUT orgs/{org}/devices/{device}/agreements/{agreementid} to be changed to take "microservices":[{"url":"ms url","org":"myorg"}] instead of an array of url strings like it is now.  Same change for agbots (url for workload and an org inside an object)
-- Add list of orgs/patterns to agbot resource
-- Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all devices
+-
+- Implement /org/{orgid}/patterns/{pat-id}/search
+- Add schemaversion table and key upgradedb off of that
+- See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
+- Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all nodes
+- support max object equal to 0 to mean unlimited
 - Do consistency checking of patterns and workloads
+- Remove empty return from PUT nodes/{nodeid}
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST
 - Any other schema changes?
+
+### Limitations
+
+- Need to dropdb and initdb, and re-enter data
+- Cross-org access only works with root for now
+- Before nodes, microservices, workloads, or patterns are created via front end auth, you have to create the user (and then use that person-type auth) so the owner foreign key succeeds
+
+### External Incompatible changes
+
+- Users, nodes, and agbots can now read their own org resource
+- Renamed devices to nodes
+- Removed properties, counterPartyProperties, microservices, maxAgreements from pattern resource
+- Nodes can now read their own /org/{orgid} resource
+- Moved bctype and blockchain under /org/{orgid} and added public field
+- Modified PUT orgs/{org}/nodes/{id}/agreements/{agreementid} to include the pattern and workload, and to accept "microservices":[{"url":"ms url","org":"myorg"}] instead of an array of url strings like it is now.
+- Modified PUT orgs/{org}/agbots/{id}/agreements/{agreementid} to accept workload orgid, pattern, and url, instead of just the url
+- Added list of orgs/patterns to agbot resource
+
+### Internal things done in this version
+
+- Tested dropdb with older compose db
+- Modified tests to have each suite use its own org
+- Added support for data power headers
+
+## Changes Between v1.27.0 and v1.28.0
 
 ### Limitations
 

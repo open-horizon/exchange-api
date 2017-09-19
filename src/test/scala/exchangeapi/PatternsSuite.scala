@@ -30,7 +30,7 @@ class PatternsSuite extends FunSuite {
   val runningLocally = (urlRoot == localUrlRoot)
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
-  val orgid = "IBM"
+  val orgid = "PatternsSuiteTests"
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
   val user = "9999"
@@ -44,9 +44,9 @@ class PatternsSuite extends FunSuite {
   val rootuser = "root/root"
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
-  val deviceId = "9913"     // the 1st device created, that i will use to run some rest methods
-  val deviceToken = deviceId+"tok"
-  val DEVICEAUTH = ("Authorization","Basic "+authpref+deviceId+":"+deviceToken)
+  val nodeId = "9913"     // the 1st node created, that i will use to run some rest methods
+  val nodeToken = nodeId+"tok"
+  val NODEAUTH = ("Authorization","Basic "+authpref+nodeId+":"+nodeToken)
   val agbotId = "9948"
   val agbotToken = agbotId+"tok"
   val AGBOTAUTH = ("Authorization","Basic "+authpref+agbotId+":"+agbotToken)
@@ -61,7 +61,7 @@ class PatternsSuite extends FunSuite {
   val ptBase3 = "pt9922"
   //val ptUrl3 = "http://" + ptBase3
   val pattern3 = ptBase3
-  var numExistingPatterns = 0    // this will be set later
+  //var numExistingPatterns = 0    // this will be set later
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -74,14 +74,27 @@ class PatternsSuite extends FunSuite {
     }
   }
 
+  /** Create an org to use for this test */
+  test("POST /orgs/"+orgid+" - create org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+
+    val input = PostPutOrgRequest("My Org", "desc")
+    response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the patterns, because they are deleted when the user is deleted. */
   test("Begin - DELETE all test users") {
     if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
     deleteAllUsers()
   }
 
-  /** Add users, device, pattern for future tests */
-  test("Add users, device, pattern for future tests") {
+  /** Add users, node, pattern for future tests */
+  test("Add users, node, pattern for future tests") {
     var userInput = PutUsersRequest(pw, user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
@@ -92,38 +105,26 @@ class PatternsSuite extends FunSuite {
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
-    val devInput = PutDevicesRequest(deviceToken, "bc dev test", List(RegMicroservice("foo",1,"{}",List(
+    val devInput = PutNodesRequest(nodeToken, "bc dev test", List(RegMicroservice("foo",1,"{}",List(
       Prop("arch","arm","string","in"),
       Prop("version","2.0.0","version","in"),
-      Prop("blockchainProtocols","agProto","list","in")))), "whisper-id", Map(), "DEVICEABC")
-    val devResponse = Http(URL+"/devices/"+deviceId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+      Prop("blockchainProtocols","agProto","list","in")))), "whisper-id", Map(), "NODEABC")
+    val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK)
 
-    val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", "whisper-id", "ABC")
+    val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", List[APattern](), "whisper-id", "ABC")
     val agbotResponse = Http(URL+"/agbots/"+agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+agbotResponse.code+", agbotResponse.body: "+agbotResponse.body)
     assert(agbotResponse.code === HttpCode.PUT_OK)
   }
 
-  test("GET /orgs/"+orgid+"/patterns - get initial number of patterns in the db") {
-    val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK || response.code === HttpCode.NOT_FOUND)
-    val getPatternResp = parse(response.body).extract[GetPatternsResponse]
-    numExistingPatterns = getPatternResp.patterns.size
-    info("initially "+numExistingPatterns+" patterns")
-  }
-
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update pattern that is not there yet - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
-      List( Map("specRef" -> "https://msurl", "verion" -> "1.0.0", "arch" -> "amd64") ),
       List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
       PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
-      List[Map[String,String]](),
-      List[Map[String,Any]](),
-      Map[String,List[Map[String,Any]]](), 1 )
+      List[Map[String,String]]()
+    )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
@@ -131,12 +132,10 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as user") {
     val input = PostPutPatternRequest(ptBase, "desc", false,
-      List( Map("specRef" -> "https://msurl", "verion" -> "1.0.0", "arch" -> "amd64") ),
       List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
       PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
-      List[Map[String,String]](),
-      List[Map[String,Any]](),
-      Map[String,List[Map[String,Any]]](), 1 )
+      List[Map[String,String]]()
+    )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -146,12 +145,10 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" again - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
-      List( Map("specRef" -> "https://msurl", "verion" -> "1.0.0", "arch" -> "amd64") ),
       List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
       PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
-      List[Map[String,String]](),
-      List[Map[String,Any]](),
-      Map[String,List[Map[String,Any]]](), 1 )
+      List[Map[String,String]]()
+    )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ALREADY_EXISTS)
@@ -159,12 +156,10 @@ class PatternsSuite extends FunSuite {
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as same user") {
     val input = PostPutPatternRequest(ptBase+" amd64", "desc", false,
-      List( Map("specRef" -> "https://msurl", "verion" -> "1.0.0", "arch" -> "amd64") ),
       List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
       PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
-      List[Map[String,String]](),
-      List[Map[String,Any]](),
-      Map[String,List[Map[String,Any]]](), 1 )
+      List[Map[String,String]]()
+    )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -172,12 +167,10 @@ class PatternsSuite extends FunSuite {
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as 2nd user - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
-      List( Map("specRef" -> "https://msurl", "verion" -> "1.0.0", "arch" -> "amd64") ),
       List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
       PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
-      List[Map[String,String]](),
-      List[Map[String,Any]](),
-      Map[String,List[Map[String,Any]]](), 1 )
+      List[Map[String,String]]()
+    )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -185,12 +178,10 @@ class PatternsSuite extends FunSuite {
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as agbot - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
-      List( Map("specRef" -> "https://msurl", "verion" -> "1.0.0", "arch" -> "amd64") ),
       List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
       PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
-      List[Map[String,String]](),
-      List[Map[String,Any]](),
-      Map[String,List[Map[String,Any]]](), 1 )
+      List[Map[String,String]]()
+    )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -205,27 +196,23 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
-  test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as device - should fail") {
+  test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as node - should fail") {
     val input = PostPutPatternRequest("Bad Pattern2", "desc", false,
-      List( Map("specRef" -> "https://msurl", "verion" -> "1.0.0", "arch" -> "amd64") ),
       List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
       PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
-      List[Map[String,String]](),
-      List[Map[String,Any]](),
-      Map[String,List[Map[String,Any]]](), 1 )
-    val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(DEVICEAUTH).asString
+      List[Map[String,String]]()
+    )
+    val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as 2nd user") {
     val input = PostPutPatternRequest(ptBase2+" amd64", "desc", false,
-      List( Map("specRef" -> "https://msurl", "verion" -> "1.0.0", "arch" -> "amd64") ),
       List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
       PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
-      List[Map[String,String]](),
-      List[Map[String,Any]](),
-      Map[String,List[Map[String,Any]]](), 1 )
+      List[Map[String,String]]()
+    )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -267,7 +254,7 @@ class PatternsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetPatternsResponse]
-    assert(respObj.patterns.size === 2 + numExistingPatterns)
+    assert(respObj.patterns.size === 2)
 
     assert(respObj.patterns.contains(orgpattern))
     var pt = respObj.patterns.get(orgpattern).get     // the 2nd get turns the Some(val) into val
@@ -290,13 +277,13 @@ class PatternsSuite extends FunSuite {
     assert(respObj.patterns.contains(orgpattern))
   }
 
-  test("GET /orgs/"+orgid+"/patterns - as device") {
-    val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(DEVICEAUTH).asString
+  test("GET /orgs/"+orgid+"/patterns - as node") {
+    val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetPatternsResponse]
-    assert(respObj.patterns.size === 2 + numExistingPatterns)
+    assert(respObj.patterns.size === 2)
   }
 
   test("GET /orgs/"+orgid+"/patterns - as agbot") {
@@ -305,7 +292,7 @@ class PatternsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetPatternsResponse]
-    assert(respObj.patterns.size === 2 + numExistingPatterns)
+    assert(respObj.patterns.size === 2)
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+" - as user") {
@@ -396,6 +383,14 @@ class PatternsSuite extends FunSuite {
   /** Clean up, delete all the test patterns */
   test("Cleanup - DELETE all test patterns") {
     deleteAllUsers()
+  }
+
+  /** Delete the org we used for this test */
+  test("POST /orgs/"+orgid+" - delete org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
   }
 
 }

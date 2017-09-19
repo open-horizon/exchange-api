@@ -211,7 +211,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val deleteUsers =
     (apiOperation[ApiResponse]("deleteUsers")
       summary "Deletes a user"
-      notes "Deletes a user from the exchange DB and all of its devices and agbots. Can only be run by that user or root."
+      notes "Deletes a user from the exchange DB and all of its nodes and agbots. Can only be run by that user or root."
       parameters(
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be deleted."), paramType = ParamType.Path),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)

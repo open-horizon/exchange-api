@@ -14,29 +14,49 @@ import com.horizon.exchangeapi.tables._
 object ExchangeApiTables {
 
   // Create all of the current version's tables - used in /admin/initdb and /admin/migratedb
-  val create = (OrgsTQ.rows.schema ++ UsersTQ.rows.schema ++ DevicesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ DeviceAgreementsTQ.rows.schema ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ DeviceMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ PatternsTQ.rows.schema).create
+  val create = (
+    OrgsTQ.rows.schema ++ UsersTQ.rows.schema
+      ++ NodesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ NodeAgreementsTQ.rows.schema
+      ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema
+      ++ NodeMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema
+      ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ PatternsTQ.rows.schema
+    ).create
 
   // Alter the schema of existing tables - used in /admin/upgradedb
   // Note: the compose/bluemix version of postgresql does not support the 'if not exists' option
-  // val alterTables = DBIO.seq(sqlu"alter table devices add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
-  // val alterTables = DBIO.seq(sqlu"alter table devices drop column publickey", sqlu"alter table agbots drop column publickey")
+  // val alterTables = DBIO.seq(sqlu"alter table nodes add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
+  // val alterTables = DBIO.seq(sqlu"alter table nodes drop column publickey", sqlu"alter table agbots drop column publickey")
+  val alterTables = null
 
   // Used to create just the new tables in this version, so we do not have to disrupt the existing tables - used in /admin/initnewtables and /admin/upgradedb
   //val createNewTables = (MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema).create  // <-- this is not in prod yet
   val createNewTables = (OrgsTQ.rows.schema).create
 
-  // Delete all of the current tables
+  // Delete all of the current tables - the tables that are depended on need to be last in this list
   // Note: doing this with raw sql stmts because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints (only adding), we should be ok with the drops below?
-//  val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
-  val delete = DBIO.seq(sqlu"drop table if exists patterns", sqlu"drop table if exists workloads", sqlu"drop table if exists microservices", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes", sqlu"drop table if exists devmsgs", sqlu"drop table if exists agbotmsgs", sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots", sqlu"drop table if exists devagreements", sqlu"drop table if exists properties", sqlu"drop table if exists devmicros", sqlu"drop table if exists devices", sqlu"drop table if exists users", sqlu"drop table if exists orgs")
+//  val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
+  val delete = DBIO.seq(
+    sqlu"drop table if exists patterns", sqlu"drop table if exists workloads", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes",  // no table depends on these
+    sqlu"drop table if exists mmicroservices",       // from older schema
+    sqlu"drop table if exists devmsgs",   // from older schema
+    sqlu"drop table if exists nodemsgs", sqlu"drop table if exists agbotmsgs",     // these depend on both nodes and agbots
+    sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots",
+    sqlu"drop table if exists devagreements",   // from older schema
+    sqlu"drop table if exists nodeagreements",
+    sqlu"drop table if exists properties",
+    sqlu"drop table if exists microservices", sqlu"drop table if exists devmicros", sqlu"drop table if exists devices",   // from older schema
+    sqlu"drop table if exists nodemicros", sqlu"drop table if exists nodes",
+    sqlu"drop table if exists users", sqlu"drop table if exists orgs"
+  )
 
   // Delete the previous version's (v1.24.0) tables - used by /admin/migratedb
-  //val deletePrevious = DBIO.seq(sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
-  val deletePrevious = DBIO.seq(sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table devices", sqlu"drop table users")
+  //val deletePrevious = DBIO.seq(sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
+  val deletePrevious = DBIO.seq(sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
 
   // Remove the alters of existing tables - used by /admin/unupgradedb
-  // val unAlterTables = DBIO.seq(sqlu"alter table devices drop column publickey", sqlu"alter table agbots drop column publickey")
-  // val unAlterTables = DBIO.seq(sqlu"alter table devices add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
+  // val unAlterTables = DBIO.seq(sqlu"alter table nodes drop column publickey", sqlu"alter table agbots drop column publickey")
+  // val unAlterTables = DBIO.seq(sqlu"alter table nodes add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
+  val unAlterTables = null
 
   // Used to delete just the new tables in this version (so we can recreate), so we do not have to disrupt the existing tables - used by /admin/dropnewtables and /admin/unupgradedb
   //val deleteNewTables = DBIO.seq(sqlu"drop table mmicroservices", sqlu"drop table workloads")  // <-- this is not in prod yet
@@ -49,14 +69,14 @@ object ExchangeApiTables {
       val filename = dumpDir+"/users"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[UserRow](filename).dump(xs)
-      DevicesTQ.rows.result     // the next query, processed by the following flatMap
+      NodesTQ.rows.result     // the next query, processed by the following flatMap
     }).flatMap({ xs =>
-      val filename = dumpDir+"/devices"+dumpSuffix
+      val filename = dumpDir+"/nodes"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
-      new TableIo[DeviceRow](filename).dump(xs)
+      new TableIo[NodeRow](filename).dump(xs)
       RegMicroservicesTQ.rows.result
     }).flatMap({ xs =>
-      val filename = dumpDir+"/devmicros"+dumpSuffix
+      val filename = dumpDir+"/nodemicros"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[RegMicroserviceRow](filename).dump(xs)
       PropsTQ.rows.result
@@ -64,11 +84,11 @@ object ExchangeApiTables {
       val filename = dumpDir+"/properties"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[PropRow](filename).dump(xs)
-      DeviceAgreementsTQ.rows.result
+      NodeAgreementsTQ.rows.result
     }).flatMap({ xs =>
-      val filename = dumpDir+"/devagreements"+dumpSuffix
+      val filename = dumpDir+"/nodeagreements"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
-      new TableIo[DeviceAgreementRow](filename).dump(xs)
+      new TableIo[NodeAgreementRow](filename).dump(xs)
       AgbotsTQ.rows.result
     }).flatMap({ xs =>
       val filename = dumpDir+"/agbots"+dumpSuffix
@@ -79,11 +99,11 @@ object ExchangeApiTables {
       val filename = dumpDir+"/agbotagreements"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[AgbotAgreementRow](filename).dump(xs)
-      DeviceMsgsTQ.rows.result
+      NodeMsgsTQ.rows.result
     }).flatMap({ xs =>
-      val filename = dumpDir+"/devmsgs"+dumpSuffix
+      val filename = dumpDir+"/nodemsgs"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
-      new TableIo[DeviceMsgRow](filename).dump(xs)
+      new TableIo[NodeMsgRow](filename).dump(xs)
       AgbotMsgsTQ.rows.result
     }).flatMap({ xs =>
       val filename = dumpDir+"/agbotmsgs"+dumpSuffix
@@ -134,10 +154,10 @@ object ExchangeApiTables {
           Failure(t)
       }
     })
-    val fDevices: Future[Try[String]] = db.run(DevicesTQ.rows.result.asTry).map({ xs =>
-      val filename = dir+"/devices"+suffix
+    val fNodes: Future[Try[String]] = db.run(NodesTQ.rows.result.asTry).map({ xs =>
+      val filename = dir+"/nodes"+suffix
       xs match {
-        case Success(v) => new TableIo[DeviceRow](filename).dump(v)
+        case Success(v) => new TableIo[NodeRow](filename).dump(v)
           logger.info("dumped "+v.size+" rows to "+filename)
           Success("dumped "+v.size+" rows to "+filename)
         case Failure(t) => logger.error("error dumping rows to "+filename)
@@ -146,7 +166,7 @@ object ExchangeApiTables {
     })
     val aggFut = for {
       f1Result <- fUsers
-      f2Result <- fDevices
+      f2Result <- fNodes
     } yield Vector(f1Result, f2Result)
     aggFut
     */
@@ -161,17 +181,17 @@ object ExchangeApiTables {
     val users = new TableIo[UserRow](dumpDir+"/users"+dumpSuffix).load
     if (users.nonEmpty) actions += (UsersTQ.rows ++= users)
 
-    val devices = new TableIo[DeviceRow](dumpDir+"/devices"+dumpSuffix).load
-    if (devices.nonEmpty) actions += (DevicesTQ.rows ++= devices)
+    val nodes = new TableIo[NodeRow](dumpDir+"/nodes"+dumpSuffix).load
+    if (nodes.nonEmpty) actions += (NodesTQ.rows ++= nodes)
 
-    val devmicros = new TableIo[RegMicroserviceRow](dumpDir+"/devmicros"+dumpSuffix).load
-    if (devmicros.nonEmpty) actions += (RegMicroservicesTQ.rows ++= devmicros)
+    val nodemicros = new TableIo[RegMicroserviceRow](dumpDir+"/nodemicros"+dumpSuffix).load
+    if (nodemicros.nonEmpty) actions += (RegMicroservicesTQ.rows ++= nodemicros)
 
     val properties = new TableIo[PropRow](dumpDir+"/properties"+dumpSuffix).load
     if (properties.nonEmpty) actions += (PropsTQ.rows ++= properties)
 
-    val devagreements = new TableIo[DeviceAgreementRow](dumpDir+"/devagreements"+dumpSuffix).load
-    if (devagreements.nonEmpty) actions += (DeviceAgreementsTQ.rows ++= devagreements)
+    val nodeagreements = new TableIo[NodeAgreementRow](dumpDir+"/nodeagreements"+dumpSuffix).load
+    if (nodeagreements.nonEmpty) actions += (NodeAgreementsTQ.rows ++= nodeagreements)
 
     val agbots = new TableIo[AgbotRow](dumpDir+"/agbots"+dumpSuffix).load
     if (agbots.nonEmpty) actions += (AgbotsTQ.rows ++= agbots)
@@ -179,8 +199,8 @@ object ExchangeApiTables {
     val agbotagreements = new TableIo[AgbotAgreementRow](dumpDir+"/agbotagreements"+dumpSuffix).load
     if (agbotagreements.nonEmpty) actions += (AgbotAgreementsTQ.rows ++= agbotagreements)
 
-    val devicemsgs = new TableIo[DeviceMsgRow](dumpDir+"/devmsgs"+dumpSuffix).load
-    if (devicemsgs.nonEmpty) actions += (DeviceMsgsTQ.rows ++= devicemsgs)
+    val nodemsgs = new TableIo[NodeMsgRow](dumpDir+"/nodemsgs"+dumpSuffix).load
+    if (nodemsgs.nonEmpty) actions += (NodeMsgsTQ.rows ++= nodemsgs)
 
     val agbotmsgs = new TableIo[AgbotMsgRow](dumpDir+"/agbotmsgs"+dumpSuffix).load
     if (agbotmsgs.nonEmpty) actions += (AgbotMsgsTQ.rows ++= agbotmsgs)

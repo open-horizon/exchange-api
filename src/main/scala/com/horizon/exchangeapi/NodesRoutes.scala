@@ -897,9 +897,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     }).flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/msgs agbot publickey result: "+xs.toString)
       xs match {
-        case Success(v) => val agbotPubKey = v.head
-          if (agbotPubKey != "") NodeMsgRow(0, nodeId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
-          else DBIO.failed(new Throwable("Invalid Input: the message sender must have their public key registered with the Exchange")).asTry
+        case Success(v) => if (v.nonEmpty) {    // it seems this returns success even when the agbot is not found
+            val agbotPubKey = v.head
+            if (agbotPubKey != "") NodeMsgRow(0, nodeId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
+            else DBIO.failed(new Throwable("Invalid Input: the message sender must have their public key registered with the Exchange")).asTry
+          }
+          else DBIO.failed(new Throwable("Invalid Input: agbot "+agbotId+" not found")).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }
     })).map({ xs =>

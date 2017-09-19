@@ -121,18 +121,6 @@ class MicroservicesSuite extends FunSuite {
     assert(agbotResponse.code === HttpCode.PUT_OK)
   }
 
-  /*
-  test("GET /orgs/"+orgid+"/microservices - get initial number of microservices in the db") {
-    val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK || response.code === HttpCode.NOT_FOUND)
-    val getMicroserviceResp = parse(response.body).extract[GetMicroservicesResponse]
-    numExistingMicroservices = getMicroserviceResp.microservices.size
-    info("initially "+numExistingMicroservices+" microservices")
-  }
-  */
-
   test("PUT /orgs/"+orgid+"/microservices/"+microservice+" - update MS that is not there yet - should fail") {
     val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "updated", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/microservices/"+microservice).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

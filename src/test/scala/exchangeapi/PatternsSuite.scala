@@ -119,18 +119,6 @@ class PatternsSuite extends FunSuite {
     assert(agbotResponse.code === HttpCode.PUT_OK)
   }
 
-  /*
-  test("GET /orgs/"+orgid+"/patterns - get initial number of patterns in the db") {
-    val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK || response.code === HttpCode.NOT_FOUND)
-    val getPatternResp = parse(response.body).extract[GetPatternsResponse]
-    numExistingPatterns = getPatternResp.patterns.size
-    info("initially "+numExistingPatterns+" patterns")
-  }
-  */
-
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update pattern that is not there yet - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
       List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),

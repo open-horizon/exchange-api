@@ -449,8 +449,10 @@ trait AuthenticationSupport extends ScalatraBase {
     def isSuperUser = false       // IUser overrides this
     def identityString = creds.id     // for error msgs
     def accessDeniedMsg(access: Access) = "Access denied: '"+identityString+"' does not have authorization: "+access
+    var hasFrontEndAuthority = false   // true if this identity was already vetted by the front end
 
     def authenticate(hint: String = ""): Identity = {
+      if (hasFrontEndAuthority) return this       // it is already a specific subclass
       if (creds.isAnonymous) return toIAnonymous
       if (hint == "token") {
         if (isTokenValid(creds.token, creds.id)) return toIUser
@@ -491,10 +493,22 @@ trait AuthenticationSupport extends ScalatraBase {
     def authorizeTo(target: Target, access: Access): Identity = this      // should never be called because authenticate() will return a real resource
   }
 
+  case class IFrontEnd(creds: Creds) extends Identity {
+    override def authenticate(hint: String) = {
+      if (ExchConfig.config.getString("api.root.frontEndHeader") == creds.id) this    // let everything thru
+      else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+    }
+    def authorizeTo(target: Target, access: Access): Identity = {
+      if (ExchConfig.config.getString("api.root.frontEndHeader") == creds.id) this    // let everything thru
+      else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "Access denied: an exchange front end is not authorized in the config.json"))
+    }
+  }
+
   case class IUser(creds: Creds) extends Identity {
     override def isSuperUser = Role.isSuperUser(creds.id)
 
     def authorizeTo(target: Target, access: Access): Identity = {
+      if (hasFrontEndAuthority) return this     // allow whatever it wants to do
       val role = if (isSuperUser) Role.SUPERUSER else Role.USER
       // Transform any generic access into specific access
       var access2: Access = null
@@ -593,6 +607,7 @@ trait AuthenticationSupport extends ScalatraBase {
 
   case class INode(creds: Creds) extends Identity {
     def authorizeTo(target: Target, access: Access): Identity = {
+      if (hasFrontEndAuthority) return this     // allow whatever it wants to do
       // Transform any generic access into specific access
       val access2 = target match {
         case TUser(id) => access match {     // a node accessing a user
@@ -652,11 +667,12 @@ trait AuthenticationSupport extends ScalatraBase {
         case TAction(_) => access      // a node running an action
       }
       if (Role.hasAuthorization(Role.NODE, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
-    }    
+    }
   }
 
   case class IAgbot(creds: Creds) extends Identity {
     def authorizeTo(target: Target, access: Access): Identity = {
+      if (hasFrontEndAuthority) return this     // allow whatever it wants to do
       // Transform any generic access into specific access
       var access2: Access = null
       if (!isMyOrg(target)) {
@@ -726,7 +742,14 @@ trait AuthenticationSupport extends ScalatraBase {
         }
       }
       if (Role.hasAuthorization(Role.AGBOT, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
-    }    
+    }
+  }
+
+  case class IApiKey(creds: Creds) extends Identity {
+    def authorizeTo(target: Target, access: Access): Identity = {
+      if (hasFrontEndAuthority) return this // allow whatever it wants to do
+      halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access))) // should not ever get here
+    }
   }
 
   case class IAnonymous(creds: Creds) extends Identity {
@@ -801,7 +824,7 @@ trait AuthenticationSupport extends ScalatraBase {
         }
       }
       if (Role.hasAuthorization(Role.ANONYMOUS, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
-    }    
+    }
   }
 
   /** This and its subclasses are used to identify the target resource the rest api method goes after */
@@ -842,14 +865,45 @@ trait AuthenticationSupport extends ScalatraBase {
 
 
   def credsAndLog(anonymousOk: Boolean = false): Identity = {
+    val clientIp = request.header("X-Forwarded-For").orElse(Option(request.getRemoteAddr)).get      // haproxy inserts the real client ip into the header for us
+
+    val feIdentity = frontEndCreds()
+    if (feIdentity != null) {
+      logger.info("User or id "+feIdentity.creds.id+" from "+clientIp+" (via front end) running "+request.getMethod+" "+request.getPathInfo)
+      return feIdentity
+    }
+    // else, fall thru to the next section
+
+    // Get the creds from the header or params
     val creds = credentials(anonymousOk)
     val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
-    val clientIp = request.header("X-Forwarded-For").orElse(Option(request.getRemoteAddr)).get      // haproxy inserts the real client ip into the header for us
     logger.info("User or id "+userOrId+" from "+clientIp+" running "+request.getMethod+" "+request.getPathInfo)
     if (isDbMigration && !Role.isSuperUser(creds.id)) halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied - in the process of DB migration"))
     return IIdentity(creds)
   }
   // def credentialsAndLog(anonymousOk: Boolean = false): Creds = credsAndLog(anonymousOk).creds
+
+  def frontEndCreds(): Identity = {
+    val frontEndHeader = ExchConfig.config.getString("api.root.frontEndHeader")
+    if (frontEndHeader == "" || request.getHeader(frontEndHeader) == null) return null
+    logger.trace("request.headers: "+request.headers.toString())
+    //todo: For now the only front end we support is data power doing the authentication and authorization. Create a plugin architecture.
+    // Data power calls us similar to: curl -u '{username}:{password}' 'https://{serviceURL}' -H 'type:{subjectType}' -H 'id:{username}' -H 'orgid:{org}' -H 'issuer:IBM_ID' -H 'Content-Type: application/json'
+    // type: person (user logged into the dashboard), app (API Key), or dev (device/gateway)
+    val idType = request.getHeader("type")
+    val orgid = request.getHeader("orgid")
+    val id = request.getHeader("id")
+    if (idType == null || id == null || orgid == null) halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "front end header "+frontEndHeader+" set, but not the rest of the required headers"))
+    val creds = Creds(OrgAndId(orgid,id).toString, "")    // we don't have a pw/token, so leave it blank
+    val identity: Identity = idType match {
+      case "person" => IUser(creds)
+      case "app" => IApiKey(creds)
+      case "dev" => INode(creds)
+      case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected identity type "+idType+" from front end"))
+    }
+    identity.hasFrontEndAuthority = true
+    return identity
+  }
 
   /** Looks in the http header and url params for credentials and returns them. Supported:
    * Basic auth in header in clear text: Authorization:Basic <user-or-id>:<pw-or-token>

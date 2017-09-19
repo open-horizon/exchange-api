@@ -45,7 +45,7 @@ class NodesSuite extends FunSuite {
   val USERAUTH = ("Authorization","Basic "+orguser+":"+pw)
   val BADAUTH = ("Authorization","Basic "+orguser+":"+pw+"x")
   val rootuser = "root/root"
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "Horizon-Rul3s")      // need to put this root pw in config.json
+  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val nodeId = "9900"     // the 1st node created, that i will use to run some rest methods
   val orgnodeId = authpref+nodeId

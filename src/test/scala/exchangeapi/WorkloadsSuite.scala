@@ -119,18 +119,6 @@ class WorkloadsSuite extends FunSuite {
     assert(agbotResponse.code === HttpCode.PUT_OK)
   }
 
-  /*
-  test("GET /orgs/"+orgid+"/workloads - get initial number of workloads in the db") {
-    val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK || response.code === HttpCode.NOT_FOUND)
-    val getWorkloadResp = parse(response.body).extract[GetWorkloadsResponse]
-    numExistingWorkloads = getWorkloadResp.workloads.size
-    info("initially "+numExistingWorkloads+" workloads")
-  }
-  */
-
   test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update WK that is not there yet - should fail") {
     // PostPutWorkloadRequest(label: String, description: String, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: List[Map[String,String]], userInput: List[Map[String,String]], workloads: List[Map[String,String]]) {
     val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "updated", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))

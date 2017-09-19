@@ -76,14 +76,15 @@ services in the exchange.
 
 ### Todos left to be finished
 
-- Add support for data power headers
 - Add 'admin' field to user, enable admin users to do everything in their org (including create other users)
 -
 - Implement /org/{orgid}/patterns/{pat-id}/search
 - Add schemaversion table and key upgradedb off of that
 - See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
 - Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all nodes
+- support max object equal to 0 to mean unlimited
 - Do consistency checking of patterns and workloads
+- Remove empty return from PUT nodes/{nodeid}
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST
 - Any other schema changes?
@@ -92,6 +93,7 @@ services in the exchange.
 
 - Need to dropdb and initdb, and re-enter data
 - Cross-org access only works with root for now
+- Before nodes, microservices, workloads, or patterns are created via front end auth, you have to create the user (and then use that person-type auth) so the owner foreign key succeeds
 
 ### External Incompatible changes
 
@@ -107,8 +109,8 @@ services in the exchange.
 ### Internal things done in this version
 
 - Tested dropdb with older compose db
-- Modify tests to have each suite use its own org
--
+- Modified tests to have each suite use its own org
+- Added support for data power headers
 
 ## Changes Between v1.27.0 and v1.28.0
 

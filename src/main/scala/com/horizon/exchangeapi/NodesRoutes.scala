@@ -727,7 +727,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   "microservices": [          // specify this for CS-type agreements
     {"orgid": "myorg", "url": "https://bluehorizon.network/microservices/rtlsdr"}    // url is API spec ref
   ],
-  "workload": {          // specify this for patter-type agreements
+  "workload": {          // specify this for pattern-type agreements
     "orgid": "myorg",
     "pattern": "mynodetype",
     "url": "https://bluehorizon.network/workloads/sdr"

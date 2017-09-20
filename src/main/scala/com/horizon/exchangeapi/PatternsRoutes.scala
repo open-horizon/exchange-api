@@ -22,16 +22,16 @@ case class GetPatternAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST /microservices or PUT /orgs/{orgid}/patterns/<pattern-id> */
 //case class PostPutPatternRequest(label: String, description: String, public: Boolean, microservices: List[Map[String,String]], workloads: List[PWorkloads], dataVerification: PDataVerification, agreementProtocols: List[Map[String,String]], properties: List[Map[String,Any]], counterPartyProperties: Map[String,List[Map[String,Any]]], maxAgreements: Int) {
-case class PostPutPatternRequest(label: String, description: String, public: Boolean, workloads: List[PWorkloads], dataVerification: PDataVerification, agreementProtocols: List[Map[String,String]]) {
+case class PostPutPatternRequest(label: String, description: String, public: Boolean, workloads: List[PWorkloads], agreementProtocols: List[Map[String,String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {}
 
   //def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(microservices), write(workloads), write(dataVerification), write(agreementProtocols), write(properties), write(counterPartyProperties), maxAgreements, ApiTime.nowUTC)
-  def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(workloads), write(dataVerification), write(agreementProtocols), ApiTime.nowUTC)
+  def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(workloads), write(agreementProtocols), ApiTime.nowUTC)
 }
 
 //case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], microservices: Option[List[Map[String,String]]], workloads: Option[List[PWorkloads]], dataVerification: Option[PDataVerification], agreementProtocols: Option[List[Map[String,String]]], properties: Option[List[Map[String,Any]]], counterPartyProperties: Option[Map[String,List[Map[String,Any]]]], maxAgreements: Option[Int]) {
-case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], workloads: Option[List[PWorkloads]], dataVerification: Option[PDataVerification], agreementProtocols: Option[List[Map[String,String]]]) {
+case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], workloads: Option[List[PWorkloads]], agreementProtocols: Option[List[Map[String,String]]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the pattern, and the attribute name being updated. */
@@ -44,7 +44,7 @@ case class PatchPatternRequest(label: Option[String], description: Option[String
     public match { case Some(pub) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.public,d.lastUpdated)).update((pattern, pub, lastUpdated)), "public"); case _ => ; }
     //microservices match { case Some(ms) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.microservices,d.lastUpdated)).update((pattern, write(ms), lastUpdated)), "microservices"); case _ => ; }
     workloads match { case Some(wk) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.workloads,d.lastUpdated)).update((pattern, write(wk), lastUpdated)), "workloads"); case _ => ; }
-    dataVerification match { case Some(dv) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.dataVerification,d.lastUpdated)).update((pattern, write(dv), lastUpdated)), "dataVerification"); case _ => ; }
+    //dataVerification match { case Some(dv) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.dataVerification,d.lastUpdated)).update((pattern, write(dv), lastUpdated)), "dataVerification"); case _ => ; }
     agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "agreementProtocols"); case _ => ; }
     //properties match { case Some(prop) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.properties,d.lastUpdated)).update((pattern, write(prop), lastUpdated)), "properties"); case _ => ; }
     //counterPartyProperties match { case Some(cpp) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.counterPartyProperties,d.lastUpdated)).update((pattern, write(cpp), lastUpdated)), "counterPartyProperties"); case _ => ; }
@@ -155,30 +155,46 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
 ```
 {
-  "label": "My Pattern",
-  "description": "blah blah",
-  "public": true,       // whether or not it can be viewed by other organizations
+  "label": "name of the edge pattern",
+  "description": "descriptive text",
+  "public": false,
   "workloads": [
     {
-      "workloadUrl":"https://bluehorizon.network/workloads/weather",
-      "version":"1.0.1",
-      "arch":"amd64",
-      "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-      "deployment_overrides_signature": "",
-      "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
-      "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
+      "workloadUrl": "https://bluehorizon.network/workloads/weather",
+      "workloadOrgid": "myorg",
+      "workloadVersions": [
+        {
+          "version": "1.0.1",
+          "arch": "amd64",
+          "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+          "deployment_overrides_signature": "",
+          "priority": {
+            "priority_value": 50,
+            "retries": 1,
+            "retry_durations": 3600,
+            "verified_durations": 52
+          },
+          "upgradePolicy": {
+            "lifecycle": "immediate",
+            "time": "01:00AM"
+          }
+        }
+      ],
+      "dataVerification": {
+        "enabled": true,
+        "URL": "",
+        "user": "",
+        "password": "",
+        "interval": 240,
+        "check_rate": 15,
+        "metering": {
+          "tokens": 1,
+          "per_time_unit": "min",
+          "notification_interval": 30
+        }
+      }
     }
   ],
-  // All of the entries below can usually just be empty lists or objects
-  "dataVerification": {
-    "enabled": true,
-    "URL": "",
-    "User": "",
-    "Password": "",
-    "interval": 240,
-    "check_rate": 15,
-    "metering" : "{"tokens":1, "per_time_unit":"min", "notification_interval":30}
-  },
   "agreementProtocols": [
     {
       "name": "Basic"
@@ -240,34 +256,50 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val putPatterns =
     (apiOperation[ApiResponse]("putPatterns")
       summary "Updates a pattern"
-      notes """Does a full replace of an existing pattern. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
+      notes """Updates a pattern resource. This can only be called by the user that created it. The **request body** structure:
 
 ```
 {
-  "label": "My Pattern",
-  "description": "blah blah",
-  "public": true,       // whether or not it can be viewed by other organizations
+  "label": "name of the edge pattern",
+  "description": "descriptive text",
+  "public": false,
   "workloads": [
     {
-      "workloadUrl":"https://bluehorizon.network/workloads/weather",
-      "version":"1.0.1",
-      "arch":"amd64",
-      "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-      "deployment_overrides_signature": "",
-      "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
-      "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
+      "workloadUrl": "https://bluehorizon.network/workloads/weather",
+      "workloadOrgid": "myorg",
+      "workloadVersions": [
+        {
+          "version": "1.0.1",
+          "arch": "amd64",
+          "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+          "deployment_overrides_signature": "",
+          "priority": {
+            "priority_value": 50,
+            "retries": 1,
+            "retry_durations": 3600,
+            "verified_durations": 52
+          },
+          "upgradePolicy": {
+            "lifecycle": "immediate",
+            "time": "01:00AM"
+          }
+        }
+      ],
+      "dataVerification": {
+        "enabled": true,
+        "URL": "",
+        "user": "",
+        "password": "",
+        "interval": 240,
+        "check_rate": 15,
+        "metering": {
+          "tokens": 1,
+          "per_time_unit": "min",
+          "notification_interval": 30
+        }
+      }
     }
   ],
-  // All of the entries below can usually just be empty lists or objects
-  "dataVerification": {
-    "enabled": true,
-    "URL": "",
-    "User": "",
-    "Password": "",
-    "interval": 240,
-    "check_rate": 15,
-    "metering" : "{"tokens":1, "per_time_unit":"min", "notification_interval":30}
-  },
   "agreementProtocols": [
     {
       "name": "Basic"
@@ -324,29 +356,46 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
 ```
 {
-  "label": "My Pattern",
-  "description": "blah blah",
-  "public": true,       // whether or not it can be viewed by other organizations
+  "label": "name of the edge pattern",
+  "description": "descriptive text",
+  "public": false,
   "workloads": [
     {
-      "workloadUrl":"https://bluehorizon.network/workloads/weather",
-      "version":"1.0.1",
-      "arch":"amd64",
-      "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-      "deployment_overrides_signature": "",
-      "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
-      "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
+      "workloadUrl": "https://bluehorizon.network/workloads/weather",
+      "workloadOrgid": "myorg",
+      "workloadVersions": [
+        {
+          "version": "1.0.1",
+          "arch": "amd64",
+          "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+          "deployment_overrides_signature": "",
+          "priority": {
+            "priority_value": 50,
+            "retries": 1,
+            "retry_durations": 3600,
+            "verified_durations": 52
+          },
+          "upgradePolicy": {
+            "lifecycle": "immediate",
+            "time": "01:00AM"
+          }
+        }
+      ],
+      "dataVerification": {
+        "enabled": true,
+        "URL": "",
+        "user": "",
+        "password": "",
+        "interval": 240,
+        "check_rate": 15,
+        "metering": {
+          "tokens": 1,
+          "per_time_unit": "min",
+          "notification_interval": 30
+        }
+      }
     }
   ],
-  "dataVerification": {
-    "enabled": true,
-    "URL": "",
-    "User": "",
-    "Password": "",
-    "interval": 240,
-    "check_rate": 15,
-    "metering" : "{"tokens":1, "per_time_unit":"min", "notification_interval":30}
-  },
   "agreementProtocols": [
     {
       "name": "Basic"

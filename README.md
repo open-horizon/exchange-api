@@ -83,11 +83,12 @@ services in the exchange.
 - Removed the option on PUT users/{username} to set password or email to blank to mean don't update it. Implemented PATCH users/{username} instead.
 - Changed config.json acls READ_MY_ORGS and WRITE_MY_ORGS to their singular versions
 - Added 'admin' field to user, enabled admin users to do everything in their org (including create other users)
+- Updated the pattern resource schema to more explicitly support multiple different workloads, and multiple versions of the same workload (see swagger)
 
 ### Todos left to be finished
 
-- Implement /org/{orgid}/patterns/{pat-id}/search
-- Fix bugs: Put root/root in the db, so foreign keys work correctly
+- Add pattern to node resource and implement /org/{orgid}/patterns/{pat-id}/search
+- Fix bug: Put root/root in the db, so foreign keys work correctly
 - Add schemaversion table and key upgradedb off of that
 - Ensure that a user can't elevate himself to an admin user
 - See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)

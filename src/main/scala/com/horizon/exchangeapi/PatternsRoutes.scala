@@ -160,11 +160,13 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "public": true,       // whether or not it can be viewed by other organizations
   "workloads": [
     {
-   	  "workloadUrl":"https://bluehorizon.network/workloads/weather",
-   	  "version":"1.0.1",
-   	  "arch":"amd64",
-   	  "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
-   	  "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
+      "workloadUrl":"https://bluehorizon.network/workloads/weather",
+      "version":"1.0.1",
+      "arch":"amd64",
+      "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+      "deployment_overrides_signature": "",
+      "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
+      "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
     }
   ],
   // All of the entries below can usually just be empty lists or objects
@@ -174,6 +176,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     "User": "",
     "Password": "",
     "interval": 240,
+    "check_rate": 15,
     "metering" : "{"tokens":1, "per_time_unit":"min", "notification_interval":30}
   },
   "agreementProtocols": [
@@ -246,11 +249,13 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "public": true,       // whether or not it can be viewed by other organizations
   "workloads": [
     {
-   	  "workloadUrl":"https://bluehorizon.network/workloads/weather",
-   	  "version":"1.0.1",
-   	  "arch":"amd64",
-   	  "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
-   	  "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
+      "workloadUrl":"https://bluehorizon.network/workloads/weather",
+      "version":"1.0.1",
+      "arch":"amd64",
+      "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+      "deployment_overrides_signature": "",
+      "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
+      "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
     }
   ],
   // All of the entries below can usually just be empty lists or objects
@@ -260,6 +265,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     "User": "",
     "Password": "",
     "interval": 240,
+    "check_rate": 15,
     "metering" : "{"tokens":1, "per_time_unit":"min", "notification_interval":30}
   },
   "agreementProtocols": [
@@ -323,11 +329,13 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "public": true,       // whether or not it can be viewed by other organizations
   "workloads": [
     {
-   	  "workloadUrl":"https://bluehorizon.network/workloads/weather",
-   	  "version":"1.0.1",
-   	  "arch":"amd64",
-   	  "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
-   	  "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
+      "workloadUrl":"https://bluehorizon.network/workloads/weather",
+      "version":"1.0.1",
+      "arch":"amd64",
+      "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+      "deployment_overrides_signature": "",
+      "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
+      "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
     }
   ],
   "dataVerification": {
@@ -336,6 +344,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     "User": "",
     "Password": "",
     "interval": 240,
+    "check_rate": 15,
     "metering" : "{"tokens":1, "per_time_unit":"min", "notification_interval":30}
   },
   "agreementProtocols": [

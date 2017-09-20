@@ -97,9 +97,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary("Returns all agbots")
       notes("""Returns all agbots (Agreement Bots) in the exchange DB. Can be run by any user.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
@@ -137,9 +134,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary("Returns a agbot")
       notes("""Returns the agbot (Agreement Bot) with the specified id in the exchange DB. Can be run by a user or the agbot.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
@@ -272,9 +266,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 }
 ```
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the PATCH method to see the response format instead.**"""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),

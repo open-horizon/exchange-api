@@ -19,11 +19,37 @@ import scala.util._
 case class GetUsersResponse(users: Map[String,User], lastIndex: Int)
 
 /** Input format for PUT /users/<username> */
-case class PutUsersRequest(password: String, email: String)
+case class PostPutUsersRequest(password: String, admin: Boolean, email: String)
+
+case class PatchUsersRequest(password: Option[String], email: Option[String]) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  /** Returns a tuple of the db action to update parts of the user, and the attribute name being updated. */
+  def getDbUpdate(username: String, orgid: String): (DBIO[_],String) = {
+    val lastUpdated = ApiTime.nowUTC
+    // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
+    password match {
+      case Some(password2) => if (password2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the password can not be set to the empty string"))
+        val pw = if (Password.isHashed(password2)) password2 else Password.hash(password2)
+        return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated)).update((username, pw, lastUpdated)), "password")
+      case _ => ;
+    }
+    email match { case Some(email2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.email,u.lastUpdated)).update((username, email2, lastUpdated)), "name"); case _ => ; }
+    return (null, null)
+  }
+}
 
 case class ResetPwResponse(token: String)
 
-case class ChangePwRequest(newPassword: String)
+case class ChangePwRequest(newPassword: String) {
+
+  def getDbUpdate(username: String, orgid: String): DBIO[_] = {
+    val lastUpdated = ApiTime.nowUTC
+    if (newPassword == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the password can not be set to the empty string"))
+    val pw = if (Password.isHashed(newPassword)) newPassword else Password.hash(newPassword)
+    return (for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated)).update((username, pw, lastUpdated))
+  }
+}
 
 /** Implementation for all of the /users routes */
 trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
@@ -39,6 +65,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of exchange user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of exchange user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -54,7 +81,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       val users = new MutableHashMap[String, User]
       if (list.nonEmpty) for (e <- list) {
           val pw = if (superUser) e.password else StrConstants.hiddenPw
-          users.put(e.username, User(pw, e.email, e.lastUpdated))
+          users.put(e.username, User(pw, e.admin, e.email, e.lastUpdated))
         }
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetUsersResponse(users.toMap, 0)
@@ -69,6 +96,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user."), paramType=ParamType.Query),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -86,13 +114,61 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("GET /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
       if (xs.nonEmpty) {
         val pw = if (superUser) xs.head.password else StrConstants.hiddenPw
-        val user = User(pw, xs.head.email, xs.head.lastUpdated)
+        val user = User(pw, xs.head.admin, xs.head.email, xs.head.lastUpdated)
         val users = HashMap[String,User](xs.head.username -> user)
         GetUsersResponse(users, 0)
       } else {      // not found
         // throw new IllegalArgumentException(username+" not found")    // do this if using onFailure
         resp.setStatus(HttpCode.NOT_FOUND)
         GetUsersResponse(HashMap[String,User](), 0)
+      }
+    })
+  })
+
+  // =========== POST /orgs/{orgid}/users/{username} ===============================
+  val postUsers =
+    (apiOperation[ApiResponse]("postUsers")
+      summary "Adds a user"
+      notes """Adds a new user to the exchange DB. Note: this REST API method is limited in terms of how many times it can be run from the same source IP in a single day. The **request body** structure:
+
+```
+{
+  "password": "abc",       // the user password this new user should have
+  "admin": false,         // if true, this user will have full privilege within the organization
+  "email": "me@gmail.com"         // contact email address for this user
+}
+```"""
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be added."), paramType = ParamType.Path, required=false),
+        Parameter("body", DataType[PostPutUsersRequest],
+        Option[String]("User object that needs to be added to the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      )
+  val postUsers2 = (apiOperation[PostPutUsersRequest]("postUsers2") summary("a") notes("a"))  // for some bizarre reason, the PutUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  post("/orgs/:orgid/users/:username", operation(postUsers)) ({
+    // Note: we do not currently verify this is a real person creating this (with, for example, captcha), because haproxy restricts the number of
+    //      times a single IP address can call this in a day to a very small number
+    val orgid = swaggerHack("orgid")
+    val username = params("username")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,username).toString
+    credsAndLog(true).authenticate().authorizeTo(TUser(compositeId),Access.CREATE)
+    val user = try { parse(request.body).extract[PostPutUsersRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    logger.debug(user.toString)
+    val owner = if (user.admin) "admin" else ""
+    val resp = response
+    if (user.password == "" || user.email == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "both password and email must be non-blank when creating a user"))
+    db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC).insertUser().asTry).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
+      xs match {
+        case Success(v) => AuthCache.users.putBoth(Creds(compositeId, user.password), owner)    // the password passed in to the cache should be the non-hashed one
+          resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, v+" user added successfully")
+        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)     // this usually happens if the user already exists
+          ApiResponse(ApiResponseType.BAD_INPUT, "user not added: "+t.toString)
       }
     })
   })
@@ -106,18 +182,20 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 ```
 {
   "password": "abc",       // user password, set by user when adding this user
+  "admin": false,         // if true, this user will have full privilege within the organization
   "email": "me@gmail.com"         // contact email address for this user
 }
 ```"""
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be updated."), paramType = ParamType.Path, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PutUsersRequest],
-          Option[String]("User object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
+        Parameter("body", DataType[PostPutUsersRequest],
+        Option[String]("User object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
       )
-  val putUsers2 = (apiOperation[PutUsersRequest]("putUsers2") summary("a") notes("a"))  // for some bizarre reason, the PutUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putUsers2 = (apiOperation[PostPutUsersRequest]("putUsers2") summary("a") notes("a"))  // for some bizarre reason, the PutUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/users/:username", operation(putUsers)) ({
     // Note: we currently do not have a way to verify this is a real person creating this, so we use rate limiting in haproxy
@@ -126,14 +204,14 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val compositeId = OrgAndId(orgid,username).toString
     val ident = credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
     val isRoot = ident.isSuperUser
-    val user = try { parse(request.body).extract[PutUsersRequest] }
+    val user = try { parse(request.body).extract[PostPutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.debug(user.toString)
     val resp = response
     if (isRoot) {     // update or create of a (usually non-root) user by root
       //if (user.password == "" || (user.email == "" && !Role.isSuperUser(username))) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "both password and email must be non-blank when creating a user"))
       if (user.password == "" || (user.email == "")) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "both password and email must be non-blank when creating a user"))
-      db.run(UserRow(compositeId, orgid, user.password, user.email, ApiTime.nowUTC).upsertUser.asTry).map({ xs =>
+      db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC).upsertUser.asTry).map({ xs =>
         logger.debug("PUT /orgs/"+orgid+"/users/"+username+" (root) result: "+xs.toString)
         xs match {
           case Success(v) => AuthCache.users.put(Creds(compositeId, user.password))    // the password passed in to the cache should be the non-hashed one
@@ -144,7 +222,8 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         }
       })
     } else {      // update by existing user
-      db.run(UserRow(compositeId, orgid, user.password, user.email, ApiTime.nowUTC).updateUser()).map({ xs =>     // updateUser() handles the case where pw or email is blank (i.e. do not update those fields)
+      //TODO: ensure that a user can't elevate himself to an admin user!!!!!!!!!!!!!!!!
+      db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC).updateUser()).map({ xs =>     // updateUser() handles the case where pw or email is blank (i.e. do not update those fields)
         logger.debug("PUT /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
         try {
           val numUpdated = xs.toString.toInt
@@ -161,48 +240,57 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     }
   })
 
-
-  // =========== POST /orgs/{orgid}/users/{username} ===============================
-  val postUsers =
-    (apiOperation[ApiResponse]("postUsers")
-      summary "Adds a user"
-      notes """Adds a new user to the exchange DB. Note: this REST API method is severely limited in terms of how many times it can be run from the same source IP in a single day. The **request body** structure:
+  // =========== PATCH /orgs/{orgid}/users/{username} ===============================
+  val patchUsers =
+    (apiOperation[ApiResponse]("patchUsers")
+      summary "Adds/updates a user"
+      notes """Updates 1 attribute of an existing user. Only the user itself or root can update an existing user. The **request body** structure can include **1 of these attributes**:
 
 ```
 {
-  "password": "abc",       // the user password this new user should have
+  "password": "abc",       // user password, set by user when adding this user
   "email": "me@gmail.com"         // contact email address for this user
 }
 ```"""
       parameters(
-        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be added."), paramType = ParamType.Path, required=false),
-        Parameter("body", DataType[PutUsersRequest],
-          Option[String]("User object that needs to be added to the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be updated."), paramType = ParamType.Path, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PatchUsersRequest],
+        Option[String]("User object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
       )
-  val postUsers2 = (apiOperation[PutUsersRequest]("postUsers2") summary("a") notes("a"))  // for some bizarre reason, the PutUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val patchUsers2 = (apiOperation[PatchUsersRequest]("patchUsers2") summary("a") notes("a"))  // for some bizarre reason, the PatchUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
-  post("/orgs/:orgid/users/:username", operation(postUsers)) ({
-    // Note: we do not currently verify this is a real person creating this (with, for example, captcha), because haproxy restricts the number of
-    //      times a single IP address can call this in a day to a very small number
+  patch("/orgs/:orgid/users/:username", operation(patchUsers)) ({
+    // Note: we currently do not have a way to verify this is a real person creating this, so we use rate limiting in haproxy
     val orgid = swaggerHack("orgid")
     val username = params("username")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,username).toString
-    credsAndLog(true).authenticate().authorizeTo(TUser(compositeId),Access.CREATE)
-    val user = try { parse(request.body).extract[PutUsersRequest] }
+    credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
+    val user = try { parse(request.body).extract[PatchUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.debug(user.toString)
     val resp = response
-    if (user.password == "" || user.email == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "both password and email must be non-blank when creating a user"))
-    db.run(UserRow(compositeId, orgid, user.password, user.email, ApiTime.nowUTC).insertUser().asTry).map({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
+    val (action, attrName) = user.getDbUpdate(compositeId, orgid)
+    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid agbot attribute specified"))
+    db.run(action.transactionally.asTry).map({ xs =>
+      logger.debug("PATCH /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
       xs match {
-        case Success(v) => AuthCache.users.put(Creds(compositeId, user.password))    // the password passed in to the cache should be the non-hashed one
-          resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, v+" user added successfully")
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)     // this usually happens if the user already exists
-          ApiResponse(ApiResponseType.BAD_INPUT, "user not added: "+t.toString)
+        case Success(v) => try {
+          val numUpdated = v.toString.toInt     // v comes to us as type Any
+          if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
+            user.password match { case Some(pw) if (pw != "") => AuthCache.users.put(Creds(compositeId, pw)); case _ => ; }    // the password passed in to the cache should be the non-hashed one. We do not need to run putOwner because patch does not change the owner
+            resp.setStatus(HttpCode.PUT_OK)
+            ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of user '"+compositeId+"' updated")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "user '"+compositeId+"' not found")
+          }
+        } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "user '"+compositeId+"' not inserted or updated: "+t.toString)
       }
     })
   })
@@ -213,6 +301,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       summary "Deletes a user"
       notes "Deletes a user from the exchange DB and all of its nodes and agbots. Can only be run by that user or root."
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be deleted."), paramType = ParamType.Path),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -229,7 +318,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("DELETE /users/"+username+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.users.remove(compositeId)
+            AuthCache.users.removeBoth(compositeId)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, "user deleted")
           } else {
@@ -248,6 +337,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       summary "Confirms if this username/password is valid"
       notes "Confirms whether or not this username exists and has the specified password. Can only be run by that user or root."
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be confirmed."), paramType = ParamType.Path),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -275,6 +365,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 }
 ```"""
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be reset."), paramType = ParamType.Path)
         // Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -341,6 +432,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       summary "Changes the user's password using a reset token for authentication"
       notes "Use POST /orgs/{orgid}/users/{username}/reset to have a timed token sent to your email address. Then give that token and your new password to this REST API method."
       parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be reset."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Reset token obtained from POST /orgs/{orgid}/users/{username}/reset. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[ChangePwRequest],
@@ -358,19 +450,24 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val req = try { parse(request.body).extract[ChangePwRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response
-    db.run(UserRow(compositeId, orgid, req.newPassword, "", ApiTime.nowUTC).updateUser()).map({ xs =>     // updateUser() handles the case where pw or email is blank (i.e. do not update those fields)
+    val action = req.getDbUpdate(compositeId, orgid)
+    db.run(action.transactionally.asTry).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/users/"+username+"/changepw result: "+xs.toString)
-      try {
-        val numUpdated = xs.toString.toInt
-        if (numUpdated > 0) {
-          AuthCache.users.put(Creds(compositeId, req.newPassword))    // the password passed in to the cache should be the non-hashed one
-          resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "password updated successfully")
-        } else {
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "user '"+compositeId+"' not found")
-        }
-      } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from user update: "+e) }    // the specific exception is NumberFormatException
+      xs match {
+        case Success(v) => try {
+          val numUpdated = v.toString.toInt     // v comes to us as type Any
+          if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
+            AuthCache.users.put(Creds(compositeId, req.newPassword))    // the password passed in to the cache should be the non-hashed one
+            resp.setStatus(HttpCode.PUT_OK)
+            ApiResponse(ApiResponseType.OK, "password updated successfully")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "user '"+compositeId+"' not found")
+          }
+        } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "user '"+compositeId+"' password not updated: "+t.toString)
+      }
     })
   })
 

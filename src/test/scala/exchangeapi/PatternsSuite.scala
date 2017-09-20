@@ -95,12 +95,12 @@ class PatternsSuite extends FunSuite {
 
   /** Add users, node, pattern for future tests */
   test("Add users, node, pattern for future tests") {
-    var userInput = PutUsersRequest(pw, user+"@hotmail.com")
+    var userInput = PostPutUsersRequest(pw, false, user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
-    userInput = PutUsersRequest(pw2, user2+"@hotmail.com")
+    userInput = PostPutUsersRequest(pw2, false, user2+"@hotmail.com")
     userResponse = Http(URL+"/users/"+user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)

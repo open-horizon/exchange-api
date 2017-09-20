@@ -33,14 +33,20 @@ class UsersSuite extends FunSuite {
   val orgid = "UsersSuiteTests"
   val URL = urlRoot+"/v1/orgs/"+orgid
   val NOORGURL = urlRoot+"/v1"
-  val user = "9970"
-  val orguser = orgid+"/"+"9970"
+  val user = "u1"       // this is an admin user
+  val orguser = orgid+"/"+user
   val pw = user+"pw"
   val creds = orguser+":"+pw
   val AUTH = ("Authorization","Basic "+creds)
   val encodedCreds = Base64.getEncoder.encodeToString(creds.getBytes("utf-8"))
   val ENCODEDAUTH = ("Authorization","Basic "+encodedCreds)
-  //var numExistingUsers = 0    // this will be set later
+  val user2 = "u2"       // this is NOT an admin user
+  val orguser2 = orgid+"/"+user2
+  val pw2 = user2+"pw"
+  val creds2 = orguser2+":"+pw2
+  val AUTH2 = ("Authorization","Basic "+creds2)
+  val user3 = "u3"
+  val pw3 = user3+"pw"
   val rootuser = "root/root"
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this same root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
@@ -153,7 +159,7 @@ class UsersSuite extends FunSuite {
 
   /** Try adding a user w/o email */
   test("POST /orgs/"+orgid+"/users/"+user+" - no email") {
-    val input = PutUsersRequest(pw, "")
+    val input = PostPutUsersRequest(pw, true, "")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
@@ -161,7 +167,7 @@ class UsersSuite extends FunSuite {
 
   /** Add a normal user */
   test("POST /orgs/"+orgid+"/users/"+user+" - normal") {
-    val input = PutUsersRequest(pw, user+"@hotmail.com")
+    val input = PostPutUsersRequest(pw, true, user+"@hotmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -169,7 +175,7 @@ class UsersSuite extends FunSuite {
 
   /** Update the normal user */
   test("PUT /orgs/"+orgid+"/users/"+user+" - update normal") {
-    val input = PutUsersRequest(pw, user+"@msn.com")
+    val input = PostPutUsersRequest(pw, true, user+"@msn.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -177,7 +183,7 @@ class UsersSuite extends FunSuite {
 
   /** Update the normal user - as root */
   test("PUT /orgs/"+orgid+"/users/"+user+" - update normal - as root") {
-    val input = PutUsersRequest(pw, user+"@gmail.com")
+    val input = PostPutUsersRequest(pw, true, user+"@gmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -185,9 +191,8 @@ class UsersSuite extends FunSuite {
 
   // We do not try to update root, because it is not a real user in the db
 
-  /** Get all users (can only be done as root) */
-  test("GET /orgs/"+orgid+"/users") {
-    val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/"+orgid+"/users - as admin user") {
+    val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(AUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -199,11 +204,12 @@ class UsersSuite extends FunSuite {
     assert(u.email === user+"@gmail.com")
   }
 
-  test("GET /orgs/"+orgid+"/users - as "+user) {
+  test("GET /orgs/"+orgid+"/users - as admin "+user) {
     val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(AUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
+    assert(response.code === HttpCode.OK)
+    //assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("GET /orgs/"+orgid+"/users/"+user) {
@@ -221,10 +227,34 @@ class UsersSuite extends FunSuite {
 
   /** Update the normal user with encoded creds */
   test("PUT /orgs/"+orgid+"/users/"+user+" - update normal with encoded creds") {
-    val input = PutUsersRequest(pw, user+"-updated@gmail.com")
+    val input = PostPutUsersRequest(pw, true, user+"-updated@gmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ENCODEDAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/users/"+user2+" - as admin user") {
+    val input = PostPutUsersRequest(pw2, false, user2+"@hotmail.com")
+    val response = Http(URL+"/users/"+user2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/users/"+user2+" - verify 2nd user was created") {
+    val response: HttpResponse[String] = Http(URL+"/users/"+user2).headers(ACCEPT).headers(AUTH2).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getUserResp = parse(response.body).extract[GetUsersResponse]
+    assert(getUserResp.users.size === 1)
+    assert(getUserResp.users.contains(orguser2))
+  }
+
+  test("POST /orgs/"+orgid+"/users/"+user3+" - as non-admin user - should fail") {
+    val input = PostPutUsersRequest(pw3, false, user3+"@hotmail.com")
+    val response = Http(URL+"/users/"+user3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AUTH2).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   /** Verify the encoded update worked */
@@ -314,8 +344,8 @@ class UsersSuite extends FunSuite {
     // Change the email to one we do not mind spamming (and test a put with pw blank)
     val spamEmail = sys.env.get("EXCHANGE_EMAIL2").orNull
     if (spamEmail != null) {
-      val input = PutUsersRequest("", spamEmail)
-      var response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+      val jsonInput = """{ "email": """"+spamEmail+"""" }"""
+      var response = Http(URL+"/users/"+user).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
@@ -349,7 +379,7 @@ class UsersSuite extends FunSuite {
 
   /** Create the normal user - as root */
   test("PUT /orgs/"+orgid+"/users/"+user+" - creat normal - as root") {
-    val input = PutUsersRequest(pw, user+"@gmail.com")
+    val input = PostPutUsersRequest(pw, true, user+"@gmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)

@@ -136,7 +136,7 @@ fi
 rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid/users/$user")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-        curlcreate "PUT" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid/users/$user" '{"password": "'$pw'", "email": "'$email'"}'
+        curlcreate "PUT" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
 else
     echo "orgs/$orgid/users/$user exists"
 fi

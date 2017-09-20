@@ -72,15 +72,24 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
-## Changes Between v1.29.0 and v1.30.0
+## Changes Between v1.30.0 and v1.31.0
+
+### Limitations
+
+- Need to dropdb and initdb, and re-enter data
+
+### External Incompatible changes
+
+- Removed the option on PUT users/{username} to set password or email to blank to mean don't update it. Implemented PATCH users/{username} instead.
+- Changed config.json acls READ_MY_ORGS and WRITE_MY_ORGS to their singular versions
+- Added 'admin' field to user, enabled admin users to do everything in their org (including create other users)
 
 ### Todos left to be finished
 
-- Add check_rate (int) in the dataVerification
-- Fix bugs: Put root/root in the db, so foreign keys work correctly
-- Add 'admin' field to user, enable admin users to do everything in their org (including create other users)
 - Implement /org/{orgid}/patterns/{pat-id}/search
+- Fix bugs: Put root/root in the db, so foreign keys work correctly
 - Add schemaversion table and key upgradedb off of that
+- Ensure that a user can't elevate himself to an admin user
 - See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
 - Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all nodes
 - support max object equal to 0 to mean unlimited
@@ -90,6 +99,9 @@ services in the exchange.
 - Consider changing all creates to POST
 - Any other schema changes?
 
+
+## Changes Between v1.29.0 and v1.30.0
+
 ### Limitations
 
 - Need to dropdb and initdb, and re-enter data
@@ -97,11 +109,8 @@ services in the exchange.
 ### External Incompatible changes
 
 - Added deployment_overrides and deployment_overrides_signature to patterns.workloads
--
+- Added check_rate (int) in the dataVerification
 
-### Internal things done in this version
-
--
 
 ## Changes Between v1.28.0 and v1.29.0
 

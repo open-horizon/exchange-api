@@ -84,19 +84,15 @@ case class PostSearchNodesRequest(desiredMicroservices: List[RegMicroserviceSear
 case class NodeResponse(id: String, name: String, microservices: List[RegMicroservice], msgEndPoint: String, publicKey: String)
 case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 
-/** For backward compatibility for before i added the publicKey field */
-case class PutNodesRequestOld(token: String, name: String, registeredMicroservices: List[RegMicroservice], msgEndPoint: String, softwareVersions: Map[String,String]) {
-  def toPutNodesRequest = PutNodesRequest(token, name, registeredMicroservices, msgEndPoint, softwareVersions, "")
-}
-
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
-case class PutNodesRequest(token: String, name: String, registeredMicroservices: List[RegMicroservice], msgEndPoint: String, softwareVersions: Map[String,String], publicKey: String) {
+case class PutNodesRequest(token: String, name: String, pattern: String, registeredMicroservices: List[RegMicroservice], msgEndPoint: String, softwareVersions: Map[String,String], publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Halts the request with an error msg if the user input is invalid. */
   def validate() = {
     // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
     if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token specified must not be blank"))
+    if (""".*/.*""".r.findFirstIn(pattern).isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the 'pattern' attribute must have the orgid prepended, with a slash separating"))
     for (m <- registeredMicroservices) {
       // now we support more than 1 agreement for a MS
       // if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
@@ -110,7 +106,7 @@ case class PutNodesRequest(token: String, name: String, registeredMicroservices:
   /** Get the db actions to insert or update all parts of the node */
   def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = {
     // Accumulate the actions in a list, starting with the action to insert/update the node itself
-    val actions = ListBuffer[DBIO[_]](NodeRow(id, orgid, token, name, owner, msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).upsert)
+    val actions = ListBuffer[DBIO[_]](NodeRow(id, orgid, token, name, owner, pattern, msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).upsert)
     val microsUrls = MutableSet[String]()    // the url attribute of the micros we are creating, so we can delete everthing else for this node
     val propsIds = MutableSet[String]()    // the propId attribute of the props we are creating, so we can delete everthing else for this node
     // Now add actions to insert/update the node's micros and props
@@ -132,7 +128,7 @@ case class PutNodesRequest(token: String, name: String, registeredMicroservices:
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
    * because we can't let a node create new nodes. */
   def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = {
-    val actions = ListBuffer[DBIO[_]](NodeRow(id, orgid, token, name, owner, msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).update)
+    val actions = ListBuffer[DBIO[_]](NodeRow(id, orgid, token, name, owner, pattern, msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).update)
     val microsUrls = MutableSet[String]()    // the url attribute of the micros we are updating, so we can delete everthing else for this node
     val propsIds = MutableSet[String]()    // the propId attribute of the props we are updating, so we can delete everthing else for this node
     for (m <- registeredMicroservices) {
@@ -184,7 +180,7 @@ case class PutNodesRequest(token: String, name: String, registeredMicroservices:
   }
 }
 
-case class PatchNodesRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String]) {
+case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
@@ -204,6 +200,7 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], msgEnd
       case _ => ;
     }
     name match { case Some(name2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name2, lastHeartbeat)), "name"); case _ => ; }
+    pattern match { case Some(pattern2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat)).update((id, pattern2, lastHeartbeat)), "pattern"); case _ => ; }
     msgEndPoint match { case Some(msgEndPoint2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint2, lastHeartbeat)), "msgEndPoint"); case _ => ; }
     publicKey match { case Some(publicKey2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey2, lastHeartbeat)), "publicKey"); case _ => ; }
     return (null, null)
@@ -449,6 +446,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 {
   "token": "abc",       // node token, set by user when adding this node.
   "name": "rpi3",         // node name that you pick
+  "pattern": "myorg/mypattern",      // (optional) points to a pattern resource that defines what workloads should be run on this type of node
   "registeredMicroservices": [    // list of data microservices you want to make available
     {
       "url": "https://bluehorizon.network/documentation/sdr-node-api",
@@ -489,13 +487,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val ident = credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
     val node = try { parse(request.body).extract[PutNodesRequest] }
     catch {
-      case e: Exception => if (e.getMessage.contains("No usable value for publicKey")) {    // the specific exception is MappingException
+      case e: Exception => /*if (e.getMessage.contains("No usable value for publicKey")) {    // the specific exception is MappingException
           // try parsing again with the old structure
           val nodeOld = try { parse(request.body).extract[PutNodesRequestOld] }
           catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
           nodeOld.toPutNodesRequest
         }
-        else halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e))
+        else*/ halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e))
     }
     node.validate()
     // val owner = if (isAuthenticatedUser(creds)) creds.id else ""
@@ -538,6 +536,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 {
   "token": "abc",       // node token, set by user when adding this node.
   "name": "rpi3",         // node name that you pick
+  "pattern": "myorg/mypattern",      // (optional) points to a pattern resource that defines what workloads should be run on this type of node
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this node to be contacted by agbots, empty string to use the built-in Exchange msg service
   "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the node
   "publicKey": "ABCDEF"      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service

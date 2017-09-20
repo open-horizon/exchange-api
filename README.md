@@ -72,7 +72,7 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
-## Changes Between v1.30.0 and v1.31.0
+## Changes Between v1.31.0 and v1.32.0
 
 ### Limitations
 
@@ -80,10 +80,7 @@ services in the exchange.
 
 ### External Incompatible changes
 
-- Removed the option on PUT users/{username} to set password or email to blank to mean don't update it. Implemented PATCH users/{username} instead.
-- Changed config.json acls READ_MY_ORGS and WRITE_MY_ORGS to their singular versions
-- Added 'admin' field to user, enabled admin users to do everything in their org (including create other users)
-- Updated the pattern resource schema to more explicitly support multiple different workloads, and multiple versions of the same workload (see swagger)
+-
 
 ### Todos left to be finished
 
@@ -99,6 +96,20 @@ services in the exchange.
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST
 - Any other schema changes?
+
+
+## Changes Between v1.30.0 and v1.31.0
+
+### Limitations
+
+- Need to dropdb and initdb, and re-enter data
+
+### External Incompatible changes
+
+- Removed the option on PUT users/{username} to set password or email to blank to mean don't update it. Implemented PATCH users/{username} instead.
+- Changed config.json acls READ_MY_ORGS and WRITE_MY_ORGS to their singular versions
+- Added 'admin' field to user, enabled admin users to do everything in their org (including create other users)
+- Updated the pattern resource schema to more explicitly support multiple different workloads, and multiple versions of the same workload (see swagger)
 
 
 ## Changes Between v1.29.0 and v1.30.0

@@ -144,7 +144,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1",
+    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "myorg/mypat",
   "registeredMicroservices": [
     {
       "url": "https://bluehorizon.network/microservices/network",

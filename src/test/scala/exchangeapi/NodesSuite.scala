@@ -157,7 +157,7 @@ class NodesSuite extends FunSuite {
   val putDevRespDisabled = ExchConfig.getBoolean("api.microservices.disable")
   /** Add a normal node */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm",
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", "myorg/mypat",
       List(
         RegMicroservice(PWSSPEC,1,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
@@ -185,7 +185,7 @@ class NodesSuite extends FunSuite {
 
   /** Update a normal node as user */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal - update") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal-user",
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal-user", "myorg/mypat",
       List(
         RegMicroservice(PWSSPEC,1,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
@@ -213,7 +213,7 @@ class NodesSuite extends FunSuite {
 
   /** Update the normal node as the node */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal - as node") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal",
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal", "myorg/mypat",
       List(
         RegMicroservice(SDRSPEC,1,"{json policy for "+nodeId+" sdr}",List(
           Prop("arch","arm","string","in"),
@@ -243,7 +243,7 @@ class NodesSuite extends FunSuite {
 
   /** Add a node with higher memory and version */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+" - memory 400, version 2.0.0") {
-    val input = PutNodesRequest("mytok", "rpi9901-mem-400-vers-2", List(RegMicroservice(SDRSPEC,1,"{json policy for 9901 sdr}",List(
+    val input = PutNodesRequest("mytok", "rpi9901-mem-400-vers-2", "myorg/mypat", List(RegMicroservice(SDRSPEC,1,"{json policy for 9901 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
@@ -264,7 +264,7 @@ class NodesSuite extends FunSuite {
 
   /** Add a node with netspeed and arch amd64 */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId3+" - netspeed") {
-    val input = PutNodesRequest("mytok", "rpi9902-netspeed-amd64", List(RegMicroservice(NETSPEEDSPEC,1,"{json policy for 9902 netspeed}",List(
+    val input = PutNodesRequest("mytok", "rpi9902-netspeed-amd64", "myorg/mypat", List(RegMicroservice(NETSPEEDSPEC,1,"{json policy for 9902 netspeed}",List(
       Prop("arch","amd64","string","in"),
       Prop("memory","300","int",">="),
       Prop("version","1.0.0","version","in"),
@@ -285,7 +285,7 @@ class NodesSuite extends FunSuite {
 
   /** Try adding a node with invalid integer property */
   test("PUT /orgs/"+orgid+"/nodes/9903 - bad integer property") {
-    val input = PutNodesRequest("mytok", "rpi9903-bad-int", List(RegMicroservice(SDRSPEC,1,"{json policy for 9903 sdr}",List(
+    val input = PutNodesRequest("mytok", "rpi9903-bad-int", "myorg/mypat", List(RegMicroservice(SDRSPEC,1,"{json policy for 9903 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400MB","int",">="),
       Prop("version","2.0.0","version","in"),
@@ -327,7 +327,7 @@ class NodesSuite extends FunSuite {
 
   /** Try adding a node with invalid micro url - this succeeds if putDevRespDisabled */
   test("PUT /orgs/"+orgid+"/nodes/9903 - bad micro url") {
-    val input = PutNodesRequest("mytok", "rpi9903-bad-url", List(RegMicroservice(NOTTHERESPEC,1,"{json policy for 9903 sdr}",List(
+    val input = PutNodesRequest("mytok", "rpi9903-bad-url", "myorg/mypat", List(RegMicroservice(NOTTHERESPEC,1,"{json policy for 9903 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
@@ -1103,7 +1103,7 @@ class NodesSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
 
       // Now try adding another node - expect it to be rejected
-      val input = PutNodesRequest("mytok", "rpi9904-netspeed", List(RegMicroservice(NETSPEEDSPEC,1,"{json policy for 9904 netspeed}",List(
+      val input = PutNodesRequest("mytok", "rpi9904-netspeed", "myorg/mypat", List(RegMicroservice(NETSPEEDSPEC,1,"{json policy for 9904 netspeed}",List(
         Prop("arch","arm","string","in"),
         Prop("version","1.0.0","version","in"),
         Prop("agreementProtocols",agProto,"list","in")))), "whisper-id", Map(), "NODE4ABC")

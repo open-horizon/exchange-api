@@ -8,13 +8,13 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}   //rena
 
 /** Contains the object representations of the DB tables related to nodes. */
 
-case class NodeRow(id: String, orgid: String, token: String, name: String, owner: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String) {
+case class NodeRow(id: String, orgid: String, token: String, name: String, owner: String, pattern: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNode(superUser: Boolean): Node = {
     val tok = if (superUser) token else StrConstants.hiddenPw
     val swv = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
-    new Node(tok, name, owner, List[RegMicroservice](), msgEndPoint, swv, lastHeartbeat, publicKey)
+    new Node(tok, name, owner, pattern, List[RegMicroservice](), msgEndPoint, swv, lastHeartbeat, publicKey)
   }
 
   def putInHashMap(superUser: Boolean, nodes: MutableHashMap[String,Node]): Unit = {
@@ -27,15 +27,15 @@ case class NodeRow(id: String, orgid: String, token: String, name: String, owner
   def upsert: DBIO[_] = {
     // Note: this currently does not do the right thing for a blank token
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (owner == "root/root") NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey)).insertOrUpdate((id, orgid, tok, name, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
-    else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, tok, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    if (owner == "root/root") NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.pattern, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey)).insertOrUpdate((id, orgid, tok, name, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, tok, name, owner, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
   }
 
   def update: DBIO[_] = {
     // Note: this currently does not do the right thing for a blank token
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (owner == "") (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.orgid,d.token,d.name,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey)).update((id, orgid, tok, name, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
-    else (for { d <- NodesTQ.rows if d.id === id } yield d).update(NodeRow(id, orgid, tok, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    if (owner == "") (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.orgid,d.token,d.name,d.pattern,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey)).update((id, orgid, tok, name, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    else (for { d <- NodesTQ.rows if d.id === id } yield d).update(NodeRow(id, orgid, tok, name, owner, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
   }
 }
 
@@ -46,14 +46,16 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def token = column[String]("token")
   def name = column[String]("name")
   def owner = column[String]("owner", O.Default("root/root"))  // root is the default because during upserts by root, we do not want root to take over the node if it already exists
+  def pattern = column[String]("pattern")       // this is orgid/patternname
   def msgEndPoint = column[String]("msgendpoint")
   def softwareVersions = column[String]("swversions")
   def lastHeartbeat = column[String]("lastheartbeat")
   def publicKey = column[String]("publickey")     // this is last because that is where alter table in upgradedb puts it
   // this describes what you get back when you return rows from a query
-  def * = (id, orgid, token, name, owner, msgEndPoint, softwareVersions, lastHeartbeat, publicKey) <> (NodeRow.tupled, NodeRow.unapply)
+  def * = (id, orgid, token, name, owner, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey) <> (NodeRow.tupled, NodeRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  //def patKey = foreignKey("pattern_fk", pattern, PatternsTQ.rows)(_.pattern, onUpdate=ForeignKeyAction.Cascade)     // <- we can't make this a foreign key because it is optional
 }
 
 // Instance to access the nodes table
@@ -67,6 +69,7 @@ object NodesTQ {
   def getNode(id: String) = rows.filter(_.id === id)
   def getToken(id: String) = rows.filter(_.id === id).map(_.token)
   def getOwner(id: String) = rows.filter(_.id === id).map(_.owner)
+  def getPattern(id: String) = rows.filter(_.id === id).map(_.pattern)
   def getNumOwned(owner: String) = rows.filter(_.owner === owner).length
   def getLastHeartbeat(id: String) = rows.filter(_.id === id).map(_.lastHeartbeat)
   def getPublicKey(id: String) = rows.filter(_.id === id).map(_.publicKey)
@@ -79,6 +82,7 @@ object NodesTQ {
       case "token" => filter.map(_.token)
       case "name" => filter.map(_.name)
       case "owner" => filter.map(_.owner)
+      case "pattern" => filter.map(_.pattern)
       case "msgEndPoint" => filter.map(_.msgEndPoint)
       case "softwareVersions" => filter.map(_.softwareVersions)
       case "lastHeartbeat" => filter.map(_.lastHeartbeat)
@@ -130,8 +134,8 @@ object NodesTQ {
 }
 
 // This is the node table minus the key - used as the data structure to return to the REST clients
-class Node(var token: String, var name: String, var owner: String, var registeredMicroservices: List[RegMicroservice], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String) {
-  def copy = new Node(token, name, owner, registeredMicroservices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey)
+class Node(var token: String, var name: String, var owner: String, var pattern: String, var registeredMicroservices: List[RegMicroservice], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String) {
+  def copy = new Node(token, name, owner, pattern, registeredMicroservices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey)
 }
 
 

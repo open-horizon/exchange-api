@@ -466,7 +466,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   ],
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this node to be contacted by agbots, empty string to use the built-in Exchange msg service
   "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the node
-  "publicKey"      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
+  "publicKey": "ABCDEF"      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
 }
 ```"""
       parameters(
@@ -540,7 +540,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   "name": "rpi3",         // node name that you pick
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this node to be contacted by agbots, empty string to use the built-in Exchange msg service
   "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the node
-  "publicKey"      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
+  "publicKey": "ABCDEF"      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
 }"""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
@@ -727,7 +727,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   "microservices": [          // specify this for CS-type agreements
     {"orgid": "myorg", "url": "https://bluehorizon.network/microservices/rtlsdr"}    // url is API spec ref
   ],
-  "workload": {          // specify this for patter-type agreements
+  "workload": {          // specify this for pattern-type agreements
     "orgid": "myorg",
     "pattern": "mynodetype",
     "url": "https://bluehorizon.network/workloads/sdr"

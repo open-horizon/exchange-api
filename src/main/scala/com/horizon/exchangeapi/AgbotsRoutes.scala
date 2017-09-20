@@ -97,9 +97,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary("Returns all agbots")
       notes("""Returns all agbots (Agreement Bots) in the exchange DB. Can be run by any user.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
@@ -137,9 +134,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary("Returns a agbot")
       notes("""Returns the agbot (Agreement Bot) with the specified id in the exchange DB. Can be run by a user or the agbot.
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
@@ -195,7 +189,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     { "orgid": "myorg", "pattern": "mypattern" }
   ],
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this agbot to be contacted by agbots, empty string to use the built-in Exchange msg service
-  "publicKey"      // used by nodes to encrypt msgs sent to this agbot using the built-in Exchange msg service
+  "publicKey": "ABCDEF"      // used by nodes to encrypt msgs sent to this agbot using the built-in Exchange msg service
 }
 ```"""
       parameters(
@@ -268,13 +262,10 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     { "orgid": "myorg", "pattern": "mypattern" }
   ],
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this agbot to be contacted by agbots, empty string to use the built-in Exchange msg service
-  "publicKey"      // used by agbots to encrypt msgs sent to this agbot using the built-in Exchange msg service
+  "publicKey": "ABCDEF"      // used by agbots to encrypt msgs sent to this agbot using the built-in Exchange msg service
 }
 ```
 
-**Notes about the response format:**
-
-- **The format may change in the future.**
 - **Due to a swagger bug, the format shown below is incorrect. Run the PATCH method to see the response format instead.**"""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),

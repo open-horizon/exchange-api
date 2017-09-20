@@ -135,7 +135,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/users/"+user+" - create user") {
-    val input = PutUsersRequest(pw, user+"@hotmail.com")
+    val input = PostPutUsersRequest(pw, false, user+"@hotmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -361,8 +361,7 @@ class FrontEndSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - creat "+pattern) {
     val input = PostPutPatternRequest(ptBase, "desc", false,
-      List( PWorkloads("https://wkurl", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate")) ),
-      PDataVerification( false, "", "", "", 0, Map[String,Any]() ),
+      List( PWorkloads("https://wkurl", "myorg", List(PWorkloadVersions("", "", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), PDataVerification(false, "", "", "", 0, 0, Map[String,Any]()) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString

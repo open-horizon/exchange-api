@@ -136,7 +136,7 @@ fi
 rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid/users/$user")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-        curlcreate "PUT" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid/users/$user" '{"password": "'$pw'", "email": "'$email'"}'
+        curlcreate "PUT" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
 else
     echo "orgs/$orgid/users/$user exists"
 fi
@@ -215,21 +215,41 @@ if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/patterns/$patid" '{"label": "My Pattern", "description": "blah blah", "public": true,
   "workloads": [
     {
-   	  "workloadUrl":"https://bluehorizon.network/workloads/weather",
-   	  "version":"1.0.1",
-   	  "arch":"amd64",
-   	  "priority": {"priority_value":50, "retries":1, "retry_durations":3600, "verified_durations":52},
-   	  "upgradePolicy": {"lifecycle":"immediate", "time":"01:00AM"}
+      "workloadUrl": "https://bluehorizon.network/workloads/weather",
+      "workloadOrgid": "myorg",
+      "workloadVersions": [
+        {
+          "version": "1.0.1",
+          "arch": "amd64",
+          "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+          "deployment_overrides_signature": "",
+          "priority": {
+            "priority_value": 50,
+            "retries": 1,
+            "retry_durations": 3600,
+            "verified_durations": 52
+          },
+          "upgradePolicy": {
+            "lifecycle": "immediate",
+            "time": "01:00AM"
+          }
+        }
+      ],
+      "dataVerification": {
+        "enabled": true,
+        "URL": "",
+        "user": "",
+        "password": "",
+        "interval": 240,
+        "check_rate": 15,
+        "metering": {
+          "tokens": 1,
+          "per_time_unit": "min",
+          "notification_interval": 30
+        }
+      }
     }
   ],
-  "dataVerification": {
-    "enabled": true,
-    "URL": "",
-    "user": "",
-    "password": "",
-    "interval": 240,
-    "metering" : {"tokens":1, "per_time_unit":"min", "notification_interval":30}
-  },
   "agreementProtocols": [{ "name": "Basic" }] }'
 else
     echo "orgs/$orgid/patterns/$patid exists"

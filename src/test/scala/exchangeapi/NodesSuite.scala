@@ -134,7 +134,7 @@ class NodesSuite extends FunSuite {
 
   /** Add a normal user */
   test("POST /orgs/"+orgid+"/users/"+user+" - normal") {
-    val input = PutUsersRequest(pw, user+"@hotmail.com")
+    val input = PostPutUsersRequest(pw, false, user+"@hotmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

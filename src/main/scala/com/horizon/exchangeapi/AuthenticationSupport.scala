@@ -67,16 +67,17 @@ object Access extends Enumeration {
   val READ_ALL_PATTERNS = Value("READ_ALL_PATTERNS")
   val WRITE_ALL_PATTERNS = Value("WRITE_ALL_PATTERNS")
   val CREATE_PATTERNS = Value("CREATE_PATTERNS")
-  val READ_MY_ORGS = Value("READ_MY_ORGS")
-  val WRITE_MY_ORGS = Value("WRITE_MY_ORGS")
-  val READ_ALL_ORGS = Value("READ_ALL_ORGS")
-  val WRITE_ALL_ORGS = Value("WRITE_ALL_ORGS")
+  val READ_MY_ORG = Value("READ_MY_ORG")
+  val WRITE_MY_ORG = Value("WRITE_MY_ORG")
+  val STATUS = Value("STATUS")
+  // If you add more cross-org ACLs, add them to hasAuthorization() below too
   val CREATE_ORGS = Value("CREATE_ORGS")
   val READ_OTHER_ORGS = Value("READ_OTHER_ORGS")
   val WRITE_OTHER_ORGS = Value("WRITE_OTHER_ORGS")
   val CREATE_IN_OTHER_ORGS = Value("CREATE_IN_OTHER_ORGS")
   val ADMIN = Value("ADMIN")
-  val STATUS = Value("STATUS")
+
+  val ALL_IN_ORG = Value("ALL_IN_ORG")
   val ALL = Value("ALL")
   val NONE = Value("NONE")        // should not be put in any role below
 }
@@ -96,6 +97,7 @@ object Role {
   //todo: these should probably become another Enumeration subclass
   var ANONYMOUS = Set[String]()
   var USER = Set[String]()
+  var ADMINUSER = Set[String]()
   var SUPERUSER = Set[String]()
   var NODE = Set[String]()
   var AGBOT = Set[String]()
@@ -105,6 +107,7 @@ object Role {
     role match {
       case "ANONYMOUS" => ANONYMOUS = accessValues
       case "USER" => USER = accessValues
+      case "ADMINUSER" => ADMINUSER = accessValues
       case "SUPERUSER" => SUPERUSER = accessValues
       case "NODE" => NODE = accessValues
       case "AGBOT" => AGBOT = accessValues
@@ -129,7 +132,11 @@ object Role {
   }
 
   /** Returns true if the role has the specified access */
-  def hasAuthorization(role: Set[String], access: Access): Boolean = { role.contains(Access.ALL.toString) || role.contains(access.toString) }
+  def hasAuthorization(role: Set[String], access: Access): Boolean = {
+    if (role.contains(Access.ALL.toString)) return true
+    if (role.contains(Access.ALL_IN_ORG.toString) && !(access == CREATE_ORGS || access == READ_OTHER_ORGS || access == WRITE_OTHER_ORGS || access == CREATE_IN_OTHER_ORGS || access == ADMIN)) return true
+    return role.contains(access.toString)
+  }
 
   def superUser = "root/root"
   def isSuperUser(username: String): Boolean = return username == superUser    // only checks the username, does not verify the pw
@@ -187,7 +194,7 @@ object AuthCache {
 
     // The in-memory cache
     val things = new MutableHashMap[String,Tokens]()     // key is username or id, value is the unhashed and hashed pw's or token's
-    val owners = new MutableHashMap[String,String]()     // key is node or agbot id, value is the username that owns it. (Not used for users)
+    val owners = new MutableHashMap[String,String]()     // key is node or agbot id, value is the username that owns it. For users, key is username, value is "admin" if this is an admin user.
     val whichTable = whichTab
 
     var db: Database = _       // filled in my init() below
@@ -197,7 +204,7 @@ object AuthCache {
       this.db = db      // store for later use
       whichTable match {
         //TODO: do we add org here?
-        case "users" => db.run(UsersTQ.rows.map(x => (x.username, x.password)).result).map({ list => this._initUsers(list, skipRoot = true) })
+        case "users" => db.run(UsersTQ.rows.map(x => (x.username, x.password, x.admin)).result).map({ list => this._initUsers(list, skipRoot = true) })
         case "nodes" => db.run(NodesTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
         case "agbots" => db.run(AgbotsTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
         case "bctypes" => db.run(BctypesTQ.rows.map(x => (x.bctype, x.definedBy)).result).map({ list => this._initBctypes(list) })
@@ -218,10 +225,11 @@ object AuthCache {
     }
 
     /** Put all of the users in the cache */
-    def _initUsers(credList: Seq[(String,String)], skipRoot: Boolean = false): Unit = {
-      for ((username,password) <- credList) {
+    def _initUsers(credList: Seq[(String,String,Boolean)], skipRoot: Boolean = false): Unit = {
+      for ((username,password,admin) <- credList) {
         val tokens: Tokens = if (Password.isHashed(password)) Tokens("", password) else Tokens(password, Password.hash(password))
         if (!(skipRoot && Role.isSuperUser(username))) _put(username, tokens)     // Note: ExchConfig.createRoot(db) already puts root in the auth cache and we do not want a race condition
+        if (admin) _putOwner(username, "admin")
       }
     }
 
@@ -337,24 +345,34 @@ object AuthCache {
     /** Returns Some(owner) from the cache for this id (but verifies with the db 1st), or None if does not exist */
     def getOwner(id: String): Option[String] = {
       // logger.trace("getOwners owners: "+owners.toString)
-      if (whichTable == "users") return None      // we never actually call this
+      //if (whichTable == "users") return None      // we never actually call this
 
       // Even though we try to put every new/updated owner in our cache, when this server runs in multi-node mode,
       // an update could have come to 1 of the other nodes. The db is our sync point, so always verify our cached owner with the db owner.
       // We are doing this only so we can fall back to the cache's last known owner if the Await.result() times out.
-      val a = whichTable match {
-        case "users" => return None
-        case "nodes" => NodesTQ.getOwner(id).result
-        case "agbots" => AgbotsTQ.getOwner(id).result
-        case "bctypes" => BctypesTQ.getOwner(id).result
-        case "blockchains" => BlockchainsTQ.getOwner2(id).result
-        case "microservices" => MicroservicesTQ.getOwner(id).result
-        case "workloads" => WorkloadsTQ.getOwner(id).result
-        case "patterns" => PatternsTQ.getOwner(id).result
-      }
       try {
-        val ownerVector = Await.result(db.run(a), Duration(3000, MILLISECONDS))
-        if (ownerVector.nonEmpty) /*{ logger.trace("getOwner return: "+ownerVector.head);*/ return Some(ownerVector.head) else /*{ logger.trace("getOwner return: None");*/ return None
+        if (whichTable == "users") {
+          val ownerVector = Await.result(db.run(UsersTQ.getAdmin(id).result), Duration(3000, MILLISECONDS))
+          if (ownerVector.nonEmpty) {
+            if (ownerVector.head) return Some("admin")
+            else return Some("")
+          }
+          else return None
+        } else {
+          // For the all the others, we are looking for the traditional owner
+          val a = whichTable match {
+            //case "users" => UsersTQ.getAdminAsString(id).result
+            case "nodes" => NodesTQ.getOwner(id).result
+            case "agbots" => AgbotsTQ.getOwner(id).result
+            case "bctypes" => BctypesTQ.getOwner(id).result
+            case "blockchains" => BlockchainsTQ.getOwner2(id).result
+            case "microservices" => MicroservicesTQ.getOwner(id).result
+            case "workloads" => WorkloadsTQ.getOwner(id).result
+            case "patterns" => PatternsTQ.getOwner(id).result
+          }
+          val ownerVector = Await.result(db.run(a), Duration(3000, MILLISECONDS))
+          if (ownerVector.nonEmpty) /*{ logger.trace("getOwner return: "+ownerVector.head);*/ return Some(ownerVector.head) else /*{ logger.trace("getOwner return: None");*/ return None
+        }
       } catch {
         //todo: this seems to happen sometimes when the exchange svr has been idle for a while. Or maybe it is just when i'm running local and my laptop has been asleep.
         //      Until i get a better handle on this, use the cache owner when this happens.
@@ -509,7 +527,7 @@ trait AuthenticationSupport extends ScalatraBase {
 
     def authorizeTo(target: Target, access: Access): Identity = {
       if (hasFrontEndAuthority) return this     // allow whatever it wants to do
-      val role = if (isSuperUser) Role.SUPERUSER else Role.USER
+      val role = if (isSuperUser) Role.SUPERUSER else if (isAdmin) Role.ADMINUSER else Role.USER
       // Transform any generic access into specific access
       var access2: Access = null
       if (!isMyOrg(target)) {
@@ -570,8 +588,8 @@ trait AuthenticationSupport extends ScalatraBase {
             case _ => access
           }
           case TOrg(_) => access match {    // a user accessing his org resource
-            case Access.READ => Access.READ_MY_ORGS
-            case Access.WRITE => Access.WRITE_MY_ORGS
+            case Access.READ => Access.READ_MY_ORG
+            case Access.WRITE => Access.WRITE_MY_ORG
             case Access.CREATE => Access.CREATE_ORGS
             case _ => access
           }
@@ -580,6 +598,15 @@ trait AuthenticationSupport extends ScalatraBase {
       }
       logger.trace("IUser.authorizeTo() access2: "+access2)
       if (Role.hasAuthorization(role, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
+    }
+
+    def isAdmin: Boolean = {
+      //println("AuthCache.users.owners: "+AuthCache.users.owners.toString())
+      //println("getting owner for "+creds.id+": "+AuthCache.users.getOwner(creds.id))
+      AuthCache.users.getOwner(creds.id) match {
+        case Some(s) => if (s == "admin") return true else return false
+        case None => return false
+      }
     }
 
     def iOwnTarget(target: Target): Boolean = {
@@ -659,8 +686,8 @@ trait AuthenticationSupport extends ScalatraBase {
           case _ => access
         }
         case TOrg(_) => access match {     // a node accessing his org resource
-          case Access.READ => Access.READ_MY_ORGS
-          case Access.WRITE => Access.WRITE_MY_ORGS
+          case Access.READ => Access.READ_MY_ORG
+          case Access.WRITE => Access.WRITE_MY_ORG
           case Access.CREATE => Access.CREATE_ORGS
           case _ => access
         }
@@ -733,8 +760,8 @@ trait AuthenticationSupport extends ScalatraBase {
             case _ => access
           }
           case TOrg(_) => access match { // a agbot accessing his org resource
-            case Access.READ => Access.READ_MY_ORGS
-            case Access.WRITE => Access.WRITE_MY_ORGS
+            case Access.READ => Access.READ_MY_ORG
+            case Access.WRITE => Access.WRITE_MY_ORG
             case Access.CREATE => Access.CREATE_ORGS
             case _ => access
           }
@@ -815,8 +842,8 @@ trait AuthenticationSupport extends ScalatraBase {
             case _ => access
           }
           case TOrg(_) => access match { // a anonymous accessing his org resource
-            case Access.READ => Access.READ_MY_ORGS
-            case Access.WRITE => Access.WRITE_MY_ORGS
+            case Access.READ => Access.READ_MY_ORG
+            case Access.WRITE => Access.WRITE_MY_ORG
             case Access.CREATE => Access.CREATE_ORGS
             case _ => access
           }

@@ -9,23 +9,24 @@ import slick.jdbc.PostgresProfile.api._
 
 //case class PPriority(priority_value: Int, retries: Int, retry_durations: Int, verified_durations: Int)
 //case class PUpgradePolicy(lifecycle: String, time: String)
-case class PWorkloads(workloadUrl: String, version: String, arch: String, priority: Map[String,Int], upgradePolicy: Map[String,String])
+case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification)
+case class PWorkloadVersions(version: String, arch: String, deployment_overrides: String, deployment_overrides_signature: String, priority: Map[String,Int], upgradePolicy: Map[String,String])
 //case class PMetering(tokens: Int, per_time_unit: String, notification_interval: Int)
-case class PDataVerification(enabled: Boolean, URL: String, user: String, password: String, interval: Int, metering: Map[String,Any])
+case class PDataVerification(enabled: Boolean, URL: String, user: String, password: String, interval: Int, check_rate: Int, metering: Map[String,Any])
 
 //case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, microservices: String, workloads: String, dataVerification: String, agreementProtocols: String, properties: String, counterPartyProperties: String, maxAgreements: Int, lastUpdated: String) {
-case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, workloads: String, dataVerification: String, agreementProtocols: String, lastUpdated: String) {
+case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, workloads: String, agreementProtocols: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toPattern: Pattern = {
     //val micro = if (microservices != "") read[List[Map[String,String]]](microservices) else List[Map[String,String]]()
-    val wrk = if (workloads != "") read[List[PWorkloads]](workloads) else List[PWorkloads](PWorkloads("","","",Map[String,Int](),Map[String,String]()))
-    val dv = if (dataVerification != "") read[PDataVerification](dataVerification) else PDataVerification(false,"","","",0,Map[String,Any]())
+    val wrk = if (workloads != "") read[List[PWorkloads]](workloads) else List[PWorkloads]()
+    //val dv = if (dataVerification != "") read[PDataVerification](dataVerification) else PDataVerification(false,"","","",0,0,Map[String,Any]())
     val agproto = if (agreementProtocols != "") read[List[Map[String,String]]](agreementProtocols) else List[Map[String,String]]()
     //val prop = if (properties != "") read[List[Map[String,Any]]](properties) else List[Map[String,Any]]()
     //val conprop = if (counterPartyProperties != "") read[Map[String,List[Map[String,Any]]]](counterPartyProperties) else Map[String,List[Map[String,Any]]]()
     //new Pattern(owner, label, description, public, micro, wrk, dv, agproto, prop, conprop, maxAgreements, lastUpdated)
-    new Pattern(owner, label, description, public, wrk, dv, agproto, lastUpdated)
+    new Pattern(owner, label, description, public, wrk, agproto, lastUpdated)
   }
 
   // update returns a DB action to update this row
@@ -45,7 +46,7 @@ class Patterns(tag: Tag) extends Table[PatternRow](tag, "patterns") {
   def public = column[Boolean]("public")
   //def microservices = column[String]("microservices")
   def workloads = column[String]("workloads")
-  def dataVerification = column[String]("dataVerification")
+  //def dataVerification = column[String]("dataVerification")
   def agreementProtocols = column[String]("agreementProtocols")
   //def properties = column[String]("properties")
   //def counterPartyProperties = column[String]("counterPartyProperties")
@@ -53,7 +54,7 @@ class Patterns(tag: Tag) extends Table[PatternRow](tag, "patterns") {
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
   //def * = (pattern, orgid, owner, label, description, public, microservices, workloads, dataVerification, agreementProtocols, properties, counterPartyProperties, maxAgreements, lastUpdated) <> (PatternRow.tupled, PatternRow.unapply)
-  def * = (pattern, orgid, owner, label, description, public, workloads, dataVerification, agreementProtocols, lastUpdated) <> (PatternRow.tupled, PatternRow.unapply)
+  def * = (pattern, orgid, owner, label, description, public, workloads, agreementProtocols, lastUpdated) <> (PatternRow.tupled, PatternRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -71,7 +72,7 @@ object PatternsTQ {
   def getPublic(pattern: String) = rows.filter(_.pattern === pattern).map(_.public)
   //def getMicroservices(pattern: String) = rows.filter(_.pattern === pattern).map(_.microservices)
   def getWorkloads(pattern: String) = rows.filter(_.pattern === pattern).map(_.workloads)
-  def getDataVerification(pattern: String) = rows.filter(_.pattern === pattern).map(_.dataVerification)
+  //def getDataVerification(pattern: String) = rows.filter(_.pattern === pattern).map(_.dataVerification)
   def getAgreementProtocols(pattern: String) = rows.filter(_.pattern === pattern).map(_.agreementProtocols)
   //def getProperties(pattern: String) = rows.filter(_.pattern === pattern).map(_.properties)
   //def getCounterPartyProperties(pattern: String) = rows.filter(_.pattern === pattern).map(_.counterPartyProperties)
@@ -89,7 +90,7 @@ object PatternsTQ {
       case "public" => filter.map(_.public)
       //case "microservices" => filter.map(_.microservices)
       case "workloads" => filter.map(_.workloads)
-      case "dataVerification" => filter.map(_.dataVerification)
+      //case "dataVerification" => filter.map(_.dataVerification)
       case "agreementProtocols" => filter.map(_.agreementProtocols)
       //case "properties" => filter.map(_.properties)
       //case "counterPartyProperties" => filter.map(_.counterPartyProperties)
@@ -105,7 +106,7 @@ object PatternsTQ {
 
 // This is the pattern table minus the key - used as the data structure to return to the REST clients
 //class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var microservices: List[Map[String,String]], var workloads: List[PWorkloads], var dataVerification: PDataVerification, var agreementProtocols: List[Map[String,String]], var properties: List[Map[String,Any]], var counterPartyProperties: Map[String,List[Map[String,Any]]], var maxAgreements: Int, var lastUpdated: String) {
-class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var workloads: List[PWorkloads], var dataVerification: PDataVerification, var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {
-  def copy = new Pattern(owner, label, description, public, workloads, dataVerification, agreementProtocols, lastUpdated)
+class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var workloads: List[PWorkloads], var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {
+  def copy = new Pattern(owner, label, description, public, workloads, agreementProtocols, lastUpdated)
 }
 

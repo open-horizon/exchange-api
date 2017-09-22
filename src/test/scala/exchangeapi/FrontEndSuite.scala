@@ -142,7 +142,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - create node") {
-    val input = PutNodesRequest(nodeToken, nodeId+"-normal",
+    val input = PutNodesRequest(nodeToken, nodeId+"-normal", "myorg/mypat",
       List(
         RegMicroservice(SDRSPEC,1,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
@@ -157,7 +157,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - update node") {
-    val input = PutNodesRequest(nodeToken, nodeId+"-update",
+    val input = PutNodesRequest(nodeToken, nodeId+"-update", "myorg/mypat",
       List(
         RegMicroservice(SDRSPEC,1,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
@@ -361,7 +361,7 @@ class FrontEndSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - creat "+pattern) {
     val input = PostPutPatternRequest(ptBase, "desc", false,
-      List( PWorkloads("https://wkurl", "myorg", List(PWorkloadVersions("", "", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), PDataVerification(false, "", "", "", 0, 0, Map[String,Any]()) )),
+      List( PWorkloads("https://wkurl", "myorg", "", List(PWorkloadVersions("", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), PDataVerification(false, "", "", "", 0, 0, Map[String,Any]()) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString

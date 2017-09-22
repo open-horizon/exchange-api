@@ -9,8 +9,8 @@ import slick.jdbc.PostgresProfile.api._
 
 //case class PPriority(priority_value: Int, retries: Int, retry_durations: Int, verified_durations: Int)
 //case class PUpgradePolicy(lifecycle: String, time: String)
-case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification)
-case class PWorkloadVersions(version: String, arch: String, deployment_overrides: String, deployment_overrides_signature: String, priority: Map[String,Int], upgradePolicy: Map[String,String])
+case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification)
+case class PWorkloadVersions(version: String, deployment_overrides: String, deployment_overrides_signature: String, priority: Map[String,Int], upgradePolicy: Map[String,String])
 //case class PMetering(tokens: Int, per_time_unit: String, notification_interval: Int)
 case class PDataVerification(enabled: Boolean, URL: String, user: String, password: String, interval: Int, check_rate: Int, metering: Map[String,Any])
 

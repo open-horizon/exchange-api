@@ -72,6 +72,33 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
+## Changes Between v1.31.0 and v1.32.0
+
+### Limitations
+
+- Need to dropdb and initdb, and re-enter data
+
+### External Incompatible changes
+
+- Added pattern field to node resource
+- Move arch field 1 level up in pattern schema, and renamed it to workloadArch
+- Implemented /org/{orgid}/patterns/{pat-id}/search
+
+### Todos left to be finished
+
+- Fix bug: Put root/root in the db, so foreign keys work correctly
+- Add schemaversion table and key upgradedb off of that
+- Ensure that a user can't elevate himself to an admin user
+- See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
+- Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all nodes
+- support max object equal to 0 to mean unlimited
+- Do consistency checking of patterns and workloads
+- Remove empty return from PUT nodes/{nodeid} and microservices.disable option from config.json
+- See if there is a way to fix the swagger hack for 2 level resources
+- Consider changing all creates to POST
+- Any other schema changes?
+
+
 ## Changes Between v1.30.0 and v1.31.0
 
 ### Limitations
@@ -84,21 +111,6 @@ services in the exchange.
 - Changed config.json acls READ_MY_ORGS and WRITE_MY_ORGS to their singular versions
 - Added 'admin' field to user, enabled admin users to do everything in their org (including create other users)
 - Updated the pattern resource schema to more explicitly support multiple different workloads, and multiple versions of the same workload (see swagger)
-
-### Todos left to be finished
-
-- Add pattern to node resource and implement /org/{orgid}/patterns/{pat-id}/search
-- Fix bug: Put root/root in the db, so foreign keys work correctly
-- Add schemaversion table and key upgradedb off of that
-- Ensure that a user can't elevate himself to an admin user
-- See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
-- Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all nodes
-- support max object equal to 0 to mean unlimited
-- Do consistency checking of patterns and workloads
-- Remove empty return from PUT nodes/{nodeid}
-- See if there is a way to fix the swagger hack for 2 level resources
-- Consider changing all creates to POST
-- Any other schema changes?
 
 
 ## Changes Between v1.29.0 and v1.30.0

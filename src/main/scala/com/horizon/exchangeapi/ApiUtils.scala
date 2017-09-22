@@ -169,6 +169,9 @@ object ApiTime {
   /** Return UTC format of the time n seconds from now */
   def futureUTC(secondsFromNow: Int) = ZonedDateTime.now.plusSeconds(secondsFromNow).withZoneSameInstant(ZoneId.of("UTC")).toString
 
+  /** Return UTC format of unix begin time */
+  def beginningUTC = ZonedDateTime.of(1970,1,1,0,0,0,0,ZoneId.of("UTC")).toString
+
   /** Returns now in epoch seconds */
   def nowSeconds: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
 

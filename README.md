@@ -80,11 +80,12 @@ services in the exchange.
 
 ### External Incompatible changes
 
--
+- Added pattern field to node resource
+- Move arch field 1 level up in pattern schema, and renamed it to workloadArch
+- Implemented /org/{orgid}/patterns/{pat-id}/search
 
 ### Todos left to be finished
 
-- Add pattern to node resource and implement /org/{orgid}/patterns/{pat-id}/search
 - Fix bug: Put root/root in the db, so foreign keys work correctly
 - Add schemaversion table and key upgradedb off of that
 - Ensure that a user can't elevate himself to an admin user
@@ -92,7 +93,7 @@ services in the exchange.
 - Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all nodes
 - support max object equal to 0 to mean unlimited
 - Do consistency checking of patterns and workloads
-- Remove empty return from PUT nodes/{nodeid}
+- Remove empty return from PUT nodes/{nodeid} and microservices.disable option from config.json
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST
 - Any other schema changes?

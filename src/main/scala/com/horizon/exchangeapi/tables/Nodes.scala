@@ -49,8 +49,8 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def pattern = column[String]("pattern")       // this is orgid/patternname
   def msgEndPoint = column[String]("msgendpoint")
   def softwareVersions = column[String]("swversions")
-  def lastHeartbeat = column[String]("lastheartbeat")
   def publicKey = column[String]("publickey")     // this is last because that is where alter table in upgradedb puts it
+  def lastHeartbeat = column[String]("lastheartbeat")
   // this describes what you get back when you return rows from a query
   def * = (id, orgid, token, name, owner, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey) <> (NodeRow.tupled, NodeRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)

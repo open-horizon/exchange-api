@@ -162,10 +162,10 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     {
       "workloadUrl": "https://bluehorizon.network/workloads/weather",
       "workloadOrgid": "myorg",
+      "workloadArch": "amd64",
       "workloadVersions": [
         {
           "version": "1.0.1",
-          "arch": "amd64",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
           "deployment_overrides_signature": "",
           "priority": {
@@ -267,10 +267,10 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     {
       "workloadUrl": "https://bluehorizon.network/workloads/weather",
       "workloadOrgid": "myorg",
+      "workloadArch": "amd64",
       "workloadVersions": [
         {
           "version": "1.0.1",
-          "arch": "amd64",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
           "deployment_overrides_signature": "",
           "priority": {
@@ -363,10 +363,10 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     {
       "workloadUrl": "https://bluehorizon.network/workloads/weather",
       "workloadOrgid": "myorg",
+      "workloadArch": "amd64",
       "workloadVersions": [
         {
           "version": "1.0.1",
-          "arch": "amd64",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
           "deployment_overrides_signature": "",
           "priority": {

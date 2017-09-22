@@ -72,7 +72,7 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
-## Changes Between v1.31.0 and v1.32.0
+## Changes Between v1.32.0 and v1.33.0
 
 ### Limitations
 
@@ -80,12 +80,11 @@ services in the exchange.
 
 ### External Incompatible changes
 
-- Added pattern field to node resource
-- Move arch field 1 level up in pattern schema, and renamed it to workloadArch
-- Implemented /org/{orgid}/patterns/{pat-id}/search
+- Quick fix to not require a slash in the node pattern attribute if it is blank
 
 ### Todos left to be finished
 
+- Fix bug: https://github.com/open-horizon/exchange-api/issues/35
 - Fix bug: Put root/root in the db, so foreign keys work correctly
 - Add schemaversion table and key upgradedb off of that
 - Ensure that a user can't elevate himself to an admin user
@@ -97,6 +96,19 @@ services in the exchange.
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST
 - Any other schema changes?
+
+
+## Changes Between v1.31.0 and v1.32.0
+
+### Limitations
+
+- Need to dropdb and initdb, and re-enter data
+
+### External Incompatible changes
+
+- Added pattern field to node resource
+- Move arch field 1 level up in pattern schema, and renamed it to workloadArch
+- Implemented /org/{orgid}/patterns/{pat-id}/search
 
 
 ## Changes Between v1.30.0 and v1.31.0

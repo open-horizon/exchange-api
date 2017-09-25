@@ -14,6 +14,7 @@ import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.util._
+//import scala.util.control.NonFatal
 
 /** The list of access rights. */
 object Access extends Enumeration {
@@ -636,64 +637,78 @@ trait AuthenticationSupport extends ScalatraBase {
     def authorizeTo(target: Target, access: Access): Identity = {
       if (hasFrontEndAuthority) return this     // allow whatever it wants to do
       // Transform any generic access into specific access
-      val access2 = target match {
-        case TUser(id) => access match {     // a node accessing a user
+      var access2: Access = null
+      if (!isMyOrg(target) && !isMsgToMultiTenantAgbot(target,access)) {
+        access2 = access match {
+          case Access.READ => Access.READ_OTHER_ORGS
+          case Access.WRITE => Access.WRITE_OTHER_ORGS
+          case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
+          case _ => access
+        }
+      } else { // the target is in the same org as the identity
+        access2 = target match {
+          case TUser(id) => access match { // a node accessing a user
             case Access.READ => Access.READ_ALL_USERS
             case Access.WRITE => Access.WRITE_ALL_USERS
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-        case TNode(id) => access match {     // a node accessing a node
+          case TNode(id) => access match { // a node accessing a node
             case Access.READ => if (id == creds.id) Access.READ_MYSELF else if (target.mine) Access.READ_MY_NODES else Access.READ_ALL_NODES
             case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (target.mine) Access.WRITE_MY_NODES else Access.WRITE_ALL_NODES
             case Access.CREATE => Access.CREATE_NODE
             case _ => access
           }
-        case TAgbot(_) => access match {     // a node accessing a agbot
+          case TAgbot(_) => access match { // a node accessing a agbot
             case Access.READ => Access.READ_ALL_AGBOTS
             case Access.WRITE => Access.WRITE_ALL_AGBOTS
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-        case TBctype(_) => access match {     // a node accessing a bctype
+          case TBctype(_) => access match { // a node accessing a bctype
             case Access.READ => Access.READ_ALL_BCTYPES
             case Access.WRITE => Access.WRITE_ALL_BCTYPES
             case Access.CREATE => Access.CREATE_BCTYPES
             case _ => access
           }
-        case TBlockchain(_) => access match {     // a node accessing a blockchain
+          case TBlockchain(_) => access match { // a node accessing a blockchain
             case Access.READ => Access.READ_ALL_BLOCKCHAINS
             case Access.WRITE => Access.WRITE_ALL_BLOCKCHAINS
             case Access.CREATE => Access.CREATE_BLOCKCHAINS
             case _ => access
           }
-        case TMicroservice(_) => access match {     // a node accessing a microservice
-          case Access.READ => Access.READ_ALL_MICROSERVICES
-          case Access.WRITE => Access.WRITE_ALL_MICROSERVICES
-          case Access.CREATE => Access.CREATE_MICROSERVICES
-          case _ => access
+          case TMicroservice(_) => access match { // a node accessing a microservice
+            case Access.READ => Access.READ_ALL_MICROSERVICES
+            case Access.WRITE => Access.WRITE_ALL_MICROSERVICES
+            case Access.CREATE => Access.CREATE_MICROSERVICES
+            case _ => access
+          }
+          case TWorkload(_) => access match { // a node accessing a workload
+            case Access.READ => Access.READ_ALL_WORKLOADS
+            case Access.WRITE => Access.WRITE_ALL_WORKLOADS
+            case Access.CREATE => Access.CREATE_WORKLOADS
+            case _ => access
+          }
+          case TPattern(_) => access match { // a user accessing a pattern
+            case Access.READ => Access.READ_ALL_PATTERNS
+            case Access.WRITE => Access.WRITE_ALL_PATTERNS
+            case Access.CREATE => Access.CREATE_PATTERNS
+            case _ => access
+          }
+          case TOrg(_) => access match { // a node accessing his org resource
+            case Access.READ => Access.READ_MY_ORG
+            case Access.WRITE => Access.WRITE_MY_ORG
+            case Access.CREATE => Access.CREATE_ORGS
+            case _ => access
+          }
+          case TAction(_) => access // a node running an action
         }
-        case TWorkload(_) => access match {     // a node accessing a workload
-          case Access.READ => Access.READ_ALL_WORKLOADS
-          case Access.WRITE => Access.WRITE_ALL_WORKLOADS
-          case Access.CREATE => Access.CREATE_WORKLOADS
-          case _ => access
-        }
-        case TPattern(_) => access match { // a user accessing a pattern
-          case Access.READ => Access.READ_ALL_PATTERNS
-          case Access.WRITE => Access.WRITE_ALL_PATTERNS
-          case Access.CREATE => Access.CREATE_PATTERNS
-          case _ => access
-        }
-        case TOrg(_) => access match {     // a node accessing his org resource
-          case Access.READ => Access.READ_MY_ORG
-          case Access.WRITE => Access.WRITE_MY_ORG
-          case Access.CREATE => Access.CREATE_ORGS
-          case _ => access
-        }
-        case TAction(_) => access      // a node running an action
       }
       if (Role.hasAuthorization(Role.NODE, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
+    }
+
+    def isMsgToMultiTenantAgbot(target: Target, access: Access): Boolean = {
+      return target.getOrg == "IBM" && access == Access.SEND_MSG_TO_AGBOT    //todo: implement instance-level ACLs instead of hardcoding this
     }
   }
 
@@ -702,7 +717,7 @@ trait AuthenticationSupport extends ScalatraBase {
       if (hasFrontEndAuthority) return this     // allow whatever it wants to do
       // Transform any generic access into specific access
       var access2: Access = null
-      if (!isMyOrg(target)) {
+      if (!isMyOrg(target) && !isMultiTenantAgbot) {
         access2 = access match {
           case Access.READ => Access.READ_OTHER_ORGS
           case Access.WRITE => Access.WRITE_OTHER_ORGS
@@ -770,6 +785,8 @@ trait AuthenticationSupport extends ScalatraBase {
       }
       if (Role.hasAuthorization(Role.AGBOT, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }
+
+    def isMultiTenantAgbot: Boolean = return getOrg == "IBM"    //todo: implement instance-level ACLs instead of hardcoding this
   }
 
   case class IApiKey(creds: Creds) extends Identity {
@@ -944,11 +961,16 @@ trait AuthenticationSupport extends ScalatraBase {
     auth match {
       case Some(authStr) => val R1 = "^Basic *(.*)$".r
         authStr match {
-          case R1(basicAuthStr) => val basicAuthStr2 = if (basicAuthStr.contains(":")) basicAuthStr else new String(Base64.getDecoder.decode(basicAuthStr), "utf-8")
+          case R1(basicAuthStr) => var basicAuthStr2 = ""
+            if (basicAuthStr.contains(":")) basicAuthStr2 = basicAuthStr
+            else {
+              try { basicAuthStr2 = new String(Base64.getDecoder.decode(basicAuthStr), "utf-8") }
+              catch { case _: IllegalArgumentException => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "Basic auth header is missing ':' or is bad encoded format")) }
+            }
             val R2 = """^\s*(\S*):(\S*)\s*$""".r      // decode() seems to add a newline at the end
             basicAuthStr2 match {
               case R2(id,tok) => /*logger.trace("id="+id+",tok="+tok+".");*/ Creds(id,tok)
-              case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials format: "+basicAuthStr2))
+              case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials format, either it is missing ':' or is bad encoded format: "+basicAuthStr))
             }
           case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "if the Authorization field in the header is specified, only Basic auth is currently supported"))
         }

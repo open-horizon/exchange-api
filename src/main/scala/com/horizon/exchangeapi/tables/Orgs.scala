@@ -19,6 +19,9 @@ case class OrgRow(orgId: String, label: String, description: String, lastUpdated
 
   // insert returns a DB action to insert this row
   def insert: DBIO[_] = OrgsTQ.rows += this
+
+  // Returns a DB action to insert or update this row
+  def upsert: DBIO[_] = OrgsTQ.rows.insertOrUpdate(this)
 }
 
 /** Mapping of the orgs db table to a scala class */

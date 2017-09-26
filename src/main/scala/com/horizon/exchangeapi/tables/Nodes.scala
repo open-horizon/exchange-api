@@ -27,7 +27,7 @@ case class NodeRow(id: String, orgid: String, token: String, name: String, owner
   def upsert: DBIO[_] = {
     // Note: this currently does not do the right thing for a blank token
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (owner == "root/root") NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.pattern, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey)).insertOrUpdate((id, orgid, tok, name, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.pattern, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey)).insertOrUpdate((id, orgid, tok, name, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
     else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, tok, name, owner, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
   }
 
@@ -45,7 +45,7 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def orgid = column[String]("orgid")
   def token = column[String]("token")
   def name = column[String]("name")
-  def owner = column[String]("owner", O.Default("root/root"))  // root is the default because during upserts by root, we do not want root to take over the node if it already exists
+  def owner = column[String]("owner", O.Default(Role.superUser))  // root is the default because during upserts by root, we do not want root to take over the node if it already exists
   def pattern = column[String]("pattern")       // this is orgid/patternname
   def msgEndPoint = column[String]("msgendpoint")
   def softwareVersions = column[String]("swversions")

@@ -141,6 +141,8 @@ object Role {
 
   def superUser = "root/root"
   def isSuperUser(username: String): Boolean = return username == superUser    // only checks the username, does not verify the pw
+
+  def publicOrg = "public"
 }
 
 case class Creds(id: String, token: String) {     // id and token are generic names and their values can actually be username and password
@@ -196,6 +198,7 @@ object AuthCache {
     // The in-memory cache
     val things = new MutableHashMap[String,Tokens]()     // key is username or id, value is the unhashed and hashed pw's or token's
     val owners = new MutableHashMap[String,String]()     // key is node or agbot id, value is the username that owns it. For users, key is username, value is "admin" if this is an admin user.
+    val isPublic = new MutableHashMap[String,Boolean]()     // key is id, value is whether or not its public attribute is true
     val whichTable = whichTab
 
     var db: Database = _       // filled in my init() below
@@ -209,10 +212,10 @@ object AuthCache {
         case "nodes" => db.run(NodesTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
         case "agbots" => db.run(AgbotsTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
         case "bctypes" => db.run(BctypesTQ.rows.map(x => (x.bctype, x.definedBy)).result).map({ list => this._initBctypes(list) })
-        case "blockchains" => db.run(BlockchainsTQ.rows.map(x => (x.name, x.bctype, x.definedBy)).result).map({ list => this._initBCs(list) })
-        case "microservices" => db.run(MicroservicesTQ.rows.map(x => (x.microservice, x.owner)).result).map({ list => this._initMicroservices(list) })
-        case "workloads" => db.run(WorkloadsTQ.rows.map(x => (x.workload, x.owner)).result).map({ list => this._initWorkloads(list) })
-        case "patterns" => db.run(PatternsTQ.rows.map(x => (x.pattern, x.owner)).result).map({ list => this._initPatterns(list) })
+        case "blockchains" => db.run(BlockchainsTQ.rows.map(x => (x.name, x.bctype, x.definedBy, x.public)).result).map({ list => this._initBCs(list) })
+        case "microservices" => db.run(MicroservicesTQ.rows.map(x => (x.microservice, x.owner, x.public)).result).map({ list => this._initMicroservices(list) })
+        case "workloads" => db.run(WorkloadsTQ.rows.map(x => (x.workload, x.owner, x.public)).result).map({ list => this._initWorkloads(list) })
+        case "patterns" => db.run(PatternsTQ.rows.map(x => (x.pattern, x.owner, x.public)).result).map({ list => this._initPatterns(list) })
       }
     }
 
@@ -242,32 +245,36 @@ object AuthCache {
     }
 
     /** Put owners of bc instances in the cache */
-    def _initBCs(credList: Seq[(String,String,String)]): Unit = {
-      for ((name,bctype,definedBy) <- credList) {
+    def _initBCs(credList: Seq[(String,String,String,Boolean)]): Unit = {
+      for ((name,bctype,definedBy,isPub) <- credList) {
         //val key = name+"|"+bctype
         val key = bctype+"|"+name
         if (definedBy != "") _putOwner(key, definedBy)
+        _putIsPublic(key, isPub)
       }
     }
 
     /** Put owners of microservices in the cache */
-    def _initMicroservices(credList: Seq[(String,String)]): Unit = {
-      for ((microservice,owner) <- credList) {
+    def _initMicroservices(credList: Seq[(String,String,Boolean)]): Unit = {
+      for ((microservice,owner,isPub) <- credList) {
         if (owner != "") _putOwner(microservice, owner)
+        _putIsPublic(microservice, isPub)
       }
     }
 
     /** Put owners of workloads in the cache */
-    def _initWorkloads(credList: Seq[(String,String)]): Unit = {
-      for ((workload,owner) <- credList) {
+    def _initWorkloads(credList: Seq[(String,String,Boolean)]): Unit = {
+      for ((workload,owner,isPub) <- credList) {
         if (owner != "") _putOwner(workload, owner)
+        _putIsPublic(workload, isPub)
       }
     }
 
     /** Put owners of patterns in the cache */
-    def _initPatterns(credList: Seq[(String,String)]): Unit = {
-      for ((pattern,owner) <- credList) {
+    def _initPatterns(credList: Seq[(String,String,Boolean)]): Unit = {
+      for ((pattern,owner,isPub) <- credList) {
         if (owner != "") _putOwner(pattern, owner)
+        _putIsPublic(pattern, isPub)
       }
     }
 
@@ -382,6 +389,27 @@ object AuthCache {
       }
     }
 
+    /** Returns Some(isPub) from the cache for this id (but verifies with the db 1st), or None if does not exist */
+    def getIsPublic(id: String): Option[Boolean] = {
+      // We are doing this only so we can fall back to the cache's last known owner if the Await.result() times out.
+      try {
+        // For the all the others, we are looking for the traditional owner
+        val a = whichTable match {
+          case "blockchains" => BlockchainsTQ.getPublic2(id).result
+          case "microservices" => MicroservicesTQ.getPublic(id).result
+          case "workloads" => WorkloadsTQ.getPublic(id).result
+          case "patterns" => PatternsTQ.getPublic(id).result
+          case _ => return Some(false)      // should never get here
+        }
+        val publicVector = Await.result(db.run(a), Duration(3000, MILLISECONDS))
+        if (publicVector.nonEmpty) /*{ logger.trace("getIsPublic return: "+publicVector.head);*/ return Some(publicVector.head) else /*{ logger.trace("getIsPublic return: None");*/ return None
+      } catch {
+        //      Until i get a better handle on this, use the cache owner when this happens.
+        case _: java.util.concurrent.TimeoutException => logger.error("getting public for '"+id+"' timed out. Using the cache for now.")
+          return _getIsPublic(id)
+      }
+    }
+
     /** Cache this id/token (or user/pw) pair in unhashed (usually) form */
     def put(creds: Creds): Unit = {
       // Normally overwrite the current cached pw with this new one, unless the new one is blank.
@@ -404,11 +432,13 @@ object AuthCache {
 
     def putOwner(id: String, owner: String): Unit = { /*logger.trace("putOwner for "+id+": "+owner); */ if (owner != "") _putOwner(id, owner) }
     def putBoth(creds: Creds, owner: String): Unit = { put(creds); putOwner(creds.id, owner) }
+    def putIsPublic(id: String, isPub: Boolean): Unit = { _putIsPublic(id, isPub)}
 
     /** Removes the user/id and pw/token pair from the cache. If it does not exist, no error is returned */
     def remove(id: String) = { _remove(id) }
     def removeOwner(id: String) = { _removeOwner(id) }
     def removeBoth(id: String) = { _removeBoth(id) }
+    def removeIsPublic(id: String) = { _removeIsPublic(id) }
 
     /** Removes all user/id, pw/token pairs from this cache. */
     def removeAll() = {
@@ -421,6 +451,7 @@ object AuthCache {
       removeAllOwners()
     }
     def removeAllOwners() = { _clearOwners() }
+    def removeAllIsPublic() = { _clearIsPublic() }
 
     /** Low-level functions to lock on the hashmap */
     private def _get(id: String) = synchronized { things.get(id) }
@@ -434,6 +465,11 @@ object AuthCache {
     private def _clearOwners() = synchronized { owners.clear }
 
     private def _removeBoth(id: String) = synchronized { things.remove(id); owners.remove(id) }
+
+    private def _getIsPublic(id: String) = synchronized { isPublic.get(id) }
+    private def _putIsPublic(id: String, isPub: Boolean) = synchronized { isPublic.put(id, isPub) }
+    private def _removeIsPublic(id: String) = synchronized { isPublic.remove(id) }
+    private def _clearIsPublic() = synchronized { isPublic.clear }
   }     // end of Cache class
 
   val users = new Cache("users")
@@ -466,6 +502,8 @@ trait AuthenticationSupport extends ScalatraBase {
     def toIAgbot = IAgbot(creds)
     def toIAnonymous = IAnonymous(Creds("",""))
     def isSuperUser = false       // IUser overrides this
+    def isAdmin = false       // IUser overrides this
+    def isAnonymous = creds.isAnonymous
     def identityString = creds.id     // for error msgs
     def accessDeniedMsg(access: Access) = "Access denied: '"+identityString+"' does not have authorization: "+access
     var hasFrontEndAuthority = false   // true if this identity was already vetted by the front end
@@ -531,7 +569,7 @@ trait AuthenticationSupport extends ScalatraBase {
       val role = if (isSuperUser) Role.SUPERUSER else if (isAdmin) Role.ADMINUSER else Role.USER
       // Transform any generic access into specific access
       var access2: Access = null
-      if (!isMyOrg(target)) {
+      if (!isMyOrg(target) && !target.isPublic) {
         access2 = access match {
           case Access.READ => Access.READ_OTHER_ORGS
           case Access.WRITE => Access.WRITE_OTHER_ORGS
@@ -601,7 +639,8 @@ trait AuthenticationSupport extends ScalatraBase {
       if (Role.hasAuthorization(role, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }
 
-    def isAdmin: Boolean = {
+    override def isAdmin: Boolean = {
+      if (isSuperUser) return true
       //println("AuthCache.users.owners: "+AuthCache.users.owners.toString())
       //println("getting owner for "+creds.id+": "+AuthCache.users.getOwner(creds.id))
       AuthCache.users.getOwner(creds.id) match {
@@ -614,6 +653,7 @@ trait AuthenticationSupport extends ScalatraBase {
       if (target.mine) return true
       else if (target.all) return false
       else {
+        //todo: should move these into the Target subclasses
         val owner = target match {
           case TUser(id) => return id == creds.id
           case TNode(id) => AuthCache.nodes.getOwner(id)
@@ -638,7 +678,7 @@ trait AuthenticationSupport extends ScalatraBase {
       if (hasFrontEndAuthority) return this     // allow whatever it wants to do
       // Transform any generic access into specific access
       var access2: Access = null
-      if (!isMyOrg(target) && !isMsgToMultiTenantAgbot(target,access)) {
+      if (!isMyOrg(target) && !target.isPublic && !isMsgToMultiTenantAgbot(target,access)) {
         access2 = access match {
           case Access.READ => Access.READ_OTHER_ORGS
           case Access.WRITE => Access.WRITE_OTHER_ORGS
@@ -717,7 +757,7 @@ trait AuthenticationSupport extends ScalatraBase {
       if (hasFrontEndAuthority) return this     // allow whatever it wants to do
       // Transform any generic access into specific access
       var access2: Access = null
-      if (!isMyOrg(target) && !isMultiTenantAgbot) {
+      if (!isMyOrg(target) && !target.isPublic && !isMultiTenantAgbot) {
         access2 = access match {
           case Access.READ => Access.READ_OTHER_ORGS
           case Access.WRITE => Access.WRITE_OTHER_ORGS
@@ -797,11 +837,13 @@ trait AuthenticationSupport extends ScalatraBase {
   }
 
   case class IAnonymous(creds: Creds) extends Identity {
+    override def getOrg = Role.publicOrg
+
     def authorizeTo(target: Target, access: Access): Identity = {
       // Transform any generic access into specific access
       var access2: Access = null
       //todo: This makes anonymous never work, which might be what we want. Decide what to do about it.
-      if (!isMyOrg(target)) {
+      if (!isMyOrg(target) && !target.isPublic) {
         access2 = access match {
           case Access.READ => Access.READ_OTHER_ORGS
           case Access.WRITE => Access.WRITE_OTHER_ORGS
@@ -876,6 +918,7 @@ trait AuthenticationSupport extends ScalatraBase {
     def id: String    // this is the composite id, e.g. orgid/username
     def all: Boolean = return getId == "*"
     def mine: Boolean = return getId == "#"
+    def isPublic: Boolean = return false    // is overridden by some subclasses
 
     // Returns just the orgid part of the resource
     def getOrg: String = {
@@ -896,15 +939,29 @@ trait AuthenticationSupport extends ScalatraBase {
     }
   }
 
+  /*
+          case TBlockchain(id) => AuthCache.blockchains.getOwner(id)
+          case TMicroservice(id) => AuthCache.microservices.getOwner(id)
+          case TWorkload(id) => AuthCache.workloads.getOwner(id)
+          case TPattern(id) => AuthCache.patterns.getOwner(id)
+  */
   case class TOrg(id: String) extends Target
   case class TUser(id: String) extends Target
   case class TNode(id: String) extends Target
   case class TAgbot(id: String) extends Target
   case class TBctype(id: String) extends Target      // for bctypes and blockchains only the user that created it can update/delete it
-  case class TBlockchain(id: String) extends Target   // this id is a composite of the bc name and bctype
-  case class TMicroservice(id: String) extends Target      // for microservices only the user that created it can update/delete it
-  case class TWorkload(id: String) extends Target      // for workloads only the user that created it can update/delete it
-  case class TPattern(id: String) extends Target      // for patterns only the user that created it can update/delete it
+  case class TBlockchain(id: String) extends Target { // this id is a composite of the bc name and bctype
+    override def isPublic: Boolean = return AuthCache.blockchains.getIsPublic(id).getOrElse(false)
+  }
+  case class TMicroservice(id: String) extends Target {     // for microservices only the user that created it can update/delete it
+    override def isPublic: Boolean = return AuthCache.microservices.getIsPublic(id).getOrElse(false)
+  }
+  case class TWorkload(id: String) extends Target {      // for workloads only the user that created it can update/delete it
+    override def isPublic: Boolean = return AuthCache.workloads.getIsPublic(id).getOrElse(false)
+  }
+  case class TPattern(id: String) extends Target {      // for patterns only the user that created it can update/delete it
+    override def isPublic: Boolean = return AuthCache.patterns.getIsPublic(id).getOrElse(false)
+  }
   case class TAction(id: String = "") extends Target    // for post rest api methods that do not target any specific resource (e.g. admin operations)
 
 

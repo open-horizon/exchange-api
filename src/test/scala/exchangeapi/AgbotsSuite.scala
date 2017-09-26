@@ -39,7 +39,7 @@ class AgbotsSuite extends FunSuite {
   val pw = user+"pw"
   val USERAUTH = ("Authorization","Basic "+authpref+user+":"+pw)
   val BADAUTH = ("Authorization","Basic "+authpref+user+":"+pw+"x")
-  val rootuser = "root/root"
+  val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val agbotId = "9930"

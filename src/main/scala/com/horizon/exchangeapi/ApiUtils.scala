@@ -4,6 +4,7 @@ package com.horizon.exchangeapi
 import java.io.File
 import java.time._
 
+import com.horizon.exchangeapi.tables.{OrgRow, UserRow}
 import com.typesafe.config._
 import slick.jdbc.PostgresProfile.api._
 
@@ -18,7 +19,7 @@ import ch.qos.logback.classic.{Level, Logger}
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
-//import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext.Implicits.global
 
 
 /** Global config parameters for the exchange. See typesafe config classes: http://typesafehub.github.io/config/latest/api/ */
@@ -55,7 +56,7 @@ object ExchConfig {
     // Put the root user in the auth cache in case the db has not been inited yet, they need to be able to run POST /admin/initdb
     val rootpw = config.getString("api.root.password")
     if (rootpw != "") {
-      AuthCache.users.put(Creds("root/root", rootpw))
+      AuthCache.users.put(Creds(Role.superUser, rootpw))
       logger.info("Root user from config.json added to the in-memory authentication cache")
     }
 
@@ -86,22 +87,33 @@ object ExchConfig {
    * and therefore will *not* work when the exchange is running in multi-node config. This method is used mostly for automated testing. */
   def mod(props: Properties): Unit = { config = ConfigFactory.parseProperties(props).withFallback(config) }
 
-  /** This is done separately from load() because we need the db execution context */
+  /** Create the root user in the DB. This is done separately from load() because we need the db execution context */
   def createRoot(db: Database): Unit = {
     // If the root pw is set in the config file, create or update the root user in the db to match
     val rootpw = config.getString("api.root.password")
     if (rootpw != "") {
-      AuthCache.users.put(Creds("root/root", rootpw))    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
-      /* todo: not sure we want to create a root org just to put root in the db. Maybe we leave it only in the cache.
+      AuthCache.users.put(Creds(Role.superUser, rootpw))    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
       val rootemail = config.getString("api.root.email")
-      db.run(UserRow("root", "root", rootpw, rootemail, ApiTime.nowUTC).upsertUser.asTry).map({ xs =>
-        logger.debug("PUT /users/root (root) result: "+xs.toString)
+      // Create the root org, create the public org, and create the root user (all only if necessary)
+      db.run(OrgRow("root", "Root Org", "Organization for the root user only", ApiTime.nowUTC).upsert.asTry.flatMap({ xs =>
+        logger.debug("Upsert /orgs/root result: "+xs.toString)
         xs match {
-          case Success(_) => logger.info("Root user from config.json was successfully created/updated in the DB")
+          case Success(_) => OrgRow("public", "Public Org", "Organization for anyone to use", ApiTime.nowUTC).upsert.asTry    // next action
+          case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
+        }
+      }).flatMap({ xs =>
+        logger.debug("Upsert /orgs/public result: "+xs.toString)
+        xs match {
+          case Success(_) => UserRow(Role.superUser, "root", rootpw, true, rootemail, ApiTime.nowUTC).upsertUser.asTry    // next action
+          case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
+        }
+      })).map({ xs =>
+        logger.debug("Upsert /orgs/root/users/root (root) result: "+xs.toString)
+        xs match {
+          case Success(_) => logger.info("Root org and user from config.json was successfully created/updated in the DB")
           case Failure(t) => logger.error("Failed to write the root user from config.json to the DB: "+t.toString)
         }
       })
-      */
     }
   }
 

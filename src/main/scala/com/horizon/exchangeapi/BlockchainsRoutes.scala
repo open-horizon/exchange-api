@@ -465,6 +465,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
       logger.debug("PUT /orgs/"+orgid+"/bctypes/"+bareBctype+"/blockchains/"+name+" result: "+xs.toString)
       xs match {
         case Success(_) => AuthCache.blockchains.putOwner(compositeId, owner)
+          AuthCache.blockchains.putIsPublic(compositeId, blockchain.public)
           resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, "blockchain added or updated")
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -566,6 +567,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
             AuthCache.blockchains.removeOwner(compositeId)
+            AuthCache.blockchains.removeIsPublic(compositeId)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, "bctype blockchain deleted")
           } else {

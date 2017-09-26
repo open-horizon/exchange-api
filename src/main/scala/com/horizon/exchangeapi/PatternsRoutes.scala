@@ -236,6 +236,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("POST /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
         case Success(_) => if (owner != "") AuthCache.patterns.putOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
+          AuthCache.patterns.putIsPublic(pattern, patternReq.public)
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "pattern '"+pattern+"' created")
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -336,6 +337,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
             if (numUpdated > 0) {
               if (owner != "") AuthCache.patterns.putOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
+              AuthCache.patterns.putIsPublic(pattern, patternReq.public)
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, "pattern updated")
             } else {
@@ -432,6 +434,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Success(v) => try {
             val numUpdated = v.toString.toInt     // v comes to us as type Any
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
+              if (attrName == "public") AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of pattern '"+pattern+"' updated")
             } else {
@@ -470,6 +473,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
             AuthCache.patterns.removeOwner(pattern)
+            AuthCache.patterns.removeIsPublic(pattern)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, "pattern deleted")
           } else {

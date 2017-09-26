@@ -62,21 +62,6 @@ class FrontEndSuite extends FunSuite {
   val pattern = ptBase
   val orgpattern = authpref+pattern
 
-  /*
-  val USERAUTH = ("Authorization","Basic "+orguser+":"+pw)
-  val BADAUTH = ("Authorization","Basic "+orguser+":"+pw+"x")
-  val rootuser = "root/root"
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
-  val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
-  val nodeId = "9900"     // the 1st node created, that i will use to run some rest methods
-  val NODEAUTH = ("Authorization","Basic "+orgnodeId+":"+nodeToken)
-  val agreementId = "agr1"
-  val creds = authpref+nodeId+":"+nodeToken
-  val encodedCreds = Base64.getEncoder.encodeToString(creds.getBytes("utf-8"))
-  val ENCODEDAUTH = ("Authorization","Basic "+encodedCreds)
-  //var numExistingNodes = 0    // this will be set later
-  */
-
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
   /** Delete all the test users */

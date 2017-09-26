@@ -239,6 +239,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
       logger.debug("POST /orgs/"+orgid+"/microservices result: "+xs.toString)
       xs match {
         case Success(_) => if (owner != "") AuthCache.microservices.putOwner(microservice, owner)     // currently only users are allowed to update microservice resources, so owner should never be blank
+          AuthCache.microservices.putIsPublic(microservice, microserviceReq.public)
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "microservice '"+microservice+"' created")
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -332,6 +333,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
             if (numUpdated > 0) {
               if (owner != "") AuthCache.microservices.putOwner(microservice, owner)     // currently only users are allowed to update microservice resources, so owner should never be blank
+              AuthCache.microservices.putIsPublic(microservice, microserviceReq.public)
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, "microservice updated")
             } else {
@@ -392,6 +394,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
         case Success(v) => try {
             val numUpdated = v.toString.toInt     // v comes to us as type Any
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
+              if (attrName == "public") AuthCache.microservices.putIsPublic(microservice, microserviceReq.public.getOrElse(false))
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of microservice '"+microservice+"' updated")
             } else {
@@ -430,6 +433,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
             AuthCache.microservices.removeOwner(microservice)
+            AuthCache.microservices.removeIsPublic(microservice)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, "microservice deleted")
           } else {

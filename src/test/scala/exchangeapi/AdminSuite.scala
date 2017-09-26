@@ -6,12 +6,12 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import scalaj.http._
 import org.json4s._
-import org.json4s.JsonDSL._
+//import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import com.horizon.exchangeapi._
-import scala.collection.immutable._
-import java.time._
+//import scala.collection.immutable._
+//import java.time._
 
 /**
  * Tests for the /admin routes. To run
@@ -24,12 +24,12 @@ import java.time._
 @RunWith(classOf[JUnitRunner])
 class AdminSuite extends FunSuite {
 
-  val urlRoot = sys.env.get("EXCHANGE_URL_ROOT").getOrElse("http://localhost:8080")
+  val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080")
   val URL = urlRoot+"/v1"
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
-  val rootuser = "root/root"
-  val rootpw = sys.env.get("EXCHANGE_ROOTPW").getOrElse("Horizon-Rul3s")      // need to put this root pw in config.json
+  val rootuser = Role.superUser
+  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "Horizon-Rul3s")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.

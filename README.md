@@ -82,13 +82,14 @@ services in the exchange.
 
 - Fixed bug: https://github.com/open-horizon/exchange-api/issues/35
 - Enabled IBM agbots to read all patterns, search for nodes with patterns in other orgs, and msg nodes in other orgs (and they can msg it back)
+- Enabled identities in other orgs to read all public patterns/workloads/microservices/blockchains
+- Fix bug: Put root/root in the db, so foreign keys work correctly
+- Now automatically create a public org and allow anonymous to create user in that org
+- Ensured that a user can't elevate himself to an admin user
 
 ### Todos left to be finished
 
-- Allow identities in other orgs to read all public patterns/workloads/microservices/blockchains
-- Fix bug: Put root/root in the db, so foreign keys work correctly
 - Add schemaversion table and key upgradedb off of that
-- Ensure that a user can't elevate himself to an admin user
 -
 - See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
 - support max object equal to 0 to mean unlimited

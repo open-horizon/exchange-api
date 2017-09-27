@@ -444,7 +444,12 @@ class NodesSuite extends FunSuite {
     // assert(getDevResp.nodes.size === 3)     // since the other test suites are creating some of these too, we can not know how many there are right now
   }
 
-  /** Heartbeat for node 9900 */
+  test("GET /orgs/"+orgid+" - "+nodeId+" should be able to read his own org") {
+    val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+  }
+
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/heartbeat") {
     val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("post").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1048,7 +1053,7 @@ class NodesSuite extends FunSuite {
   //todo: add tests for searching for multiple MS URLs in 1 call
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - all nodes stale") {
-    Thread.sleep(1100)    // delay 1.1 seconds so other nodes will be stale
+    Thread.sleep(1100)    // delay 1.1 seconds so all nodes will be stale
     val input = PostPatternSearchRequest(SDRSPEC, 1, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
@@ -1059,7 +1064,6 @@ class NodesSuite extends FunSuite {
     assert(nodes.length === 0)
   }
 
-  /** Test the secondsStale parameter */
   test("POST /orgs/"+orgid+"/search/nodes - all arm nodes, but all stale") {
     val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
@@ -1076,8 +1080,7 @@ class NodesSuite extends FunSuite {
     assert(nodes.length === 0)
 }
 
-  /** Heartbeat for node 9900 */
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/heartbeat - again") {
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/heartbeat - so this node won't be stale") {
     val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("post").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -1085,7 +1088,7 @@ class NodesSuite extends FunSuite {
     assert(postSearchDevResp.code === ApiResponseType.OK)
   }
 
-  test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - 1 nodes not stale") {
+  test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - 1 node not stale") {
     val input = PostPatternSearchRequest(SDRSPEC, 1, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
@@ -1097,7 +1100,6 @@ class NodesSuite extends FunSuite {
     assert(nodes.count(d => d.id==orgnodeId) === 1)
   }
 
-  /** Test the secondsStale parameter */
   test("POST /orgs/"+orgid+"/search/nodes - all arm nodes, 1 not stale") {
     val secondsNotStale = 1
     info("secondsNotStale: "+secondsNotStale)

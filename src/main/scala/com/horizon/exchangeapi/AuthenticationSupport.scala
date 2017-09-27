@@ -945,7 +945,10 @@ trait AuthenticationSupport extends ScalatraBase {
           case TWorkload(id) => AuthCache.workloads.getOwner(id)
           case TPattern(id) => AuthCache.patterns.getOwner(id)
   */
-  case class TOrg(id: String) extends Target
+  case class TOrg(id: String) extends Target {
+    override def getOrg = id    // otherwise the regex in the base class will return blank because there is no /
+    override def getId = ""
+  }
   case class TUser(id: String) extends Target
   case class TNode(id: String) extends Target
   case class TAgbot(id: String) extends Target

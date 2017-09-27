@@ -41,7 +41,7 @@ class PatternsSuite extends FunSuite {
   val orguser2 = authpref+user2
   val pw2 = user2+"pw"
   val USER2AUTH = ("Authorization","Basic "+orguser2+":"+pw2)
-  val rootuser = "root/root"
+  val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val nodeId = "9913"     // the 1st node created, that i will use to run some rest methods

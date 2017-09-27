@@ -1,9 +1,10 @@
 package exchangeapi
 
+import com.horizon.exchangeapi.tables.APattern
 import org.scalatest.FunSuite
-
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
+
 import scalaj.http._
 import org.json4s._
 //import org.json4s.JsonDSL._
@@ -31,34 +32,54 @@ class UsersSuite extends FunSuite {
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
   val orgid = "UsersSuiteTests"
+  val orgid2 = "UsersSuiteTests2"
   val URL = urlRoot+"/v1/orgs/"+orgid
+  val URL2 = urlRoot+"/v1/orgs/"+orgid2
+  val URLPUBLIC = urlRoot+"/v1/orgs/public"
   val NOORGURL = urlRoot+"/v1"
   val user = "u1"       // this is an admin user
   val orguser = orgid+"/"+user
+  val org2user = orgid2+"/"+user
   val pw = user+"pw"
   val creds = orguser+":"+pw
-  val AUTH = ("Authorization","Basic "+creds)
+  val USERAUTH = ("Authorization","Basic "+creds)
+  val ORG2USERAUTH = ("Authorization","Basic "+org2user+":"+pw)
   val encodedCreds = Base64.getEncoder.encodeToString(creds.getBytes("utf-8"))
   val ENCODEDAUTH = ("Authorization","Basic "+encodedCreds)
   val user2 = "u2"       // this is NOT an admin user
   val orguser2 = orgid+"/"+user2
   val pw2 = user2+"pw"
   val creds2 = orguser2+":"+pw2
-  val AUTH2 = ("Authorization","Basic "+creds2)
+  val USERAUTH2 = ("Authorization","Basic "+creds2)
   val user3 = "u3"
   val pw3 = user3+"pw"
-  val rootuser = "root/root"
+  val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this same root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val CONNTIMEOUT = HttpOptions.connTimeout(20000)
   val READTIMEOUT = HttpOptions.readTimeout(20000)
+  val wkBase = "wk9920"
+  val wkUrl = "http://" + wkBase
+  val workload = wkBase + "_1.0.0_arm"
+  val agbotId = "a1"
+  val agbotToken = agbotId+"tok"
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
-  /** Delete all the test users */
+  /** Delete all the test users in both orgs */
   def deleteAllUsers() = {
-    for (i <- List(user)) {     // we do not delete the root user because it was created by the config file, not this test suite
+    for (i <- List(user, user2)) {     // we do not delete the root user because it was created by the config file, not this test suite
       val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+    }
+    for (i <- List(user)) {
+      val response = Http(URL2+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+    }
+    for (i <- List(user)) {
+      val response = Http(URLPUBLIC+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
@@ -68,6 +89,9 @@ class UsersSuite extends FunSuite {
   test("POST /orgs/"+orgid+" - create org") {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+    response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
 
@@ -93,20 +117,25 @@ class UsersSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
 
     // Patch the org
-    val jsonInput = """{
-      "description": "desc - patched"
-    }"""
+    val jsonInput = """{ "description": "desc - patched" }"""
     response = Http(URL).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+
+    // Add a 2nd org
+    val input2 = PostPutOrgRequest("My Other Org", "desc")
+    response = Http(URL2).postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
 
     // Get all orgs
     response = Http(NOORGURL+"/orgs").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
     var getOrgsResp = parse(response.body).extract[GetOrgsResponse]
-    //assert(getOrgsResp.orgs.size === 1)      // <- there might be other orgs
+    //assert(getOrgsResp.orgs.size === 2)      // <- there might be other orgs
     assert(getOrgsResp.orgs.contains(orgid))
+    assert(getOrgsResp.orgs.contains(orgid2))
 
     // Get this org
     response = Http(URL).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -120,7 +149,7 @@ class UsersSuite extends FunSuite {
   }
 
   /** Delete all the test users, in case they exist from a previous run */
-  test("Begin - DELETE all test users") {
+  test("DELETE all test users") {
     if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
     deleteAllUsers()
   }
@@ -157,8 +186,7 @@ class UsersSuite extends FunSuite {
   //   assert(response.code === HttpCode.NOT_FOUND)
   // }
 
-  /** Try adding a user w/o email */
-  test("POST /orgs/"+orgid+"/users/"+user+" - no email") {
+  test("POST /orgs/"+orgid+"/users/"+user+" - no email - should fail") {
     val input = PostPutUsersRequest(pw, true, "")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -167,32 +195,41 @@ class UsersSuite extends FunSuite {
 
   /** Add a normal user */
   test("POST /orgs/"+orgid+"/users/"+user+" - normal") {
-    val input = PostPutUsersRequest(pw, true, user+"@hotmail.com")
+    val input = PostPutUsersRequest(pw, false, user+"@hotmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
-  /** Update the normal user */
-  test("PUT /orgs/"+orgid+"/users/"+user+" - update normal") {
+  test("PUT /orgs/"+orgid+"/users/"+user+" - update his own email") {
+    val input = PostPutUsersRequest(pw, false, user+"@gmail.com")
+    val response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/users/"+user+" - try to himself admin privilege - should fail") {
     val input = PostPutUsersRequest(pw, true, user+"@msn.com")
-    val response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+    var response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+
+    // Try to do it via patch
+    val jsonInput = """{ "admin": true }"""
+    response = Http(URL+"/users/"+user).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
+  test("PATCH /orgs/"+orgid+"/users/"+user+" - give user admin privilege - as root") {
+    val jsonInput = """{ "admin": true }"""
+    val response = Http(URL+"/users/"+user).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
-
-  /** Update the normal user - as root */
-  test("PUT /orgs/"+orgid+"/users/"+user+" - update normal - as root") {
-    val input = PostPutUsersRequest(pw, true, user+"@gmail.com")
-    val response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
-  }
-
-  // We do not try to update root, because it is not a real user in the db
 
   test("GET /orgs/"+orgid+"/users - as admin user") {
-    val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(AUTH).asString
+    val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -205,7 +242,7 @@ class UsersSuite extends FunSuite {
   }
 
   test("GET /orgs/"+orgid+"/users - as admin "+user) {
-    val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(AUTH).asString
+    val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -213,7 +250,7 @@ class UsersSuite extends FunSuite {
   }
 
   test("GET /orgs/"+orgid+"/users/"+user) {
-    val response: HttpResponse[String] = Http(URL+"/users/"+user).headers(ACCEPT).headers(AUTH).asString
+    val response: HttpResponse[String] = Http(URL+"/users/"+user).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -235,13 +272,13 @@ class UsersSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/users/"+user2+" - as admin user") {
     val input = PostPutUsersRequest(pw2, false, user2+"@hotmail.com")
-    val response = Http(URL+"/users/"+user2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+    val response = Http(URL+"/users/"+user2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
   test("GET /orgs/"+orgid+"/users/"+user2+" - verify 2nd user was created") {
-    val response: HttpResponse[String] = Http(URL+"/users/"+user2).headers(ACCEPT).headers(AUTH2).asString
+    val response: HttpResponse[String] = Http(URL+"/users/"+user2).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -252,7 +289,7 @@ class UsersSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/users/"+user3+" - as non-admin user - should fail") {
     val input = PostPutUsersRequest(pw3, false, user3+"@hotmail.com")
-    val response = Http(URL+"/users/"+user3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AUTH2).asString
+    val response = Http(URL+"/users/"+user3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
@@ -271,7 +308,7 @@ class UsersSuite extends FunSuite {
 
   /** Confirm user/pw for user */
   test("POST /orgs/"+orgid+"/users/"+user+"/confirm") {
-    val response = Http(URL+"/users/"+user+"/confirm").method("post").headers(ACCEPT).headers(AUTH).asString
+    val response = Http(URL+"/users/"+user+"/confirm").method("post").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
@@ -345,12 +382,12 @@ class UsersSuite extends FunSuite {
     val spamEmail = sys.env.get("EXCHANGE_EMAIL2").orNull
     if (spamEmail != null) {
       val jsonInput = """{ "email": """"+spamEmail+"""" }"""
-      var response = Http(URL+"/users/"+user).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+      var response = Http(URL+"/users/"+user).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
       // verify the email was set and the pw was not
-      response = Http(URL+"/users/"+user).headers(ACCEPT).headers(AUTH).asString
+      response = Http(URL+"/users/"+user).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code)
       // info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.OK)
@@ -370,15 +407,15 @@ class UsersSuite extends FunSuite {
     } else info("NOTE: skipping pw reset email test because environment variable EXCHANGE_EMAIL2 is not set.")
   }
 
-  /** Delete this user so we can recreate it with via root */
+  /** Delete this user so we can recreate it via root with put */
   test("DELETE /orgs/"+orgid+"/users/"+user) {
-    val response = Http(URL+"/users/"+user).method("delete").headers(ACCEPT).headers(AUTH).asString
+    val response = Http(URL+"/users/"+user).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }
 
   /** Create the normal user - as root */
-  test("PUT /orgs/"+orgid+"/users/"+user+" - creat normal - as root") {
+  test("PUT /orgs/"+orgid+"/users/"+user+" - create normal - as root") {
     val input = PostPutUsersRequest(pw, true, user+"@gmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -386,7 +423,7 @@ class UsersSuite extends FunSuite {
   }
 
   test("GET /orgs/"+orgid+"/users/"+user+" - after root created it") {
-    val response: HttpResponse[String] = Http(URL+"/users/"+user).headers(ACCEPT).headers(AUTH).asString
+    val response: HttpResponse[String] = Http(URL+"/users/"+user).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -398,15 +435,97 @@ class UsersSuite extends FunSuite {
     assert(u.email === user+"@gmail.com")
   }
 
+  // Anonymous creates
+  test("POST /orgs/"+orgid+"/users/"+user3+" - as anonymous - should fail") {
+    val input = PostPutUsersRequest(pw3, false, user3+"@hotmail.com")
+    val response = Http(URL+"/users/"+user3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).asString    // as anonymous
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED)
+  }
+
+  test("POST /orgs/public/users/"+user+" - create admin user as anonymous - should fail") {
+    val input = PostPutUsersRequest(pw, true, user+"@hotmail.com")
+    val response = Http(NOORGURL+"/orgs/public/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).asString    // as anonymous
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
+  test("POST /orgs/public/users/"+user+" - create non-admin user as anonymous") {
+    val input = PostPutUsersRequest(pw, false, user+"@hotmail.com")
+    val response = Http(NOORGURL+"/orgs/public/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).asString    // as anonymous
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("GET /orgs/public/users/"+user+" - after anonymous created it") {
+    val response: HttpResponse[String] = Http(NOORGURL+"/orgs/public/users/"+user).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getUserResp = parse(response.body).extract[GetUsersResponse]
+    assert(getUserResp.users.size === 1)
+  }
+
+
+  /** Add a normal agbot */
+  test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - verify we can add an agbot as root") {
+    val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-normal", List[APattern](APattern(orgid,"mypattern")), "whisper-id", "ABC")
+    val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+
+  test("POST /orgs/"+orgid2+"/users/"+user+" - create user in org2 so we can test cross-org ACLs") {
+    val input = PostPutUsersRequest(pw, true, user+"@hotmail.com")
+    val response = Http(URL2+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/workloads - add "+workload+" as not public in 1st org") {
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "", List(), List(), List())
+    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/workloads/"+workload+" - as org2 user - should fail") {
+    val response: HttpResponse[String] = Http(URL + "/workloads/" + workload).headers(ACCEPT).headers(ORG2USERAUTH).asString
+    info("code: " + response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED)
+    //val respObj = parse(response.body).extract[GetWorkloadsResponse]
+    //assert(respObj.workloads.size === 1)
+  }
+
+  test("PATCH /orgs/"+orgid+"/workloads/"+workload+" - to make it public") {
+    val jsonInput = """{ "public": true }"""
+    val response = Http(URL+"/workloads/"+workload).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/workloads/"+workload+" - as org2 user - this time it should work") {
+    val response: HttpResponse[String] = Http(URL + "/workloads/" + workload).headers(ACCEPT).headers(ORG2USERAUTH).asString
+    info("code: " + response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val respObj = parse(response.body).extract[GetWorkloadsResponse]
+    assert(respObj.workloads.size === 1)
+  }
+
   /** Clean up, delete all the test users */
   test("Cleanup 1 - DELETE all test users") {
     deleteAllUsers()
   }
 
-  /** Delete the org we used for this test */
-  test("POST /orgs/"+orgid+" - delete org") {
-    // Try deleting it 1st, in case it is left over from previous test
-    val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+  /** Delete the orgs we used for this test */
+  test("POST /orgs/"+orgid+" - delete orgs") {
+    var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+    response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }

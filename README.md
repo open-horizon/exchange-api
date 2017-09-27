@@ -72,6 +72,44 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
+## Changes Between v1.33.0 and v1.34.0
+
+### Limitations
+
+- Need to dropdb and initdb, and re-enter data
+
+### External changes
+
+- Fixed bug: https://github.com/open-horizon/exchange-api/issues/35
+- Enabled IBM agbots to read all patterns, search for nodes with patterns in other orgs, and msg nodes in other orgs (and they can msg it back)
+- Enabled identities in other orgs to read all public patterns/workloads/microservices/blockchains
+- Fix bug: Put root/root in the db, so foreign keys work correctly
+- Now automatically create a public org and allow anonymous to create user in that org
+- Ensured that a user can't elevate himself to an admin user
+- Added schema table to store the current db schema and changed /admin/upgradedb to use that to upgrade correctly from any version. In this version of the exchange you still need to dropdb/initdb, but for all subsequent versions you should be able to use /admin/upgradedb.
+
+### Todos left to be finished
+
+- See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
+- support max object equal to 0 to mean unlimited
+- Do consistency checking of patterns and workloads
+- Remove empty return from PUT nodes/{nodeid} and microservices.disable option from config.json
+- See if there is a way to fix the swagger hack for 2 level resources
+- Consider changing all creates to POST
+- Any other schema changes?
+
+
+## Changes Between v1.32.0 and v1.33.0
+
+### Limitations
+
+- Need to dropdb and initdb, and re-enter data
+
+### External Incompatible changes
+
+- Quick fix to not require a slash in the node pattern attribute if it is blank
+
+
 ## Changes Between v1.31.0 and v1.32.0
 
 ### Limitations
@@ -83,20 +121,6 @@ services in the exchange.
 - Added pattern field to node resource
 - Move arch field 1 level up in pattern schema, and renamed it to workloadArch
 - Implemented /org/{orgid}/patterns/{pat-id}/search
-
-### Todos left to be finished
-
-- Fix bug: Put root/root in the db, so foreign keys work correctly
-- Add schemaversion table and key upgradedb off of that
-- Ensure that a user can't elevate himself to an admin user
-- See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
-- Implement the rest of the cross-org acls: identities in other orgs can read all public patterns/workloads/microservices/blockchains, IBM agbots can read all nodes
-- support max object equal to 0 to mean unlimited
-- Do consistency checking of patterns and workloads
-- Remove empty return from PUT nodes/{nodeid} and microservices.disable option from config.json
-- See if there is a way to fix the swagger hack for 2 level resources
-- Consider changing all creates to POST
-- Any other schema changes?
 
 
 ## Changes Between v1.30.0 and v1.31.0

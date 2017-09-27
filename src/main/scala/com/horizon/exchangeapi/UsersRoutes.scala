@@ -21,7 +21,7 @@ case class GetUsersResponse(users: Map[String,User], lastIndex: Int)
 /** Input format for PUT /users/<username> */
 case class PostPutUsersRequest(password: String, admin: Boolean, email: String)
 
-case class PatchUsersRequest(password: Option[String], email: Option[String]) {
+case class PatchUsersRequest(password: Option[String], admin: Option[Boolean], email: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the user, and the attribute name being updated. */
@@ -34,7 +34,8 @@ case class PatchUsersRequest(password: Option[String], email: Option[String]) {
         return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated)).update((username, pw, lastUpdated)), "password")
       case _ => ;
     }
-    email match { case Some(email2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.email,u.lastUpdated)).update((username, email2, lastUpdated)), "name"); case _ => ; }
+    admin match { case Some(admin2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.admin,u.lastUpdated)).update((username, admin2, lastUpdated)), "admin"); case _ => ; }
+    email match { case Some(email2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.email,u.lastUpdated)).update((username, email2, lastUpdated)), "email"); case _ => ; }
     return (null, null)
   }
 }
@@ -129,7 +130,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postUsers =
     (apiOperation[ApiResponse]("postUsers")
       summary "Adds a user"
-      notes """Adds a new user to the exchange DB. Note: this REST API method is limited in terms of how many times it can be run from the same source IP in a single day. The **request body** structure:
+      notes """Creates a new user in the exchange DB. This can be run root/root, or a user with admin privilege. If run anonymously, it can create a user in the 'public' org. Note: this REST API method is limited in terms of how many times it can be run from the same source IP in a single day. The **request body** structure:
 
 ```
 {
@@ -149,18 +150,19 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postUsers2 = (apiOperation[PostPutUsersRequest]("postUsers2") summary("a") notes("a"))  // for some bizarre reason, the PutUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   post("/orgs/:orgid/users/:username", operation(postUsers)) ({
-    // Note: we do not currently verify this is a real person creating this (with, for example, captcha), because haproxy restricts the number of
-    //      times a single IP address can call this in a day to a very small number
+    // Note: we do not currently verify this is a real person creating this (with, for example, captcha), so instead haproxy restricts the number of times a single IP address can call this in a day to a small number
+    // Note: if this is invoked by anonymous, the ACLs will only succeed if the org is "public", because that is anonymous' org by default.
     val orgid = swaggerHack("orgid")
     val username = params("username")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,username).toString
-    credsAndLog(true).authenticate().authorizeTo(TUser(compositeId),Access.CREATE)
+    val ident = credsAndLog(true).authenticate().authorizeTo(TUser(compositeId),Access.CREATE)
     val user = try { parse(request.body).extract[PostPutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.debug(user.toString)
     val owner = if (user.admin) "admin" else ""
     val resp = response
     if (user.password == "" || user.email == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "both password and email must be non-blank when creating a user"))
+    if (ident.isAnonymous && user.admin) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "an anonymous client can not create a user with admin authority"))
     db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC).insertUser().asTry).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
       xs match {
@@ -198,7 +200,6 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val putUsers2 = (apiOperation[PostPutUsersRequest]("putUsers2") summary("a") notes("a"))  // for some bizarre reason, the PutUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/users/:username", operation(putUsers)) ({
-    // Note: we currently do not have a way to verify this is a real person creating this, so we use rate limiting in haproxy
     val orgid = swaggerHack("orgid")
     val username = params("username")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,username).toString
@@ -222,7 +223,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         }
       })
     } else {      // update by existing user
-      //TODO: ensure that a user can't elevate himself to an admin user!!!!!!!!!!!!!!!!
+      if (user.admin && !ident.isAdmin) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "a user without admin privilege can not give admin privilege")) // ensure that a user can't elevate himself to an admin user
       db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC).updateUser()).map({ xs =>     // updateUser() handles the case where pw or email is blank (i.e. do not update those fields)
         logger.debug("PUT /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
         try {
@@ -249,6 +250,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 ```
 {
   "password": "abc",       // user password, set by user when adding this user
+  "admin": true,         // if true, this user will have full privilege within the organization
   "email": "me@gmail.com"         // contact email address for this user
 }
 ```"""
@@ -268,13 +270,14 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = swaggerHack("orgid")
     val username = params("username")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,username).toString
-    credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
+    val ident = credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
     val user = try { parse(request.body).extract[PatchUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.debug(user.toString)
     val resp = response
     val (action, attrName) = user.getDbUpdate(compositeId, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid agbot attribute specified"))
+    if (attrName == "admin" && user.admin.getOrElse(false) && !ident.isAdmin) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "a user without admin privilege can not give admin privilege")) // ensure that a user can't elevate himself to an admin user
     db.run(action.transactionally.asTry).map({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
       xs match {

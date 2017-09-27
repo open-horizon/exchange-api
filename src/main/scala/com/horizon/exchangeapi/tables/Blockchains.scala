@@ -104,13 +104,22 @@ object BlockchainsTQ {
 
   /** The id is the name and bctype concatenated together */
   def getOwner2(id: String) = {
-    //val (name, bctype) = id.split("""\|""", 2) match {
     val (bctype, name) = id.split("""\|""", 2) match {
       case Array(s) => (s, "")
       case Array(s1, s2) => (s1, s2)
       case _ => ("", "")
     }
     rows.filter( r => {r.bctype === bctype && r.name === name} ).map(_.definedBy)
+  }
+
+  /** The id is the name and bctype concatenated together */
+  def getPublic2(id: String) = {
+    val (bctype, name) = id.split("""\|""", 2) match {
+      case Array(s) => (s, "")
+      case Array(s1, s2) => (s1, s2)
+      case _ => ("", "")
+    }
+    rows.filter( r => {r.bctype === bctype && r.name === name} ).map(_.public)
   }
 
   def getNumOwned(owner: String) = rows.filter(_.definedBy === owner).length

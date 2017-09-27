@@ -37,9 +37,9 @@ class AgbotsSuite extends FunSuite {
   val NOORGURL = urlRoot+"/v1"
   val user = "9990"
   val pw = user+"pw"
-  val AUTH = ("Authorization","Basic "+authpref+user+":"+pw)
+  val USERAUTH = ("Authorization","Basic "+authpref+user+":"+pw)
   val BADAUTH = ("Authorization","Basic "+authpref+user+":"+pw+"x")
-  val rootuser = "root/root"
+  val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val agbotId = "9930"
@@ -56,6 +56,11 @@ class AgbotsSuite extends FunSuite {
   val AGBOT3AUTH = ("Authorization","Basic "+orgagbot3Id+":"+agbot3Token)
   val agreementId = "9950"
   val pattern = "mypattern"
+  val workload = "myworkload"
+  val micro = "mymicro"
+  val nodeId = "mynode"
+  val nodeToken = nodeId+"tok"
+  val NODEAUTH = ("Authorization","Basic "+authpref+nodeId+":"+nodeToken)
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -71,7 +76,7 @@ class AgbotsSuite extends FunSuite {
   /** Delete all the test agbots - this is not longer used because deleting the user deletes these too */
   def deleteAllAgbots() = {
     for (i <- List(agbotId, agbot2Id)) {
-      val response = Http(URL+"/agbots/"+i).method("delete").headers(ACCEPT).headers(AUTH).asString
+      val response = Http(URL+"/agbots/"+i).method("delete").headers(ACCEPT).headers(USERAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
@@ -80,7 +85,7 @@ class AgbotsSuite extends FunSuite {
   /** Delete all the test agreements - this is no longer used because deleting the user deletes these too */
   def deleteAllAgreements() = {
     for (i <- List(agreementId)) {
-      val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+i).method("delete").headers(ACCEPT).headers(AUTH).asString
+      val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+i).method("delete").headers(ACCEPT).headers(USERAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
@@ -117,7 +122,7 @@ class AgbotsSuite extends FunSuite {
   /** Add a normal agbot */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - normal") {
     val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", List[APattern](APattern(orgid,"mypattern")), "whisper-id", "ABC")
-    val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
@@ -125,7 +130,7 @@ class AgbotsSuite extends FunSuite {
   /** Update normal agbot as user */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - normal - as user") {
     val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-normal-user", List[APattern](APattern(orgid,"mypattern")), "whisper-id", "ABC")
-    val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
@@ -145,7 +150,7 @@ class AgbotsSuite extends FunSuite {
       "xname": "agbot9932-bad-format",
       "msgEndPoint": "whisper-id"
     }"""
-    val response = Http(URL+"/agbots/9932").postData(badJsonInput).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+    val response = Http(URL+"/agbots/9932").postData(badJsonInput).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT)     // for now this is what is returned when the json-to-scala conversion fails
   }
@@ -159,7 +164,7 @@ class AgbotsSuite extends FunSuite {
   }
 
   test("GET /orgs/"+orgid+"/agbots") {
-    val response: HttpResponse[String] = Http(URL+"/agbots").headers(ACCEPT).headers(AUTH).asString
+    val response: HttpResponse[String] = Http(URL+"/agbots").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -174,7 +179,7 @@ class AgbotsSuite extends FunSuite {
   }
 
   test("GET /orgs/"+orgid+"/agbots - filter owner, idfilter, and name") {
-    val response: HttpResponse[String] = Http(URL+"/agbots").headers(ACCEPT).headers(AUTH).param("owner",orgid+"/"+user).param("idfilter",orgid+"/993%").param("name","agbot993%-normal").asString
+    val response: HttpResponse[String] = Http(URL+"/agbots").headers(ACCEPT).headers(USERAUTH).param("owner",orgid+"/"+user).param("idfilter",orgid+"/993%").param("name","agbot993%-normal").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -193,7 +198,7 @@ class AgbotsSuite extends FunSuite {
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId) {
-    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId).headers(ACCEPT).headers(AUTH).asString
+    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -237,7 +242,7 @@ class AgbotsSuite extends FunSuite {
     assert(getAgbotResp.value === "newAGBOTABCDEF")
 
     // Also check the patched pattern, but we have to get the whole resource for that
-    response = Http(URL+"/agbots/"+agbotId).headers(ACCEPT).headers(AUTH).asString
+    response = Http(URL+"/agbots/"+agbotId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -249,6 +254,82 @@ class AgbotsSuite extends FunSuite {
     val pat = agbot.patterns.head
     assert(pat.pattern === "mypattern-patched")
   }
+
+  test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" and check that agbot can read it") {
+    val input = PostPutPatternRequest(pattern, "desc", false,
+      List( PWorkloads("https://wkurl", orgid, "", List(PWorkloadVersions("", "", "", Map(), Map())), PDataVerification(false, "", "", "", 0, 0, Map[String,Any]()) )),
+      List[Map[String,String]]()
+    )
+    val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+
+    val response2: HttpResponse[String] = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response2.code)
+    assert(response2.code === HttpCode.OK)
+    val respObj = parse(response2.body).extract[GetPatternsResponse]
+    assert(respObj.patterns.size === 1)
+  }
+  // Note: when we delete the org, this pattern will get deleted
+
+  test("GET /orgs/"+orgid+"/patterns/"+pattern+" - as IBM agbot (if it exists) and also msg between orgs") {
+    val ibmAgbotAuth = sys.env.getOrElse("EXCHANGE_AGBOTAUTH", "")
+    val ibmAgbotId = """^[^:]+""".r.findFirstIn(ibmAgbotAuth).getOrElse("")     // get the id before the :
+    if (ibmAgbotAuth != "") {
+      val IBMAGBOTAUTH = ("Authorization", "Basic IBM/" + ibmAgbotAuth)
+      val response: HttpResponse[String] = Http(URL + "/patterns/" + pattern).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
+      info("code: " + response.code)
+      assert(response.code === HttpCode.OK)
+      val respObj = parse(response.body).extract[GetPatternsResponse]
+      assert(respObj.patterns.size === 1)
+
+      if (ibmAgbotId != "") {
+        // Also create a node to make sure they can msg each other
+        val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", orgid + "/" + pattern, List(), "", Map(), "NODEABC")
+        var response2 = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+        info("code: " + response2.code)
+        assert(response2.code === HttpCode.PUT_OK)
+
+        val input2 = PostNodesMsgsRequest("{msg from IBM agbot to node in this org}", 300)
+        response2 = Http(URL + "/nodes/" + nodeId + "/msgs").postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
+        info("code: " + response2.code + ", response.body: " + response2.body)
+        assert(response2.code === HttpCode.POST_OK)
+
+        val input3 = PostAgbotsMsgsRequest("{msg from node in this org to IBM agbot}", 300)
+        response2 = Http(NOORGURL + "/orgs/IBM/agbots/" + ibmAgbotId + "/msgs").postData(write(input3)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+        info("code: " + response2.code + ", response.body: " + response2.body)
+        assert(response2.code === HttpCode.POST_OK)
+      }
+    }
+  }
+
+  test("POST /orgs/"+orgid+"/workloads - add "+workload+" and check that agbot can read it") {
+    val input = PostPutWorkloadRequest(workload+" arm", "desc", false, "https://wkurl", "1.0.0", "arm", "", List(Map()), List(Map()), List(Map()))
+    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+
+    val response2: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response2.code)
+    assert(response2.code === HttpCode.OK)
+    val respObj = parse(response2.body).extract[GetWorkloadsResponse]
+    assert(respObj.workloads.size === 1)
+  }
+  // Note: when we delete the org, this pattern will get deleted
+
+  test("POST /orgs/"+orgid+"/microservices - add "+micro+" and check that agbot can read it") {
+    val input = PostPutMicroserviceRequest(micro+" arm", "desc", false, "https://msurl", "1.0.0", "arm", "singleton", "", Map(), List(Map()), List(Map()))
+    val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+
+    val response2: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response2.code)
+    assert(response2.code === HttpCode.OK)
+    val respObj = parse(response2.body).extract[GetMicroservicesResponse]
+    assert(respObj.microservices.size === 1)
+  }
+  // Note: when we delete the org, this pattern will get deleted
 
   /** Try to confirm the agreement that's not there for agbot 9930 */
   test("POST /orgs/"+orgid+"/agreements/confirm - not there") {
@@ -263,7 +344,7 @@ class AgbotsSuite extends FunSuite {
   /** Try to confirm the agreement that's not there for agbot 9930, as user */
   test("POST /orgs/"+orgid+"/agreements/confirm - not there - as user") {
     val input = PostAgreementsConfirmRequest(agreementId)
-    val response = Http(URL+"/agreements/confirm").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+    val response = Http(URL+"/agreements/confirm").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
@@ -273,7 +354,7 @@ class AgbotsSuite extends FunSuite {
   /** Add agbot2 */
   test("PUT /orgs/"+orgid+"/agbots/"+agbot2Id+" - normal") {
     val input = PutAgbotsRequest(agbot2Token, "agbot"+agbot2Id+"-norm", List[APattern](APattern(orgid,"mypattern2")), "whisper-id", "ABC")
-    val response = Http(URL+"/agbots/"+agbot2Id).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+    val response = Http(URL+"/agbots/"+agbot2Id).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
@@ -307,7 +388,7 @@ class AgbotsSuite extends FunSuite {
   /** Update the agreement for agbot 9930 - as user */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" - as user") {
     val input = PutAgbotAgreementRequest(AAWorkload(orgid, pattern, "sdr"), "negotiating")
-    val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
@@ -350,7 +431,7 @@ class AgbotsSuite extends FunSuite {
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/agreements - verify agbot agreement") {
-    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/agreements").headers(ACCEPT).headers(AUTH).asString
+    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/agreements").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
     val getAgResp = parse(response.body).extract[GetAgbotAgreementsResponse]
@@ -364,7 +445,7 @@ class AgbotsSuite extends FunSuite {
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId) {
-    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).headers(ACCEPT).headers(AUTH).asString
+    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
     val getAgResp = parse(response.body).extract[GetAgbotAgreementsResponse]
@@ -399,7 +480,7 @@ class AgbotsSuite extends FunSuite {
   /** Confirm the agreement for agbot 9930 */
   test("POST /orgs/"+orgid+"/agreements/confirm - as user") {
     val input = PostAgreementsConfirmRequest(agreementId)
-    val response = Http(URL+"/agreements/confirm").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+    val response = Http(URL+"/agreements/confirm").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
@@ -463,7 +544,7 @@ class AgbotsSuite extends FunSuite {
 
       // Now try adding another agbot - expect it to be rejected
       val input = PutAgbotsRequest(agbot3Token, "agbot"+agbot3Id+"-norm", List[APattern](APattern(orgid,"mypattern2")), "whisper-id", "ABC")
-      response = Http(URL+"/agbots/"+agbot3Id).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
+      response = Http(URL+"/agbots/"+agbot3Id).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
       val respObj = parse(response.body).extract[ApiResponse]
@@ -479,11 +560,11 @@ class AgbotsSuite extends FunSuite {
 
   /** Explicit delete of agbot */
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+" - as user") {
-    var response = Http(URL+"/agbots/"+agbotId).method("delete").headers(ACCEPT).headers(AUTH).asString
+    var response = Http(URL+"/agbots/"+agbotId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
 
-    response = Http(URL+"/agbots/"+agbotId).headers(ACCEPT).headers(AUTH).asString
+    response = Http(URL+"/agbots/"+agbotId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
   }

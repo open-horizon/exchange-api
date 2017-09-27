@@ -21,7 +21,7 @@ case class AgbotRow(id: String, orgid: String, token: String, name: String, owne
   def upsert: DBIO[_] = {
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
     // If owner is root, do not set owner so we do not take over a user's agbot. It will default to root if upsert turns out to be a insert
-    if (owner == "root/root") AgbotsTQ.rows.map(a => (a.id, a.orgid, a.token, a.name, a.patterns, a.msgEndPoint, a.lastHeartbeat, a.publicKey)).insertOrUpdate((id, orgid, tok, name, patterns, msgEndPoint, lastHeartbeat, publicKey))
+    if (Role.isSuperUser(owner)) AgbotsTQ.rows.map(a => (a.id, a.orgid, a.token, a.name, a.patterns, a.msgEndPoint, a.lastHeartbeat, a.publicKey)).insertOrUpdate((id, orgid, tok, name, patterns, msgEndPoint, lastHeartbeat, publicKey))
     else AgbotsTQ.rows.insertOrUpdate(AgbotRow(id, orgid, tok, name, owner, patterns, msgEndPoint, lastHeartbeat, publicKey))
   }
 
@@ -38,7 +38,7 @@ class Agbots(tag: Tag) extends Table[AgbotRow](tag, "agbots") {
   def orgid = column[String]("orgid")
   def token = column[String]("token")
   def name = column[String]("name")
-  def owner = column[String]("owner", O.Default("root/root"))  // root is the default because during upserts by root, we do not want root to take over the agbot if it already exists
+  def owner = column[String]("owner", O.Default(Role.superUser))  // root is the default because during upserts by root, we do not want root to take over the agbot if it already exists
   def patterns = column[String]("patterns")
   def msgEndPoint = column[String]("msgendpoint")
   def lastHeartbeat = column[String]("lastheartbeat")

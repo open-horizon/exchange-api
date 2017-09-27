@@ -29,11 +29,13 @@ content="-H Content-Type:$appjson"
 rootauth="root/root:$EXCHANGE_ROOTPW"
 
 orgid=$EXCHANGE_ORG
+orgid2="org2"
 
 user="$EXCHANGE_USER"
 pw=$EXCHANGE_PW
 userauth="$EXCHANGE_ORG/$user:$pw"
 email=$EXCHANGE_EMAIL
+userauthorg2="$orgid2/$user:$pw"
 
 nodeid=$(echo "$EXCHANGE_NODEAUTH" | cut -d: -f 1)
 nodetoken=$(echo "$EXCHANGE_NODEAUTH" | cut -d: -f 2)
@@ -141,12 +143,28 @@ else
     echo "orgs/$orgid exists"
 fi
 
+rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2")
+checkrc "$rc" 200 404
+if [[ $rc == 404 ]]; then
+    curlcreate "POST" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2" '{"label": "Another org", "description": "blah blah"}'
+else
+    echo "orgs/$orgid2 exists"
+fi
+
 rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid/users/$user")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
         curlcreate "PUT" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
 else
     echo "orgs/$orgid/users/$user exists"
+fi
+
+rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2/users/$user")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+        curlcreate "PUT" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
+else
+    echo "orgs/$orgid2/users/$user exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid")
@@ -177,12 +195,28 @@ else
     echo "orgs/$orgid/nodes/$nodeid2 exists"
 fi
 
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid2'/'$patid'", "registeredMicroservices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+else
+    echo "orgs/$orgid2/nodes/$nodeid exists"
+fi
+
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "patterns": [{ "orgid": "'$orgid'", "pattern": "'$patid'" }], "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
 else
     echo "orgs/$orgid/agbots/$agbotid exists"
+fi
+
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/agbots/$agbotid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "patterns": [{ "orgid": "'$orgid2'", "pattern": "'$patid'" }], "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
+else
+    echo "orgs/$orgid2/agbots/$agbotid exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1")
@@ -297,6 +331,16 @@ if [[ $rc != 200 ]]; then
   "agreementProtocols": [{ "name": "Basic" }] }'
 else
     echo "orgs/$orgid/patterns/$patid exists"
+fi
+
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid" '{"label": "My other Pattern", "description": "blah blah", "public": true,
+  "workloads": [],
+  "agreementProtocols": [{ "name": "Basic" }] }'
+else
+    echo "orgs/$orgid2/patterns/$patid exists"
 fi
 
 # Do not have a good way to know what msg id they will have, but it is ok to create additional msgs

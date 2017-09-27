@@ -154,19 +154,6 @@ class UsersSuite extends FunSuite {
     deleteAllUsers()
   }
 
-  /*
-  // Get the number of existing users so we can later check the number we added
-  test("GET number of existing users") {
-    val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(ROOTAUTH).asString
-    // info("code: "+response.code+", response.body: "+response.body)
-    info("code: "+response.code)
-    assert(response.code === HttpCode.OK)
-    val getUserResp = parse(response.body).extract[GetUsersResponse]
-    numExistingUsers = getUserResp.users.size
-    info("Set number of existing users")
-  }
-  */
-
   /** Try adding an invalid user body */
   test("POST /orgs/"+orgid+"/users/"+user+" - bad format") {
     val badJsonInput = """{
@@ -208,6 +195,12 @@ class UsersSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
+  test("GET /orgs/"+orgid+" - even w/o admin "+user+" should be able to read his own org") {
+    val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+  }
+
   test("PUT /orgs/"+orgid+"/users/"+user+" - try to himself admin privilege - should fail") {
     val input = PostPutUsersRequest(pw, true, user+"@msn.com")
     var response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -226,6 +219,12 @@ class UsersSuite extends FunSuite {
     val response = Http(URL+"/users/"+user).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs - even with admin "+user+" should NOT be able to read all orgs") {
+    val response: HttpResponse[String] = Http(NOORGURL+"/orgs").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("GET /orgs/"+orgid+"/users - as admin user") {
@@ -521,7 +520,7 @@ class UsersSuite extends FunSuite {
   }
 
   /** Delete the orgs we used for this test */
-  test("POST /orgs/"+orgid+" - delete orgs") {
+  test("DELETE /orgs/"+orgid+" - delete orgs") {
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)

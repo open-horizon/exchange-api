@@ -72,6 +72,10 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
+## Changes Between v1.34.0 and v1.35.0
+
+- Fixed bug in which users, agbots, and nodes couldn't read their own org
+
 ## Changes Between v1.33.0 and v1.34.0
 
 ### Limitations

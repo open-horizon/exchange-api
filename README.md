@@ -86,11 +86,10 @@ services in the exchange.
 - Fix bug: Put root/root in the db, so foreign keys work correctly
 - Now automatically create a public org and allow anonymous to create user in that org
 - Ensured that a user can't elevate himself to an admin user
+- Added schema table to store the current db schema and changed /admin/upgradedb to use that to upgrade correctly from any version. In this version of the exchange you still need to dropdb/initdb, but for all subsequent versions you should be able to use /admin/upgradedb.
 
 ### Todos left to be finished
 
-- Add schemaversion table and key upgradedb off of that
--
 - See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
 - support max object equal to 0 to mean unlimited
 - Do consistency checking of patterns and workloads

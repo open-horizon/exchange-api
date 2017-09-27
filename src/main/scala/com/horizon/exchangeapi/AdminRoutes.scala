@@ -117,60 +117,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     ApiResponse(ApiResponseType.OK, "Logging level set")
   })
 
-  // =========== POST /admin/initdb ===============================
-  val postAdminInitDb =
-    (apiOperation[ApiResponse]("postAdminInitDb")
-      summary "Creates the table schema in the DB"
-      notes "Creates the tables with the necessary schema in the Exchange DB. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      )
-
-  post("/admin/initdb", operation(postAdminInitDb)) ({
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val resp = response
-    // db.run(ExchangeApiTables.setup).flatMap[ApiResponse]({ x =>
-    db.run(ExchangeApiTables.create.transactionally.asTry).map({ xs =>
-      logger.debug("POST /admin/initdb result: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ExchConfig.createRoot(db)         // initialize the users table with the root user from config.json
-          ApiResponse(ApiResponseType.OK, "db initialized successfully")
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db not initialized: "+t.toString)
-      }
-    })
-  })
-
-  // =========== POST /admin/initnewtables ===============================
-  /*
-  val postAdminInitNewTables =
-    (apiOperation[ApiResponse]("postAdminInitNewTables")
-      summary "Creates the schema for the new tables in this version"
-      notes "Creates the tables, that are new in this exchange version, with the necessary schema in the Exchange DB. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      )
-      */
-
-  post("/admin/initnewtables" /*, operation(postAdminInitNewTables)*/ ) ({
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val resp = response
-    db.run(ExchangeApiTables.createNewTables.transactionally.asTry).map({ xs =>
-      logger.debug("POST /admin/initnewtables result: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "new tables initialized successfully")
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "new tables not initialized: "+t.toString)
-      }
-    })
-  })
-
   // =========== GET /admin/dropdb/token ===============================
   val getDropdbToken =
     (apiOperation[AdminDropdbTokenResponse]("getDropdbToken")
@@ -218,34 +164,76 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
-  // =========== POST /admin/dropnewtables ===============================
-  /*
-  val postAdminDropNewTables =
-    (apiOperation[ApiResponse]("postAdminDropNewTables")
-      summary "Deletes the tables that are new in this version"
-      notes "Deletes the tables from the Exchange DB that are new in this version. **Warning: this will delete the data too!** Can only be run by the root user."
+  // =========== POST /admin/initdb ===============================
+  val postAdminInitDb =
+    (apiOperation[ApiResponse]("postAdminInitDb")
+      summary "Creates the table schema in the DB"
+      notes "Creates the tables with the necessary schema in the Exchange DB. Can only be run by the root user."
       parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("The token received from GET /admin/dropdb/token. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
+      Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+      Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
       )
-      */
 
-  post("/admin/dropnewtables" /*, operation(postAdminDropNewTables)*/ ) ({
+  post("/admin/initdb", operation(postAdminInitDb)) ({
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
-    db.run(ExchangeApiTables.deleteNewTables.transactionally.asTry).map({ xs =>
-      logger.debug("POST /admin/dropnewtables result: "+xs.toString)
+    db.run(ExchangeApiTables.create.transactionally.asTry.flatMap({ xs =>
+      logger.debug("POST /admin/initdb init table schemas result: "+xs.toString)
+      xs match {
+        case Success(_) => SchemaTQ.getSetVersionAction.asTry
+        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
+      }
+    })).map({ xs =>
+      logger.debug("POST /admin/initdb set schema version result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "new tables deleted successfully")
+          ExchConfig.createRoot(db)         // initialize the users table with the root user from config.json
+          ApiResponse(ApiResponseType.OK, "db initialized successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "new tables not completely deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db not initialized: "+t.toString)
       }
     })
   })
 
-  /*
+  // =========== POST /admin/upgradedb ===============================
+  val postAdminUpgradeDb =
+    (apiOperation[ApiResponse]("postAdminUpgradeDb")
+      summary "Upgrades the DB schema"
+      notes "Updates (alters) the schemas of the DB tables as necessary (w/o losing any data) to get to the latest DB schema. Can only be run by the root user."
+      parameters(
+      Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+      Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  post("/admin/upgradedb", operation(postAdminUpgradeDb)) ({
+    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
+    val resp = response
+
+    // Assemble the list of db actions to alter schema of existing tables and create tables that are new in each of the schema versions we have to catch up on
+    db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
+      logger.debug("POST /admin/upgradedb current schema result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v.nonEmpty) {
+          val schemaRow = v.head
+          SchemaTQ.getUpgradeActionsFrom(schemaRow.schemaVersion).transactionally.asTry
+        }
+        else DBIO.failed(new Throwable("DB upgrade error: did not find a row in the schemas table")).asTry
+        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
+      }
+    })).map({ xs =>
+      logger.debug("POST /admin/upgradedb result: "+xs.toString)
+      xs match {
+        case Success(_) => resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, "db table schemas upgraded successfully")
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db table schemas not upgraded: "+t.toString)
+      }
+    })
+  })
+
+  /* Someday we should support this....
   // =========== POST /admin/migratedb ===============================
   val postAdminMigrateDb =
     (apiOperation[ApiResponse]("postAdminMigrateDb")
@@ -293,37 +281,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   })
   */
 
-  // =========== POST /admin/upgradedb ===============================
-  val postAdminUpgradeDb =
-    (apiOperation[ApiResponse]("postAdminUpgradeDb")
-      summary "Upgrades the DB schema"
-      notes "Updates (alters) the schemas of the db tables as necessary (w/o losing any data). Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      )
-
-  post("/admin/upgradedb", operation(postAdminUpgradeDb)) ({
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val resp = response
-
-    // Assemble the list of db actions to: alter schema of existing tables, and create tables that are new in this version
-    // val dbActions = DBIO.seq(ExchangeApiTables.alterTables, ExchangeApiTables.createNewTables)
-    val dbActions = ExchangeApiTables.createNewTables
-    //todo: add alterTables if its not null
-
-    db.run(dbActions.transactionally.asTry).map({ xs =>
-      logger.debug("POST /admin/upgradedb result: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "db table schemas upgraded successfully")
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db table schemas not upgraded: "+t.toString)
-      }
-    })
-  })
-
+  /* Just for re-testing upgrade...
   // =========== POST /admin/unupgradedb ===============================
   val postAdminUnupgradeDb =
     (apiOperation[ApiResponse]("postAdminUnupgradeDb")
@@ -334,15 +292,16 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       )
+  */
 
-  post("/admin/unupgradedb", operation(postAdminUnupgradeDb)) ({
+  post("/admin/unupgradedb" /*, operation(postAdminUnupgradeDb)*/) ({
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
 
     // Assemble the list of db actions to: delete tables that are new in this version, and unalter schema changes made to existing tables
     // val dbActions = DBIO.seq(ExchangeApiTables.deleteNewTables, ExchangeApiTables.unAlterTables)
     val dbActions = ExchangeApiTables.deleteNewTables
-    //todo: add unAlterTables if its not null
+    // Note: add unAlterTables if its not null
 
     // This should stop performing the actions if any of them fail. Currently intentionally not running it all as a transaction
     db.run(dbActions.asTry).map({ xs =>
@@ -356,8 +315,8 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
+  /* Someday we should clean this up and support this...
   // =========== POST /admin/dumptables ===============================
-  /*
   val postAdminDumpTables =
     (apiOperation[Seq[String]]("postAdminDumpTables")
       summary "Dumps all the DB tables"
@@ -384,35 +343,10 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "error in dumping tables: "+t.toString)
       }
     })
-
-    /*
-    resp.setStatus(HttpCode.POST_OK)      //TODO: only doing this because the stuff below does not get back to the client
-    val aggFut = ExchangeApiTables.dump(db, resp, dumpDir, dumpSuffix)
-    aggFut onComplete {
-      case Success(v) => logger.info("aggFut success v: "+v)
-        //TODO: figure out why this does not get back to the rest client
-        resp.setStatus(HttpCode.POST_OK)
-        ApiResponse(ApiResponseType.OK, "tables dumped to "+dumpDir+" successfully")
-      case Failure(t) => logger.error("error in dumping tables: "+t.toString)
-        resp.setStatus(HttpCode.INTERNAL_ERROR)
-        ApiResponse(ApiResponseType.INTERNAL_ERROR, "error in dumping tables: "+t.toString)
-    }
-
-    db.run(UsersTQ.rows.result).map({ xs =>
-      val filename = dir+"/users"+suffix;  logger.debug("POST /admin/dumptables "+filename+" result size: "+xs.size)
-      new TableIo[UserRow](filename).dump(xs)
-      resp.setStatus(HttpCode.POST_OK);  ApiResponse(ApiResponseType.OK, "db tables dumped to "+dir+" successfully")
-    })
-    db.run(NodesTQ.rows.result).map({ xs =>
-      val filename = dir+"/nodes"+suffix;  logger.debug("POST /admin/dumptables "+filename+" result size: "+xs.size)
-      new TableIo[NodeRow](filename).dump(xs)
-      resp.setStatus(HttpCode.POST_OK);  ApiResponse(ApiResponseType.OK, "db tables dumped to "+dir+" successfully")
-    })
-    */
   })
 
+  /* Someday we should clean this up and support this...
   // =========== POST /admin/loadtables ===============================
-  /*
   val postAdminLoadTables =
     (apiOperation[Seq[String]]("postAdminLoadTables")
       summary "Loads content for all the DB tables"
@@ -441,81 +375,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "tables not fully restored: "+t.toString)
       }
     })
-
   })
-
-  /*
-  // =========== GET /admin/tables/{table} ===============================
-  val getAdminTable =
-    (apiOperation[Seq[String]]("getAdminTable")
-      summary "Dumps a table's rows"
-      notes "Dumps a table out in a format that can be given to PUT /admin/tables/{table}. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      )
-
-  get("/admin/tables/:table", operation(getAdminTable)) ({
-    // validateUser(BaseAccess.ADMIN, "")
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val table = params("table")
-    val resp = response
-    val q = table match {
-      case "users" => UsersTQ.rows
-      case _ => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Unrecognized table name: "+table+" (use the table name in the postgres DB)"))
-    }
-    db.run(q.result).map({ xs =>
-      logger.debug("GET /admin/tables/"+table+" result size: "+xs.size)
-      resp.setStatus(HttpCode.OK)
-      xs
-    })
-  })
-
-  // =========== PUT /admin/tables/{table} ===============================
-  val putAdminTable =
-    (apiOperation[ApiResponse]("putAdminTable")
-      summary "Restores a table's rows"
-      notes """Restores a table's content from output from GET /admin/tables/{table}. Can only be run by the root user.
-```
-[
-  {<row content in json format>},
-]
-```"""
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[Seq[String]],
-          Option[String]("List of rows of the tables. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
-      )
-
-  put("/admin/tables/:table", operation(putAdminTable)) ({
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val table = params("table")
-    val resp = response
-    table match {
-      case "users" => val users = try { parse(request.body).extract[Seq[UserRow]] }
-        catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-        val actions = ListBuffer[DBIO[_]]()
-        for (u <- users) {
-          actions += (UsersTQ.rows += u)
-        }
-        val dbio = DBIO.seq(actions.toList: _*)      // convert the list of actions to a DBIO seq
-        db.run(dbio.transactionally.asTry).map({ xs =>
-          logger.debug("PUT /admin/tables/"+table+" result: "+xs.toString)
-          xs match {
-            case Success(_) => resp.setStatus(HttpCode.PUT_OK)    // let the auth cache build up gradually
-              ApiResponse(ApiResponseType.OK, table+" table restored successfully")
-            case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-              ApiResponse(ApiResponseType.INTERNAL_ERROR, "table '"+table+"' not restored: "+t.toString)
-          }
-        })
-      case _ => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Unrecognized table name: "+table+" (use the table name in the postgres DB)"))
-    }
-  })
-  */
 
   // =========== GET /admin/status ===============================
   val getAdminStatus =
@@ -529,9 +389,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   get("/admin/status", operation(getAdminStatus)) ({
-    // validateUser(BaseAccess.STATUS, "")
     credsAndLog().authenticate().authorizeTo(TAction(),Access.STATUS)
     val statusResp = new AdminStatus()
+    //TODO: use a DBIO.seq instead. It does essentially the same thing, but more efficiently
     db.run(UsersTQ.rows.length.result.asTry.flatMap({ xs =>
       logger.debug("GET /admin/status users length: "+xs)
       xs match {
@@ -602,10 +462,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   })
 
   /** Dev testing of db access */
-  get("/admin/gettest") ({
-    // validateUser(BaseAccess.ADMIN, "")
+  post("/admin/test") ({
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
-//    val resp = response
+    //val resp = response
 
     ApiResponse(ApiResponseType.OK, "maxAgbots: "+ExchConfig.getInt("api.limits.maxAgbots"))
 

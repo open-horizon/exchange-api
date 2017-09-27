@@ -173,7 +173,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   "specRef": "https://bluehorizon.network/documentation/microservice/gps",   // the unique identifier of this MS
   "version": "1.0.0",
   "arch": "amd64",
-  "sharable": "none",   // or: "singleton", "multiple"
+  "sharable": "exclusive",   // or: "single", "multiple"
   "downloadUrl": "",    // not used yet
   // Hints to the edge node about how to tell if it has physical sensors supported by the MS
   "matchHardware": {
@@ -270,7 +270,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   "specRef": "https://bluehorizon.network/documentation/microservice/gps",   // the unique identifier of this MS
   "version": "1.0.0",
   "arch": "amd64",
-  "sharable": "none",   // or: "singleton", "multiple"
+  "sharable": "exclusive",   // or: "single", "multiple"
   "downloadUrl": "",    // not used yet
   // Hints to the edge node about how to tell if it has physical sensors supported by the MS
   "matchHardware": {
@@ -361,7 +361,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   "specRef": "https://bluehorizon.network/documentation/microservice/gps",   // the unique identifier of this microservice
   "version": "1.0.0",
   "arch": "amd64",
-  "sharable": "none",   // or: "singleton", "multiple"
+  "sharable": "exclusive",   // or: "single", "multiple"
   "downloadUrl": ""    // not used yet
 }
 ```"""

@@ -183,6 +183,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   "apiSpec": [
     {
       "specRef": "https://bluehorizon.network/documentation/microservice/gps",
+      "org": "myorg",
       "version": "1.0.0",
       "arch": "amd64"
     }
@@ -272,6 +273,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   "apiSpec": [
     {
       "specRef": "https://bluehorizon.network/documentation/microservice/gps",
+      "org": "myorg",
       "version": "1.0.0",
       "arch": "amd64"
     }

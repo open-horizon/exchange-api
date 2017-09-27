@@ -130,7 +130,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postUsers =
     (apiOperation[ApiResponse]("postUsers")
       summary "Adds a user"
-      notes """Adds a new user to the exchange DB. Note: this REST API method is limited in terms of how many times it can be run from the same source IP in a single day. The **request body** structure:
+      notes """Creates a new user in the exchange DB. This can be run root/root, or a user with admin privilege. If run anonymously, it can create a user in the 'public' org. Note: this REST API method is limited in terms of how many times it can be run from the same source IP in a single day. The **request body** structure:
 
 ```
 {

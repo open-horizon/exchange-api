@@ -182,7 +182,7 @@ class MicroservicesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/microservices - add "+microservice2+" as 2nd user") {
-    val input = PostPutMicroserviceRequest(msBase2+" arm", "desc", false, msUrl2, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutMicroserviceRequest(msBase2+" arm", "desc", true, msUrl2, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -237,15 +237,33 @@ test("GET /orgs/"+orgid+"/microservices") {
   assert(ms.owner === orguser2)
 }
 
-test("GET /orgs/"+orgid+"/microservices - filter owner and specRef") {
-  val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("specRef",msUrl2+"%").asString
-  info("code: "+response.code)
-  // info("code: "+response.code+", response.body: "+response.body)
-  assert(response.code === HttpCode.OK)
-  val respObj = parse(response.body).extract[GetMicroservicesResponse]
-  assert(respObj.microservices.size === 1)
-  assert(respObj.microservices.contains(orgmicroservice2))
-}
+  test("GET /orgs/"+orgid+"/microservices - filter owner and specRef") {
+    val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("specRef",msUrl2+"%").asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val respObj = parse(response.body).extract[GetMicroservicesResponse]
+    assert(respObj.microservices.size === 1)
+    assert(respObj.microservices.contains(orgmicroservice2))
+  }
+
+  test("GET /orgs/"+orgid+"/microservices - filter by public setting") {
+    // Find the public==true microservices
+    var response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(USERAUTH).param("public","true").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    var respObj = parse(response.body).extract[GetMicroservicesResponse]
+    assert(respObj.microservices.size === 1)
+    assert(respObj.microservices.contains(orgmicroservice2))
+
+    // Find the public==false microservices
+    response = Http(URL+"/microservices").headers(ACCEPT).headers(USERAUTH).param("public","false").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    respObj = parse(response.body).extract[GetMicroservicesResponse]
+    assert(respObj.microservices.size === 1)
+    assert(respObj.microservices.contains(orgmicroservice))
+  }
 
 test("GET /orgs/"+orgid+"/microservices - as node") {
   val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(NODEAUTH).asString

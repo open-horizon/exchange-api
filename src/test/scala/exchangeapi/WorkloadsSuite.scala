@@ -181,7 +181,7 @@ class WorkloadsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/workloads - add "+workload2+" as 2nd user") {
-    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", false, wkUrl2, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl2")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", true, wkUrl2, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl2")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -244,6 +244,24 @@ class WorkloadsSuite extends FunSuite {
     val respObj = parse(response.body).extract[GetWorkloadsResponse]
     assert(respObj.workloads.size === 1)
     assert(respObj.workloads.contains(orgworkload2))
+  }
+
+  test("GET /orgs/"+orgid+"/workloads - filter by public setting") {
+    // Find the public==true workloads
+    var response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(USERAUTH).param("public","true").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    var respObj = parse(response.body).extract[GetWorkloadsResponse]
+    assert(respObj.workloads.size === 1)
+    assert(respObj.workloads.contains(orgworkload2))
+
+    // Find the public==false workloads
+    response = Http(URL+"/workloads").headers(ACCEPT).headers(USERAUTH).param("public","false").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    respObj = parse(response.body).extract[GetWorkloadsResponse]
+    assert(respObj.workloads.size === 1)
+    assert(respObj.workloads.contains(orgworkload))
   }
 
   test("GET /orgs/"+orgid+"/workloads - as node") {

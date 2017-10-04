@@ -635,7 +635,7 @@ trait AuthenticationSupport extends ScalatraBase {
           case TAction(_) => access // a user running an action
         }
       }
-      logger.trace("IUser.authorizeTo() access2: "+access2)
+      //logger.trace("IUser.authorizeTo() access2: "+access2)
       if (Role.hasAuthorization(role, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }
 
@@ -954,16 +954,17 @@ trait AuthenticationSupport extends ScalatraBase {
   case class TAgbot(id: String) extends Target
   case class TBctype(id: String) extends Target      // for bctypes and blockchains only the user that created it can update/delete it
   case class TBlockchain(id: String) extends Target { // this id is a composite of the bc name and bctype
-    override def isPublic: Boolean = return AuthCache.blockchains.getIsPublic(id).getOrElse(false)
+    override def isPublic: Boolean = if (all) return true else return AuthCache.blockchains.getIsPublic(id).getOrElse(false)
   }
   case class TMicroservice(id: String) extends Target {     // for microservices only the user that created it can update/delete it
-    override def isPublic: Boolean = return AuthCache.microservices.getIsPublic(id).getOrElse(false)
+    // If getting all microservices, let it thru here, it will be up to the code processing the results to only return the public resources
+    override def isPublic: Boolean = if (all) return true else return AuthCache.microservices.getIsPublic(id).getOrElse(false)
   }
   case class TWorkload(id: String) extends Target {      // for workloads only the user that created it can update/delete it
-    override def isPublic: Boolean = return AuthCache.workloads.getIsPublic(id).getOrElse(false)
+    override def isPublic: Boolean = if (all) return true else return AuthCache.workloads.getIsPublic(id).getOrElse(false)
   }
   case class TPattern(id: String) extends Target {      // for patterns only the user that created it can update/delete it
-    override def isPublic: Boolean = return AuthCache.patterns.getIsPublic(id).getOrElse(false)
+    override def isPublic: Boolean = if (all) return true else return AuthCache.patterns.getIsPublic(id).getOrElse(false)
   }
   case class TAction(id: String = "") extends Target    // for post rest api methods that do not target any specific resource (e.g. admin operations)
 

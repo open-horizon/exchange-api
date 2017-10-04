@@ -76,7 +76,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val getMicroservices =
     (apiOperation[GetMicroservicesResponse]("getMicroservices")
       summary("Returns all microservices")
-      notes("""Returns all microservice definitions in the exchange DB. Can be run by any user, node, or agbot.
+      notes("""Returns all microservice definitions in this org. Can be run by any user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -84,6 +84,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("owner", DataType.String, Option[String]("Filter results to only include microservices with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
+        Parameter("public", DataType.String, Option[String]("Filter results to only include microservices with this public setting"), paramType=ParamType.Query, required=false),
         Parameter("specRef", DataType.String, Option[String]("Filter results to only include microservices with this specRef (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("version", DataType.String, Option[String]("Filter results to only include microservices with this version (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("arch", DataType.String, Option[String]("Filter results to only include microservices with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
@@ -92,12 +93,13 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
 
   get("/orgs/:orgid/microservices", operation(getMicroservices)) ({
     val orgid = swaggerHack("orgid")
-    credsAndLog().authenticate().authorizeTo(TMicroservice(OrgAndId(orgid,"*").toString),Access.READ)
+    val ident = credsAndLog().authenticate().authorizeTo(TMicroservice(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
     //var q = MicroservicesTQ.rows.subquery
     var q = MicroservicesTQ.getAllMicroservices(orgid)
     // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
     params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
+    params.get("public").foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
     params.get("specRef").foreach(specRef => { if (specRef.contains("%")) q = q.filter(_.specRef like specRef) else q = q.filter(_.specRef === specRef) })
     params.get("version").foreach(version => { if (version.contains("%")) q = q.filter(_.version like version) else q = q.filter(_.version === version) })
     params.get("arch").foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
@@ -105,7 +107,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
     db.run(q.result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/microservices result size: "+list.size)
       val microservices = new MutableHashMap[String,Microservice]
-      if (list.nonEmpty) for (a <- list) microservices.put(a.microservice, a.toMicroservice)
+      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public) microservices.put(a.microservice, a.toMicroservice)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetMicroservicesResponse(microservices.toMap, 0)
     })

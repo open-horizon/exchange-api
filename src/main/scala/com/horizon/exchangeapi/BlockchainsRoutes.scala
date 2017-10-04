@@ -342,13 +342,13 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
     val orgid = swaggerHack("orgid")
     val bareBctype = params("bctype")   // but do not have a hack/fix for the name
     val bctype = OrgAndId(orgid,bareBctype).toString
-    credsAndLog().authenticate().authorizeTo(TBlockchain(OrgAndId(orgid,"*").toString),Access.READ)
+    val ident = credsAndLog().authenticate().authorizeTo(TBlockchain(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
     db.run(BlockchainsTQ.getBlockchains(bctype).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/bctypes/"+bareBctype+"/blockchains result size: "+list.size)
       logger.trace("GET /orgs/"+orgid+"/bctypes/"+bareBctype+"/blockchains result: "+list.toString)
       val blockchains = new MutableHashMap[String, Blockchain]
-      if (list.nonEmpty) for (e <- list) { blockchains.put(e.name, e.toBlockchain) }
+      if (list.nonEmpty) for (e <- list) { if (ident.getOrg == e.orgid || e.public) blockchains.put(e.name, e.toBlockchain) }
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetBlockchainsResponse(blockchains.toMap, 0)
     })

@@ -201,7 +201,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as 2nd user") {
-    val input = PostPutPatternRequest(ptBase2+" amd64", "desc", false,
+    val input = PostPutPatternRequest(ptBase2+" amd64", "desc", true,
       List( PWorkloads("https://wkurl", "myorg", "", List(PWorkloadVersions("", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), PDataVerification(false, "", "", "", 0, 0, Map[String,Any]()) )),
       List[Map[String,String]]()
     )
@@ -265,6 +265,24 @@ class PatternsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetPatternsResponse]
+    assert(respObj.patterns.size === 1)
+    assert(respObj.patterns.contains(orgpattern))
+  }
+
+  test("GET /orgs/"+orgid+"/patterns - filter by public setting") {
+    // Find the public==true patterns
+    var response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).param("public","true").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    var respObj = parse(response.body).extract[GetPatternsResponse]
+    assert(respObj.patterns.size === 1)
+    assert(respObj.patterns.contains(orgpattern2))
+
+    // Find the public==false patterns
+    response = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).param("public","false").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    respObj = parse(response.body).extract[GetPatternsResponse]
     assert(respObj.patterns.size === 1)
     assert(respObj.patterns.contains(orgpattern))
   }

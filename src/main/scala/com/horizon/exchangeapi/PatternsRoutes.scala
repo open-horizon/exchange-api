@@ -230,7 +230,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("POST /orgs/"+orgid+"/patterns num owned by "+owner+": "+xs)
       val numOwned = xs
       val maxPatterns = ExchConfig.getInt("api.limits.maxPatterns")
-      if (numOwned <= maxPatterns) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
+      if (maxPatterns == 0 || numOwned <= maxPatterns) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
         patternReq.toPatternRow(pattern, orgid, owner).insert.asTry
       }
       else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxPatterns+ " patterns")).asTry

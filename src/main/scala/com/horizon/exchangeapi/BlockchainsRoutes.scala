@@ -211,7 +211,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
       logger.debug("PUT /orgs/"+orgid+"/bctypes/"+bareBctype+" num owned: "+xs)
       val numOwned = xs
       val maxBlockchains = ExchConfig.getInt("api.limits.maxBlockchains")
-      if (numOwned <= maxBlockchains) {    // we are not sure if this is a create of update, but if they are already over the limit, stop them anyway
+      if (maxBlockchains == 0 || numOwned <= maxBlockchains) {    // we are not sure if this is a create of update, but if they are already over the limit, stop them anyway
         bctypeReq.toBctypeRow(bctype, orgid, owner).upsert.asTry
       }
       else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxBlockchains+ " bctypes")).asTry
@@ -447,7 +447,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
       logger.debug("PUT /orgs/"+orgid+"/bctypes/"+bareBctype+"/blockchains/"+name+" num owned: "+xs)
       val numOwned = xs
       val maxBlockchains = ExchConfig.getInt("api.limits.maxBlockchains")
-      if (numOwned <= maxBlockchains) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
+      if (maxBlockchains == 0 || numOwned <= maxBlockchains) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
         //todo: upsert does not work for this table due to this slick bug: https://github.com/slick/slick/issues/966. So we have to emulate it.
         // blockchain.toBlockchainRow(bctype, name, owner).upsert.asTry
         BlockchainsTQ.getBlockchain(bctype, name).result.asTry

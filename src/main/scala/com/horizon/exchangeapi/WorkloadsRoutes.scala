@@ -232,7 +232,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       logger.debug("POST /orgs/"+orgid+"/workloads num owned by "+owner+": "+xs)
       val numOwned = xs
       val maxWorkloads = ExchConfig.getInt("api.limits.maxWorkloads")
-      if (numOwned <= maxWorkloads) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
+      if (maxWorkloads == 0 || numOwned <= maxWorkloads) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
         workloadReq.toWorkloadRow(workload, orgid, owner).insert.asTry
       }
       else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxWorkloads+ " workloads")).asTry

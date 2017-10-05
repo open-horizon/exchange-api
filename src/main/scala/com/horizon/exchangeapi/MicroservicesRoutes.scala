@@ -233,7 +233,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
       logger.debug("POST /orgs/"+orgid+"/microservices num owned by "+owner+": "+xs)
       val numOwned = xs
       val maxMicroservices = ExchConfig.getInt("api.limits.maxMicroservices")
-      if (numOwned <= maxMicroservices) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
+      if (maxMicroservices == 0 || numOwned <= maxMicroservices) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
         microserviceReq.toMicroserviceRow(microservice, orgid, owner).insert.asTry
       }
       else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxMicroservices+ " microservices")).asTry

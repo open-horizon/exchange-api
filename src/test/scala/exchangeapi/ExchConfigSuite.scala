@@ -14,7 +14,7 @@ class ExchConfigSuite extends FunSuite {
   test("ExchConfig tests") {
     ExchConfig.load
     assert(ExchConfig.getInt("api.limits.maxNodes") === 1000)
-    assert(ExchConfig.getInt("api.limits.maxAgbots") === 1000)
+    //assert(ExchConfig.getInt("api.limits.maxAgbots") === 1000)  // <- i usually locally test this as 0
     assert(ExchConfig.getInt("api.limits.maxAgreements") === 1000)
     assert(ExchConfig.getInt("api.limits.maxMessagesInMailbox") === 500)
 

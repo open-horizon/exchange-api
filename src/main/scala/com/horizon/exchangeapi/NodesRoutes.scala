@@ -590,7 +590,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" num owned: "+xs)
       val numOwned = xs
       val maxNodes = ExchConfig.getInt("api.limits.maxNodes")
-      if (numOwned <= maxNodes || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
+      if (maxNodes == 0 || numOwned <= maxNodes || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
         val action = if (owner == "") node.getDbUpdate(id, orgid, owner) else node.getDbUpsert(id, orgid, owner)
         action.transactionally.asTry
       }
@@ -847,7 +847,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" num owned: "+xs)
       val numOwned = xs
       val maxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
-      if (numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
+      if (maxAgreements == 0 || numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
         agreement.toNodeAgreementRow(id, agId).upsert.asTry
       }
       else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxAgreements+ " agreements for this node")).asTry
@@ -978,7 +978,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/msgs mailbox size: "+xs)
       val mailboxSize = xs
       val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
-      if (mailboxSize < maxMessagesInMailbox) AgbotsTQ.getPublicKey(agbotId).result.asTry
+      if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) AgbotsTQ.getPublicKey(agbotId).result.asTry
       else DBIO.failed(new Throwable("Access Denied: the message mailbox of "+nodeId+" is full ("+maxMessagesInMailbox+ " messages)")).asTry
     }).flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/msgs agbot publickey result: "+xs.toString)

@@ -466,7 +466,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     //val resp = response
 
-    ApiResponse(ApiResponseType.OK, "maxAgbots: "+ExchConfig.getInt("api.limits.maxAgbots"))
+    ApiResponse(ApiResponseType.OK, "done")
 
     /*
     // ApiResponse(ApiResponseType.OK, "Now: "+ApiTime.nowUTC+", Then: "+ApiTime.pastUTC(100)+".")

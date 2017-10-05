@@ -59,6 +59,7 @@ class BlockchainsSuite extends FunSuite {
   val bctype2 = "9921"
   val orgbctype2 = authpref+bctype2
   val bctype3 = "9922"
+  val bctype4 = "9923"
   val bcname = "9925"
   val bcname2 = "9926"
   val bcname3 = "9927"
@@ -190,18 +191,29 @@ class BlockchainsSuite extends FunSuite {
       val origMaxBlockchains = ExchConfig.getInt("api.limits.maxBlockchains")
 
       // Change the maxBlockchains config value in the svr
-      var configInput = AdminConfigRequest("api.limits.maxBlockchains", "0")    // user only owns 1 currently
+      var configInput = AdminConfigRequest("api.limits.maxBlockchains", "1")    // user only owns 1 currently
       var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
-      // Now try adding another bctype - expect it to be rejected
-      val input = PutBctypeRequest(bctype3+" desc", "json escaped string")
+      // Add 1 bctype - should succeed
+      var input = PutBctypeRequest(bctype3+" desc", "json escaped string")
       response = Http(URL+"/bctypes/"+bctype3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
+
+      // Now try adding another bctype - expect it to be rejected
+      input = PutBctypeRequest(bctype4+" desc", "json escaped string")
+      response = Http(URL+"/bctypes/"+bctype4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
       val respObj = parse(response.body).extract[ApiResponse]
       assert(respObj.msg.contains("Access Denied"))
+
+      // Delete the one that succeeded
+      response = Http(URL+"/bctypes/"+bctype3).method("delete").headers(ACCEPT).headers(USERAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED)
 
       // Restore the maxBlockchains config value in the svr
       configInput = AdminConfigRequest("api.limits.maxBlockchains", origMaxBlockchains.toString)

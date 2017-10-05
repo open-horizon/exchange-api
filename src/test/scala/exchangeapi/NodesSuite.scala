@@ -145,7 +145,6 @@ class NodesSuite extends FunSuite {
   }
 
   ExchConfig.load()
-  val putDevRespDisabled = ExchConfig.getBoolean("api.microservices.disable")
   /** Add a normal node */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
@@ -164,14 +163,6 @@ class NodesSuite extends FunSuite {
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
-    val putDevResp = parse(response.body).extract[Map[String,String]]
-    if (putDevRespDisabled) assert(putDevResp.size === 0)
-    else {
-      assert(putDevResp.size === 1)
-      assert(putDevResp.contains(PWSSPEC))
-      val microTmpl = putDevResp.get(PWSSPEC).get // the 2nd get turns the Some(val) into val
-      assert(microTmpl.contains("""deployment":"""))
-    }
   }
 
   /** Update a normal node as user */
@@ -192,14 +183,6 @@ class NodesSuite extends FunSuite {
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
-    val putDevResp = parse(response.body).extract[Map[String,String]]
-    if (putDevRespDisabled) assert(putDevResp.size === 0)
-    else {
-      assert(putDevResp.size === 1)
-      assert(putDevResp.contains(PWSSPEC))
-      val microTmpl = putDevResp.get(PWSSPEC).get // the 2nd get turns the Some(val) into val
-      assert(microTmpl.contains("""deployment":"""))
-    }
   }
 
   /** Update the normal node as the node */
@@ -221,15 +204,6 @@ class NodesSuite extends FunSuite {
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
-    val putDevResp = parse(response.body).extract[Map[String,String]]
-    if (putDevRespDisabled) assert(putDevResp.size === 0)
-    else {
-      assert(putDevResp.size === 2)
-      assert(putDevResp.contains(SDRSPEC))
-      val microTmpl = putDevResp.get(SDRSPEC).get // the 2nd get turns the Some(val) into val
-      assert(microTmpl.contains("""deployment":"""))
-      assert(putDevResp.contains(NETSPEEDSPEC))
-    }
   }
 
   /** Add a node with higher memory and version */
@@ -243,14 +217,6 @@ class NodesSuite extends FunSuite {
     val response = Http(URL+"/nodes/"+nodeId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
-    val putDevResp = parse(response.body).extract[Map[String,String]]
-    if (putDevRespDisabled) assert(putDevResp.size === 0)
-    else {
-      assert(putDevResp.size === 1)
-      assert(putDevResp.contains(SDRSPEC))
-      val microTmpl = putDevResp.get(SDRSPEC).get // the 2nd get turns the Some(val) into val
-      assert(microTmpl.contains("""deployment":"""))
-    }
   }
 
   /** Add a node with netspeed and arch amd64 */
@@ -264,14 +230,6 @@ class NodesSuite extends FunSuite {
     val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
-    val putDevResp = parse(response.body).extract[Map[String,String]]
-    if (putDevRespDisabled) assert(putDevResp.size === 0)
-    else {
-      assert(putDevResp.size === 1)
-      assert(putDevResp.contains(NETSPEEDSPEC))
-      val microTmpl = putDevResp.get(NETSPEEDSPEC).get // the 2nd get turns the Some(val) into val
-      assert(microTmpl.contains("""deployment":"""))
-    }
   }
 
   /** Try adding a node with invalid integer property */
@@ -316,8 +274,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)     // for now this is what is returned when the json-to-scala conversion fails
   }
 
-  /** Try adding a node with invalid micro url - this succeeds if putDevRespDisabled */
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId4+" - bad micro url") {
+  /** Try adding a node with invalid micro url -  */
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId4+" - bad micro url - this currently allowed") {
     val input = PutNodesRequest("mytok", "rpi9903-bad-url", compositePatid, List(RegMicroservice(NOTTHERESPEC,1,"{json policy for 9903 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
@@ -325,16 +283,7 @@ class NodesSuite extends FunSuite {
       Prop("dataVerification","true","boolean","=")))), "whisper-id", Map(), "NODE4ABC")
     val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    if (putDevRespDisabled) {
-      // if we don't have to get the micro template, we allow any micro url
-      assert(response.code === HttpCode.PUT_OK)
-      val putDevResp = parse(response.body).extract[Map[String,String]]
-      assert(putDevResp.size === 0)
-    } else {
-      assert(response.code === HttpCode.BAD_INPUT)
-      val putDevResp = parse(response.body).extract[ApiResponse]
-      assert(putDevResp.code === ApiResponseType.BAD_INPUT)
-    }
+    assert(response.code === HttpCode.PUT_OK)
   }
 
   /** Add an agbot so we can test it viewing nodes */
@@ -352,8 +301,7 @@ class NodesSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getDevResp = parse(response.body).extract[GetNodesResponse]
-    val expectedNumNodes = (3 + (if (putDevRespDisabled) 1 else 0))
-    assert(getDevResp.nodes.size === expectedNumNodes)
+    assert(getDevResp.nodes.size === 4)
 
     assert(getDevResp.nodes.contains(orgnodeId))
     var dev = getDevResp.nodes.get(orgnodeId).get     // the 2nd get turns the Some(val) into val
@@ -420,11 +368,11 @@ class NodesSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getDevResp = parse(response.body).extract[GetNodesResponse]
-    assert(getDevResp.nodes.size === (if (putDevRespDisabled) 4 else 3))
+    assert(getDevResp.nodes.size === 4)
     assert(getDevResp.nodes.contains(orgnodeId))
     assert(getDevResp.nodes.contains(orgnodeId2))
     assert(getDevResp.nodes.contains(orgnodeId3))
-    if (putDevRespDisabled) assert(getDevResp.nodes.contains(orgnodeId3))
+    assert(getDevResp.nodes.contains(orgnodeId3))
   }
 
   test("GET /orgs/"+orgid+"/nodes - bad creds") {
@@ -565,16 +513,7 @@ class NodesSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId4).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    if (putDevRespDisabled) {
-      // we we aren't checking the micro url, the put on nodeId4 above doesn't fail
-      assert(response.code === HttpCode.OK)
-      val getDevResp = parse(response.body).extract[GetNodesResponse]
-      assert(getDevResp.nodes.size === 1)
-    } else {
-      assert(response.code === HttpCode.NOT_FOUND)
-      val getDevResp = parse(response.body).extract[ApiResponse]
-      assert(getDevResp.code === ApiResponseType.NOT_FOUND)
-    }
+    assert(response.code === HttpCode.OK)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - as agbot") {
@@ -585,9 +524,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3 + (if (putDevRespDisabled) 1 else 0))
-    if (putDevRespDisabled) assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
-    else assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3) === 3)
+    assert(nodes.length === 4)
+    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
     val dev = nodes.find(d => d.id == orgnodeId).get // the 2nd get turns the Some(val) into val
     assert(dev.publicKey === "NODEABC")
   }
@@ -844,9 +782,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 2 + (if (putDevRespDisabled) 1 else 0))
-    if (putDevRespDisabled) assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
-    else assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3) === 2)
+    assert(nodes.length === 3)
+    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - netspeed and sdr - now no nodes, since 1 agreement made") {
@@ -928,9 +865,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 2 + (if (putDevRespDisabled) 1 else 0))
-    if (putDevRespDisabled) assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
-    else assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3) === 2)
+    assert(nodes.length === 3)
+    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
   }
 
   /** Run /search/nodes again and we should get 1 less result, because 9900 is in contract */
@@ -993,9 +929,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 2 + (if (putDevRespDisabled) 1 else 0))
-    if (putDevRespDisabled) assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
-    else assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3) === 2)
+    assert(nodes.length === 3)
+    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
   }
 
   /* But now we should find all nodes when searching for SDRSPEC */
@@ -1007,9 +942,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3 + (if (putDevRespDisabled) 1 else 0))
-    if (putDevRespDisabled) assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
-    else assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3) === 3)
+    assert(nodes.length === 4)
+    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
     val dev = nodes.find(d => d.id == orgnodeId).get // the 2nd get turns the Some(val) into val
     assert(dev.publicKey === "NODEABC")
   }
@@ -1183,7 +1117,6 @@ class NodesSuite extends FunSuite {
       val origMaxNodes = ExchConfig.getInt("api.limits.maxNodes")
 
       // Change the maxNodes config value in the svr
-      // if putDevRespDisabled==true there are currently 3 nodes for out tests, otherwise 4 nodes (plus the ones manually created)
       var configInput = AdminConfigRequest("api.limits.maxNodes", "2")
       var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)

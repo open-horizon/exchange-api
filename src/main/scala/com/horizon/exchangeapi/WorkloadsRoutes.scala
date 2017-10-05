@@ -83,6 +83,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("owner", DataType.String, Option[String]("Filter results to only include workloads with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
+        Parameter("public", DataType.String, Option[String]("Filter results to only include workloads with this public setting"), paramType=ParamType.Query, required=false),
         Parameter("workloadUrl", DataType.String, Option[String]("Filter results to only include workloads with this workloadUrl (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("version", DataType.String, Option[String]("Filter results to only include workloads with this version (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("arch", DataType.String, Option[String]("Filter results to only include workloads with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
@@ -92,12 +93,13 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
 
   get("/orgs/:orgid/workloads", operation(getWorkloads)) ({
     val orgid = swaggerHack("orgid")
-    credsAndLog().authenticate().authorizeTo(TWorkload(OrgAndId(orgid,"*").toString),Access.READ)
+    val ident = credsAndLog().authenticate().authorizeTo(TWorkload(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
     //var q = WorkloadsTQ.rows.subquery
     var q = WorkloadsTQ.getAllWorkloads(orgid)
     // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
     params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
+    params.get("public").foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
     params.get("workloadUrl").foreach(workloadUrl => { if (workloadUrl.contains("%")) q = q.filter(_.workloadUrl like workloadUrl) else q = q.filter(_.workloadUrl === workloadUrl) })
     params.get("version").foreach(version => { if (version.contains("%")) q = q.filter(_.version like version) else q = q.filter(_.version === version) })
     params.get("arch").foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
@@ -112,7 +114,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     db.run(q.result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/workloads result size: "+list.size)
       val workloads = new MutableHashMap[String,Workload]
-      if (list.nonEmpty) for (a <- list) workloads.put(a.workload, a.toWorkload)
+      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public) workloads.put(a.workload, a.toWorkload)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetWorkloadsResponse(workloads.toMap, 0)
     })
@@ -230,7 +232,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       logger.debug("POST /orgs/"+orgid+"/workloads num owned by "+owner+": "+xs)
       val numOwned = xs
       val maxWorkloads = ExchConfig.getInt("api.limits.maxWorkloads")
-      if (numOwned <= maxWorkloads) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
+      if (maxWorkloads == 0 || numOwned <= maxWorkloads) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
         workloadReq.toWorkloadRow(workload, orgid, owner).insert.asTry
       }
       else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxWorkloads+ " workloads")).asTry

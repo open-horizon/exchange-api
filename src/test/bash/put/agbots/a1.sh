@@ -6,5 +6,5 @@ curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/j
   "name": "agbot1",
   "patterns": [{ "orgid": "myorg", "pattern": "mypattern" }],
   "msgEndPoint": "whisper-id",
-  "publicKey": "AGBOTABC"
+  "publicKey": ""
 }' $EXCHANGE_URL_ROOT/v1/orgs/$EXCHANGE_ORG/agbots/a1 | $parse

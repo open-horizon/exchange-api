@@ -74,6 +74,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("idfilter", DataType.String, Option[String]("Filter results to only include patterns with this id (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("owner", DataType.String, Option[String]("Filter results to only include patterns with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
+        Parameter("public", DataType.String, Option[String]("Filter results to only include patterns with this public setting"), paramType=ParamType.Query, required=false),
         Parameter("label", DataType.String, Option[String]("Filter results to only include patterns with this label (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("description", DataType.String, Option[String]("Filter results to only include patterns with this description (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
@@ -81,20 +82,21 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   get("/orgs/:orgid/patterns", operation(getPatterns)) ({
     val orgid = swaggerHack("orgid")
-    credsAndLog().authenticate().authorizeTo(TPattern(OrgAndId(orgid,"*").toString),Access.READ)
+    val ident = credsAndLog().authenticate().authorizeTo(TPattern(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
     //var q = PatternsTQ.rows.subquery
     var q = PatternsTQ.getAllPatterns(orgid)
     // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
     params.get("idfilter").foreach(id => { if (id.contains("%")) q = q.filter(_.pattern like id) else q = q.filter(_.pattern === id) })
     params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
+    params.get("public").foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
     params.get("label").foreach(lab => { if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab) })
     params.get("description").foreach(desc => { if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc) })
 
     db.run(q.result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/patterns result size: "+list.size)
       val patterns = new MutableHashMap[String,Pattern]
-      if (list.nonEmpty) for (a <- list) patterns.put(a.pattern, a.toPattern)
+      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public) patterns.put(a.pattern, a.toPattern)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetPatternsResponse(patterns.toMap, 0)
     })
@@ -185,7 +187,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         "URL": "",
         "user": "",
         "password": "",
-        "interval": 240,
+        "interval": 480,
         "check_rate": 15,
         "metering": {
           "tokens": 1,
@@ -228,7 +230,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("POST /orgs/"+orgid+"/patterns num owned by "+owner+": "+xs)
       val numOwned = xs
       val maxPatterns = ExchConfig.getInt("api.limits.maxPatterns")
-      if (numOwned <= maxPatterns) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
+      if (maxPatterns == 0 || numOwned <= maxPatterns) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
         patternReq.toPatternRow(pattern, orgid, owner).insert.asTry
       }
       else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxPatterns+ " patterns")).asTry
@@ -291,7 +293,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         "URL": "",
         "user": "",
         "password": "",
-        "interval": 240,
+        "interval": 480,
         "check_rate": 15,
         "metering": {
           "tokens": 1,
@@ -388,7 +390,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         "URL": "",
         "user": "",
         "password": "",
-        "interval": 240,
+        "interval": 480,
         "check_rate": 15,
         "metering": {
           "tokens": 1,

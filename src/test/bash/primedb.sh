@@ -255,7 +255,7 @@ rc=$(curlfind $userauth "orgs/$orgid/microservices/$microid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/microservices" '{"label": "Network x86_64", "description": "blah blah", "public": true, "specRef": "'$microurl'",
-  "version": "1.0.0", "arch": "amd64", "sharable": "singleton", "downloadUrl": "",
+  "version": "1.0.0", "arch": "amd64", "sharable": "single", "downloadUrl": "",
   "matchHardware": {},
   "userInput": [],
   "workloads": [] }'
@@ -268,7 +268,7 @@ checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/workloads" '{"label": "Netspeed x86_64", "description": "blah blah", "public": true, "workloadUrl": "'$workurl'",
   "version": "1.0.0", "arch": "amd64", "downloadUrl": "",
-  "apiSpec": [{ "specRef": "'$microurl'", "version": "1.0.0", "arch": "amd64" }],
+  "apiSpec": [{ "specRef": "'$microurl'", "org": "IBM", "version": "1.0.0", "arch": "amd64" }],
   "userInput": [],
   "workloads": [] }'
 else
@@ -280,7 +280,7 @@ checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/workloads" '{"label": "Weather x86_64", "description": "blah blah", "public": true, "workloadUrl": "'$workurl2'",
   "version": "1.0.0", "arch": "amd64", "downloadUrl": "",
-  "apiSpec": [{ "specRef": "'$microurl'", "version": "1.0.0", "arch": "amd64" }],
+  "apiSpec": [{ "specRef": "'$microurl'", "org": "IBM", "version": "1.0.0", "arch": "amd64" }],
   "userInput": [],
   "workloads": [] }'
 else

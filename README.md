@@ -72,6 +72,28 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
+## Changes Between v1.35.0 and v1.36.0
+
+### External changes
+
+- Allow queries in another org at the /microservices, /workloads, /patterns, /bctypes/{id}/blockchains level (and only return the public resources)
+- Added 'public' as a filter attribute for microservices, workloads, patterns.
+- Removed old/unused sections api.specRef, api.objStoreTmpls, and api.microservices from config.json
+- Replaced empty {} return from PUT nodes/{nodeid} with normal code": 201, "msg": "node <id> added or updated"}
+- Supported config.json api.limits.* equal to 0 to mean unlimited
+
+### Todos left to be finished
+
+- Add node status resource
+- Provide wiotp with a way to update (insert/delete) 1 org/pattern pair in the agbot resource
+- If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
+- Allow random PW creation for user creation
+- Do consistency checking of patterns and workloads
+- See if there is a way to fix the swagger hack for 2 level resources
+- Consider changing all creates to POST
+- Any other schema changes?
+
+
 ## Changes Between v1.34.0 and v1.35.0
 
 - Fixed bug in which users, agbots, and nodes couldn't read their own org
@@ -91,16 +113,6 @@ services in the exchange.
 - Now automatically create a public org and allow anonymous to create user in that org
 - Ensured that a user can't elevate himself to an admin user
 - Added schema table to store the current db schema and changed /admin/upgradedb to use that to upgrade correctly from any version. In this version of the exchange you still need to dropdb/initdb, but for all subsequent versions you should be able to use /admin/upgradedb.
-
-### Todos left to be finished
-
-- See if maxAgreements=0 is supported as unlimited (for both node registration, and for maxAgreements in config.json)
-- support max object equal to 0 to mean unlimited
-- Do consistency checking of patterns and workloads
-- Remove empty return from PUT nodes/{nodeid} and microservices.disable option from config.json
-- See if there is a way to fix the swagger hack for 2 level resources
-- Consider changing all creates to POST
-- Any other schema changes?
 
 
 ## Changes Between v1.32.0 and v1.33.0

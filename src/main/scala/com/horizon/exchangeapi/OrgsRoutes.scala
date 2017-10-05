@@ -203,17 +203,6 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     orgReq.validate()
     val resp = response
-    /* this is pure update, no creation if it does not exist
-    db.run(OrgsTQ.getNumOwned(owner).result.flatMap({ xs =>
-      logger.debug("PUT /orgs/"+org+" num owned: "+xs)
-      val numOwned = xs
-      val maxOrgs = ExchConfig.getInt("api.limits.maxOrgs")
-      if (numOwned <= maxOrgs) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
-        orgReq.toOrgRow(org, owner).update.asTry
-      }
-      else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxOrgs+ " orgs")).asTry
-    })).map({ xs =>
-    */
     db.run(orgReq.toOrgRow(orgId).update.asTry).map({ xs =>
       logger.debug("PUT /orgs/"+orgId+" result: "+xs.toString)
       xs match {

@@ -4,24 +4,14 @@
 {
 	"api": {
 		"limits": {
-			"maxNodes": 1000,		// maximum number of nodes 1 user is allowed to create
-			"maxAgbots": 1000,		// maximum number of agbots 1 user is allowed to create
-			"maxAgreements": 1000,	// maximum number of agreements 1 node or agbot is allowed to create
-			"maxMessagesInMailbox": 500,	// maximum number of msgs currently in 1 node or agbot mailbox (the sending side is handled by rate limiting)
-			"maxBlockchains": 100,		// maximum number of BC types or instance definitions 1 user is allowed to create
-			"maxMicroservices": 100,		// maximum number of microservices 1 user is allowed to create
-			"maxWorkloads": 100,		// maximum number of workloads 1 user is allowed to create
-			"maxPatterns": 100		// maximum number of patterns 1 user is allowed to create
-		},
-		"specRef": {
-			"prefix": "https://bluehorizon.network/documentation/",
-			"suffix": "-node-api"
-		},
-		"objStoreTmpls": {
-			"prefix": "https://tor01.objectstorage.softlayer.net/v1/AUTH_bd05f276-e42f-4fa1-b7b3-780e8544769f",
-			"microDir": "microservice-templates",
-			"workloadDir": "workload-templates",
-			"suffix": ".json"
+			"maxNodes": 1000,		// maximum number of nodes 1 user is allowed to create, 0 for unlimited
+			"maxAgbots": 1000,		// maximum number of agbots 1 user is allowed to create, 0 for unlimited
+			"maxAgreements": 1000,	// maximum number of agreements 1 node or agbot is allowed to create, 0 for unlimited
+			"maxMessagesInMailbox": 500,	// maximum number of msgs currently in 1 node or agbot mailbox (the sending side is handled by rate limiting), 0 for unlimited
+			"maxBlockchains": 100,		// maximum number of BC types or instance definitions 1 user is allowed to create, 0 for unlimited
+			"maxMicroservices": 100,		// maximum number of microservices 1 user is allowed to create, 0 for unlimited
+			"maxWorkloads": 100,		// maximum number of workloads 1 user is allowed to create, 0 for unlimited
+			"maxPatterns": 100		// maximum number of patterns 1 user is allowed to create, 0 for unlimited
 		},
 		"db": {
 			"driverClass": "org.postgresql.Driver",
@@ -39,9 +29,6 @@
 		},
 		"logging": {
 			"level": ""		// default level is INFO. For possible values, see http://logback.qos.ch/apidocs/ch/qos/logback/classic/Level.html
-		},
-		"microservices": {
-			"disable": true		// when disabled, the microservices templates will not be retrieved and returned for PUT /nodes/{id}
 		},
 		"root": {
 			"password": "",			// set this in your own version of this config file

@@ -77,17 +77,16 @@ services in the exchange.
 ### External changes
 
 - Allow queries in another org at the /microservices, /workloads, /patterns, /bctypes/{id}/blockchains level (and only return the public resources)
-- Also add 'public' as a search attribute for microservices, workloads, patterns.
--
+- Added 'public' as a filter attribute for microservices, workloads, patterns.
+- Removed old/unused sections api.specRef, api.objStoreTmpls, and api.microservices from config.json
+- Replaced empty {} return from PUT nodes/{nodeid} with normal code": 201, "msg": "node <id> added or updated"}
 
 ### Todos left to be finished
 
+- support max object equal to 0 to mean unlimited
 - Add node status resource
 - Provide wiotp with a way to update (insert/delete) 1 org/pattern pair in the agbot resource
-- Remove sections specRef and objStoreTmpls from config.json
-- support max object equal to 0 to mean unlimited
 - Do consistency checking of patterns and workloads
-- Remove empty return from PUT nodes/{nodeid} and microservices.disable option from config.json
 - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
 - allow random PW creation for user creation
 - See if there is a way to fix the swagger hack for 2 level resources

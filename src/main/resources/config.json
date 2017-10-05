@@ -13,16 +13,6 @@
 			"maxWorkloads": 100,		// maximum number of workloads 1 user is allowed to create
 			"maxPatterns": 100		// maximum number of patterns 1 user is allowed to create
 		},
-		"specRef": {
-			"prefix": "https://bluehorizon.network/documentation/",
-			"suffix": "-node-api"
-		},
-		"objStoreTmpls": {
-			"prefix": "https://tor01.objectstorage.softlayer.net/v1/AUTH_bd05f276-e42f-4fa1-b7b3-780e8544769f",
-			"microDir": "microservice-templates",
-			"workloadDir": "workload-templates",
-			"suffix": ".json"
-		},
 		"db": {
 			"driverClass": "org.postgresql.Driver",
 			"jdbcUrl": "jdbc:postgresql://sl-us-dal-9-portal.2.dblayer.com:10869/compose",		// the back-end db the exchange uses
@@ -39,9 +29,6 @@
 		},
 		"logging": {
 			"level": ""		// default level is INFO. For possible values, see http://logback.qos.ch/apidocs/ch/qos/logback/classic/Level.html
-		},
-		"microservices": {
-			"disable": true		// when disabled, the microservices templates will not be retrieved and returned for PUT /nodes/{id}
 		},
 		"root": {
 			"password": "",			// set this in your own version of this config file

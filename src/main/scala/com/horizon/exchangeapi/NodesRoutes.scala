@@ -161,7 +161,7 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
     DBIO.seq(actions.toList: _*)
   }
 
-  /** Returns the microservice templates for the registeredMicroservices in this object */
+  /** Not used any more, kept for reference of how to access object store - Returns the microservice templates for the registeredMicroservices in this object
   def getMicroTemplates: Map[String,String] = {
     if (ExchConfig.getBoolean("api.microservices.disable")) return Map[String,String]()
     val resp = new MutableHashMap[String, String]()
@@ -193,6 +193,7 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
     }
     resp.toMap
   }
+  */
 }
 
 case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String]) {
@@ -583,7 +584,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     node.validate()
     // val owner = if (isAuthenticatedUser(creds)) creds.id else ""
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
-    val microTmpls = node.getMicroTemplates      // do this before creating/updating the entry in db, in case it can not find the templates
+    //val microTmpls = node.getMicroTemplates      // do this before creating/updating the entry in db, in case it can not find the templates
     val resp = response
     db.run(NodesTQ.getNumOwned(owner).result.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" num owned: "+xs)
@@ -599,7 +600,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(_) => AuthCache.nodes.putBoth(Creds(id,node.token),owner)    // the token passed in to the cache should be the non-hashed one
           resp.setStatus(HttpCode.PUT_OK)
-          microTmpls
+          //microTmpls
+          ApiResponse(ApiResponseType.OK, "node added or updated")
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, "node '"+id+"' not inserted or updated: "+t.getMessage)

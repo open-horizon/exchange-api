@@ -223,7 +223,12 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
   }
 }
 
-// class PutNodesResponse extends Map[String,String]    // key is micro url (specRef), value is micro template (download info)
+
+case class PutNodeStatusRequest(connectivity: Map[String,Boolean], microservices: List[OneMicroservice], workloads: List[OneWorkload]) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+  def toNodeStatusRow(nodeId: String) = NodeStatusRow(nodeId, write(connectivity), write(microservices), write(workloads), ApiTime.nowUTC)
+}
+
 
 /** Output format for GET /orgs/{orgid}/nodes/{id}/agreements */
 case class GetNodeAgreementsResponse(agreements: Map[String,NodeAgreement], lastIndex: Int)
@@ -627,7 +632,10 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this node to be contacted by agbots, empty string to use the built-in Exchange msg service
   "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the node
   "publicKey": "ABCDEF"      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
-}"""
+}
+```
+
+- **Due to a swagger bug, the format shown below is incorrect. Run the PATCH method to see the response format instead.**"""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be updated."), paramType = ParamType.Path),
@@ -741,11 +749,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
-  /* ====== GET /orgs/{orgid}/nodes/{id}/agreements ================================ */
-  val getNodeAgreements =
-    (apiOperation[GetNodeAgreementsResponse]("getNodeAgreements")
-      summary("Returns all agreements this node is in")
-      notes("""Returns all agreements in the exchange DB that this node is part of. Can be run by a user or the node.
+
+  /* ====== GET /orgs/{orgid}/nodes/{id}/status ================================ */
+  val getNodeStatus =
+    (apiOperation[NodeStatus]("getNodeStatus")
+      summary("Returns the node status")
+      notes("""Returns the node run time status, for example workload container status. Can be run by a user or the node.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -755,19 +764,164 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         )
       )
 
+  get("/orgs/:orgid/nodes/:id/status", operation(getNodeStatus)) ({
+    val orgid = swaggerHack("orgid")
+    val bareId = params("id")   // but do not have a hack/fix for the name
+    val id = OrgAndId(orgid,bareId).toString
+    credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
+    val resp = response
+      db.run(NodeStatusTQ.getNodeStatus(id).result).map({ list =>
+        logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/status result size: "+list.size)
+        if (list.nonEmpty) list.head.toNodeStatus
+        else resp.setStatus(HttpCode.NOT_FOUND)
+      })
+  })
+
+  // =========== PUT /orgs/{orgid}/nodes/{id}/status ===============================
+  val putNodeStatus =
+    (apiOperation[ApiResponse]("putNodeStatus")
+      summary "Adds/updates the node status"
+      notes """Adds or updates the run time status of a node. This is called by the
+        node or owning user. The **request body** structure:
+
+```
+{
+  "connectivity": {
+     "firmware.bluehorizon.network": true,
+      "images.bluehorizon.network": true
+   },
+  "microservices": [
+    {
+      "specRef": "https://bluehorizon.network/microservices/gps",
+      "orgid": "mycompany",
+      "version": "2.0.4",
+      "arch": "amd64",
+      "contanerStatus": [
+        {
+            "name": "/bluehorizon.network-microservices-gps_2.0.4_78a98f1f-2eed-467c-aea2-278fb8161595-gps",
+            "image": "summit.hovitos.engineering/x86/gps:2.0.4",
+            "created": 1505939808,
+            "state": "running"
+        }
+      ]
+    }
+  ],
+  "workloads": [
+    {
+      "agreementId": "78d7912aafb6c11b7a776f77d958519a6dc718b9bd3da36a1442ebb18fe9da30",
+      "workloadUrl":"https://bluehorizon.network/workloads/location",
+      "orgid":"ling.com",
+      "version":"1.2",
+      "arch":"amd64",
+      "containers": [
+        {
+          "name": "/dc23c045eb64e1637d027c4b0236512e89b2fddd3f06290c7b2354421d9d8e0d-location",
+          "image": "summit.hovitos.engineering/x86/location:v1.2",
+          "created": 1506086099,
+          "state": "running"
+        }
+      ]
+    }
+  ]
+}
+```"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node wanting to add/update this status."), paramType = ParamType.Query),
+      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PutNodeStatusRequest],
+        Option[String]("Status object add or update. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      )
+  val putNodeStatus2 = (apiOperation[PutNodeStatusRequest]("putNodeStatus2") summary("a") notes("a"))  // for some bizarre reason, the PutNodeStatusRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  put("/orgs/:orgid/nodes/:id/status", operation(putNodeStatus)) ({
+    val orgid = swaggerHack("orgid")
+    val bareId = params("id")   // but do not have a hack/fix for the name
+    val id = OrgAndId(orgid,bareId).toString
+    credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
+    val status = try { parse(request.body).extract[PutNodeStatusRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    val resp = response
+    db.run(status.toNodeStatusRow(id).upsert.asTry).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)
+      xs match {
+        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "status added or updated")
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "status for node '"+id+"' not inserted or updated: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "status for node '"+id+"' not inserted or updated: "+t.toString)
+        }
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/nodes/{id}/status ===============================
+  val deleteNodeStatus =
+    (apiOperation[ApiResponse]("deleteNodeStatus")
+      summary "Deletes the status of a node"
+      notes "Deletes the status of a node from the exchange DB. Can be run by the owning user or the node."
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node for which the status is to be deleted."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  delete("/orgs/:orgid/nodes/:id/status", operation(deleteNodeStatus)) ({
+    val orgid = swaggerHack("orgid")
+    val bareId = params("id")   // but do not have a hack/fix for the name
+    val id = OrgAndId(orgid,bareId).toString
+    credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
+    val resp = response
+    db.run(NodeStatusTQ.getNodeStatus(id).delete.asTry).map({ xs =>
+      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "node status deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "status for node '"+id+"' not found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "status for node '"+id+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+
+  /* ====== GET /orgs/{orgid}/nodes/{id}/agreements ================================ */
+  val getNodeAgreements =
+    (apiOperation[GetNodeAgreementsResponse]("getNodeAgreements")
+      summary("Returns all agreements this node is in")
+      notes("""Returns all agreements in the exchange DB that this node is part of. Can be run by a user or the node.
+
+- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Query),
+      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
   get("/orgs/:orgid/nodes/:id/agreements", operation(getNodeAgreements)) ({
     val orgid = swaggerHack("orgid")
     val bareId = params("id")   // but do not have a hack/fix for the name
     val id = OrgAndId(orgid,bareId).toString
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
     val resp = response
-      db.run(NodeAgreementsTQ.getAgreements(id).result).map({ list =>
-        logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/agreements result size: "+list.size)
-        val agreements = new MutableHashMap[String, NodeAgreement]
-        if (list.nonEmpty) for (e <- list) { agreements.put(e.agId, e.toNodeAgreement) }
-        else resp.setStatus(HttpCode.NOT_FOUND)
-        GetNodeAgreementsResponse(agreements.toMap, 0)
-      })
+    db.run(NodeAgreementsTQ.getAgreements(id).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/agreements result size: "+list.size)
+      val agreements = new MutableHashMap[String, NodeAgreement]
+      if (list.nonEmpty) for (e <- list) { agreements.put(e.agId, e.toNodeAgreement) }
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      GetNodeAgreementsResponse(agreements.toMap, 0)
+    })
   })
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/agreements/{agid} ================================ */

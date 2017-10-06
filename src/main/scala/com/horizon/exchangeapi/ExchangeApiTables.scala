@@ -16,7 +16,7 @@ object ExchangeApiTables {
   // Create all of the current version's tables - used in /admin/initdb
   val create = (
     SchemaTQ.rows.schema ++ OrgsTQ.rows.schema ++ UsersTQ.rows.schema
-      ++ NodesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ NodeAgreementsTQ.rows.schema
+      ++ NodesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ NodeAgreementsTQ.rows.schema ++ NodeStatusTQ.rows.schema
       ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema
       ++ NodeMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema
       ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ PatternsTQ.rows.schema
@@ -40,7 +40,7 @@ object ExchangeApiTables {
     sqlu"drop table if exists nodemsgs", sqlu"drop table if exists agbotmsgs",     // these depend on both nodes and agbots
     sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots",
     sqlu"drop table if exists devagreements",   // from older schema
-    sqlu"drop table if exists nodeagreements",
+    sqlu"drop table if exists nodeagreements", sqlu"drop table if exists nodestatus",
     sqlu"drop table if exists properties",
     sqlu"drop table if exists microservices", sqlu"drop table if exists devmicros", sqlu"drop table if exists devices",   // from older schema
     sqlu"drop table if exists nodemicros", sqlu"drop table if exists nodes",
@@ -55,7 +55,7 @@ object ExchangeApiTables {
   // val unAlterTables = DBIO.seq(sqlu"alter table nodes add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
 
   // Used to delete just the new tables in this version (so we can recreate) - used by /admin/unupgradedb
-  val deleteNewTables = DBIO.seq(sqlu"drop table orgs")
+  val deleteNewTables = DBIO.seq(sqlu"drop table if exists nodestatus")
 
   /** Returns a db action that queries each table and dumps it to a file in json format - used in /admin/dumptables and /admin/migratedb */
   def dump(dumpDir: String, dumpSuffix: String)(implicit logger: Logger): DBIO[_] = {

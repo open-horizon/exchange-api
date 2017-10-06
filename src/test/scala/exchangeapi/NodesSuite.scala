@@ -750,6 +750,35 @@ class NodesSuite extends FunSuite {
     assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
   }
 
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
+    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneMicroservice](), List[OneWorkload]())
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
+    val response = Http(URL+"/nodes/"+nodeId+"/status").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getResp = parse(response.body).extract[NodeStatus]
+    assert(getResp.connectivity.get("images.bluehorizon.network").get === true)
+  }
+
+  test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
+    val response = Http(URL+"/nodes/"+nodeId+"/status").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node - should not be there") {
+    val response = Http(URL+"/nodes/"+nodeId+"/status").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
+
   /** Add an agreement for node 9900 - as the node */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - as node") {
     val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)), NAWorkload(orgid,patid,SDRSPEC), "signed")

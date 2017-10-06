@@ -5,7 +5,7 @@
 SHELL = /bin/bash -e
 ARCH ?= x86
 DOCKER_NAME ?= exchange-api
-DOCKER_TAG ?= v1.36.0
+DOCKER_TAG ?= v1.37.0
 DOCKER_OPTS ?= --no-cache
 COMPILE_CLEAN ?= clean
 image-string = $(DOCKER_REGISTRY)/$(ARCH)/exchange-api

@@ -219,6 +219,14 @@ else
     echo "orgs/$orgid2/agbots/$agbotid exists"
 fi
 
+rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/status")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/status" '{ "connectivity": {"firmware.bluehorizon.network": true}, "microservices": [], "workloads": [] }'
+else
+    echo "orgs/$orgid/nodes/$nodeid/status exists"
+fi
+
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then

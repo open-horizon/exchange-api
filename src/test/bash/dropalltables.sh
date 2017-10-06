@@ -9,10 +9,16 @@ if [[ -z $EXCHANGE_ROOTPW ]]; then
 fi
 
 # You can override this as an env var before running this script
-EXCHANGE_URL_ROOT="${EXCHANGE_URL_ROOT:-http://localhost:8080}"
+LOCAL_EXCHANGE="http://localhost:8080"
+EXCHANGE_URL_ROOT="${EXCHANGE_URL_ROOT:-$LOCAL_EXCHANGE}"
 
 if [[ $1 != "--yesdoit"  ]]; then
 	echo "Specify the flag --yesdoit to delete all of the data from $EXCHANGE_URL_ROOT"
+	exit 0
+fi
+
+if [[ $EXCHANGE_URL_ROOT != $LOCAL_EXCHANGE && $2 != "--iknowthisisnotlocal"  ]]; then
+	echo "You are trying to delete all of the data from remote exchange $EXCHANGE_URL_ROOT. Specify additional flag --iknowthisisnotlocal"
 	exit 0
 fi
 

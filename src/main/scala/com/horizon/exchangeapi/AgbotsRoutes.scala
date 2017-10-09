@@ -4,7 +4,7 @@ package com.horizon.exchangeapi
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization.write
+//import org.json4s.jackson.Serialization.write
 import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
@@ -26,7 +26,7 @@ case class PutAgbotsRequestOld(token: String, name: String, msgEndPoint: String)
   */
 
 /** Input format for PUT /orgs/{orgid}/agbots/<agbot-id> */
-case class PutAgbotsRequest(token: String, name: String, patterns: List[APattern], msgEndPoint: String, publicKey: String) {
+case class PutAgbotsRequest(token: String, name: String, /*patterns: List[APattern],*/ msgEndPoint: String, publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
     // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /nodes/{id}/msgs checks for the publicKey
@@ -34,13 +34,13 @@ case class PutAgbotsRequest(token: String, name: String, patterns: List[APattern
   }
 
   /** Get the db queries to insert or update the agbot */
-  def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, write(patterns), msgEndPoint, ApiTime.nowUTC, publicKey).upsert
+  def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, /*write(patterns),*/ msgEndPoint, ApiTime.nowUTC, publicKey).upsert
 
   /** Get the db queries to update the agbot */
-  def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, write(patterns), msgEndPoint, ApiTime.nowUTC, publicKey).update
+  def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, /*write(patterns),*/ msgEndPoint, ApiTime.nowUTC, publicKey).update
 }
 
-case class PatchAgbotsRequest(token: Option[String], name: Option[String], patterns: Option[List[APattern]], msgEndPoint: Option[String], publicKey: Option[String]) {
+case class PatchAgbotsRequest(token: Option[String], name: Option[String], /*patterns: Option[List[APattern]],*/ msgEndPoint: Option[String], publicKey: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the agbot, and the attribute name being updated. */
@@ -55,10 +55,24 @@ case class PatchAgbotsRequest(token: Option[String], name: Option[String], patte
       case _ => ;
     }
     name match { case Some(name2) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name2, lastHeartbeat)), "name"); case _ => ; }
-    patterns match { case Some(pat) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.patterns,d.lastHeartbeat)).update((id, write(pat), lastHeartbeat)), "patterns"); case _ => ; }
+    //patterns match { case Some(pat) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.patterns,d.lastHeartbeat)).update((id, write(pat), lastHeartbeat)), "patterns"); case _ => ; }
     msgEndPoint match { case Some(msgEndPoint2) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint2, lastHeartbeat)), "msgEndPoint"); case _ => ; }
     publicKey match { case Some(publicKey2) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey2, lastHeartbeat)), "publicKey"); case _ => ; }
     return (null, null)
+  }
+}
+
+
+/** Output format for GET /orgs/{orgid}/agbots/{id}/patterns */
+case class GetAgbotPatternsResponse(patterns: Map[String,AgbotPattern])
+
+/** Input format for PUT /orgs/{orgid}/agbots/{id}/patterns/<pattern-id> */
+case class PutAgbotPatternRequest(patternOrgid: String, pattern: String) {
+  def toAgbotPattern = AgbotPattern(patternOrgid, pattern, ApiTime.nowUTC)
+  def toAgbotPatternRow(agbotId: String, patId: String) = AgbotPatternRow(patId, agbotId, patternOrgid, pattern, ApiTime.nowUTC)
+  def formId = patternOrgid + "_" + pattern
+  def validate(patId: String) = {
+    if (patId != formId) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the pattern id should be in the form patternOrgid_pattern"))
   }
 }
 
@@ -185,9 +199,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 {
   "token": "abc",       // agbot token, set by user when adding this agbot
   "name": "agbot3",         // agbot name that you pick
-  "patterns": [          // the patterns this agbot should serve
-    { "orgid": "myorg", "pattern": "mypattern" }
-  ],
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this agbot to be contacted by agbots, empty string to use the built-in Exchange msg service
   "publicKey": "ABCDEF"      // used by nodes to encrypt msgs sent to this agbot using the built-in Exchange msg service
 }
@@ -258,9 +269,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 {
   "token": "abc",       // agbot token, set by user when adding this agbot.
   "name": "rpi3",         // agbot name that you pick
-  "patterns": [          // the patterns this agbot should serve
-    { "orgid": "myorg", "pattern": "mypattern" }
-  ],
   "msgEndPoint": "whisper-id",    // msg service endpoint id for this agbot to be contacted by agbots, empty string to use the built-in Exchange msg service
   "publicKey": "ABCDEF"      // used by agbots to encrypt msgs sent to this agbot using the built-in Exchange msg service
 }
@@ -379,6 +387,192 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     })
   })
 
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  /* ====== GET /orgs/{orgid}/agbots/{id}/patterns ================================ */
+  val getAgbotPatterns =
+    (apiOperation[GetAgbotPatternsResponse]("getAgbotPatterns")
+      summary("Returns all patterns served by this agbot")
+      notes("""Returns all patterns that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.
+
+- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
+        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  get("/orgs/:orgid/agbots/:id/patterns", operation(getAgbotPatterns)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
+    val resp = response
+    db.run(AgbotPatternsTQ.getPatterns(compositeId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/patterns result size: "+list.size)
+      logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/patterns result: "+list.toString)
+      val patterns = new MutableHashMap[String, AgbotPattern]
+      if (list.nonEmpty) for (e <- list) { patterns.put(e.patId, e.toAgbotPattern) }
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      GetAgbotPatternsResponse(patterns.toMap)
+    })
+  })
+
+  /* ====== GET /orgs/{orgid}/agbots/{id}/patterns/{patid} ================================ */
+  val getOneAgbotPattern =
+    (apiOperation[GetAgbotPatternsResponse]("getOneAgbotPattern")
+      summary("Returns a pattern this agbot is serving")
+      notes("""Returns the pattern with the specified patid for the specified agbot id. The patid should be in the form patternOrgid_pattern. Can be run by the owning user or the agbot. **Because of a swagger bug this method can not be run via swagger.**
+
+- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
+        Parameter("patid", DataType.String, Option[String]("ID of the pattern."), paramType=ParamType.Query),
+        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  get("/orgs/:orgid/agbots/:id/patterns/:patid", operation(getOneAgbotPattern)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    val patId = params("patid")
+    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
+    val resp = response
+    db.run(AgbotPatternsTQ.getPattern(compositeId, patId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/patterns/"+patId+" result: "+list.toString)
+      val patterns = new MutableHashMap[String, AgbotPattern]
+      if (list.nonEmpty) for (e <- list) { patterns.put(e.patId, e.toAgbotPattern) }
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      GetAgbotPatternsResponse(patterns.toMap)
+    })
+  })
+
+  // =========== PUT /orgs/{orgid}/agbots/{id}/patterns/{patid} ===============================
+  val putAgbotPattern =
+    (apiOperation[ApiResponse]("putAgbotPattern")
+      summary "Adds/updates a pattern that the agbot should serve"
+      notes """Adds a new pattern, or updates an existing pattern, that this agbot should find nodes for to make agreements with them. This is called by the owning user or the
+        agbot to give their information about the pattern. The **request body** structure:
+
+```
+{
+  "patternOrgid": "myorg",
+  "pattern": "mypattern"
+}
+```"""
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add/update this pattern."), paramType = ParamType.Query),
+        Parameter("patid", DataType.String, Option[String]("ID of the pattern to be added/updated."), paramType = ParamType.Path),
+        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PutAgbotPatternRequest],
+          Option[String]("Pattern object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+        )
+      )
+  val putAgbotPattern2 = (apiOperation[PutAgbotPatternRequest]("putPattern2") summary("a") notes("a"))  // for some bizarre reason, the PutPatternsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  put("/orgs/:orgid/agbots/:id/patterns/:patid", operation(putAgbotPattern)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    val patId = params("patid")
+    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    val pattern = try { parse(request.body).extract[PutAgbotPatternRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    pattern.validate(patId)
+    val resp = response
+    db.run(pattern.toAgbotPatternRow(compositeId, patId).upsert.asTry).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/patterns/"+patId+" result: "+xs.toString)
+      xs match {
+        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "pattern added or updated")
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+            resp.setStatus(HttpCode.ACCESS_DENIED)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.getMessage)
+          } else {
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.toString)
+          }
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/agbots/{id}/patterns ===============================
+  val deleteAgbotAllPattern =
+    (apiOperation[ApiResponse]("deleteAgbotAllPattern")
+      summary "Deletes all patterns of a agbot"
+      notes "Deletes all of the current patterns that this agbot was serving. Can be run by the owning user or the agbot."
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the pattern is to be deleted."), paramType = ParamType.Path),
+        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  delete("/orgs/:orgid/agbots/:id/patterns", operation(deleteAgbotAllPattern)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    val resp = response
+    db.run(AgbotPatternsTQ.getPatterns(compositeId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/patterns result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+            resp.setStatus(HttpCode.DELETED)
+            ApiResponse(ApiResponseType.OK, "agbot patterns deleted")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "no patterns for agbot '"+compositeId+"' found")
+          }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "patterns for agbot '"+compositeId+"' not deleted: "+t.toString)
+        }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/agbots/{id}/patterns/{patid} ===============================
+  val deleteAgbotPattern =
+    (apiOperation[ApiResponse]("deleteAgbotPattern")
+      summary "Deletes a pattern of a agbot"
+      notes "Deletes a pattern that this agbot was serving. Can be run by the owning user or the agbot."
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the pattern is to be deleted."), paramType = ParamType.Path),
+        Parameter("patid", DataType.String, Option[String]("ID of the pattern to be deleted."), paramType = ParamType.Path),
+        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      )
+
+  delete("/orgs/:orgid/agbots/:id/patterns/:patid", operation(deleteAgbotPattern)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    val patId = params("patid")
+    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    val resp = response
+    db.run(AgbotPatternsTQ.getPattern(compositeId,patId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/patterns/"+patId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+            resp.setStatus(HttpCode.DELETED)
+            ApiResponse(ApiResponseType.OK, "agbot pattern deleted")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+patId+"' for agbot '"+compositeId+"' not found")
+          }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+patId+"' for agbot '"+compositeId+"' not deleted: "+t.toString)
+        }
+    })
+  })
+
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
   /* ====== GET /orgs/{orgid}/agbots/{id}/agreements ================================ */
   val getAgbotAgreements =
     (apiOperation[GetAgbotAgreementsResponse]("getAgbotAgreements")
@@ -387,10 +581,10 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
+      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
       )
 
   get("/orgs/:orgid/agbots/:id/agreements", operation(getAgbotAgreements)) ({
@@ -417,11 +611,11 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
-        Parameter("agid", DataType.String, Option[String]("ID of the agreement."), paramType=ParamType.Query),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
+      Parameter("agid", DataType.String, Option[String]("ID of the agreement."), paramType=ParamType.Query),
+      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
       )
 
   get("/orgs/:orgid/agbots/:id/agreements/:agid", operation(getOneAgbotAgreement)) ({
@@ -458,14 +652,14 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 }
 ```"""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add/update this agreement."), paramType = ParamType.Query),
-        Parameter("agid", DataType.String, Option[String]("ID of the agreement to be added/updated."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PutAgbotAgreementRequest],
-          Option[String]("Agreement object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add/update this agreement."), paramType = ParamType.Query),
+      Parameter("agid", DataType.String, Option[String]("ID of the agreement to be added/updated."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PutAgbotAgreementRequest],
+        Option[String]("Agreement object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
       )
   val putAgbotAgreement2 = (apiOperation[PutAgbotAgreementRequest]("putAgreement2") summary("a") notes("a"))  // for some bizarre reason, the PutAgreementsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -492,12 +686,12 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, "agreement added or updated")
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-            resp.setStatus(HttpCode.ACCESS_DENIED)
-            ApiResponse(ApiResponseType.ACCESS_DENIED, "agreement '"+agrId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.getMessage)
-          } else {
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agrId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.toString)
-          }
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "agreement '"+agrId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agrId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.toString)
+        }
       }
     })
   })
@@ -508,10 +702,10 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary "Deletes all agreements of a agbot"
       notes "Deletes all of the current agreements of a agbot from the exchange DB. Can be run by the owning user or the agbot."
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
       )
 
   delete("/orgs/:orgid/agbots/:id/agreements", operation(deleteAgbotAllAgreement)) ({
@@ -524,15 +718,15 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.debug("DELETE /agbots/"+id+"/agreements result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, "agbot agreements deleted")
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for agbot '"+compositeId+"' found")
-          }
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "agbot agreements deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for agbot '"+compositeId+"' found")
+        }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreements for agbot '"+compositeId+"' not deleted: "+t.toString)
-        }
+      }
     })
   })
 
@@ -542,11 +736,11 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       summary "Deletes an agreement of a agbot"
       notes "Deletes an agreement of a agbot from the exchange DB. Can be run by the owning user or the agbot."
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
-        Parameter("agid", DataType.String, Option[String]("ID of the agreement to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
+      Parameter("agid", DataType.String, Option[String]("ID of the agreement to be deleted."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
       )
 
   delete("/orgs/:orgid/agbots/:id/agreements/:agid", operation(deleteAgbotAgreement)) ({
@@ -560,17 +754,18 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.debug("DELETE /agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, "agbot agreement deleted")
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "agreement '"+agrId+"' for agbot '"+compositeId+"' not found")
-          }
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "agbot agreement deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "agreement '"+agrId+"' for agbot '"+compositeId+"' not found")
+        }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agrId+"' for agbot '"+compositeId+"' not deleted: "+t.toString)
-        }
+      }
     })
   })
+
 
   /* Not using these for data verification, but might in the future...
   // =========== POST /agbots/{id}/dataheartbeat ===============================
@@ -812,9 +1007,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val getAgbotMsgs =
     (apiOperation[GetAgbotMsgsResponse]("getAgbotMsgs")
       summary("Returns all msgs sent to this agbot")
-      notes("""Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      notes("""Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),

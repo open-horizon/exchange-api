@@ -17,7 +17,7 @@ object ExchangeApiTables {
   val create = (
     SchemaTQ.rows.schema ++ OrgsTQ.rows.schema ++ UsersTQ.rows.schema
       ++ NodesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ NodeAgreementsTQ.rows.schema ++ NodeStatusTQ.rows.schema
-      ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema
+      ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ AgbotPatternsTQ.rows.schema
       ++ NodeMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema
       ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ PatternsTQ.rows.schema
     ).create
@@ -38,7 +38,7 @@ object ExchangeApiTables {
     sqlu"drop table if exists mmicroservices",       // from older schema
     sqlu"drop table if exists devmsgs",   // from older schema
     sqlu"drop table if exists nodemsgs", sqlu"drop table if exists agbotmsgs",     // these depend on both nodes and agbots
-    sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots",
+    sqlu"drop table if exists agbotpatterns", sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots",
     sqlu"drop table if exists devagreements",   // from older schema
     sqlu"drop table if exists nodeagreements", sqlu"drop table if exists nodestatus",
     sqlu"drop table if exists properties",

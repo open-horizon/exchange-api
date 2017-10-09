@@ -78,7 +78,7 @@ case class BlockchainRow(name: String, bctype: String, orgid: String, descriptio
 class Blockchains(tag: Tag) extends Table[BlockchainRow](tag, "blockchains") {
   // def name = column[String]("name", O.PrimaryKey)     // name is not necessarily unique across all BC types, so need the type as a 2nd key
   def name = column[String]("name")     // name is not necessarily unique across all BC types, so need the type as a 2nd key
-  def bctype = column[String]("bctype")
+  def bctype = column[String]("bctype")   // another key - see below
   def orgid = column[String]("orgid")
   def description = column[String]("description")
   def definedBy = column[String]("definedby")

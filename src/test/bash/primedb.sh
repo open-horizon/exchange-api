@@ -206,15 +206,23 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "patterns": [{ "orgid": "'$orgid'", "pattern": "'$patid'" }], "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
+    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
 else
     echo "orgs/$orgid/agbots/$agbotid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_$patid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_$patid" '{ "patternOrgid": "'$orgid'", "pattern": "'$patid'" }'
+else
+    echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_$patid exists"
 fi
 
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/agbots/$agbotid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "patterns": [{ "orgid": "'$orgid2'", "pattern": "'$patid'" }], "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
+    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
 else
     echo "orgs/$orgid2/agbots/$agbotid exists"
 fi

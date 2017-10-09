@@ -72,16 +72,15 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
-## Changes Between v1.36.0 and v1.37.0
+## Changes Between v1.37.0 and v1.38.0
 
 ### External changes
 
-- Added PUT/GET/DELETE /orgs/{id}/nodes/{id}/status
-- If you are coming from v1.35.0 or v1.36.0, you can run POST /admin/upgradedb (which preserves the data). If coming from an earlier version, you must drop all of the tables and run POST /admin/initdb.
+- Added PUT/GET/DELETE /orgs/{id}/agbots/{id}/patterns/{id} and removed the patterns field from the agbot resource. This allows each org/pattern pair of an agbot to be managed individually.
+- If you are coming from exchange versions 1.35 - 37, you can run POST /admin/upgradedb (which preserves the data). If coming from an earlier version, you must drop all of the tables and run POST /admin/initdb.
 
 ### Todos left to be finished
 
-- Provide wiotp with a way to update (insert/delete) 1 org/pattern pair in the agbot resource
 - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
 - Allow random PW creation for user creation
 - Add an unauthenticated admin status rest api
@@ -90,6 +89,14 @@ services in the exchange.
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 - Any other schema changes?
+
+
+## Changes Between v1.36.0 and v1.37.0
+
+### External changes
+
+- Added PUT/GET/DELETE /orgs/{id}/nodes/{id}/status
+- If you are coming from v1.35.0 or v1.36.0, you can run POST /admin/upgradedb (which preserves the data). If coming from an earlier version, you must drop all of the tables and run POST /admin/initdb.
 
 
 ## Changes Between v1.35.0 and v1.36.0

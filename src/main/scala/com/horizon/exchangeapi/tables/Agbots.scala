@@ -2,33 +2,33 @@ package com.horizon.exchangeapi.tables
 // import slick.driver.PostgresDriver.api._
 import com.horizon.exchangeapi._
 import org.json4s._
-import org.json4s.jackson.Serialization.read
+//import org.json4s.jackson.Serialization.read
 import slick.jdbc.PostgresProfile.api._
 
 
 /** Contains the object representations of the DB tables related to agbots. */
-case class APattern(orgid: String, pattern: String)
+//case class APattern(orgid: String, pattern: String)
 
-case class AgbotRow(id: String, orgid: String, token: String, name: String, owner: String, patterns: String, msgEndPoint: String, lastHeartbeat: String, publicKey: String) {
+case class AgbotRow(id: String, orgid: String, token: String, name: String, owner: String, /*patterns: String,*/ msgEndPoint: String, lastHeartbeat: String, publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toAgbot(superUser: Boolean): Agbot = {
     val tok = if (superUser) token else StrConstants.hiddenPw
-    val pat = if (patterns != "") read[List[APattern]](patterns) else List[APattern]()
-    new Agbot(tok, name, owner, pat, msgEndPoint, lastHeartbeat, publicKey)
+    //val pat = if (patterns != "") read[List[APattern]](patterns) else List[APattern]()
+    new Agbot(tok, name, owner, /*pat,*/ msgEndPoint, lastHeartbeat, publicKey)
   }
 
   def upsert: DBIO[_] = {
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
     // If owner is root, do not set owner so we do not take over a user's agbot. It will default to root if upsert turns out to be a insert
-    if (Role.isSuperUser(owner)) AgbotsTQ.rows.map(a => (a.id, a.orgid, a.token, a.name, a.patterns, a.msgEndPoint, a.lastHeartbeat, a.publicKey)).insertOrUpdate((id, orgid, tok, name, patterns, msgEndPoint, lastHeartbeat, publicKey))
-    else AgbotsTQ.rows.insertOrUpdate(AgbotRow(id, orgid, tok, name, owner, patterns, msgEndPoint, lastHeartbeat, publicKey))
+    if (Role.isSuperUser(owner)) AgbotsTQ.rows.map(a => (a.id, a.orgid, a.token, a.name, /*a.patterns,*/ a.msgEndPoint, a.lastHeartbeat, a.publicKey)).insertOrUpdate((id, orgid, tok, name, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey))
+    else AgbotsTQ.rows.insertOrUpdate(AgbotRow(id, orgid, tok, name, owner, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey))
   }
 
   def update: DBIO[_] = {
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (owner == "") (for { a <- AgbotsTQ.rows if a.id === id } yield (a.id,a.orgid,a.token,a.name,a.patterns,a.msgEndPoint,a.lastHeartbeat,a.publicKey)).update((id, orgid, tok, name, patterns, msgEndPoint, lastHeartbeat, publicKey))
-    else (for { a <- AgbotsTQ.rows if a.id === id } yield a).update(AgbotRow(id, orgid, tok, name, owner, patterns, msgEndPoint, lastHeartbeat, publicKey))
+    if (owner == "") (for { a <- AgbotsTQ.rows if a.id === id } yield (a.id,a.orgid,a.token,a.name,/*a.patterns,*/a.msgEndPoint,a.lastHeartbeat,a.publicKey)).update((id, orgid, tok, name, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey))
+    else (for { a <- AgbotsTQ.rows if a.id === id } yield a).update(AgbotRow(id, orgid, tok, name, owner, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey))
   }
 }
 
@@ -39,12 +39,12 @@ class Agbots(tag: Tag) extends Table[AgbotRow](tag, "agbots") {
   def token = column[String]("token")
   def name = column[String]("name")
   def owner = column[String]("owner", O.Default(Role.superUser))  // root is the default because during upserts by root, we do not want root to take over the agbot if it already exists
-  def patterns = column[String]("patterns")
+  //def patterns = column[String]("patterns")
   def msgEndPoint = column[String]("msgendpoint")
   def lastHeartbeat = column[String]("lastheartbeat")
   def publicKey = column[String]("publickey")
   // this describes what you get back when you return rows from a query
-  def * = (id, orgid, token, name, owner, patterns, msgEndPoint, lastHeartbeat, publicKey) <> (AgbotRow.tupled, AgbotRow.unapply)
+  def * = (id, orgid, token, name, owner, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey) <> (AgbotRow.tupled, AgbotRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -78,9 +78,36 @@ object AgbotsTQ {
 }
 
 // This is the agbot table minus the key - used as the data structure to return to the REST clients
-class Agbot(var token: String, var name: String, var owner: String, var patterns: List[APattern], var msgEndPoint: String, var lastHeartbeat: String, var publicKey: String) {
-  def copy = new Agbot(token, name, owner, patterns, msgEndPoint, lastHeartbeat, publicKey)
+class Agbot(var token: String, var name: String, var owner: String, /*var patterns: List[APattern],*/ var msgEndPoint: String, var lastHeartbeat: String, var publicKey: String) {
+  def copy = new Agbot(token, name, owner, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey)
 }
+
+
+case class AgbotPatternRow(patId: String, agbotId: String, patternOrgid: String, pattern: String, lastUpdated: String) {
+  def toAgbotPattern = AgbotPattern(patternOrgid, pattern, lastUpdated)
+
+  def upsert: DBIO[_] = AgbotPatternsTQ.rows.insertOrUpdate(this)
+}
+
+class AgbotPatterns(tag: Tag) extends Table[AgbotPatternRow](tag, "agbotpatterns") {
+  def patId = column[String]("patid")     // key - this is the pattern's org concatenated with the patter name
+  def agbotId = column[String]("agbotid")               // additional key - the composite orgid/agbotid
+  def patternOrgid = column[String]("patternorgid")
+  def pattern = column[String]("pattern")
+  def lastUpdated = column[String]("lastupdated")
+  def * = (patId, agbotId, patternOrgid, pattern, lastUpdated) <> (AgbotPatternRow.tupled, AgbotPatternRow.unapply)
+  def primKey = primaryKey("pk_agp", (patId, agbotId))
+  def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object AgbotPatternsTQ {
+  val rows = TableQuery[AgbotPatterns]
+
+  def getPatterns(agbotId: String) = rows.filter(_.agbotId === agbotId)
+  def getPattern(agbotId: String, patId: String) = rows.filter( r => {r.agbotId === agbotId && r.patId === patId} )
+}
+
+case class AgbotPattern(patternOrgid: String, pattern: String, lastUpdated: String)
 
 
 case class AAWorkload(orgid: String, pattern: String, url: String)

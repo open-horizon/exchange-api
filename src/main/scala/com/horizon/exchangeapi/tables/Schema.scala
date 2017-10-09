@@ -38,14 +38,14 @@ class SchemaTable(tag: Tag) extends Table[SchemaRow](tag, "schema") {
 // Instance to access the schemas table
 object SchemaTQ {
   def latestSchemaVersion = upgradeSchemaVector.size - 1
-  val latestSchemaDescription = "Added nodestatus table"
 
   // Each index in this vector contains the db schema upgrade actions to get from (index-1) version to (index) version
   val upgradeSchemaVector = Vector(
     /* 0 */ DBIO.seq(),       // no changes needed to get to time zero
-    /* 1 */ DBIO.seq(NodeStatusTQ.rows.schema.create)
-    /* 2  DBIO.seq(sqlu"alter table agbots add column foobar character varying not null default ''")*/
+    /* 1 */ DBIO.seq(NodeStatusTQ.rows.schema.create),
+    /* 2 */ DBIO.seq(sqlu"alter table agbots drop column patterns", AgbotPatternsTQ.rows.schema.create)
   )
+  val latestSchemaDescription = "Added agbotpatterns table and dropped the patterns column from agbot table"
 
   val rows = TableQuery[SchemaTable]
 

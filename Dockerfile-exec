@@ -1,4 +1,5 @@
-FROM jetty:latest
+ARG JETTY_VERSION
+FROM jetty:$JETTY_VERSION
 #FROM jetty:alpine
 MAINTAINER bruce potter <bp@us.ibm.com>
 
@@ -7,12 +8,14 @@ ARG SCALA_VERSION_SHORT
 ARG EXCHANGE_API_WAR_VERSION
 
 # install tools we want available
+USER root
 RUN apt-get update && apt-get install -y vim
 #RUN apk update && apk add curl vim
 
 # install scala
 RUN curl -s http://downloads.lightbend.com/scala/$SCALA_VERSION/scala-$SCALA_VERSION.tgz | tar -zx -C /usr/local/share
 RUN ln -s `ls -1dr /usr/local/share/scala-2* | head -1` /usr/local/share/scala
+USER jetty
 ENV PATH="/usr/local/share/scala/bin:$PATH"
 
 # copy exchange war file to jetty-base and start it. This listens on port 8080

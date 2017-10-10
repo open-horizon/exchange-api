@@ -253,7 +253,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - create agbot") {
-    val input = PutAgbotsRequest(agbotToken, agbotId+"name", List[APattern](), "whisper-id", "AGBOTABC")
+    val input = PutAgbotsRequest(agbotToken, agbotId+"name", /*List[APattern](),*/ "whisper-id", "AGBOTABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)

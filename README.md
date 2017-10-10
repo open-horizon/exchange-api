@@ -72,16 +72,14 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
-## Changes Between v1.37.0 and v1.38.0
+## Changes in v1.39.0
 
 ### External changes
-
-- Added PUT/GET/DELETE /orgs/{id}/agbots/{id}/patterns/{id} and removed the patterns field from the agbot resource. This allows each org/pattern pair of an agbot to be managed individually.
-- If you are coming from exchange versions 1.35 - 37, you can run POST /admin/upgradedb (which preserves the data). If coming from an earlier version, you must drop all of the tables and run POST /admin/initdb.
 
 ### Todos left to be finished
 
 - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
+- Add api for wiotp to get number of devices and agreements
 - Allow random PW creation for user creation
 - Add an unauthenticated admin status rest api
 - Figure out how to set "Response Class (Status 200)" in swagger
@@ -91,7 +89,15 @@ services in the exchange.
 - Any other schema changes?
 
 
-## Changes Between v1.36.0 and v1.37.0
+## Changes in v1.38.0
+
+### External changes
+
+- Added PUT/GET/DELETE /orgs/{id}/agbots/{id}/patterns/{id} and removed the patterns field from the agbot resource. This allows each org/pattern pair of an agbot to be managed individually.
+- If you are coming from exchange versions 1.35 - 37, you can run POST /admin/upgradedb (which preserves the data). If coming from an earlier version, you must drop all of the tables and run POST /admin/initdb.
+
+
+## Changes in v1.37.0
 
 ### External changes
 
@@ -99,7 +105,7 @@ services in the exchange.
 - If you are coming from v1.35.0 or v1.36.0, you can run POST /admin/upgradedb (which preserves the data). If coming from an earlier version, you must drop all of the tables and run POST /admin/initdb.
 
 
-## Changes Between v1.35.0 and v1.36.0
+## Changes in v1.36.0
 
 ### External changes
 
@@ -110,11 +116,11 @@ services in the exchange.
 - Supported config.json api.limits.* equal to 0 to mean unlimited
 
 
-## Changes Between v1.34.0 and v1.35.0
+## Changes in v1.35.0
 
 - Fixed bug in which users, agbots, and nodes couldn't read their own org
 
-## Changes Between v1.33.0 and v1.34.0
+## Changes in v1.34.0
 
 ### Limitations
 
@@ -131,7 +137,7 @@ services in the exchange.
 - Added schema table to store the current db schema and changed /admin/upgradedb to use that to upgrade correctly from any version. In this version of the exchange you still need to dropdb/initdb, but for all subsequent versions you should be able to use /admin/upgradedb.
 
 
-## Changes Between v1.32.0 and v1.33.0
+## Changes in v1.33.0
 
 ### Limitations
 
@@ -142,7 +148,7 @@ services in the exchange.
 - Quick fix to not require a slash in the node pattern attribute if it is blank
 
 
-## Changes Between v1.31.0 and v1.32.0
+## Changes in v1.32.0
 
 ### Limitations
 

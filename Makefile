@@ -5,12 +5,13 @@
 SHELL = /bin/bash -e
 ARCH ?= x86
 DOCKER_NAME ?= exchange-api
-DOCKER_TAG ?= v1.38.0
+DOCKER_TAG ?= v1.39.0
 DOCKER_OPTS ?= --no-cache
 COMPILE_CLEAN ?= clean
 image-string = $(DOCKER_REGISTRY)/$(ARCH)/exchange-api
 
 # Some of these vars are also used by the Dockerfiles
+JETTY_VERSION ?= 9.4
 # SCALA_VERSION ?= 2.11.8
 # SCALA_VERSION_SHORT ?= 2.11
 # try to sync this version with the version of scala you have installed on your dev machine, and with what is specified in build.scala
@@ -66,8 +67,8 @@ docker: .docker-exec
 	@touch $@
 
 .docker-exec: .docker-compile
-	docker build -t $(image-string):$(DOCKER_TAG) $(DOCKER_OPTS) -f Dockerfile-exec --build-arg SCALA_VERSION=$(SCALA_VERSION) --build-arg SCALA_VERSION_SHORT=$(SCALA_VERSION_SHORT) --build-arg EXCHANGE_API_WAR_VERSION=$(EXCHANGE_API_WAR_VERSION) .
-	docker tag $(image-string):$(DOCKER_TAG) $(image-string):volcanostaging
+	docker pull jetty:$(JETTY_VERSION)
+	docker build -t $(image-string):$(DOCKER_TAG) $(DOCKER_OPTS) -f Dockerfile-exec --build-arg JETTY_VERSION=$(JETTY_VERSION) --build-arg SCALA_VERSION=$(SCALA_VERSION) --build-arg SCALA_VERSION_SHORT=$(SCALA_VERSION_SHORT) --build-arg EXCHANGE_API_WAR_VERSION=$(EXCHANGE_API_WAR_VERSION) .
 	@touch $@
 
 # rem-docker-exec:
@@ -86,6 +87,7 @@ docker: .docker-exec
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:
 	docker push $(image-string):$(DOCKER_TAG)
+	docker tag $(image-string):$(DOCKER_TAG) $(image-string):volcanostaging
 	docker push $(image-string):volcanostaging
 
 # Push the image with the explicit version tag (so someone else can test it), but do not push the volcanostaging tag so it does not get deployed to stg yet

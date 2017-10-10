@@ -179,7 +179,7 @@ class NodesSuite extends FunSuite {
           Prop("cpus","2","int",">="),
           Prop("version","1.0.0","version","in")))
       ),
-      "whisper-id", Map("horizon"->"3.2.3"), "OLDNODEABC")
+      "", Map("horizon"->"3.2.3"), "OLDNODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -200,7 +200,7 @@ class NodesSuite extends FunSuite {
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("version","1.0.0","version","in")))
       ),
-      "whisper-id", Map("horizon"->"3.2.1"), "NODEABC")
+      "", Map("horizon"->"3.2.1"), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -288,7 +288,7 @@ class NodesSuite extends FunSuite {
 
   /** Add an agbot so we can test it viewing nodes */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId) {
-    val input = PutAgbotsRequest(agbotToken, agbotId+"name", List[APattern](), "whisper-id", "AGBOTABC")
+    val input = PutAgbotsRequest(agbotToken, agbotId+"name", /*List[APattern](),*/ "whisper-id", "AGBOTABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -1172,7 +1172,7 @@ class NodesSuite extends FunSuite {
 
   /** Add a 2nd agbot so we can test msgs */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId2) {
-    val input = PutAgbotsRequest(agbotToken2, agbotId2+"name", List[APattern](), "whisper-id", "AGBOT2ABC")
+    val input = PutAgbotsRequest(agbotToken2, agbotId2+"name", /*List[APattern](),*/ "whisper-id", "AGBOT2ABC")
     val response = Http(URL+"/agbots/"+agbotId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)

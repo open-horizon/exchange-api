@@ -420,7 +420,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val q = for {
     //((d, m), p) <- NodesTQ.rows joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
     //((d, m), p) <- NodesTQ.getAllNodes(orgid) joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
-      (n, a) <- NodesTQ.rows.filter(_.pattern === compositePat).filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+      (n, a) <- NodesTQ.rows.filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
     } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.workloadUrl), a.map(_.state))
 
     db.run(q.result).map({ list =>
@@ -505,7 +505,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     var q = for {
     //TODO: use this commented out line for the special case of IBM agbots being able to search nodes from all orgs
     //((d, m), p) <- NodesTQ.rows joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
-      ((d, m), p) <- NodesTQ.getAllNodes(orgid) joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
+      ((d, m), p) <- NodesTQ.getNonPatternNodes(orgid).filter(_.publicKey =!= "") joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
     } yield (d, m, p)
     // Also filter out nodes that are too stale (have not heartbeated recently)
     if (searchProps.secondsStale > 0) q = q.filter(_._1.lastHeartbeat >= ApiTime.pastUTC(searchProps.secondsStale))

@@ -66,6 +66,7 @@ object NodesTQ {
   val rows = TableQuery[Nodes]
 
   def getAllNodes(orgid: String) = rows.filter(_.orgid === orgid)
+  def getNonPatternNodes(orgid: String) = rows.filter(r => {r.orgid === orgid && r.pattern === ""})
   def getNode(id: String) = rows.filter(_.id === id)
   def getToken(id: String) = rows.filter(_.id === id).map(_.token)
   def getOwner(id: String) = rows.filter(_.id === id).map(_.owner)

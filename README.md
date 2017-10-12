@@ -76,11 +76,19 @@ services in the exchange.
 
 ### External changes
 
+- Updated jetty version to 9.4.7 and fixed build to pull latest bug fixes in the 9.4 range
+- Fixed non-pattern node search to not find pattern nodes
+- Now filter both pattern and non-pattern node searches to not return nodes with empty publicKey values
+
 ### Todos left to be finished
 
+- Add PATCH /users/{u} (so a user can be changed to admin, or the email address can be changed)
+- Add nodeHealth policy to patterns
+- Add bulk query for agbot to get node lastHeartbeat and agreement status
 - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
 - Add api for wiotp to get number of devices and agreements
 - Allow random PW creation for user creation
+- Add ability to change owner of node
 - Add an unauthenticated admin status rest api
 - Figure out how to set "Response Class (Status 200)" in swagger
 - Do consistency checking of patterns and workloads

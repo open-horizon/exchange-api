@@ -225,13 +225,13 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   // =========== PATCH /orgs/{org} ===============================
   val patchOrgs =
     (apiOperation[Map[String,String]]("patchOrgs")
-      summary "Partially updates a org"
+      summary "Updates 1 attribute of a org"
       notes """Updates one attribute of a org in the exchange DB. This can only be called by root or a user in the org with the admin role. The **request body** structure can include **1 of these attributes**:
 
 ```
 {
   "label": "MyCompany, Inc.",
-  |"description": "blah blah"
+  "description": "blah blah"
 }
 ```"""
       parameters(

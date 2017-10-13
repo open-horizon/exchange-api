@@ -60,7 +60,7 @@ workurl="https://bluehorizon.network/workloads/netspeed"
 workid2="bluehorizon.network-workloads-weather_1.0.0_amd64"
 workurl2="https://bluehorizon.network/workloads/weather"
 
-patid="standard-horizon-edge-node"
+patid="p1"
 
 bctypeid="bct1"
 
@@ -341,6 +341,10 @@ if [[ $rc != 200 ]]; then
           "per_time_unit": "min",
           "notification_interval": 30
         }
+      },
+      "nodeHealth": {
+        "missing_heartbeat_interval": 600,
+        "check_agreement_status": 120
       }
     }
   ],

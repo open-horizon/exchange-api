@@ -11,11 +11,9 @@ import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
-//import scala.collection.mutable
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap, Set => MutableSet}
 import scala.util._
 import scala.util.control.Breaks._
-import scalaj.http._
 
 //====== These are the input and output structures for /orgs/{orgid}/nodes routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -34,6 +32,15 @@ case class PatternSearchHashElement(msgEndPoint: String, publicKey: String, noAg
 
 case class PatternNodeResponse(id: String, msgEndPoint: String, publicKey: String)
 case class PostPatternSearchResponse(nodes: List[PatternNodeResponse], lastIndex: Int)
+
+
+case class PostNodeHealthRequest(lastTime: String) {
+  def validate() = {}
+}
+
+case class NodeHealthAgreementElement(lastUpdated: String)
+class NodeHealthHashElement(var lastHeartbeat: String, var agreements: Map[String,NodeHealthAgreementElement])
+case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
 
 
 /** Input for microservice-based (citizen scientist) search, POST /orgs/"+orgid+"/search/nodes */
@@ -398,9 +405,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postPatternSearch2 = (apiOperation[PostPatternSearchResponse]("postPatternSearch2") summary("a") notes("a"))
 
   /** Normally called by the agbot to search for available nodes. */
-  post("/orgs/:orgid/patterns/:patid/search", operation(postPatternSearch)) ({
+  post("/orgs/:orgid/patterns/:pattern/search", operation(postPatternSearch)) ({
     val orgid = swaggerHack("orgid")
-    val pattern = params("patid")   // but do not have a hack/fix for the name
+    val pattern = params("pattern")   // but do not have a hack/fix for the name
     val compositePat = OrgAndId(orgid,pattern).toString
     credsAndLog().authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostPatternSearchRequest] }
@@ -413,14 +420,11 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       In english, the join gets: n.id, n.msgEndPoint, n.publicKey, n.lastHeartbeat, a.workloadUrl, a.state
       The filter is: n.pattern==ourpattern && a.state!=""
       Then we have to go thru all of the results and find nodes that do NOT have an agreement for ourworkload.
-      Notes about Slick usage:
-       - joinLeft returns node rows even if they don't have any agreements (which means the agreement cols because Option() )
+      Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
     */
     val oldestTime = if (searchProps.secondsStale > 0) ApiTime.pastUTC(searchProps.secondsStale) else ApiTime.beginningUTC
     val q = for {
-    //((d, m), p) <- NodesTQ.rows joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
-    //((d, m), p) <- NodesTQ.getAllNodes(orgid) joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
-      (n, a) <- NodesTQ.rows.filter(_.pattern === compositePat).filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+      (n, a) <- NodesTQ.rows.filter(_.orgid === orgid).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
     } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.workloadUrl), a.map(_.state))
 
     db.run(q.result).map({ list =>
@@ -448,6 +452,86 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       else {
         resp.setStatus(HttpCode.NOT_FOUND)
         PostPatternSearchResponse(List[PatternNodeResponse](), 0)
+      }
+    })
+  })
+
+  /** From the given db joined node/agreement rows, build the output node health hash and return it.
+     This is shared between POST /org/{orgid}/patterns/{pat-id}/nodehealth and POST /org/{orgid}/search/nodehealth
+    */
+  def buildNodeHealthHash(list: scala.Seq[(String, String, Option[String], Option[String])]): Map[String,NodeHealthHashElement] = {
+    // Go thru the rows and build a hash of the nodes, adding the agreement to its value as we encounter them
+    val nodeHash = new MutableHashMap[String,NodeHealthHashElement]     // key is node id, value has lastHeartbeat and the agreements map
+    for ( (nodeId, lastHeartbeat, agrId, agrLastUpdated) <- list ) {
+      //logger.trace("id: "+id+", workloadUrlOption: "+workloadUrlOption.getOrElse("")+", searchProps.workloadUrl: "+searchProps.workloadUrl+", stateOption: "+stateOption.getOrElse(""))
+      nodeHash.get(nodeId) match {
+        case Some(nodeElement) => agrId match {    // this node is already in the hash, add the agreement if it's there
+          case Some(agId) => nodeElement.agreements = nodeElement.agreements + ((agId, NodeHealthAgreementElement(agrLastUpdated.getOrElse(""))))    // if we are here, lastHeartbeat is already set and the agreement Map is already created
+          case None => ;      // no agreement to add to the agreement hash
+        }
+        case None => agrId match {      // this node id not in the hash yet, add it
+          case Some(agId) => nodeHash.put(nodeId, new NodeHealthHashElement(lastHeartbeat, Map(agId -> NodeHealthAgreementElement(agrLastUpdated.getOrElse("")))))
+          case None => nodeHash.put(nodeId, new NodeHealthHashElement(lastHeartbeat, Map()))
+        }
+      }
+    }
+    return nodeHash.toMap
+  }
+
+  // ======== POST /org/{orgid}/patterns/{pat-id}/nodehealth ========================
+  val postPatternNodeHealth =
+    (apiOperation[PostNodeHealthResponse]("postPatternNodeHealth")
+      summary("Returns agreement health of nodes of a particular pattern")
+      notes """Returns the lastHeartbeat and agreement times for all nodes that are this pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node). The **request body** structure:
+
+```
+{
+  "lastTime": "2017-09-28T13:51:36.629Z[UTC]"   // only return nodes that have changed since this time, empty string returns all
+}
+```"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PostNodeHealthResponse],
+        Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      )
+  val postPatternNodeHealth2 = (apiOperation[PostNodeHealthResponse]("postPatternNodeHealth2") summary("a") notes("a"))
+
+  /** Called by the agbot to get recent info about nodes with this pattern (and the agreements the node has). */
+  post("/orgs/:orgid/patterns/:pattern/nodehealth", operation(postPatternNodeHealth)) ({
+    val orgid = swaggerHack("orgid")
+    val pattern = params("pattern")   // but do not have a hack/fix for the name
+    val compositePat = OrgAndId(orgid,pattern).toString
+    credsAndLog().authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
+    val searchProps = try { parse(request.body).extract[PostNodeHealthRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    searchProps.validate()
+    logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth criteria: "+searchProps.toString)
+    val resp = response
+    /*
+      Join nodes and agreements and return: n.id, n.lastHeartbeat, a.id, a.lastUpdated.
+      The filter is: n.pattern==ourpattern && n.lastHeartbeat>=lastTime
+      Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
+    */
+    val lastTime = if (searchProps.lastTime != "") searchProps.lastTime else ApiTime.beginningUTC
+    val q = for {
+      (n, a) <- NodesTQ.rows.filter(_.orgid === orgid).filter(_.pattern === compositePat).filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+    } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
+
+    db.run(q.result).map({ list =>
+      logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result size: "+list.size)
+      //logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
+      if (list.nonEmpty) {
+        resp.setStatus(HttpCode.POST_OK)
+        PostNodeHealthResponse(buildNodeHealthHash(list))
+      }
+      else {
+        resp.setStatus(HttpCode.NOT_FOUND)
+        PostNodeHealthResponse(Map[String,NodeHealthHashElement]())
       }
     })
   })
@@ -505,7 +589,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     var q = for {
     //TODO: use this commented out line for the special case of IBM agbots being able to search nodes from all orgs
     //((d, m), p) <- NodesTQ.rows joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
-      ((d, m), p) <- NodesTQ.getAllNodes(orgid) joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
+      ((d, m), p) <- NodesTQ.getNonPatternNodes(orgid).filter(_.publicKey =!= "") joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
     } yield (d, m, p)
     // Also filter out nodes that are too stale (have not heartbeated recently)
     if (searchProps.secondsStale > 0) q = q.filter(_._1.lastHeartbeat >= ApiTime.pastUTC(searchProps.secondsStale))
@@ -524,6 +608,63 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       else resp.setStatus(HttpCode.NOT_FOUND)
       val nodes = NodesTQ.parseJoin(superUser = false, list)
       searchProps.matches(nodes, agHash)
+    })
+  })
+
+  // ======== POST /org/{orgid}/search/nodehealth ========================
+  val postSearchNodeHealth =
+    (apiOperation[PostNodeHealthResponse]("postSearchNodeHealth")
+      summary("Returns agreement health of nodes with no pattern")
+      notes """Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node). The **request body** structure:
+
+```
+{
+  "lastTime": "2017-09-28T13:51:36.629Z[UTC]"   // only return nodes that have changed since this time, empty string returns all
+}
+```"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PostNodeHealthResponse],
+        Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      )
+  val postSearchNodeHealth2 = (apiOperation[PostNodeHealthResponse]("postSearchNodeHealth2") summary("a") notes("a"))
+
+  /** Called by the agbot to get recent info about nodes with no pattern (and the agreements the node has). */
+  post("/orgs/:orgid/search/nodehealth", operation(postSearchNodeHealth)) ({
+    val orgid = swaggerHack("orgid")
+    //val pattern = params("patid")   // but do not have a hack/fix for the name
+    //val compositePat = OrgAndId(orgid,pattern).toString
+    credsAndLog().authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
+    val searchProps = try { parse(request.body).extract[PostNodeHealthRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    searchProps.validate()
+    logger.debug("POST /orgs/"+orgid+"/search/nodehealth criteria: "+searchProps.toString)
+    val resp = response
+    /*
+      Join nodes and agreements and return: n.id, n.lastHeartbeat, a.id, a.lastUpdated.
+      The filter is: n.pattern=="" && n.lastHeartbeat>=lastTime
+      Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
+    */
+    val lastTime = if (searchProps.lastTime != "") searchProps.lastTime else ApiTime.beginningUTC
+    val q = for {
+      (n, a) <- NodesTQ.rows.filter(_.orgid === orgid).filter(_.pattern === "").filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+    } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
+
+    db.run(q.result).map({ list =>
+      logger.debug("POST /orgs/"+orgid+"/search/nodehealth result size: "+list.size)
+      //logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
+      if (list.nonEmpty) {
+        resp.setStatus(HttpCode.POST_OK)
+        PostNodeHealthResponse(buildNodeHealthHash(list))
+      }
+      else {
+        resp.setStatus(HttpCode.NOT_FOUND)
+        PostNodeHealthResponse(Map[String,NodeHealthHashElement]())
+      }
     })
   })
 
@@ -621,7 +762,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   // =========== PATCH /orgs/{orgid}/nodes/{id} ===============================
   val patchNodes =
     (apiOperation[Map[String,String]]("patchNodes")
-      summary "Partially updates a node"
+      summary "Updates 1 attribute of a node"
       notes """Updates some attributes of a node (RPi) in the exchange DB. This can be called by the user or the node. The **request body** structure can include **1 of these attributes**:
 
 ```

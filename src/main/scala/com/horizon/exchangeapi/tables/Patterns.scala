@@ -3,13 +3,15 @@ package com.horizon.exchangeapi.tables
 import org.json4s._
 import org.json4s.jackson.Serialization.read
 import slick.jdbc.PostgresProfile.api._
+import scala.collection.mutable.ListBuffer
 
 
 /** Contains the object representations of the DB tables related to patterns. */
 
 //case class PPriority(priority_value: Int, retries: Int, retry_durations: Int, verified_durations: Int)
 //case class PUpgradePolicy(lifecycle: String, time: String)
-case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification)
+case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification, nodeHealth: Map[String,Int])
+case class POldWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification)
 case class PWorkloadVersions(version: String, deployment_overrides: String, deployment_overrides_signature: String, priority: Map[String,Int], upgradePolicy: Map[String,String])
 //case class PMetering(tokens: Int, per_time_unit: String, notification_interval: Int)
 case class PDataVerification(enabled: Boolean, URL: String, user: String, password: String, interval: Int, check_rate: Int, metering: Map[String,Any])
@@ -19,13 +21,15 @@ case class PatternRow(pattern: String, orgid: String, owner: String, label: Stri
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toPattern: Pattern = {
-    //val micro = if (microservices != "") read[List[Map[String,String]]](microservices) else List[Map[String,String]]()
-    val wrk = if (workloads != "") read[List[PWorkloads]](workloads) else List[PWorkloads]()
-    //val dv = if (dataVerification != "") read[PDataVerification](dataVerification) else PDataVerification(false,"","","",0,0,Map[String,Any]())
+    val wrk = if (workloads == "") List[PWorkloads]() else {
+        try { read[List[PWorkloads]](workloads) }     //todo: figure out if json4s can be made to be tolerant of missing fields
+        catch { case _: MappingException => val oldWrk = read[List[POldWorkloads]](workloads)   // this pattern in the DB does not have the new nodeHealth field, so convert it
+            val newList = new ListBuffer[PWorkloads]
+            for (w <- oldWrk) { newList += PWorkloads(w.workloadUrl, w.workloadOrgid, w.workloadArch, w.workloadVersions, w.dataVerification, Map()) }
+            newList.toList
+        }
+      }
     val agproto = if (agreementProtocols != "") read[List[Map[String,String]]](agreementProtocols) else List[Map[String,String]]()
-    //val prop = if (properties != "") read[List[Map[String,Any]]](properties) else List[Map[String,Any]]()
-    //val conprop = if (counterPartyProperties != "") read[Map[String,List[Map[String,Any]]]](counterPartyProperties) else Map[String,List[Map[String,Any]]]()
-    //new Pattern(owner, label, description, public, micro, wrk, dv, agproto, prop, conprop, maxAgreements, lastUpdated)
     new Pattern(owner, label, description, public, wrk, agproto, lastUpdated)
   }
 
@@ -70,13 +74,8 @@ object PatternsTQ {
   def getLabel(pattern: String) = rows.filter(_.pattern === pattern).map(_.label)
   def getDescription(pattern: String) = rows.filter(_.pattern === pattern).map(_.description)
   def getPublic(pattern: String) = rows.filter(_.pattern === pattern).map(_.public)
-  //def getMicroservices(pattern: String) = rows.filter(_.pattern === pattern).map(_.microservices)
   def getWorkloads(pattern: String) = rows.filter(_.pattern === pattern).map(_.workloads)
-  //def getDataVerification(pattern: String) = rows.filter(_.pattern === pattern).map(_.dataVerification)
   def getAgreementProtocols(pattern: String) = rows.filter(_.pattern === pattern).map(_.agreementProtocols)
-  //def getProperties(pattern: String) = rows.filter(_.pattern === pattern).map(_.properties)
-  //def getCounterPartyProperties(pattern: String) = rows.filter(_.pattern === pattern).map(_.counterPartyProperties)
-  //def getMaxAgreements(pattern: String) = rows.filter(_.pattern === pattern).map(_.maxAgreements)
   def getLastUpdated(pattern: String) = rows.filter(_.pattern === pattern).map(_.lastUpdated)
 
   /** Returns a query for the specified pattern attribute value. Returns null if an invalid attribute name is given. */
@@ -88,13 +87,8 @@ object PatternsTQ {
       case "label" => filter.map(_.label)
       case "description" => filter.map(_.description)
       case "public" => filter.map(_.public)
-      //case "microservices" => filter.map(_.microservices)
       case "workloads" => filter.map(_.workloads)
-      //case "dataVerification" => filter.map(_.dataVerification)
       case "agreementProtocols" => filter.map(_.agreementProtocols)
-      //case "properties" => filter.map(_.properties)
-      //case "counterPartyProperties" => filter.map(_.counterPartyProperties)
-      //case "maxAgreements" => filter.map(_.maxAgreements)
       case "lastUpdated" => filter.map(_.lastUpdated)
       case _ => null
     }

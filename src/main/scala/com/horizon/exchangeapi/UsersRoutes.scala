@@ -244,7 +244,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   // =========== PATCH /orgs/{orgid}/users/{username} ===============================
   val patchUsers =
     (apiOperation[ApiResponse]("patchUsers")
-      summary "Adds/updates a user"
+      summary "Updates 1 attribute of a user"
       notes """Updates 1 attribute of an existing user. Only the user itself or root can update an existing user. The **request body** structure can include **1 of these attributes**:
 
 ```

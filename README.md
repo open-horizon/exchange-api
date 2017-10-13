@@ -76,11 +76,18 @@ services in the exchange.
 
 ### External changes
 
+- Updated jetty version to 9.4.7 and fixed build to pull latest bug fixes in the 9.4 range
+- Fixed non-pattern node search to not find pattern nodes
+- Now filter both pattern and non-pattern node searches to not return nodes with empty publicKey values
+- Added `"nodeHealth": { "missing_heartbeat_interval": 600, "check_agreement_status": 120 }` policy to patterns (it is a peer to the dataVerification field). Existing pattern resources in the DB will be converted on the way out. New POST/PUTs must include this new field.
+- Added POST /orgs/{orgid}/patterns/{patid}/nodehealth and POST /orgs/{orgid}/search/nodehealth for agbot to get node lastHeartbeat and agreement status
+
 ### Todos left to be finished
 
 - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
 - Add api for wiotp to get number of devices and agreements
 - Allow random PW creation for user creation
+- Add ability to change owner of node
 - Add an unauthenticated admin status rest api
 - Figure out how to set "Response Class (Status 200)" in swagger
 - Do consistency checking of patterns and workloads

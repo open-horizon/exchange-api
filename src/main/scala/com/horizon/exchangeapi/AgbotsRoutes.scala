@@ -262,7 +262,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   // =========== PATCH /orgs/{orgid}/agbots/{id} ===============================
   val patchAgbots =
     (apiOperation[Map[String,String]]("patchAgbots")
-      summary "Partially updates an agbot"
+      summary "Updates 1 attribute of an agbot"
       notes """Updates some attributes of an agbot in the exchange DB. This can be called by the user or the agbot. The **request body** structure can include **1 of these attributes**:
 
 ```

@@ -352,7 +352,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   // =========== PATCH /orgs/{orgid}/microservices/{microservice} ===============================
   val patchMicroservices =
     (apiOperation[Map[String,String]]("patchMicroservices")
-      summary "Partially updates a microservice"
+      summary "Updates 1 attribute of a microservice"
       notes """Updates one attribute of a microservice in the exchange DB. This can only be called by the user that originally created this microservice resource. The **request body** structure can include **1 of these attributes**:
 
 ```

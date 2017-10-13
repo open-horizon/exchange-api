@@ -20,8 +20,7 @@ import scala.util._
 case class GetPatternsResponse(patterns: Map[String,Pattern], lastIndex: Int)
 case class GetPatternAttributeResponse(attribute: String, value: String)
 
-/** Input format for POST /microservices or PUT /orgs/{orgid}/patterns/<pattern-id> */
-//case class PostPutPatternRequest(label: String, description: String, public: Boolean, microservices: List[Map[String,String]], workloads: List[PWorkloads], dataVerification: PDataVerification, agreementProtocols: List[Map[String,String]], properties: List[Map[String,Any]], counterPartyProperties: Map[String,List[Map[String,Any]]], maxAgreements: Int) {
+/** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
 case class PostPutPatternRequest(label: String, description: String, public: Boolean, workloads: List[PWorkloads], agreementProtocols: List[Map[String,String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {}
@@ -30,7 +29,6 @@ case class PostPutPatternRequest(label: String, description: String, public: Boo
   def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(workloads), write(agreementProtocols), ApiTime.nowUTC)
 }
 
-//case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], microservices: Option[List[Map[String,String]]], workloads: Option[List[PWorkloads]], dataVerification: Option[PDataVerification], agreementProtocols: Option[List[Map[String,String]]], properties: Option[List[Map[String,Any]]], counterPartyProperties: Option[Map[String,List[Map[String,Any]]]], maxAgreements: Option[Int]) {
 case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], workloads: Option[List[PWorkloads]], agreementProtocols: Option[List[Map[String,String]]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
@@ -42,13 +40,8 @@ case class PatchPatternRequest(label: Option[String], description: Option[String
     label match { case Some(lab) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.label,d.lastUpdated)).update((pattern, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.description,d.lastUpdated)).update((pattern, desc, lastUpdated)), "description"); case _ => ; }
     public match { case Some(pub) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.public,d.lastUpdated)).update((pattern, pub, lastUpdated)), "public"); case _ => ; }
-    //microservices match { case Some(ms) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.microservices,d.lastUpdated)).update((pattern, write(ms), lastUpdated)), "microservices"); case _ => ; }
     workloads match { case Some(wk) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.workloads,d.lastUpdated)).update((pattern, write(wk), lastUpdated)), "workloads"); case _ => ; }
-    //dataVerification match { case Some(dv) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.dataVerification,d.lastUpdated)).update((pattern, write(dv), lastUpdated)), "dataVerification"); case _ => ; }
     agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "agreementProtocols"); case _ => ; }
-    //properties match { case Some(prop) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.properties,d.lastUpdated)).update((pattern, write(prop), lastUpdated)), "properties"); case _ => ; }
-    //counterPartyProperties match { case Some(cpp) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.counterPartyProperties,d.lastUpdated)).update((pattern, write(cpp), lastUpdated)), "counterPartyProperties"); case _ => ; }
-    //maxAgreements match { case Some(maxa) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.maxAgreements,d.lastUpdated)).update((pattern, maxa, lastUpdated)), "maxAgreements"); case _ => ; }
     return (null, null)
   }
 }
@@ -194,6 +187,10 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           "per_time_unit": "min",
           "notification_interval": 30
         }
+      },
+      "nodeHealth": {
+        "missing_heartbeat_interval": 600,      // How long a heartbeat can be missing until node is considered missing (in seconds)
+        "check_agreement_status": 120        // How often to check that the node agreement entry still exists in the exchange (in seconds)
       }
     }
   ],
@@ -294,12 +291,16 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         "user": "",
         "password": "",
         "interval": 480,
-        "check_rate": 15,
+        "check_rate": 120,
         "metering": {
           "tokens": 1,
           "per_time_unit": "min",
           "notification_interval": 30
         }
+      },
+      "nodeHealth": {
+        "missing_heartbeat_interval": 600,      // How long a heartbeat can be missing until node is considered missing (in seconds)
+        "check_agreement_status": 120        // How often to check that the node agreement entry still exists in the exchange (in seconds)
       }
     }
   ],
@@ -356,6 +357,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   // =========== PATCH /orgs/{orgid}/patterns/{pattern} ===============================
   val patchPatterns =
     (apiOperation[Map[String,String]]("patchPatterns")
+      summary "Updates 1 attribute of a pattern"
       notes """Updates one attribute of a pattern in the exchange DB. This can only be called by the user that originally created this pattern resource. The **request body** structure can include **1 of these attributes**:
 
 ```
@@ -363,48 +365,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "label": "name of the edge pattern",
   "description": "descriptive text",
   "public": false,
-  "workloads": [
-    {
-      "workloadUrl": "https://bluehorizon.network/workloads/weather",
-      "workloadOrgid": "myorg",
-      "workloadArch": "amd64",
-      "workloadVersions": [
-        {
-          "version": "1.0.1",
-          "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "",
-          "priority": {
-            "priority_value": 50,
-            "retries": 1,
-            "retry_durations": 3600,
-            "verified_durations": 52
-          },
-          "upgradePolicy": {
-            "lifecycle": "immediate",
-            "time": "01:00AM"
-          }
-        }
-      ],
-      "dataVerification": {
-        "enabled": true,
-        "URL": "",
-        "user": "",
-        "password": "",
-        "interval": 480,
-        "check_rate": 15,
-        "metering": {
-          "tokens": 1,
-          "per_time_unit": "min",
-          "notification_interval": 30
-        }
-      }
-    }
-  ],
-  "agreementProtocols": [
-    {
-      "name": "Basic"
-    }
-  ]
+  "workloads": [ ... ],
+  "agreementProtocols": [ ... ]
 }
 ```"""
       parameters(

@@ -335,7 +335,7 @@ class AgbotsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" and check that agbot can read it") {
     val input = PostPutPatternRequest(pattern, "desc", false,
-      List( PWorkloads("https://wkurl", orgid, "", List(PWorkloadVersions("", "", "", Map(), Map())), PDataVerification(false, "", "", "", 0, 0, Map[String,Any]()) )),
+      List( PWorkloads("https://wkurl", orgid, "", List(PWorkloadVersions("", "", "", Map(), Map())), PDataVerification(false, "", "", "", 0, 0, Map[String,Any]()), Map("check_agreement_status" -> 120) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

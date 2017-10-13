@@ -6,4 +6,4 @@ curl $copts -X POST -H 'Content-Type: application/json' -H 'Accept: application/
   "secondsStale": 0,
   "startIndex": 0,
   "numEntries": 0
-}' $EXCHANGE_URL_ROOT/v1/orgs/$EXCHANGE_ORG/patterns/standard-horizon-edge-node/search | $parse
+}' $EXCHANGE_URL_ROOT/v1/orgs/$EXCHANGE_ORG/patterns/p1/search | $parse

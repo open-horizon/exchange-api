@@ -127,7 +127,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - create node") {
-    val input = PutNodesRequest(nodeToken, nodeId+"-normal", "myorg/mypat",
+    val input = PutNodesRequest(nodeToken, nodeId+"-normal", orgpattern,
       List(
         RegMicroservice(SDRSPEC,1,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
@@ -142,7 +142,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - update node") {
-    val input = PutNodesRequest(nodeToken, nodeId+"-update", "myorg/mypat",
+    val input = PutNodesRequest(nodeToken, nodeId+"-update", orgpattern,
       List(
         RegMicroservice(SDRSPEC,1,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
@@ -197,7 +197,25 @@ class FrontEndSuite extends FunSuite {
     assert(postSearchDevResp.code === ApiResponseType.OK)
   }
 
-  test("POST /orgs/"+orgid+"/search/nodes/ - all arm nodes") {
+  test("POST /orgs/"+orgid+"/patterns/"+pattern+"/search - for "+SDRSPEC) {
+    val input = PostPatternSearchRequest(SDRSPEC, 86400, 0, 0)
+    val response = Http(URL+"/patterns/"+pattern+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
+    //info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
+    val nodes = postSearchDevResp.nodes
+    assert(nodes.length === 1)
+    assert(nodes.count(d => d.id==orgnodeId) === 1)
+  }
+
+  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - remove pattern from node so we can search for microservices") {
+    val jsonInput = """{ "pattern": "" }"""
+    val response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/search/nodes/ - for "+SDRSPEC) {
     val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","2","int",">="),
@@ -344,9 +362,9 @@ class FrontEndSuite extends FunSuite {
     assert(respObj.workloads.size === 1)
   }
 
-  test("POST /orgs/"+orgid+"/patterns/"+pattern+" - creat "+pattern) {
+  test("POST /orgs/"+orgid+"/patterns/"+pattern+" - create "+pattern) {
     val input = PostPutPatternRequest(ptBase, "desc", false,
-      List( PWorkloads("https://wkurl", "myorg", "", List(PWorkloadVersions("", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), PDataVerification(false, "", "", "", 0, 0, Map[String,Any]()) )),
+      List( PWorkloads("https://wkurl", "myorg", "", List(PWorkloadVersions("", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), PDataVerification(false, "", "", "", 0, 0, Map[String,Any]()), Map("check_agreement_status" -> 120) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString

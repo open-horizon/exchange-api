@@ -235,7 +235,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   // =========== PATCH /orgs/{orgid}/bctypes/{bctype} ===============================
   val patchBctypes =
     (apiOperation[Map[String,String]]("patchBctypes")
-      summary "Partially updates a blockchain type"
+      summary "Updates 1 attribute of a blockchain type"
       notes """Updates one attribute of a blockchain type in the exchange DB. This can only be called by the user that originally created this bctype resource. The **request body** structure can include **1 of these attributes**:
 
 ```
@@ -482,13 +482,13 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   // =========== PATCH /orgs/{orgid}/bctypes/{bctype}/blockchains/{name} ===============================
   val patchBlockchain =
     (apiOperation[Map[String,String]]("patchBlockchain")
-      summary "Partially updates a blockchain definition"
+      summary "Updates 1 attribute of a blockchain definition"
       notes """Updates one attribute of a blockchain instance in the exchange DB. This can only be called by the user that originally created this blockchain resource. The **request body** structure can include **1 of these attributes**:
 
 ```
 {
   "description": "abc",
-  |"public": true,
+  "public": true,
   "details": "escaped json string"
 }
 ```"""

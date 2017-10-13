@@ -344,7 +344,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   // =========== PATCH /orgs/{orgid}/workloads/{workload} ===============================
   val patchWorkloads =
     (apiOperation[Map[String,String]]("patchWorkloads")
-      summary "Partially updates a workload"
+      summary "Updates 1 attribute of a workload"
       notes """Updates one attribute of a workload in the exchange DB. This can only be called by the user that originally created this workload resource. The **request body** structure can include **1 of these attributes**:
 
 ```

@@ -165,9 +165,10 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val postMicroservices =
     (apiOperation[ApiResponse]("postMicroservices")
       summary "Adds a microservice"
-      notes """Creates a microservice resource. This can only be called by a user. The **request body** structure:
+      notes """Creates a microservice resource. A microservice provides access to node data or services that can be used by potentially multiple workloads. The microservice resource contains the metadata that Horizon needs to deploy the docker images that implement this microservice. If public is set to true, the microservice can be shared across organizations. This can only be called by a user. The **request body** structure:
 
 ```
+// (remove all of the comments like this before using)
 {
   "label": "GPS for x86_64",     // for the registration UI
   "description": "blah blah",
@@ -176,14 +177,9 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   "version": "1.0.0",
   "arch": "amd64",
   "sharable": "exclusive",   // or: "single", "multiple"
-  "downloadUrl": "",    // not used yet
-  // Hints to the edge node about how to tell if it has physical sensors supported by the MS
-  "matchHardware": {
-    // Normally will only set 1 of these values
-    "usbNodeIds": ["1546:01a7"],
-    "devFiles": ["/dev/ttyUSB*", "/dev/ttyACM*"]
-  },
-  // Values the node owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
+  "downloadUrl": "",    // reserved for future use
+  "matchHardware": {},    // reserved for future use (will be hints to the node about how to tell if it has the physical sensors required by this MS
+  // Values the node owner will be prompted for and will be set as env vars to the container.
   "userInput": [
     {
       "name": "foo",
@@ -192,19 +188,12 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
       "defaultValue": "bar"
     }
   ],
+  // The docker images that will be deployed on edge nodes for this microservice
   "workloads": [
     {
       "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:2.0.3\",\"privileged\":true,\"nodes\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
-      "deployment_signature": "EURzSk=",
-      "torrent": {
-        "url": "https://images.bluehorizon.network/28f57c91243c56caaf0362deeb6620099a0ba1a3.torrent",
-        "images": [
-          {
-            "file": "d98bfef9f76dee5b4321c4bc18243d9510f11655.tar.gz",
-            "signature": "kckH14DUj3bXMu7hnQK="
-          }
-        ]
-      }
+      "deployment_signature": "EURzSk=",     // filled in by the Horizon signing process
+      "torrent": "{\"url\":\"https://images.bluehorizon.network/139e5b32f271e43698565ff0a37c525609f86178.json\",\"signature\":\"L6/iZxGXloE=\"}"     // filled in by the Horizon signing process
     }
   ]
 }
@@ -262,9 +251,10 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val putMicroservices =
     (apiOperation[ApiResponse]("putMicroservices")
       summary "Updates a microservice"
-      notes """Does a full replace of an existing microservice. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
+      notes """Does a full replace of an existing microservice. This can only be called by the user that originally created it. The **request body** structure:
 
 ```
+// (remove all of the comments like this before using)
 {
   "label": "GPS for x86_64",     // for the registration UI
   "description": "blah blah",
@@ -273,14 +263,9 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   "version": "1.0.0",
   "arch": "amd64",
   "sharable": "exclusive",   // or: "single", "multiple"
-  "downloadUrl": "",    // not used yet
-  // Hints to the edge node about how to tell if it has physical sensors supported by the MS
-  "matchHardware": {
-    // Normally will only set 1 of these values
-    "usbNodeIds": ["1546:01a7"],
-    "devFiles": ["/dev/ttyUSB*", "/dev/ttyACM*"]
-  },
-  // Values the node owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
+  "downloadUrl": "",    // reserved for future use
+  "matchHardware": {},    // reserved for future use (will be hints to the node about how to tell if it has the physical sensors required by this MS
+  // Values the node owner will be prompted for and will be set as env vars to the container.
   "userInput": [
     {
       "name": "foo",
@@ -289,19 +274,12 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
       "defaultValue": "bar"
     }
   ],
+  // The docker images that will be deployed on edge nodes for this microservice
   "workloads": [
     {
       "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:2.0.3\",\"privileged\":true,\"nodes\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
-      "deployment_signature": "EURzSk=",
-      "torrent": {
-        "url": "https://images.bluehorizon.network/28f57c91243c56caaf0362deeb6620099a0ba1a3.torrent",
-        "images": [
-          {
-            "file": "d98bfef9f76dee5b4321c4bc18243d9510f11655.tar.gz",
-            "signature": "kckH14DUj3bXMu7hnQK="
-          }
-        ]
-      }
+      "deployment_signature": "EURzSk=",     // filled in by the Horizon signing process
+      "torrent": "{\"url\":\"https://images.bluehorizon.network/139e5b32f271e43698565ff0a37c525609f86178.json\",\"signature\":\"L6/iZxGXloE=\"}"     // filled in by the Horizon signing process
     }
   ]
 }

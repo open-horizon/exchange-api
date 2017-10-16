@@ -171,9 +171,10 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val postWorkloads =
     (apiOperation[ApiResponse]("postWorkloads")
       summary "Adds a workload"
-      notes """Creates a workload resource. This can only be called by a user. The **request body** structure:
+      notes """Creates a workload resource. A workload resource contains the metadata that Horizon needs to deploy the docker images that implement this workload. Think of a workload as an edge application. The workload can require 1 or more microservices that Horizon should also deploy when deploying this workload. If public is set to true, the workload can be shared across organizations. This can only be called by a user. The **request body** structure:
 
 ```
+// (remove all of the comments like this before using)
 {
   "label": "Location for x86_64",     // for the registration UI
   "description": "blah blah",
@@ -181,7 +182,8 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   "workloadUrl": "https://bluehorizon.network/documentation/workload/location",   // the unique identifier of this MS
   "version": "1.0.0",
   "arch": "amd64",
-  "downloadUrl": "",    // not used yet
+  "downloadUrl": "",    // reserved for future use
+  // The microservices used by this workload
   "apiSpec": [
     {
       "specRef": "https://bluehorizon.network/documentation/microservice/gps",
@@ -190,7 +192,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       "arch": "amd64"
     }
   ],
-  // Values the node owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
+  // Values the node owner will be prompted for and will be set as env vars to the container.
   "userInput": [
     {
       "name": "foo",
@@ -199,11 +201,12 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       "defaultValue": "bar"
     }
   ],
+  // The docker images that will be deployed on edge nodes for this workload
   "workloads": [
     {
       "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-      "deployment_signature": "EURzSkDyk66qE6esYUDkLWLzM=",
-      "torrent": "{\"url\":\"https://images.bluehorizon.network/28f57c.torrent\",\"images\":[{\"file\":\"d98bf.tar.gz\",\"signature\":\"kckH14DUj3bX=\"}]}"
+      "deployment_signature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
+      "torrent": "{\"url\":\"https://images.bluehorizon.network/139e5b32f271e43698565ff0a37c525609f86178.json\",\"signature\":\"L6/iZxGXloE=\"}"     // filled in by the Horizon signing process
     }
   ]
 }
@@ -261,9 +264,10 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val putWorkloads =
     (apiOperation[ApiResponse]("putWorkloads")
       summary "Updates a workload"
-      notes """Does a full replace of an existing workload. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
+      notes """Does a full replace of an existing workload. This can only be called by the user that originally created it. The **request body** structure:
 
 ```
+// (remove all of the comments like this before using)
 {
   "label": "Location for x86_64",     // for the registration UI
   "description": "blah blah",
@@ -271,7 +275,8 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   "workloadUrl": "https://bluehorizon.network/documentation/workload/location",   // the unique identifier of this MS
   "version": "1.0.0",
   "arch": "amd64",
-  "downloadUrl": "",    // not used yet
+  "downloadUrl": "",    // reserved for future use
+  // The microservices used by this workload
   "apiSpec": [
     {
       "specRef": "https://bluehorizon.network/documentation/microservice/gps",
@@ -280,7 +285,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       "arch": "amd64"
     }
   ],
-  // Values the node owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
+  // Values the node owner will be prompted for and will be set as env vars to the container.
   "userInput": [
     {
       "name": "foo",
@@ -289,11 +294,12 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       "defaultValue": "bar"
     }
   ],
+  // The docker images that will be deployed on edge nodes for this workload
   "workloads": [
     {
       "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-      "deployment_signature": "EURzSkDyk66qE6esYUDkLWLzM=",
-      "torrent": "{\"url\":\"https://images.bluehorizon.network/28f57c.torrent\",\"images\":[{\"file\":\"d98bf.tar.gz\",\"signature\":\"kckH14DUj3bX=\"}]}"
+      "deployment_signature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
+      "torrent": "{\"url\":\"https://images.bluehorizon.network/139e5b32f271e43698565ff0a37c525609f86178.json\",\"signature\":\"L6/iZxGXloE=\"}"     // filled in by the Horizon signing process
     }
   ]
 }

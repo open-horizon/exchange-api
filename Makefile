@@ -5,7 +5,8 @@
 SHELL = /bin/bash -e
 ARCH ?= x86
 DOCKER_NAME ?= exchange-api
-DOCKER_TAG ?= v1.39.0
+VERSION = $(shell cat src/main/resources/version.txt)
+DOCKER_TAG ?= $(VERSION)
 DOCKER_OPTS ?= --no-cache
 COMPILE_CLEAN ?= clean
 image-string = $(DOCKER_REGISTRY)/$(ARCH)/exchange-api
@@ -115,6 +116,9 @@ sync-swagger-ui:
 
 testmake:
 	echo $(EXCHANGE_EMAIL)
+
+version:
+	@echo $(VERSION)
 
 .SECONDARY:
 

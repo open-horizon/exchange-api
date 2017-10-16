@@ -146,9 +146,10 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val postPatterns =
     (apiOperation[ApiResponse]("postPatterns")
       summary "Adds a pattern"
-      notes """Creates a pattern resource. This can only be called by a user. The **request body** structure:
+      notes """Creates a pattern resource. A pattern resource specifies all of the deployment information (workloads and microservices) for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. Patterns are not typically intended to be shared across organizations because they also specify deployment policy. This can only be called by a user. The **request body** structure:
 
 ```
+// (remove all of the comments like this before using)
 {
   "label": "name of the edge pattern",
   "description": "descriptive text",
@@ -158,23 +159,27 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       "workloadUrl": "https://bluehorizon.network/workloads/weather",
       "workloadOrgid": "myorg",
       "workloadArch": "amd64",
+      // If multiple workload versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
       "workloadVersions": [
         {
           "version": "1.0.1",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "",
+          "deployment_overrides_signature": "",     // filled in by the Horizon signing process
           "priority": {
             "priority_value": 50,
             "retries": 1,
             "retry_durations": 3600,
             "verified_durations": 52
           },
+          // When Horizon should upgrade nodes to newer workload versions
           "upgradePolicy": {
             "lifecycle": "immediate",
-            "time": "01:00AM"
+            "time": "01:00AM"     // reserved for future use
           }
         }
       ],
+      // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the workload is sending data.
+      // If not using this, the dataVerification field can be set to {}.
       "dataVerification": {
         "enabled": true,
         "URL": "",
@@ -189,11 +194,12 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         }
       },
       "nodeHealth": {
-        "missing_heartbeat_interval": 600,      // How long a heartbeat can be missing until node is considered missing (in seconds)
+        "missing_heartbeat_interval": 600,      // How long a node heartbeat can be missing until node is considered missing (in seconds)
         "check_agreement_status": 120        // How often to check that the node agreement entry still exists in the exchange (in seconds)
       }
     }
   ],
+  // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [
     {
       "name": "Basic"
@@ -259,6 +265,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       notes """Updates a pattern resource. This can only be called by the user that created it. The **request body** structure:
 
 ```
+// (remove all of the comments like this before using)
 {
   "label": "name of the edge pattern",
   "description": "descriptive text",
@@ -268,23 +275,27 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       "workloadUrl": "https://bluehorizon.network/workloads/weather",
       "workloadOrgid": "myorg",
       "workloadArch": "amd64",
+      // If multiple workload versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
       "workloadVersions": [
         {
           "version": "1.0.1",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "",
+          "deployment_overrides_signature": "",     // filled in by the Horizon signing process
           "priority": {
             "priority_value": 50,
             "retries": 1,
             "retry_durations": 3600,
             "verified_durations": 52
           },
+          // When Horizon should upgrade nodes to newer workload versions
           "upgradePolicy": {
             "lifecycle": "immediate",
-            "time": "01:00AM"
+            "time": "01:00AM"     // reserved for future use
           }
         }
       ],
+      // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the workload is sending data.
+      // If not using this, the dataVerification field can be set to {}.
       "dataVerification": {
         "enabled": true,
         "URL": "",
@@ -299,11 +310,12 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         }
       },
       "nodeHealth": {
-        "missing_heartbeat_interval": 600,      // How long a heartbeat can be missing until node is considered missing (in seconds)
+        "missing_heartbeat_interval": 600,      // How long a node heartbeat can be missing until node is considered missing (in seconds)
         "check_agreement_status": 120        // How often to check that the node agreement entry still exists in the exchange (in seconds)
       }
     }
   ],
+  // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [
     {
       "name": "Basic"

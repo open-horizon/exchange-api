@@ -72,6 +72,24 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
+## Changes in v1.40.0
+
+### External changes
+
+### Todos left to be finished
+
+- Do consistency checking of patterns and workloads
+- If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
+- Add api for wiotp to get number of devices and agreements
+- Allow random PW creation for user creation
+- Add ability to change owner of node
+- Add an unauthenticated admin status rest api
+- Figure out how to set "Response Class (Status 200)" in swagger
+- See if there is a way to fix the swagger hack for 2 level resources
+- Consider changing all creates to POST, and update (via put/patch) return codes to 200
+- Any other schema changes?
+
+
 ## Changes in v1.39.0
 
 ### External changes
@@ -81,19 +99,6 @@ services in the exchange.
 - Now filter both pattern and non-pattern node searches to not return nodes with empty publicKey values
 - Added `"nodeHealth": { "missing_heartbeat_interval": 600, "check_agreement_status": 120 }` policy to patterns (it is a peer to the dataVerification field). Existing pattern resources in the DB will be converted on the way out. New POST/PUTs must include this new field.
 - Added POST /orgs/{orgid}/patterns/{patid}/nodehealth and POST /orgs/{orgid}/search/nodehealth for agbot to get node lastHeartbeat and agreement status
-
-### Todos left to be finished
-
-- If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
-- Add api for wiotp to get number of devices and agreements
-- Allow random PW creation for user creation
-- Add ability to change owner of node
-- Add an unauthenticated admin status rest api
-- Figure out how to set "Response Class (Status 200)" in swagger
-- Do consistency checking of patterns and workloads
-- See if there is a way to fix the swagger hack for 2 level resources
-- Consider changing all creates to POST, and update (via put/patch) return codes to 200
-- Any other schema changes?
 
 
 ## Changes in v1.38.0

@@ -77,6 +77,7 @@ services in the exchange.
 ### External changes
 
 - Added GET /admin/version
+- Docker tag for exchange docker image no longer has the "v" before the version number
 - Modified pattern resource so dataVerification field could be specified as `{}` if you are not using it
 - For the references between resources that are not enforced by DB foreign keys, added checking when the resource is created, updated, or patched:
     - microservices referenced by a workload
@@ -84,7 +85,9 @@ services in the exchange.
     - patterns referenced by an agbot
     - pattern referenced by a node
 
-### Todos left to be finished
+(No need to upgrade the db if coming from version 1.38)
+
+### Todos left to be finished in subsequent versions
 
 - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
 - Add api for wiotp to get number of devices and agreements
@@ -106,6 +109,8 @@ services in the exchange.
 - Now filter both pattern and non-pattern node searches to not return nodes with empty publicKey values
 - Added `"nodeHealth": { "missing_heartbeat_interval": 600, "check_agreement_status": 120 }` policy to patterns (it is a peer to the dataVerification field). Existing pattern resources in the DB will be converted on the way out. New POST/PUTs must include this new field.
 - Added POST /orgs/{orgid}/patterns/{patid}/nodehealth and POST /orgs/{orgid}/search/nodehealth for agbot to get node lastHeartbeat and agreement status
+
+(No need to upgrade the db if coming from version 1.38)
 
 
 ## Changes in v1.38.0

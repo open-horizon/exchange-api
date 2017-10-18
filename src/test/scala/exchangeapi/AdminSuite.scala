@@ -72,4 +72,10 @@ class AdminSuite extends FunSuite {
     val postResp = parse(response.body).extract[ApiResponse]
     assert(postResp.code === ApiResponseType.BAD_INPUT)
   }
+
+  test("GET /admin/version") {
+    val response = Http(URL+"/admin/version").headers(ACCEPT).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+  }
 }

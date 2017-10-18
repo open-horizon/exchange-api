@@ -381,9 +381,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   // =========== GET /admin/version ===============================
   val getAdminVersion =
-    (apiOperation[GetAdminStatusResponse]("getAdminStatus")
+    (apiOperation[String]("getAdminVersion")
       summary "Returns the version of the Exchange server"
-      notes "Returns the version of the Exchange server. Can be run by anyone."
+      notes "Returns the version of the Exchange server as a simple string (no JSON or quotes). Can be run by anyone."
       )
 
   get("/admin/version", operation(getAdminVersion)) ({

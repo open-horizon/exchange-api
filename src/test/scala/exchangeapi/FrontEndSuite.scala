@@ -54,10 +54,11 @@ class FrontEndSuite extends FunSuite {
   val msUrl = "http://" + msBase
   val microservice = msBase + "_1.0.0_arm"
   val orgmicroservice = authpref+microservice
-  val wkBase = "wk1"
-  val wkUrl = "http://" + wkBase
-  val workload = wkBase + "_1.0.0_arm"
-  val orgworkload = authpref+workload
+  val workid = "bluehorizon.network-workloads-netspeed_1.0.0_amd64"
+  val workurl = "https://bluehorizon.network/workloads/netspeed"
+  val workarch = "amd64"
+  val workversion = "1.0.0"
+  val orgworkload = authpref+workid
   val ptBase = "pat1"
   val pattern = ptBase
   val orgpattern = authpref+pattern
@@ -124,6 +125,64 @@ class FrontEndSuite extends FunSuite {
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/microservices - create "+microservice) {
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("microservice '"+orgmicroservice+"' created"))
+  }
+
+  test("GET /orgs/"+orgid+"/microservices") {
+    val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(TYPEAPIKEY).headers(IDAPIKEY).headers(ORGHEAD).headers(ISSUERHEAD).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val respObj = parse(response.body).extract[GetMicroservicesResponse]
+    assert(respObj.microservices.size === 1)
+    assert(respObj.microservices.contains(orgmicroservice))
+  }
+
+  test("POST /orgs/"+orgid+"/workloads - create "+workid) {
+    val input = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, "", List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("workload '"+orgworkload+"' created"))
+  }
+
+  test("GET /orgs/"+orgid+"/workloads/"+workid+" - as user") {
+    val response: HttpResponse[String] = Http(URL + "/workloads/" + workid).headers(ACCEPT).headers(TYPEAPIKEY).headers(IDAPIKEY).headers(ORGHEAD).headers(ISSUERHEAD).asString
+    info("code: " + response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val respObj = parse(response.body).extract[GetWorkloadsResponse]
+    assert(respObj.workloads.size === 1)
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/"+pattern+" - create "+pattern) {
+    val input = PostPutPatternRequest(ptBase, "desc", false,
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List[Map[String,String]]()
+    )
+    val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("pattern '"+orgpattern+"' created"))
+  }
+
+  test("GET /orgs/"+orgid+"/patterns") {
+    val response: HttpResponse[String] = Http(URL + "/patterns").headers(ACCEPT).headers(TYPEAPIKEY).headers(IDAPIKEY).headers(ORGHEAD).headers(ISSUERHEAD).asString
+    info("code: " + response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val respObj = parse(response.body).extract[GetPatternsResponse]
+    assert(respObj.patterns.size === 1)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - create node") {
@@ -323,64 +382,6 @@ class FrontEndSuite extends FunSuite {
     assert(response.code === HttpCode.OK)
     val resp = parse(response.body).extract[GetAgbotMsgsResponse]
     assert(resp.messages.size === 1)
-  }
-
-  test("POST /orgs/"+orgid+"/microservices - create "+microservice) {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
-    val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-    val respObj = parse(response.body).extract[ApiResponse]
-    assert(respObj.msg.contains("microservice '"+orgmicroservice+"' created"))
-  }
-
-  test("GET /orgs/"+orgid+"/microservices") {
-    val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(TYPEAPIKEY).headers(IDAPIKEY).headers(ORGHEAD).headers(ISSUERHEAD).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
-    val respObj = parse(response.body).extract[GetMicroservicesResponse]
-    assert(respObj.microservices.size === 1)
-    assert(respObj.microservices.contains(orgmicroservice))
-  }
-
-  test("POST /orgs/"+orgid+"/workloads - create "+workload) {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
-    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-    val respObj = parse(response.body).extract[ApiResponse]
-    assert(respObj.msg.contains("workload '"+orgworkload+"' created"))
-  }
-
-  test("GET /orgs/"+orgid+"/workloads/"+workload+" - as user") {
-    val response: HttpResponse[String] = Http(URL + "/workloads/" + workload).headers(ACCEPT).headers(TYPEAPIKEY).headers(IDAPIKEY).headers(ORGHEAD).headers(ISSUERHEAD).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
-    val respObj = parse(response.body).extract[GetWorkloadsResponse]
-    assert(respObj.workloads.size === 1)
-  }
-
-  test("POST /orgs/"+orgid+"/patterns/"+pattern+" - create "+pattern) {
-    val input = PostPutPatternRequest(ptBase, "desc", false,
-      List( PWorkloads("https://wkurl", "myorg", "", List(PWorkloadVersions("", "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), PDataVerification(false, "", "", "", 0, 0, Map[String,Any]()), Map("check_agreement_status" -> 120) )),
-      List[Map[String,String]]()
-    )
-    val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-    val respObj = parse(response.body).extract[ApiResponse]
-    assert(respObj.msg.contains("pattern '"+orgpattern+"' created"))
-  }
-
-  test("GET /orgs/"+orgid+"/patterns") {
-    val response: HttpResponse[String] = Http(URL + "/patterns").headers(ACCEPT).headers(TYPEAPIKEY).headers(IDAPIKEY).headers(ORGHEAD).headers(ISSUERHEAD).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
-    val respObj = parse(response.body).extract[GetPatternsResponse]
-    assert(respObj.patterns.size === 1)
   }
 
   test("Cleanup - DELETE everything and confirm they are gone") {

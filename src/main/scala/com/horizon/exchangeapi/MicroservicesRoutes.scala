@@ -12,7 +12,7 @@ import com.horizon.exchangeapi.tables._
 import scala.collection.immutable._
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.util._
-import java.net._
+//import java.net._
 
 //====== These are the input and output structures for /microservices routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -21,25 +21,22 @@ case class GetMicroservicesResponse(microservices: Map[String,Microservice], las
 case class GetMicroserviceAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST /orgs/{orgid}/microservices or PUT /orgs/{orgid}/microservices/<microservice-id> */
-case class PostPutMicroserviceRequest(label: String, description: String, public: Boolean, specRef: String, version: String, arch: String, sharable: String, downloadUrl: String, matchHardware: Map[String,String], userInput: List[Map[String,String]], workloads: List[Map[String,String]]) {
+case class PostPutMicroserviceRequest(label: String, description: String, public: Boolean, specRef: String, version: String, arch: String, sharable: String, downloadUrl: String, matchHardware: Map[String,String], userInput: List[Map[String,String]], workloads: List[MDockerImages]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
-    // Check the specRef is a valid URL
-    try {
-      new URL(specRef)
-    } catch {
-      case _: MalformedURLException => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "specRef is not valid URL format."))
+    // Currently we do not want to force that the specRef is a valid URL
+    //try { new URL(specRef) }
+    //catch { case _: MalformedURLException => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "specRef is not valid URL format.")) }
+
+    if (!Version(version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '"+version+"' is not valid version format."))
+
+    // Check that it is signed
+    for (w <- workloads) {
+      if (w.deployment != "" && (w.deployment_signature == "" || w.torrent == "")) { halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this microservice definition does not appear to be signed.")) }
     }
-
-    if (!Version(version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version is not valid version format."))
   }
 
-  def formId(orgid: String): String = {
-    // Remove the https:// from the beginning of specRef and replace troublesome chars with a dash. It has already been checked as a valid URL in validate().
-    val specRef2 = """^[A-Za-z0-9+.-]*?://""".r replaceFirstIn (specRef, "")
-    val specRef3 = """[$!*,;/?@&~=%]""".r replaceAllIn (specRef2, "-")     // I think possible chars in valid urls are: $_.+!*,;/?:@&~=%-
-    return OrgAndId(orgid, specRef3 + "_" + version + "_" + arch).toString
-  }
+  def formId(orgid: String) = MicroservicesTQ.formId(orgid, specRef, version, arch)
 
   def toMicroserviceRow(microservice: String, orgid: String, owner: String) = MicroserviceRow(microservice, orgid, owner, label, description, public, specRef, version, arch, sharable, downloadUrl, write(matchHardware), write(userInput), write(workloads), ApiTime.nowUTC)
 }
@@ -170,7 +167,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
 ```
 // (remove all of the comments like this before using)
 {
-  "label": "GPS for x86_64",     // for the registration UI
+  "label": "GPS for x86_64",     // this will be displayed in the node registration UI
   "description": "blah blah",
   "public": true,       // whether or not it can be viewed by other organizations
   "specRef": "https://bluehorizon.network/documentation/microservice/gps",   // the unique identifier of this MS
@@ -184,7 +181,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
     {
       "name": "foo",
       "label": "The Foo Value",
-      "type": "string",   // or: "int", "float", "list of strings"
+      "type": "string",   // or: "int", "float", "string list"
       "defaultValue": "bar"
     }
   ],
@@ -256,7 +253,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
 ```
 // (remove all of the comments like this before using)
 {
-  "label": "GPS for x86_64",     // for the registration UI
+  "label": "GPS for x86_64",     // this will be displayed in the node registration UI
   "description": "blah blah",
   "public": true,       // whether or not it can be viewed by other organizations
   "specRef": "https://bluehorizon.network/documentation/microservice/gps",   // the unique identifier of this MS

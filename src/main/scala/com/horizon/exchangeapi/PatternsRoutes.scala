@@ -9,10 +9,12 @@ import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 import com.horizon.exchangeapi.tables._
+
 import scala.collection.immutable._
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.util._
 //import java.net._
+import scala.util.control.Breaks._
 
 //====== These are the input and output structures for /orgs/{orgid}/patterns routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -23,7 +25,19 @@ case class GetPatternAttributeResponse(attribute: String, value: String)
 /** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
 case class PostPutPatternRequest(label: String, description: String, public: Boolean, workloads: List[PWorkloads], agreementProtocols: List[Map[String,String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = {}
+  def validate(): Unit = {
+    // Check that it is signed and check the version syntax
+    for (w <- workloads) {
+      for (wv <- w.workloadVersions) {
+        if (!Version(wv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '"+wv.version+"' is not valid version format."))
+        if (wv.deployment_overrides != "" && wv.deployment_overrides_signature == "") { halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this pattern definition does not appear to be signed.")) }
+      }
+    }
+
+  }
+
+  // Build a list of db actions to verify that the referenced workloads exist
+  def validateWorkloadIds: DBIO[Vector[Int]] = PatternsTQ.validateWorkloadIds(workloads)
 
   //def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(microservices), write(workloads), write(dataVerification), write(agreementProtocols), write(properties), write(counterPartyProperties), maxAgreements, ApiTime.nowUTC)
   def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(workloads), write(agreementProtocols), ApiTime.nowUTC)
@@ -151,9 +165,10 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 ```
 // (remove all of the comments like this before using)
 {
-  "label": "name of the edge pattern",
+  "label": "name of the edge pattern",     // this will be displayed in the node registration UI
   "description": "descriptive text",
-  "public": false,
+  "public": false,       // typically patterns are not appropriate to share across orgs because they contain policy choices
+  // The workloads that should be deployed to the edge for this pattern. (The workloads must exist before creating this pattern.)
   "workloads": [
     {
       "workloadUrl": "https://bluehorizon.network/workloads/weather",
@@ -229,14 +244,31 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     patternReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
-    db.run(PatternsTQ.getNumOwned(owner).result.flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/patterns num owned by "+owner+": "+xs)
-      val numOwned = xs
-      val maxPatterns = ExchConfig.getInt("api.limits.maxPatterns")
-      if (maxPatterns == 0 || numOwned <= maxPatterns) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
-        patternReq.toPatternRow(pattern, orgid, owner).insert.asTry
+    db.run(patternReq.validateWorkloadIds.asTry.flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" workload validation: "+xs.toString)
+      xs match {
+        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each workload query). If any are zero we should error out.
+          breakable { for ( (len, index) <- v.zipWithIndex) {
+            if (len <= 0) {
+              invalidIndex = index
+              break
+            }
+          } }
+          if (invalidIndex < 0) PatternsTQ.getNumOwned(owner).result.asTry
+          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced workload does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-      else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxPatterns+ " patterns")).asTry
+    }).flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" num owned by "+owner+": "+xs)
+      xs match {
+        case Success(num) => val numOwned = num
+          val maxPatterns = ExchConfig.getInt("api.limits.maxPatterns")
+          if (maxPatterns == 0 || numOwned <= maxPatterns) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
+            patternReq.toPatternRow(pattern, orgid, owner).insert.asTry
+          }
+          else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxPatterns+ " patterns")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
@@ -251,8 +283,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           resp.setStatus(HttpCode.ALREADY_EXISTS)
           ApiResponse(ApiResponseType.ALREADY_EXISTS, "pattern '" + pattern + "' already exists: " + t.getMessage)
         } else {
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not created: "+t.toString)
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+pattern+"' not created: "+t.getMessage)
         }
       }
     })
@@ -267,9 +299,10 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 ```
 // (remove all of the comments like this before using)
 {
-  "label": "name of the edge pattern",
+  "label": "name of the edge pattern",     // this will be displayed in the node registration UI
   "description": "descriptive text",
-  "public": false,
+  "public": false,       // typically patterns are not appropriate to share across orgs because they contain policy choices
+  // The workloads that should be deployed to the edge for this pattern. (The workloads must exist before creating this pattern.)
   "workloads": [
     {
       "workloadUrl": "https://bluehorizon.network/workloads/weather",
@@ -345,7 +378,21 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     patternReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
-    db.run(patternReq.toPatternRow(pattern, orgid, owner).update.asTry).map({ xs =>
+    db.run(patternReq.validateWorkloadIds.asTry.flatMap({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" workload validation: "+xs.toString)
+      xs match {
+        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each workload query). If any are zero we should error out.
+          breakable { for ( (len, index) <- v.zipWithIndex) {
+            if (len <= 0) {
+              invalidIndex = index
+              break
+            }
+          } }
+          if (invalidIndex < 0) patternReq.toPatternRow(pattern, orgid, owner).update.asTry
+          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced workload does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
         case Success(n) => try {
@@ -360,8 +407,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not updated: "+e) }    // the specific exception is NumberFormatException
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not updated: "+t.toString)
+        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+pattern+"' not updated: "+t.getMessage)
       }
     })
   })
@@ -404,7 +451,22 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val resp = response
     val (action, attrName) = patternReq.getDbUpdate(pattern, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid pattern attribute specified"))
-    db.run(action.transactionally.asTry).map({ xs =>
+    val patValidateAction = if (attrName == "workloads") PatternsTQ.validateWorkloadIds(patternReq.workloads.get) else DBIO.successful(Vector())
+    db.run(patValidateAction.asTry.flatMap({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" workload validation: "+xs.toString)
+      xs match {
+        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each workload query). If any are zero we should error out.
+          breakable { for ( (len, index) <- v.zipWithIndex) {
+            if (len <= 0) {
+              invalidIndex = index
+              break
+            }
+          } }
+          if (invalidIndex < 0) action.transactionally.asTry
+          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced workload does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
         case Success(v) => try {
@@ -418,8 +480,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not updated: "+t.toString)
+        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+pattern+"' not updated: "+t.getMessage)
       }
     })
   })

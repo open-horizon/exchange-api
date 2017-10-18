@@ -9,10 +9,12 @@ import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 import com.horizon.exchangeapi.tables._
+
 import scala.collection.immutable._
-import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.util._
-import java.net._
+//import java.net._
+import scala.util.control.Breaks._
 
 //====== These are the input and output structures for /orgs/{orgid}/workloads routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -21,25 +23,33 @@ case class GetWorkloadsResponse(workloads: Map[String,Workload], lastIndex: Int)
 case class GetWorkloadAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST /microservices or PUT /orgs/{orgid}/workloads/<workload-id> */
-case class PostPutWorkloadRequest(label: String, description: String, public: Boolean, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: List[Map[String,String]], userInput: List[Map[String,String]], workloads: List[Map[String,String]]) {
+case class PostPutWorkloadRequest(label: String, description: String, public: Boolean, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: List[WMicroservices], userInput: List[Map[String,String]], workloads: List[MDockerImages]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
-    // Check the workloadUrl is a valid URL
-    try {
-      new URL(workloadUrl)
-    } catch {
-      case _: MalformedURLException => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "workloadUrl is not valid URL format."))
+    // Currently we do not want to force that the workloadUrl is a valid URL
+    //try { new URL(workloadUrl) }
+    //catch { case _: MalformedURLException => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "workloadUrl is not valid URL format.")) }
+
+    if (!Version(version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '"+version+"' is not valid version format."))
+
+    // Check that it is signed
+    for (w <- workloads) {
+      if (w.deployment != "" && (w.deployment_signature == "" || w.torrent == "")) { halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this workload definition does not appear to be signed.")) }
     }
-
-    if (!Version(version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version is not valid version format."))
   }
 
-  def formId(orgid: String): String = {
-    // Remove the https:// from the beginning of workloadUrl and replace troublesome chars with a dash. It has already been checked as a valid URL in validate().
-    val workloadUrl2 = """^[A-Za-z0-9+.-]*?://""".r replaceFirstIn (workloadUrl, "")
-    val workloadUrl3 = """[$!*,;/?@&~=%]""".r replaceAllIn (workloadUrl2, "-")     // I think possible chars in valid urls are: $_.+!*,;/?:@&~=%-
-    return OrgAndId(orgid, workloadUrl3 + "_" + version + "_" + arch).toString
+  // Build a list of db actions to verify that the referenced workloads exist
+  def validateMicroserviceIds: DBIO[Vector[Int]] = {
+    if (apiSpec.isEmpty) return DBIO.successful(Vector())
+    val actions = ListBuffer[DBIO[Int]]()
+    for (m <- apiSpec) {
+      val microId = MicroservicesTQ.formId(m.org, m.specRef, m.version, m.arch)
+      actions += MicroservicesTQ.getMicroservice(microId).length.result
+    }
+    return DBIO.sequence(actions.toVector)      // convert the list of actions to a DBIO sequence because that returns query values
   }
+
+  def formId(orgid: String) = WorkloadsTQ.formId(orgid, workloadUrl, version, arch)
 
   def toWorkloadRow(workload: String, orgid: String, owner: String) = WorkloadRow(workload, orgid, owner, label, description, public, workloadUrl, version, arch, downloadUrl, write(apiSpec), write(userInput), write(workloads), ApiTime.nowUTC)
 }
@@ -176,14 +186,14 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
 ```
 // (remove all of the comments like this before using)
 {
-  "label": "Location for x86_64",     // for the registration UI
+  "label": "Location for x86_64",     // this will be displayed in the node registration UI
   "description": "blah blah",
   "public": true,       // whether or not it can be viewed by other organizations
-  "workloadUrl": "https://bluehorizon.network/documentation/workload/location",   // the unique identifier of this MS
+  "workloadUrl": "https://bluehorizon.network/documentation/workload/location",   // the unique identifier of this workload
   "version": "1.0.0",
   "arch": "amd64",
   "downloadUrl": "",    // reserved for future use
-  // The microservices used by this workload
+  // The microservices used by this workload. (The microservices must exist before creating this workload.)
   "apiSpec": [
     {
       "specRef": "https://bluehorizon.network/documentation/microservice/gps",
@@ -231,14 +241,31 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val workload = workloadReq.formId(orgid)
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
-    db.run(WorkloadsTQ.getNumOwned(owner).result.flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/workloads num owned by "+owner+": "+xs)
-      val numOwned = xs
-      val maxWorkloads = ExchConfig.getInt("api.limits.maxWorkloads")
-      if (maxWorkloads == 0 || numOwned <= maxWorkloads) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
-        workloadReq.toWorkloadRow(workload, orgid, owner).insert.asTry
+    db.run(workloadReq.validateMicroserviceIds.asTry.flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/workloads apiSpec validation: "+xs.toString)
+      xs match {
+        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each microservice query). If any are zero we should error out.
+          breakable { for ( (len, index) <- v.zipWithIndex) {
+            if (len <= 0) {
+              invalidIndex = index
+              break
+            }
+          } }
+          if (invalidIndex < 0) WorkloadsTQ.getNumOwned(owner).result.asTry
+          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced microservice (apiSpec) does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-      else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxWorkloads+ " workloads")).asTry
+    }).flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/workloads num owned by "+owner+": "+xs)
+      xs match {
+        case Success(num) => val numOwned = num
+          val maxWorkloads = ExchConfig.getInt("api.limits.maxWorkloads")
+          if (maxWorkloads == 0 || numOwned <= maxWorkloads) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
+            workloadReq.toWorkloadRow(workload, orgid, owner).insert.asTry
+          }
+          else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxWorkloads+ " workloads")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/workloads result: "+xs.toString)
       xs match {
@@ -253,8 +280,8 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           resp.setStatus(HttpCode.ALREADY_EXISTS)
           ApiResponse(ApiResponseType.ALREADY_EXISTS, "workload '" + workload + "' already exists: " + t.getMessage)
         } else {
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "workload '"+workload+"' not created: "+t.toString)
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "workload '"+workload+"' not created: "+t.getMessage)
         }
       }
     })
@@ -269,14 +296,14 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
 ```
 // (remove all of the comments like this before using)
 {
-  "label": "Location for x86_64",     // for the registration UI
+  "label": "Location for x86_64",     // this will be displayed in the node registration UI
   "description": "blah blah",
   "public": true,       // whether or not it can be viewed by other organizations
-  "workloadUrl": "https://bluehorizon.network/documentation/workload/location",   // the unique identifier of this MS
+  "workloadUrl": "https://bluehorizon.network/documentation/workload/location",   // the unique identifier of this workload
   "version": "1.0.0",
   "arch": "amd64",
   "downloadUrl": "",    // reserved for future use
-  // The microservices used by this workload
+  // The microservices used by this workload. (The microservices must exist before creating this workload.)
   "apiSpec": [
     {
       "specRef": "https://bluehorizon.network/documentation/microservice/gps",
@@ -326,7 +353,21 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     workloadReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
-    db.run(workloadReq.toWorkloadRow(workload, orgid, owner).update.asTry).map({ xs =>
+    db.run(workloadReq.validateMicroserviceIds.asTry.flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/workloads apiSpec validation: "+xs.toString)
+      xs match {
+        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each microservice query). If any are zero we should error out.
+          breakable { for ( (len, index) <- v.zipWithIndex) {
+            if (len <= 0) {
+              invalidIndex = index
+              break
+            }
+          } }
+          if (invalidIndex < 0) workloadReq.toWorkloadRow(workload, orgid, owner).update.asTry
+          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced microservice (apiSpec) does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/workloads/"+bareWorkload+" result: "+xs.toString)
       xs match {
         case Success(n) => try {
@@ -341,8 +382,8 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
               ApiResponse(ApiResponseType.NOT_FOUND, "workload '"+workload+"' not found")
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "workload '"+workload+"' not updated: "+e) }    // the specific exception is NumberFormatException
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "workload '"+workload+"' not updated: "+t.toString)
+        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "workload '"+workload+"' not updated: "+t.getMessage)
       }
     })
   })

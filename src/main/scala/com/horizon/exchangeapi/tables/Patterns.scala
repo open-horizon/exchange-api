@@ -10,13 +10,14 @@ import scala.collection.mutable.ListBuffer
 
 //case class PPriority(priority_value: Int, retries: Int, retry_durations: Int, verified_durations: Int)
 //case class PUpgradePolicy(lifecycle: String, time: String)
-case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification, nodeHealth: Map[String,Int])
-case class POldWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification)
+//case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification, nodeHealth: Map[String,Int])
+case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: Map[String,Any], nodeHealth: Map[String,Int])
+//case class POldWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification)
+case class POldWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: Map[String,Any])
 case class PWorkloadVersions(version: String, deployment_overrides: String, deployment_overrides_signature: String, priority: Map[String,Int], upgradePolicy: Map[String,String])
 //case class PMetering(tokens: Int, per_time_unit: String, notification_interval: Int)
 case class PDataVerification(enabled: Boolean, URL: String, user: String, password: String, interval: Int, check_rate: Int, metering: Map[String,Any])
 
-//case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, microservices: String, workloads: String, dataVerification: String, agreementProtocols: String, properties: String, counterPartyProperties: String, maxAgreements: Int, lastUpdated: String) {
 case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, workloads: String, agreementProtocols: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
@@ -66,6 +67,21 @@ class Patterns(tag: Tag) extends Table[PatternRow](tag, "patterns") {
 // Instance to access the patterns table
 object PatternsTQ {
   val rows = TableQuery[Patterns]
+
+  // Build a list of db actions to verify that the referenced workloads exist
+  def validateWorkloadIds(workloads: List[PWorkloads]): DBIO[Vector[Int]] = {
+    // Currently, anax does not support a pattern with no workloads, so do not support that here
+    val actions = ListBuffer[DBIO[Int]]()
+    for (w <- workloads) {
+      for (wv <- w.workloadVersions) {
+        val workId = WorkloadsTQ.formId(w.workloadOrgid, w.workloadUrl, wv.version, w.workloadArch)
+        //println("workId: "+workId)
+        actions += WorkloadsTQ.getWorkload(workId).length.result
+      }
+    }
+    //return DBIO.seq(actions: _*)      // convert the list of actions to a DBIO seq
+    return DBIO.sequence(actions.toVector)      // convert the list of actions to a DBIO sequence
+  }
 
   def getAllPatterns(orgid: String) = rows.filter(_.orgid === orgid)
   def getPattern(pattern: String) = rows.filter(_.pattern === pattern)

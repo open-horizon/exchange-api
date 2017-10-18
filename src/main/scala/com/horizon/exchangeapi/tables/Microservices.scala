@@ -1,11 +1,13 @@
 package com.horizon.exchangeapi.tables
 
+import com.horizon.exchangeapi.OrgAndId
 import org.json4s._
 import org.json4s.jackson.Serialization.read
 import slick.jdbc.PostgresProfile.api._
 
 
 /** Contains the object representations of the DB tables related to microservices. */
+case class MDockerImages(deployment: String, deployment_signature: String, torrent: String)
 
 case class MicroserviceRow(microservice: String, orgid: String, owner: String, label: String, description: String, public: Boolean, specRef: String, version: String, arch: String, sharable: String, downloadUrl: String, matchHardware: String, userInput: String, workloads: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
@@ -13,7 +15,7 @@ case class MicroserviceRow(microservice: String, orgid: String, owner: String, l
   def toMicroservice: Microservice = {
     val mh = if (matchHardware != "") read[Map[String,String]](matchHardware) else Map[String,String]()
     val input = if (userInput != "") read[List[Map[String,String]]](userInput) else List[Map[String,String]]()
-    val wrk = if (workloads != "") read[List[Map[String,String]]](workloads) else List[Map[String,String]]()
+    val wrk = if (workloads != "") read[List[MDockerImages]](workloads) else List[MDockerImages]()
     new Microservice(owner, label, description, public, specRef, version, arch, sharable, downloadUrl, mh, input, wrk, lastUpdated)
   }
 
@@ -50,6 +52,13 @@ class Microservices(tag: Tag) extends Table[MicroserviceRow](tag, "microservices
 // Instance to access the microservices table
 object MicroservicesTQ {
   val rows = TableQuery[Microservices]
+
+  def formId(orgid: String, specRef: String, version: String, arch: String): String = {
+    // Remove the https:// from the beginning of specRef and replace troublesome chars with a dash. It has already been checked as a valid URL in validate().
+    val specRef2 = """^[A-Za-z0-9+.-]*?://""".r replaceFirstIn (specRef, "")
+    val specRef3 = """[$!*,;/?@&~=%]""".r replaceAllIn (specRef2, "-")     // I think possible chars in valid urls are: $_.+!*,;/?:@&~=%-
+    return OrgAndId(orgid, specRef3 + "_" + version + "_" + arch).toString
+  }
 
   def getAllMicroservices(orgid: String) = rows.filter(_.orgid === orgid)
   def getMicroservice(microservice: String) = rows.filter(_.microservice === microservice)
@@ -95,7 +104,7 @@ object MicroservicesTQ {
 }
 
 // This is the microservice table minus the key - used as the data structure to return to the REST clients
-class Microservice(var owner: String, var label: String, var description: String, var public: Boolean, var specRef: String, var version: String, var arch: String, var sharable: String, var downloadUrl: String, var matchHardware: Map[String,String], var userInput: List[Map[String,String]], var workloads: List[Map[String,String]], var lastUpdated: String) {
+class Microservice(var owner: String, var label: String, var description: String, var public: Boolean, var specRef: String, var version: String, var arch: String, var sharable: String, var downloadUrl: String, var matchHardware: Map[String,String], var userInput: List[Map[String,String]], var workloads: List[MDockerImages], var lastUpdated: String) {
   // If we end up needing this, we might have to do deep copies of the variables that are actually structures
   //def copy = new Microservice(owner, label, description, specRef, version, arch, sharable, downloadUrl, matchHardware, userInput, workloads, lastUpdated)
 }

@@ -90,7 +90,7 @@ case class AgbotPatternRow(patId: String, agbotId: String, patternOrgid: String,
 }
 
 class AgbotPatterns(tag: Tag) extends Table[AgbotPatternRow](tag, "agbotpatterns") {
-  def patId = column[String]("patid")     // key - this is the pattern's org concatenated with the patter name
+  def patId = column[String]("patid")     // key - this is the pattern's org concatenated with the pattern name
   def agbotId = column[String]("agbotid")               // additional key - the composite orgid/agbotid
   def patternOrgid = column[String]("patternorgid")
   def pattern = column[String]("pattern")

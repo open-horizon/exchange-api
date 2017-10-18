@@ -59,7 +59,12 @@ class AgbotsSuite extends FunSuite {
   val patId = orgid + "_" + pattern
   val pattern2 = "mypattern2"
   val patId2 = orgid + "_" + pattern2
-  val workload = "myworkload"
+  val pattern3 = "mypattern3"
+  val patId3 = orgid + "_" + pattern3
+  val workid = "bluehorizon.network-workloads-netspeed_1.0.0_amd64"
+  val workurl = "https://bluehorizon.network/workloads/netspeed"
+  val workarch = "amd64"
+  val workversion = "1.0.0"
   val micro = "mymicro"
   val nodeId = "mynode"
   val nodeToken = nodeId+"tok"
@@ -260,6 +265,94 @@ class AgbotsSuite extends FunSuite {
   }
 
 
+  test("POST /orgs/"+orgid+"/workloads - add "+workid+" and check that agbot can read it") {
+    val input = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, "", List(), List(Map()), List())
+    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+
+    val response2: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response2.code)
+    assert(response2.code === HttpCode.OK)
+    val respObj = parse(response2.body).extract[GetWorkloadsResponse]
+    assert(respObj.workloads.size === 1)
+  }
+  // Note: when we delete the org, this workload will get deleted
+
+  test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" and check that agbot can read it") {
+    val input = PostPutPatternRequest(pattern, "desc", false,
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List[Map[String,String]]()
+    )
+    val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+
+    val response2: HttpResponse[String] = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response2.code)
+    assert(response2.code === HttpCode.OK)
+    val respObj = parse(response2.body).extract[GetPatternsResponse]
+    assert(respObj.patterns.size === 1)
+  }
+  // Note: when we delete the org, this pattern will get deleted
+
+  test("GET /orgs/"+orgid+"/patterns/"+pattern+" - as IBM agbot (if it exists) and also msg between orgs") {
+    val ibmAgbotAuth = sys.env.getOrElse("EXCHANGE_AGBOTAUTH", "")
+    val ibmAgbotId = """^[^:]+""".r.findFirstIn(ibmAgbotAuth).getOrElse("")     // get the id before the :
+    if (ibmAgbotAuth != "") {
+      val IBMAGBOTAUTH = ("Authorization", "Basic IBM/" + ibmAgbotAuth)
+      val response: HttpResponse[String] = Http(URL + "/patterns/" + pattern).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
+      info("code: " + response.code)
+      assert(response.code === HttpCode.OK)
+      val respObj = parse(response.body).extract[GetPatternsResponse]
+      assert(respObj.patterns.size === 1)
+
+      if (ibmAgbotId != "") {
+        // Also create a node to make sure they can msg each other
+        val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", orgid + "/" + pattern, List(), "", Map(), "NODEABC")
+        var response2 = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+        info("code: " + response2.code)
+        assert(response2.code === HttpCode.PUT_OK)
+
+        val input2 = PostNodesMsgsRequest("{msg from IBM agbot to node in this org}", 300)
+        response2 = Http(URL + "/nodes/" + nodeId + "/msgs").postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
+        info("code: " + response2.code + ", response.body: " + response2.body)
+        assert(response2.code === HttpCode.POST_OK)
+
+        val input3 = PostAgbotsMsgsRequest("{msg from node in this org to IBM agbot}", 300)
+        response2 = Http(NOORGURL + "/orgs/IBM/agbots/" + ibmAgbotId + "/msgs").postData(write(input3)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+        info("code: " + response2.code + ", response.body: " + response2.body)
+        assert(response2.code === HttpCode.POST_OK)
+      }
+    }
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2) {
+    val input = PostPutPatternRequest(pattern2, "desc", false,
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List[Map[String,String]]()
+    )
+    val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+  // Note: when we delete the org, this pattern will get deleted
+
+  test("POST /orgs/"+orgid+"/microservices - add "+micro+" and check that agbot can read it") {
+    val input = PostPutMicroserviceRequest(micro+" arm", "desc", false, "https://msurl", "1.0.0", "arm", "singleton", "", Map(), List(Map()), List())
+    val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+
+    val response2: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response2.code)
+    assert(response2.code === HttpCode.OK)
+    val respObj = parse(response2.body).extract[GetMicroservicesResponse]
+    assert(respObj.microservices.size === 1)
+  }
+  // Note: when we delete the org, this pattern will get deleted
+
+
   // Test the pattern sub-resources
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/patterns/"+patId+" - as user") {
     val input = PutAgbotPatternRequest(orgid, pattern)
@@ -273,6 +366,13 @@ class AgbotsSuite extends FunSuite {
     val response = Http(URL+"/agbots/"+agbotId+"/patterns/"+patId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/patterns/"+patId3+" - add pattern that does not exist - should fail") {
+    val input = PutAgbotPatternRequest(orgid, pattern3)
+    val response = Http(URL+"/agbots/"+agbotId+"/patterns/"+patId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - as agbot") {
@@ -332,82 +432,6 @@ class AgbotsSuite extends FunSuite {
     assert(getAgbotResp.patterns.size === 0)
   }
 
-
-  test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" and check that agbot can read it") {
-    val input = PostPutPatternRequest(pattern, "desc", false,
-      List( PWorkloads("https://wkurl", orgid, "", List(PWorkloadVersions("", "", "", Map(), Map())), PDataVerification(false, "", "", "", 0, 0, Map[String,Any]()), Map("check_agreement_status" -> 120) )),
-      List[Map[String,String]]()
-    )
-    val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-
-    val response2: HttpResponse[String] = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response2.code)
-    assert(response2.code === HttpCode.OK)
-    val respObj = parse(response2.body).extract[GetPatternsResponse]
-    assert(respObj.patterns.size === 1)
-  }
-  // Note: when we delete the org, this pattern will get deleted
-
-  test("GET /orgs/"+orgid+"/patterns/"+pattern+" - as IBM agbot (if it exists) and also msg between orgs") {
-    val ibmAgbotAuth = sys.env.getOrElse("EXCHANGE_AGBOTAUTH", "")
-    val ibmAgbotId = """^[^:]+""".r.findFirstIn(ibmAgbotAuth).getOrElse("")     // get the id before the :
-    if (ibmAgbotAuth != "") {
-      val IBMAGBOTAUTH = ("Authorization", "Basic IBM/" + ibmAgbotAuth)
-      val response: HttpResponse[String] = Http(URL + "/patterns/" + pattern).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
-      info("code: " + response.code)
-      assert(response.code === HttpCode.OK)
-      val respObj = parse(response.body).extract[GetPatternsResponse]
-      assert(respObj.patterns.size === 1)
-
-      if (ibmAgbotId != "") {
-        // Also create a node to make sure they can msg each other
-        val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", orgid + "/" + pattern, List(), "", Map(), "NODEABC")
-        var response2 = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-        info("code: " + response2.code)
-        assert(response2.code === HttpCode.PUT_OK)
-
-        val input2 = PostNodesMsgsRequest("{msg from IBM agbot to node in this org}", 300)
-        response2 = Http(URL + "/nodes/" + nodeId + "/msgs").postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
-        info("code: " + response2.code + ", response.body: " + response2.body)
-        assert(response2.code === HttpCode.POST_OK)
-
-        val input3 = PostAgbotsMsgsRequest("{msg from node in this org to IBM agbot}", 300)
-        response2 = Http(NOORGURL + "/orgs/IBM/agbots/" + ibmAgbotId + "/msgs").postData(write(input3)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
-        info("code: " + response2.code + ", response.body: " + response2.body)
-        assert(response2.code === HttpCode.POST_OK)
-      }
-    }
-  }
-
-  test("POST /orgs/"+orgid+"/workloads - add "+workload+" and check that agbot can read it") {
-    val input = PostPutWorkloadRequest(workload+" arm", "desc", false, "https://wkurl", "1.0.0", "arm", "", List(Map()), List(Map()), List(Map()))
-    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-
-    val response2: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response2.code)
-    assert(response2.code === HttpCode.OK)
-    val respObj = parse(response2.body).extract[GetWorkloadsResponse]
-    assert(respObj.workloads.size === 1)
-  }
-  // Note: when we delete the org, this pattern will get deleted
-
-  test("POST /orgs/"+orgid+"/microservices - add "+micro+" and check that agbot can read it") {
-    val input = PostPutMicroserviceRequest(micro+" arm", "desc", false, "https://msurl", "1.0.0", "arm", "singleton", "", Map(), List(Map()), List(Map()))
-    val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-
-    val response2: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response2.code)
-    assert(response2.code === HttpCode.OK)
-    val respObj = parse(response2.body).extract[GetMicroservicesResponse]
-    assert(respObj.microservices.size === 1)
-  }
-  // Note: when we delete the org, this pattern will get deleted
 
   /** Try to confirm the agreement that's not there for agbot 9930 */
   test("POST /orgs/"+orgid+"/agreements/confirm - not there") {

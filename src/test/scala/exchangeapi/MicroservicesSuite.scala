@@ -96,7 +96,7 @@ class MicroservicesSuite extends FunSuite {
   }
 
   /** Add users, node, microservice for future tests */
-  test("Add users, node, microservice for future tests") {
+  test("Add users, node, agbot for future tests") {
     var userInput = PostPutUsersRequest(pw, false, user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
@@ -107,7 +107,7 @@ class MicroservicesSuite extends FunSuite {
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
-    val devInput = PutNodesRequest(nodeToken, "bc dev test", "myorg/mypat", List(RegMicroservice("foo",1,"{}",List(
+    val devInput = PutNodesRequest(nodeToken, "bc dev test", "", List(RegMicroservice("foo",1,"{}",List(
       Prop("arch","arm","string","in"),
       Prop("version","2.0.0","version","in"),
       Prop("blockchainProtocols","agProto","list","in")))), "whisper-id", Map(), "NODEABC")
@@ -122,14 +122,21 @@ class MicroservicesSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/microservices/"+microservice+" - update MS that is not there yet - should fail") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "updated", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "updated", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/microservices/"+microservice).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
+  test("POST /orgs/"+orgid+"/microservices - add "+microservice+" that is not signed - should fail") {
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","","a")))
+    val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
   test("POST /orgs/"+orgid+"/microservices - add "+microservice+" as user") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -138,28 +145,28 @@ class MicroservicesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/microservices - add "+microservice+" again - should fail") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ALREADY_EXISTS)
   }
 
   test("PUT /orgs/"+orgid+"/microservices/"+microservice+" - update as same user") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "updated", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "updated", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/microservices/"+microservice).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/microservices/"+microservice+" - update as 2nd user - should fail") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "should not work", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "should not work", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/microservices/"+microservice).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("PUT /orgs/"+orgid+"/microservices/"+microservice+" - update as agbot - should fail") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/microservices/"+microservice).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -175,14 +182,14 @@ class MicroservicesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/microservices - add "+microservice2+" as node - should fail") {
-    val input = PostPutMicroserviceRequest(msBase2+" arm", "desc", false, msUrl2, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutMicroserviceRequest(msBase2+" arm", "desc", false, msUrl2, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("POST /orgs/"+orgid+"/microservices - add "+microservice2+" as 2nd user") {
-    val input = PostPutMicroserviceRequest(msBase2+" arm", "desc", true, msUrl2, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutMicroserviceRequest(msBase2+" arm", "desc", true, msUrl2, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -202,7 +209,7 @@ test("POST /orgs/"+orgid+"/microservices - with low maxMicroservices - should fa
     assert(response.code === HttpCode.PUT_OK)
 
     // Now try adding another microservice - expect it to be rejected
-    val input = PostPutMicroserviceRequest(msBase3+" arm", "desc", msUrl3, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutMicroserviceRequest(msBase3+" arm", "desc", msUrl3, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)

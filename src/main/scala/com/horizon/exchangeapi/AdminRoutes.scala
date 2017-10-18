@@ -409,7 +409,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   get("/admin/status", operation(getAdminStatus)) ({
     credsAndLog().authenticate().authorizeTo(TAction(),Access.STATUS)
     val statusResp = new AdminStatus()
-    //TODO: use a DBIO.seq instead. It does essentially the same thing, but more efficiently
+    //TODO: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
     db.run(UsersTQ.rows.length.result.asTry.flatMap({ xs =>
       logger.debug("GET /admin/status users length: "+xs)
       xs match {

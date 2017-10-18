@@ -72,13 +72,20 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
-## Changes in v1.40.0
+## Changes in 1.40.0
 
 ### External changes
 
+- Added GET /admin/version
+- Modified pattern resource so dataVerification field could be specified as `{}` if you are not using it
+- For the references between resources that are not enforced by DB foreign keys, added checking when the resource is created, updated, or patched:
+    - microservices referenced by a workload
+    - workloads referenced by a pattern
+    - patterns referenced by an agbot
+    - pattern referenced by a node
+
 ### Todos left to be finished
 
-- Do consistency checking of patterns and workloads
 - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
 - Add api for wiotp to get number of devices and agreements
 - Allow random PW creation for user creation

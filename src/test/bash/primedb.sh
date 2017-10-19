@@ -54,9 +54,13 @@ agreementid2="${agreementbase}2"
 
 microid="bluehorizon.network-microservices-network_1.0.0_amd64"
 microurl="https://bluehorizon.network/microservices/network"
+microarch="amd64"
+microversion="1.0.0"
 
 workid="bluehorizon.network-workloads-netspeed_1.0.0_amd64"
 workurl="https://bluehorizon.network/workloads/netspeed"
+workarch="amd64"
+workversion="1.0.0"
 workid2="bluehorizon.network-workloads-weather_1.0.0_amd64"
 workurl2="https://bluehorizon.network/workloads/weather"
 
@@ -167,111 +171,11 @@ else
     echo "orgs/$orgid2/users/$user exists"
 fi
 
-rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'",
-  "registeredMicroservices": [
-    {
-      "url": "'$microurl'",
-      "numAgreements": 1,
-      "policy": "{json policy for rpi1 netspeed}",
-      "properties": [
-        { "name": "arch", "value": "arm", "propType": "string", "op": "in" },
-        { "name": "version", "value": "1.0.0", "propType": "version", "op": "in" }
-      ]
-    }
-  ],
-  "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
-else
-    echo "orgs/$orgid/nodes/$nodeid exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredMicroservices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
-else
-    echo "orgs/$orgid/nodes/$nodeid2 exists"
-fi
-
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid2'/'$patid'", "registeredMicroservices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
-else
-    echo "orgs/$orgid2/nodes/$nodeid exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
-else
-    echo "orgs/$orgid/agbots/$agbotid exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_$patid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_$patid" '{ "patternOrgid": "'$orgid'", "pattern": "'$patid'" }'
-else
-    echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_$patid exists"
-fi
-
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/agbots/$agbotid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
-else
-    echo "orgs/$orgid2/agbots/$agbotid exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/status")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/status" '{ "connectivity": {"firmware.bluehorizon.network": true}, "microservices": [], "workloads": [] }'
-else
-    echo "orgs/$orgid/nodes/$nodeid/status exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1" '{"microservices": [], "workload": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$workurl'"}, "state": "negotiating"}'
-else
-    echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1 exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b" '{"microservices": [], "workload": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$workurl2'"}, "state": "negotiating"}'
-else
-    echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"microservices": [], "workload": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$workurl2'"}, "state": "negotiating"}'
-else
-    echo "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2 exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid1")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $agbotauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid1" '{"workload": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$workurl'"}, "state": "negotiating"}'
-else
-    echo "orgs/$orgid/agbots/$agbotid/agreements/$agreementid1 exists"
-fi
-
 rc=$(curlfind $userauth "orgs/$orgid/microservices/$microid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/microservices" '{"label": "Network x86_64", "description": "blah blah", "public": true, "specRef": "'$microurl'",
-  "version": "1.0.0", "arch": "amd64", "sharable": "single", "downloadUrl": "",
+  "version": "'$microversion'", "arch": "'$microarch'", "sharable": "single", "downloadUrl": "",
   "matchHardware": {},
   "userInput": [],
   "workloads": [] }'
@@ -283,8 +187,8 @@ rc=$(curlfind $userauth "orgs/$orgid/workloads/$workid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/workloads" '{"label": "Netspeed x86_64", "description": "blah blah", "public": true, "workloadUrl": "'$workurl'",
-  "version": "1.0.0", "arch": "amd64", "downloadUrl": "",
-  "apiSpec": [{ "specRef": "'$microurl'", "org": "IBM", "version": "1.0.0", "arch": "amd64" }],
+  "version": "'$workversion'", "arch": "'$workarch'", "downloadUrl": "",
+  "apiSpec": [{ "specRef": "'$microurl'", "org": "'$orgid'", "version": "'$microversion'", "arch": "'$microarch'" }],
   "userInput": [],
   "workloads": [] }'
 else
@@ -296,7 +200,7 @@ checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/workloads" '{"label": "Weather x86_64", "description": "blah blah", "public": true, "workloadUrl": "'$workurl2'",
   "version": "1.0.0", "arch": "amd64", "downloadUrl": "",
-  "apiSpec": [{ "specRef": "'$microurl'", "org": "IBM", "version": "1.0.0", "arch": "amd64" }],
+  "apiSpec": [{ "specRef": "'$microurl'", "org": "'$orgid'", "version": "'$microversion'", "arch": "'$microarch'" }],
   "userInput": [],
   "workloads": [] }'
 else
@@ -311,12 +215,12 @@ if [[ $rc != 200 ]]; then
     {
       "workloadUrl": "'$workurl'",
       "workloadOrgid": "'$orgid'",
-      "workloadArch": "amd64",
+      "workloadArch": "'$workarch'",
       "workloadVersions": [
         {
-          "version": "1.0.1",
+          "version": "'$workversion'",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "",
+          "deployment_overrides_signature": "a",
           "priority": {
             "priority_value": 50,
             "retries": 1,
@@ -361,6 +265,106 @@ if [[ $rc != 200 ]]; then
   "agreementProtocols": [{ "name": "Basic" }] }'
 else
     echo "orgs/$orgid2/patterns/$patid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'",
+  "registeredMicroservices": [
+    {
+      "url": "'$microurl'",
+      "numAgreements": 1,
+      "policy": "{json policy for rpi1 netspeed}",
+      "properties": [
+        { "name": "arch", "value": "arm", "propType": "string", "op": "in" },
+        { "name": "version", "value": "1.0.0", "propType": "version", "op": "in" }
+      ]
+    }
+  ],
+  "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+else
+    echo "orgs/$orgid/nodes/$nodeid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredMicroservices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+else
+    echo "orgs/$orgid/nodes/$nodeid2 exists"
+fi
+
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid2'/'$patid'", "registeredMicroservices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+else
+    echo "orgs/$orgid2/nodes/$nodeid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/status")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/status" '{ "connectivity": {"firmware.bluehorizon.network": true}, "microservices": [], "workloads": [] }'
+else
+    echo "orgs/$orgid/nodes/$nodeid/status exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
+else
+    echo "orgs/$orgid/agbots/$agbotid exists"
+fi
+
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/agbots/$agbotid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
+else
+    echo "orgs/$orgid2/agbots/$agbotid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_$patid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_$patid" '{ "patternOrgid": "'$orgid'", "pattern": "'$patid'" }'
+else
+    echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_$patid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1" '{"microservices": [], "workload": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$workurl'"}, "state": "negotiating"}'
+else
+    echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1 exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b" '{"microservices": [], "workload": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$workurl2'"}, "state": "negotiating"}'
+else
+    echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"microservices": [], "workload": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$workurl2'"}, "state": "negotiating"}'
+else
+    echo "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2 exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid1")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $agbotauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid1" '{"workload": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$workurl'"}, "state": "negotiating"}'
+else
+    echo "orgs/$orgid/agbots/$agbotid/agreements/$agreementid1 exists"
 fi
 
 # Do not have a good way to know what msg id they will have, but it is ok to create additional msgs

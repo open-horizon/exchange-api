@@ -9,10 +9,12 @@ import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 import com.horizon.exchangeapi.tables._
+
 import scala.collection.immutable._
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.util._
 //import java.net._
+import scala.util.control.Breaks._
 
 //====== These are the input and output structures for /orgs/{orgid}/patterns routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -23,10 +25,31 @@ case class GetPatternAttributeResponse(attribute: String, value: String)
 /** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
 case class PostPutPatternRequest(label: String, description: String, public: Boolean, workloads: List[PWorkloads], agreementProtocols: List[Map[String,String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = {}
+  def validate(): Unit = {
+    // Check that it is signed and check the version syntax
+    for (w <- workloads) {
+      for (wv <- w.workloadVersions) {
+        if (!Version(wv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '"+wv.version+"' is not valid version format."))
+        if (wv.deployment_overrides != "" && wv.deployment_overrides_signature == "") { halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this pattern definition does not appear to be signed.")) }
+      }
+    }
 
-  //def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(microservices), write(workloads), write(dataVerification), write(agreementProtocols), write(properties), write(counterPartyProperties), maxAgreements, ApiTime.nowUTC)
+  }
+
+  // Build a list of db actions to verify that the referenced workloads exist
+  def validateWorkloadIds: DBIO[Vector[Int]] = PatternsTQ.validateWorkloadIds(workloads)
+
   def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(workloads), write(agreementProtocols), ApiTime.nowUTC)
+  /* This is what to do if we want to fill in a default value for nodeHealth when it is not specified...
+  def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
+    // The nodeHealth field is optional, so fill in a default in each element of workloads if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
+    val workloads2 = workloads.map({ w =>
+      val nodeHealth2 = if (w.nodeHealth.nonEmpty) w.nodeHealth else Some(Map[String,Int]())
+      PWorkloads(w.workloadUrl, w.workloadOrgid, w.workloadArch, w.workloadVersions, w.dataVerification, nodeHealth2)
+    })
+    PatternRow(pattern, orgid, owner, label, description, public, write(workloads2), write(agreementProtocols), ApiTime.nowUTC)
+  }
+  */
 }
 
 case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], workloads: Option[List[PWorkloads]], agreementProtocols: Option[List[Map[String,String]]]) {
@@ -146,35 +169,41 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val postPatterns =
     (apiOperation[ApiResponse]("postPatterns")
       summary "Adds a pattern"
-      notes """Creates a pattern resource. This can only be called by a user. The **request body** structure:
+      notes """Creates a pattern resource. A pattern resource specifies all of the deployment information (workloads and microservices) for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. Patterns are not typically intended to be shared across organizations because they also specify deployment policy. This can only be called by a user. The **request body** structure:
 
 ```
+// (remove all of the comments like this before using)
 {
-  "label": "name of the edge pattern",
+  "label": "name of the edge pattern",     // this will be displayed in the node registration UI
   "description": "descriptive text",
-  "public": false,
+  "public": false,       // typically patterns are not appropriate to share across orgs because they contain policy choices
+  // The workloads that should be deployed to the edge for this pattern. (The workloads must exist before creating this pattern.)
   "workloads": [
     {
       "workloadUrl": "https://bluehorizon.network/workloads/weather",
       "workloadOrgid": "myorg",
       "workloadArch": "amd64",
+      // If multiple workload versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
       "workloadVersions": [
         {
           "version": "1.0.1",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "",
+          "deployment_overrides_signature": "",     // filled in by the Horizon signing process
           "priority": {
             "priority_value": 50,
             "retries": 1,
             "retry_durations": 3600,
             "verified_durations": 52
           },
+          // When Horizon should upgrade nodes to newer workload versions. Can be set to {} to take the default of immediate.
           "upgradePolicy": {
             "lifecycle": "immediate",
-            "time": "01:00AM"
+            "time": "01:00AM"     // reserved for future use
           }
         }
       ],
+      // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the workload is sending data.
+      // If not using this, the dataVerification field can be set to {} or omitted completely.
       "dataVerification": {
         "enabled": true,
         "URL": "",
@@ -188,12 +217,14 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           "notification_interval": 30
         }
       },
+      // If not using agbot node health check, this field can be set to {} or omitted completely.
       "nodeHealth": {
-        "missing_heartbeat_interval": 600,      // How long a heartbeat can be missing until node is considered missing (in seconds)
-        "check_agreement_status": 120        // How often to check that the node agreement entry still exists in the exchange (in seconds)
+        "missing_heartbeat_interval": 600,      // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
+        "check_agreement_status": 120        // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
       }
     }
   ],
+  // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [
     {
       "name": "Basic"
@@ -223,14 +254,31 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     patternReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
-    db.run(PatternsTQ.getNumOwned(owner).result.flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/patterns num owned by "+owner+": "+xs)
-      val numOwned = xs
-      val maxPatterns = ExchConfig.getInt("api.limits.maxPatterns")
-      if (maxPatterns == 0 || numOwned <= maxPatterns) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
-        patternReq.toPatternRow(pattern, orgid, owner).insert.asTry
+    db.run(patternReq.validateWorkloadIds.asTry.flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" workload validation: "+xs.toString)
+      xs match {
+        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each workload query). If any are zero we should error out.
+          breakable { for ( (len, index) <- v.zipWithIndex) {
+            if (len <= 0) {
+              invalidIndex = index
+              break
+            }
+          } }
+          if (invalidIndex < 0) PatternsTQ.getNumOwned(owner).result.asTry
+          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced workload does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-      else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxPatterns+ " patterns")).asTry
+    }).flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" num owned by "+owner+": "+xs)
+      xs match {
+        case Success(num) => val numOwned = num
+          val maxPatterns = ExchConfig.getInt("api.limits.maxPatterns")
+          if (maxPatterns == 0 || numOwned <= maxPatterns) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
+            patternReq.toPatternRow(pattern, orgid, owner).insert.asTry
+          }
+          else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxPatterns+ " patterns")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
@@ -245,8 +293,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           resp.setStatus(HttpCode.ALREADY_EXISTS)
           ApiResponse(ApiResponseType.ALREADY_EXISTS, "pattern '" + pattern + "' already exists: " + t.getMessage)
         } else {
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not created: "+t.toString)
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+pattern+"' not created: "+t.getMessage)
         }
       }
     })
@@ -259,32 +307,38 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       notes """Updates a pattern resource. This can only be called by the user that created it. The **request body** structure:
 
 ```
+// (remove all of the comments like this before using)
 {
-  "label": "name of the edge pattern",
+  "label": "name of the edge pattern",     // this will be displayed in the node registration UI
   "description": "descriptive text",
-  "public": false,
+  "public": false,       // typically patterns are not appropriate to share across orgs because they contain policy choices
+  // The workloads that should be deployed to the edge for this pattern. (The workloads must exist before creating this pattern.)
   "workloads": [
     {
       "workloadUrl": "https://bluehorizon.network/workloads/weather",
       "workloadOrgid": "myorg",
       "workloadArch": "amd64",
+      // If multiple workload versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
       "workloadVersions": [
         {
           "version": "1.0.1",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "",
+          "deployment_overrides_signature": "",     // filled in by the Horizon signing process
           "priority": {
             "priority_value": 50,
             "retries": 1,
             "retry_durations": 3600,
             "verified_durations": 52
           },
+          // When Horizon should upgrade nodes to newer workload versions. Can be set to {} to take the default of immediate.
           "upgradePolicy": {
             "lifecycle": "immediate",
-            "time": "01:00AM"
+            "time": "01:00AM"     // reserved for future use
           }
         }
       ],
+      // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the workload is sending data.
+      // If not using this, the dataVerification field can be set to {} or omitted completely.
       "dataVerification": {
         "enabled": true,
         "URL": "",
@@ -298,12 +352,14 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           "notification_interval": 30
         }
       },
+      // If not using agbot node health check, this field can be set to {} or omitted completely.
       "nodeHealth": {
-        "missing_heartbeat_interval": 600,      // How long a heartbeat can be missing until node is considered missing (in seconds)
-        "check_agreement_status": 120        // How often to check that the node agreement entry still exists in the exchange (in seconds)
+        "missing_heartbeat_interval": 600,      // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
+        "check_agreement_status": 120        // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
       }
     }
   ],
+  // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [
     {
       "name": "Basic"
@@ -333,7 +389,21 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     patternReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
-    db.run(patternReq.toPatternRow(pattern, orgid, owner).update.asTry).map({ xs =>
+    db.run(patternReq.validateWorkloadIds.asTry.flatMap({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" workload validation: "+xs.toString)
+      xs match {
+        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each workload query). If any are zero we should error out.
+          breakable { for ( (len, index) <- v.zipWithIndex) {
+            if (len <= 0) {
+              invalidIndex = index
+              break
+            }
+          } }
+          if (invalidIndex < 0) patternReq.toPatternRow(pattern, orgid, owner).update.asTry
+          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced workload does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
         case Success(n) => try {
@@ -348,8 +418,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not updated: "+e) }    // the specific exception is NumberFormatException
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not updated: "+t.toString)
+        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+pattern+"' not updated: "+t.getMessage)
       }
     })
   })
@@ -392,7 +462,22 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val resp = response
     val (action, attrName) = patternReq.getDbUpdate(pattern, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid pattern attribute specified"))
-    db.run(action.transactionally.asTry).map({ xs =>
+    val patValidateAction = if (attrName == "workloads") PatternsTQ.validateWorkloadIds(patternReq.workloads.get) else DBIO.successful(Vector())
+    db.run(patValidateAction.asTry.flatMap({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" workload validation: "+xs.toString)
+      xs match {
+        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each workload query). If any are zero we should error out.
+          breakable { for ( (len, index) <- v.zipWithIndex) {
+            if (len <= 0) {
+              invalidIndex = index
+              break
+            }
+          } }
+          if (invalidIndex < 0) action.transactionally.asTry
+          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced workload does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
         case Success(v) => try {
@@ -406,8 +491,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not updated: "+t.toString)
+        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+pattern+"' not updated: "+t.getMessage)
       }
     })
   })

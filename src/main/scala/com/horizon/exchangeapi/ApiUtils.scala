@@ -301,3 +301,15 @@ case class VersionRange(range: String) {
     (if (floorInclusive) "[" else "(") + floor + "," + ceiling + (if (ceilingInclusive) "]" else ")")
   }
 }
+
+/** Depending on the given int, returns 1st, 2nd, 3rd, 4th, ... */
+case class Nth(n: Int) {
+  override def toString: String = {
+    n match {
+      case 1 => return n + "st"
+      case 2 => return n + "nd"
+      case 3 => return n + "rd"
+      case _ => return n + "th"
+    }
+  }
+}

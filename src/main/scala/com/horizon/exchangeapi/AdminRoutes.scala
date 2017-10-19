@@ -9,6 +9,8 @@ import org.json4s.jackson.JsonMethods._
 import org.scalatra.swagger._
 import org.slf4j._
 import java.util.Properties
+
+import scala.io.Source
 //import scala.collection.immutable._
 //import scala.collection.mutable.ListBuffer
 import scala.util._
@@ -377,21 +379,37 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
+  // =========== GET /admin/version ===============================
+  val getAdminVersion =
+    (apiOperation[String]("getAdminVersion")
+      summary "Returns the version of the Exchange server"
+      notes "Returns the version of the Exchange server as a simple string (no JSON or quotes). Can be run by anyone."
+      )
+
+  get("/admin/version", operation(getAdminVersion)) ({
+    credsAndLog(true)     // do not need to call authenticate().authorizeTo() because anyone can run this
+    val versionSource = Source.fromResource("version.txt")      // returns BufferedSource
+    val versionText : String = versionSource.getLines.next()
+    versionSource.close()
+    versionText + "\n"
+  })
+
+
   // =========== GET /admin/status ===============================
   val getAdminStatus =
     (apiOperation[GetAdminStatusResponse]("getAdminStatus")
       summary "Returns status of the Exchange server"
       notes "Returns a dictionary of statuses/statistics. Can be run by any user."
       parameters(
-        Parameter("username", DataType.String, Option[String]("The username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("The password. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
+      Parameter("username", DataType.String, Option[String]("The username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+      Parameter("password", DataType.String, Option[String]("The password. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
       )
 
   get("/admin/status", operation(getAdminStatus)) ({
     credsAndLog().authenticate().authorizeTo(TAction(),Access.STATUS)
     val statusResp = new AdminStatus()
-    //TODO: use a DBIO.seq instead. It does essentially the same thing, but more efficiently
+    //TODO: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
     db.run(UsersTQ.rows.length.result.asTry.flatMap({ xs =>
       logger.debug("GET /admin/status users length: "+xs)
       xs match {

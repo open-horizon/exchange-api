@@ -61,7 +61,9 @@ class WorkloadsSuite extends FunSuite {
   val wkBase3 = "wk9922"
   val wkUrl3 = "http://" + wkBase3
   val workload3 = wkBase3 + "_1.0.0_arm"
-  //var numExistingWorkloads = 0    // this will be set later
+  val microurl = "https://bluehorizon.network/microservices/network"
+  val microarch = "amd64"
+  val microversion = "1.0.0"
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -105,7 +107,7 @@ class WorkloadsSuite extends FunSuite {
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
-    val devInput = PutNodesRequest(nodeToken, "bc dev test", "myorg/mypat", List(RegMicroservice("foo",1,"{}",List(
+    val devInput = PutNodesRequest(nodeToken, "bc dev test", "", List(RegMicroservice("foo",1,"{}",List(
       Prop("arch","arm","string","in"),
       Prop("version","2.0.0","version","in"),
       Prop("blockchainProtocols","agProto","list","in")))), "whisper-id", Map(), "NODEABC")
@@ -119,16 +121,37 @@ class WorkloadsSuite extends FunSuite {
     assert(agbotResponse.code === HttpCode.PUT_OK)
   }
 
+  test("POST /orgs/"+orgid+"/workloads - add "+workload+" before the referenced microservice exists - should fail") {
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", None, List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
+  test("POST /orgs/"+orgid+"/microservices - add microservice so workloads can reference it") {
+    val input = PostPutMicroserviceRequest("testMicro", "desc", false, microurl, microversion, microarch, "single", None, None, List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
   test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update WK that is not there yet - should fail") {
     // PostPutWorkloadRequest(label: String, description: String, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: List[Map[String,String]], userInput: List[Map[String,String]], workloads: List[Map[String,String]]) {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "updated", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", Some("updated"), List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads/"+workload).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
+  test("POST /orgs/"+orgid+"/workloads - add "+workload+" that is not signed - should fail") {
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", None, List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","")))
+    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
   test("POST /orgs/"+orgid+"/workloads - add "+workload+" as user") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", None, List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -137,28 +160,28 @@ class WorkloadsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/workloads - add "+workload+" again - should fail") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", None, List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ALREADY_EXISTS)
   }
 
   test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update as same user") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "updated", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", Some("updated"), List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads/"+workload).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update as 2nd user - should fail") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "should not work", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", Some("should not work"), List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads/"+workload).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update as agbot - should fail") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", None, List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads/"+workload).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -174,14 +197,14 @@ class WorkloadsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/workloads - add "+workload2+" as node - should fail") {
-    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", false, wkUrl2, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", false, wkUrl2, "1.0.0", "arm", None, List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("POST /orgs/"+orgid+"/workloads - add "+workload2+" as 2nd user") {
-    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", true, wkUrl2, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl2")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", true, wkUrl2, "1.0.0", "arm", None, List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -201,7 +224,7 @@ class WorkloadsSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
 
       // Now try adding another workload - expect it to be rejected
-      val input = PostPutWorkloadRequest(wkBase3+" arm", "desc", wkUrl3, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
+      val input = PostPutWorkloadRequest(wkBase3+" arm", "desc", wkUrl3, "1.0.0", "arm", "", List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
       response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
@@ -237,7 +260,7 @@ class WorkloadsSuite extends FunSuite {
   }
 
   test("GET /orgs/"+orgid+"/workloads - filter owner and workloadUrl") {
-    val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("specRef","%msurl2").asString
+    val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("specRef",microurl).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)

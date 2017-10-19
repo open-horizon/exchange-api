@@ -12,7 +12,7 @@ import com.horizon.exchangeapi.tables._
 import scala.collection.immutable._
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.util._
-import java.net._
+//import java.net._
 
 //====== These are the input and output structures for /microservices routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -21,27 +21,24 @@ case class GetMicroservicesResponse(microservices: Map[String,Microservice], las
 case class GetMicroserviceAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST /orgs/{orgid}/microservices or PUT /orgs/{orgid}/microservices/<microservice-id> */
-case class PostPutMicroserviceRequest(label: String, description: String, public: Boolean, specRef: String, version: String, arch: String, sharable: String, downloadUrl: String, matchHardware: Map[String,String], userInput: List[Map[String,String]], workloads: List[Map[String,String]]) {
+case class PostPutMicroserviceRequest(label: String, description: String, public: Boolean, specRef: String, version: String, arch: String, sharable: String, downloadUrl: Option[String], matchHardware: Option[Map[String,String]], userInput: List[Map[String,String]], workloads: List[MDockerImages]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
-    // Check the specRef is a valid URL
-    try {
-      new URL(specRef)
-    } catch {
-      case _: MalformedURLException => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "specRef is not valid URL format."))
+    // Currently we do not want to force that the specRef is a valid URL
+    //try { new URL(specRef) }
+    //catch { case _: MalformedURLException => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "specRef is not valid URL format.")) }
+
+    if (!Version(version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '"+version+"' is not valid version format."))
+
+    // Check that it is signed
+    for (w <- workloads) {
+      if (w.deployment != "" && (w.deployment_signature == "" || w.torrent == "")) { halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this microservice definition does not appear to be signed.")) }
     }
-
-    if (!Version(version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version is not valid version format."))
   }
 
-  def formId(orgid: String): String = {
-    // Remove the https:// from the beginning of specRef and replace troublesome chars with a dash. It has already been checked as a valid URL in validate().
-    val specRef2 = """^[A-Za-z0-9+.-]*?://""".r replaceFirstIn (specRef, "")
-    val specRef3 = """[$!*,;/?@&~=%]""".r replaceAllIn (specRef2, "-")     // I think possible chars in valid urls are: $_.+!*,;/?:@&~=%-
-    return OrgAndId(orgid, specRef3 + "_" + version + "_" + arch).toString
-  }
+  def formId(orgid: String) = MicroservicesTQ.formId(orgid, specRef, version, arch)
 
-  def toMicroserviceRow(microservice: String, orgid: String, owner: String) = MicroserviceRow(microservice, orgid, owner, label, description, public, specRef, version, arch, sharable, downloadUrl, write(matchHardware), write(userInput), write(workloads), ApiTime.nowUTC)
+  def toMicroserviceRow(microservice: String, orgid: String, owner: String) = MicroserviceRow(microservice, orgid, owner, label, description, public, specRef, version, arch, sharable, downloadUrl.getOrElse(""), write(matchHardware), write(userInput), write(workloads), ApiTime.nowUTC)
 }
 
 case class PatchMicroserviceRequest(label: Option[String], description: Option[String], public: Option[Boolean], specRef: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], downloadUrl: Option[String]) {
@@ -165,46 +162,35 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val postMicroservices =
     (apiOperation[ApiResponse]("postMicroservices")
       summary "Adds a microservice"
-      notes """Creates a microservice resource. This can only be called by a user. The **request body** structure:
+      notes """Creates a microservice resource. A microservice provides access to node data or services that can be used by potentially multiple workloads. The microservice resource contains the metadata that Horizon needs to deploy the docker images that implement this microservice. If public is set to true, the microservice can be shared across organizations. This can only be called by a user. The **request body** structure:
 
 ```
+// (remove all of the comments like this before using)
 {
-  "label": "GPS for x86_64",     // for the registration UI
+  "label": "GPS for x86_64",     // this will be displayed in the node registration UI
   "description": "blah blah",
   "public": true,       // whether or not it can be viewed by other organizations
   "specRef": "https://bluehorizon.network/documentation/microservice/gps",   // the unique identifier of this MS
   "version": "1.0.0",
   "arch": "amd64",
   "sharable": "exclusive",   // or: "single", "multiple"
-  "downloadUrl": "",    // not used yet
-  // Hints to the edge node about how to tell if it has physical sensors supported by the MS
-  "matchHardware": {
-    // Normally will only set 1 of these values
-    "usbNodeIds": ["1546:01a7"],
-    "devFiles": ["/dev/ttyUSB*", "/dev/ttyACM*"]
-  },
-  // Values the node owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
+  "downloadUrl": "",    // reserved for future use, can be omitted
+  "matchHardware": {},    // reserved for future use, can be omitted (will be hints to the node about how to tell if it has the physical sensors required by this MS
+  // Values the node owner will be prompted for and will be set as env vars to the container.
   "userInput": [
     {
       "name": "foo",
       "label": "The Foo Value",
-      "type": "string",   // or: "int", "float", "list of strings"
+      "type": "string",   // or: "int", "float", "string list"
       "defaultValue": "bar"
     }
   ],
+  // The docker images that will be deployed on edge nodes for this microservice
   "workloads": [
     {
       "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:2.0.3\",\"privileged\":true,\"nodes\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
-      "deployment_signature": "EURzSk=",
-      "torrent": {
-        "url": "https://images.bluehorizon.network/28f57c91243c56caaf0362deeb6620099a0ba1a3.torrent",
-        "images": [
-          {
-            "file": "d98bfef9f76dee5b4321c4bc18243d9510f11655.tar.gz",
-            "signature": "kckH14DUj3bXMu7hnQK="
-          }
-        ]
-      }
+      "deployment_signature": "EURzSk=",     // filled in by the Horizon signing process
+      "torrent": "{\"url\":\"https://images.bluehorizon.network/139e5b32f271e43698565ff0a37c525609f86178.json\",\"signature\":\"L6/iZxGXloE=\"}"     // filled in by the Horizon signing process
     }
   ]
 }
@@ -262,25 +248,21 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val putMicroservices =
     (apiOperation[ApiResponse]("putMicroservices")
       summary "Updates a microservice"
-      notes """Does a full replace of an existing microservice. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
+      notes """Does a full replace of an existing microservice. This can only be called by the user that originally created it. The **request body** structure:
 
 ```
+// (remove all of the comments like this before using)
 {
-  "label": "GPS for x86_64",     // for the registration UI
+  "label": "GPS for x86_64",     // this will be displayed in the node registration UI
   "description": "blah blah",
   "public": true,       // whether or not it can be viewed by other organizations
   "specRef": "https://bluehorizon.network/documentation/microservice/gps",   // the unique identifier of this MS
   "version": "1.0.0",
   "arch": "amd64",
   "sharable": "exclusive",   // or: "single", "multiple"
-  "downloadUrl": "",    // not used yet
-  // Hints to the edge node about how to tell if it has physical sensors supported by the MS
-  "matchHardware": {
-    // Normally will only set 1 of these values
-    "usbNodeIds": ["1546:01a7"],
-    "devFiles": ["/dev/ttyUSB*", "/dev/ttyACM*"]
-  },
-  // Values the node owner will be prompted for and will be set as env vars to the container. Can override env vars in workloads.deployment.
+  "downloadUrl": "",    // reserved for future use, can be omitted
+  "matchHardware": {},    // reserved for future use, can be omitted (will be hints to the node about how to tell if it has the physical sensors required by this MS
+  // Values the node owner will be prompted for and will be set as env vars to the container.
   "userInput": [
     {
       "name": "foo",
@@ -289,19 +271,12 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
       "defaultValue": "bar"
     }
   ],
+  // The docker images that will be deployed on edge nodes for this microservice
   "workloads": [
     {
       "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:2.0.3\",\"privileged\":true,\"nodes\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
-      "deployment_signature": "EURzSk=",
-      "torrent": {
-        "url": "https://images.bluehorizon.network/28f57c91243c56caaf0362deeb6620099a0ba1a3.torrent",
-        "images": [
-          {
-            "file": "d98bfef9f76dee5b4321c4bc18243d9510f11655.tar.gz",
-            "signature": "kckH14DUj3bXMu7hnQK="
-          }
-        ]
-      }
+      "deployment_signature": "EURzSk=",     // filled in by the Horizon signing process
+      "torrent": "{\"url\":\"https://images.bluehorizon.network/139e5b32f271e43698565ff0a37c525609f86178.json\",\"signature\":\"L6/iZxGXloE=\"}"     // filled in by the Horizon signing process
     }
   ]
 }
@@ -364,7 +339,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   "version": "1.0.0",
   "arch": "amd64",
   "sharable": "exclusive",   // or: "single", "multiple"
-  "downloadUrl": ""    // not used yet
+  "downloadUrl": ""    // reserved for future use
 }
 ```"""
       parameters(

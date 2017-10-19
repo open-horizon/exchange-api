@@ -1,19 +1,21 @@
 package com.horizon.exchangeapi.tables
 
+import com.horizon.exchangeapi.OrgAndId
 import org.json4s._
 import org.json4s.jackson.Serialization.read
 import slick.jdbc.PostgresProfile.api._
 
 
 /** Contains the object representations of the DB tables related to workloads. */
+case class WMicroservices(specRef: String, org: String, version: String, arch: String)
 
 case class WorkloadRow(workload: String, orgid: String, owner: String, label: String, description: String, public: Boolean, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: String, userInput: String, workloads: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toWorkload: Workload = {
-    val spec = if (apiSpec != "") read[List[Map[String,String]]](apiSpec) else List[Map[String,String]]()
+    val spec = if (apiSpec != "") read[List[WMicroservices]](apiSpec) else List[WMicroservices]()
     val input = if (userInput != "") read[List[Map[String,String]]](userInput) else List[Map[String,String]]()
-    val wrk = if (workloads != "") read[List[Map[String,String]]](workloads) else List[Map[String,String]]()
+    val wrk = if (workloads != "") read[List[MDockerImages]](workloads) else List[MDockerImages]()
     new Workload(owner, label, description, public, workloadUrl, version, arch, downloadUrl, spec, input, wrk, lastUpdated)
   }
 
@@ -49,6 +51,13 @@ class Workloads(tag: Tag) extends Table[WorkloadRow](tag, "workloads") {
 // Instance to access the workloads table
 object WorkloadsTQ {
   val rows = TableQuery[Workloads]
+
+  def formId(orgid: String, url: String, version: String, arch: String): String = {
+    // Remove the https:// from the beginning of workloadUrl and replace troublesome chars with a dash. It has already been checked as a valid URL in validate().
+    val workloadUrl2 = """^[A-Za-z0-9+.-]*?://""".r replaceFirstIn (url, "")
+    val workloadUrl3 = """[$!*,;/?@&~=%]""".r replaceAllIn (workloadUrl2, "-")     // I think possible chars in valid urls are: $_.+!*,;/?:@&~=%-
+    return OrgAndId(orgid, workloadUrl3 + "_" + version + "_" + arch).toString
+  }
 
   def getAllWorkloads(orgid: String) = rows.filter(_.orgid === orgid)
   def getWorkload(workload: String) = rows.filter(_.workload === workload)
@@ -92,7 +101,7 @@ object WorkloadsTQ {
 }
 
 // This is the workload table minus the key - used as the data structure to return to the REST clients
-class Workload(var owner: String, var label: String, var description: String, var public: Boolean, var workloadUrl: String, var version: String, var arch: String, var downloadUrl: String, var apiSpec: List[Map[String,String]], var userInput: List[Map[String,String]], var workloads: List[Map[String,String]], var lastUpdated: String) {
+class Workload(var owner: String, var label: String, var description: String, var public: Boolean, var workloadUrl: String, var version: String, var arch: String, var downloadUrl: String, var apiSpec: List[WMicroservices], var userInput: List[Map[String,String]], var workloads: List[MDockerImages], var lastUpdated: String) {
   def copy = new Workload(owner, label, description, public, workloadUrl, version, arch, downloadUrl, apiSpec, userInput, workloads, lastUpdated)
 }
 

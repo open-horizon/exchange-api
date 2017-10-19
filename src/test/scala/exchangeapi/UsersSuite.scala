@@ -490,7 +490,7 @@ class UsersSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/microservices - add "+microservice+" as not public in 1st org") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "single", "", Map(), List(), List())
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "single", None, None, List(), List())
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -537,7 +537,7 @@ class UsersSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/workloads - add "+workload+" as not public in 1st org") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", "", List(), List(), List())
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", None, List(), List(), List())
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

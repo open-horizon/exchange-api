@@ -485,7 +485,14 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     pattern.validate(patId)
     val resp = response
-    db.run(pattern.toAgbotPatternRow(compositeId, patId).upsert.asTry).map({ xs =>
+    db.run(PatternsTQ.getPattern(OrgAndId(pattern.patternOrgid,pattern.pattern).toString).length.result.asTry.flatMap({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/patterns"+patId+" pattern validation: "+xs.toString)
+      xs match {
+        case Success(num) => if (num > 0) pattern.toAgbotPatternRow(compositeId, patId).upsert.asTry
+          else DBIO.failed(new Throwable("the referenced pattern does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/patterns/"+patId+" result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
@@ -494,8 +501,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.getMessage)
           } else {
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.toString)
+            resp.setStatus(HttpCode.BAD_INPUT)
+            ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.getMessage)
           }
       }
     })

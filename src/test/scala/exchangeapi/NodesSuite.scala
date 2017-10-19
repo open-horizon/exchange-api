@@ -61,6 +61,10 @@ class NodesSuite extends FunSuite {
   val orgnodeId4 = authpref+nodeId4
   val patid = "mypat"
   val compositePatid = orgid+"/"+patid
+  val workid = "bluehorizon.network-workloads-netspeed_1.0.0_amd64"
+  val workurl = "https://bluehorizon.network/workloads/netspeed"
+  val workarch = "amd64"
+  val workversion = "1.0.0"
   val agreementId = "9950"
   val creds = authpref+nodeId+":"+nodeToken
   val encodedCreds = Base64.getEncoder.encodeToString(creds.getBytes("utf-8"))
@@ -156,9 +160,36 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
   }
 
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - before pattern exists - should fail") {
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
+      List(),
+      "whisper-id", Map("horizon"->"3.2.3"), "NODEABC")
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
+  test("POST /orgs/"+orgid+"/workloads - add "+workid+" so pattern can reference it") {
+    val input = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, None, List(), List(Map()), List())
+    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+  // Note: when we delete the org, this workload will get deleted
+
+  test("POST /orgs/"+orgid+"/patterns/"+patid+" - so nodes can reference it") {
+    val input = PostPutPatternRequest(patid, "desc", false,
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
+      List[Map[String,String]]()
+    )
+    val response = Http(URL+"/patterns/"+patid).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+  // Note: when we delete the org, this pattern will get deleted
+
   ExchConfig.load()
-  /** Add a normal node */
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal") {
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - add normal node") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
       List(
         RegMicroservice(PWSSPEC,1,"{json policy for "+nodeId+" pws}",List(
@@ -570,20 +601,6 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  /*
-  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - remove pattern from node so we can search for microservices") {
-    val jsonInput = """{ "pattern": "" }"""
-    var response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
-    assert(response.code === HttpCode.PUT_OK)
-    response = Http(URL+"/nodes/"+nodeId2).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    assert(response.code === HttpCode.PUT_OK)
-    response = Http(URL+"/nodes/"+nodeId3).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    assert(response.code === HttpCode.PUT_OK)
-    response = Http(URL+"/nodes/"+nodeId4).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    assert(response.code === HttpCode.PUT_OK)
-  }
-  */
-
   test("POST /orgs/"+orgid+"/search/nodes - all arm nodes") {
     patchNodePattern("")      // remove pattern from nodes so we can search for microservices
     val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
@@ -877,20 +894,6 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
-
-  /*
-  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - put pattern back in node so we can search for pattern nodes") {
-    val jsonInput = """{ "pattern": """"+compositePatid+"""" }"""
-    var response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
-    assert(response.code === HttpCode.PUT_OK)
-    response = Http(URL+"/nodes/"+nodeId2).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    assert(response.code === HttpCode.PUT_OK)
-    response = Http(URL+"/nodes/"+nodeId3).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    assert(response.code === HttpCode.PUT_OK)
-    response = Http(URL+"/nodes/"+nodeId4).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    assert(response.code === HttpCode.PUT_OK)
-  }
-  */
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement") {
     patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes

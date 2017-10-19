@@ -678,7 +678,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 {
   "token": "abc",       // node token, set by user when adding this node.
   "name": "rpi3",         // node name that you pick
-  "pattern": "myorg/mypattern",      // (optional) points to a pattern resource that defines what workloads should be run on this type of node
+  "pattern": "myorg/mypattern",      // (optional) points to a pattern resource that defines what workloads should be deployed to this type of node
   "registeredMicroservices": [    // list of data microservices you want to make available
     {
       "url": "https://bluehorizon.network/documentation/sdr-node-api",
@@ -732,15 +732,25 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     //val microTmpls = node.getMicroTemplates      // do this before creating/updating the entry in db, in case it can not find the templates
     val resp = response
-    db.run(NodesTQ.getNumOwned(owner).result.flatMap({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" num owned: "+xs)
-      val numOwned = xs
-      val maxNodes = ExchConfig.getInt("api.limits.maxNodes")
-      if (maxNodes == 0 || numOwned <= maxNodes || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
-        val action = if (owner == "") node.getDbUpdate(id, orgid, owner) else node.getDbUpsert(id, orgid, owner)
-        action.transactionally.asTry
+    val patValidateAction = if (node.pattern != "") PatternsTQ.getPattern(node.pattern).length.result else DBIO.successful(1)
+    db.run(patValidateAction.asTry.flatMap({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
+      xs match {
+        case Success(num) => if (num > 0) NodesTQ.getNumOwned(owner).result.asTry
+          else DBIO.failed(new Throwable("the referenced pattern does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-      else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxNodes+ " nodes")).asTry
+    }).flatMap({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" num owned: "+xs)
+      xs match {
+        case Success(numOwned) => val maxNodes = ExchConfig.getInt("api.limits.maxNodes")
+          if (maxNodes == 0 || numOwned <= maxNodes || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
+            val action = if (owner == "") node.getDbUpdate(id, orgid, owner) else node.getDbUpsert(id, orgid, owner)
+            action.transactionally.asTry
+          }
+          else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxNodes+ " nodes")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" result: "+xs.toString)
       xs match {
@@ -752,8 +762,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, "node '"+id+"' not inserted or updated: "+t.getMessage)
           } else {
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, "node '"+id+"' not inserted or updated: "+t.toString)
+            resp.setStatus(HttpCode.BAD_INPUT)
+            ApiResponse(ApiResponseType.BAD_INPUT, "node '"+id+"' not inserted or updated: "+t.getMessage)
           }
       }
     })
@@ -800,7 +810,15 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val resp = response
     val (action, attrName) = node.getDbUpdate(id)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid node attribute specified"))
-    db.run(action.transactionally.asTry).map({ xs =>
+    val patValidateAction = if (attrName == "pattern" && node.pattern.get != "") PatternsTQ.getPattern(node.pattern.get).length.result else DBIO.successful(1)
+    db.run(patValidateAction.asTry.flatMap({ xs =>
+      logger.debug("PATCH /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
+      xs match {
+        case Success(num) => if (num > 0) action.transactionally.asTry
+          else DBIO.failed(new Throwable("the referenced pattern does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/nodes/"+bareId+" result: "+xs.toString)
       xs match {
         case Success(v) => try {
@@ -814,8 +832,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
               ApiResponse(ApiResponseType.NOT_FOUND, "node '"+id+"' not found")
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "node '"+id+"' not inserted or updated: "+t.toString)
+        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "node '"+id+"' not inserted or updated: "+t.getMessage)
       }
     })
   })

@@ -128,7 +128,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/microservices - create "+microservice) {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "singleton", "", Map("usbNodeIds" -> "1546:01a7"), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "single", None, None, List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -147,7 +147,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/workloads - create "+workid) {
-    val input = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, "", List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val input = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, None, List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -166,7 +166,7 @@ class FrontEndSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - create "+pattern) {
     val input = PostPutPatternRequest(ptBase, "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString

@@ -17,9 +17,10 @@ curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/j
           "upgradePolicy": {}
         }
       ],
-      "dataVerification": {},
-      "nodeHealth": { "missing_heartbeat_interval": 600, "check_agreement_status": 120 }
+      "dataVerification": {}
     }
   ],
   "agreementProtocols": [{ "name": "Basic" }]
 }' $EXCHANGE_URL_ROOT/v1/orgs/$EXCHANGE_ORG/patterns/p1 | $parse
+
+#      "nodeHealth": { "missing_heartbeat_interval": 600, "check_agreement_status": 120 }

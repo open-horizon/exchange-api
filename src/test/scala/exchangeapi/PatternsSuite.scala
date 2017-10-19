@@ -125,7 +125,7 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" before workload is exists - should fail") {
     val input = PostPutPatternRequest(ptBase, "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -134,7 +134,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("Add workload for future tests") {
-    val workInput = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, "", List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val workInput = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, None, List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val workResponse = Http(URL+"/workloads").postData(write(workInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+workResponse.code+", response.body: "+workResponse.body)
     assert(workResponse.code === HttpCode.POST_OK)
@@ -142,7 +142,7 @@ class PatternsSuite extends FunSuite {
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update pattern that is not there yet - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -152,7 +152,7 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" that is not signed - should fail") {
     val input = PostPutPatternRequest(ptBase, "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "{\"services\":{}}", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "{\"services\":{}}", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -162,7 +162,7 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as user") {
     val input = PostPutPatternRequest(ptBase, "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "{\"services\":{}}", "a", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "{\"services\":{}}", "a", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -174,7 +174,7 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" again - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -182,9 +182,9 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.ALREADY_EXISTS)
   }
 
-  test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as same user") {
+  test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as same user, w/o dataVerification or nodeHealth fields") {
     val input = PostPutPatternRequest(ptBase+" amd64", "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), None, None )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -194,7 +194,7 @@ class PatternsSuite extends FunSuite {
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as 2nd user - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
@@ -204,7 +204,7 @@ class PatternsSuite extends FunSuite {
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as agbot - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -223,7 +223,7 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as node - should fail") {
     val input = PostPutPatternRequest("Bad Pattern2", "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
@@ -233,7 +233,7 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as 2nd user") {
     val input = PostPutPatternRequest(ptBase2+" amd64", "desc", true,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
@@ -390,7 +390,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - patch the workloads") {
-    val input = List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Map(), Map() ))
+    val input = List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Some(Map()), Some(Map()) ))
     val jsonInput = """{ "workloads": """ + write(input) + " }"
     //info("jsonInput: "+jsonInput)
     val response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -399,7 +399,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - patch with a nonexistent workload - should fail") {
-    val input = List( PWorkloads("foo", orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Map(), Map() ))
+    val input = List( PWorkloads("foo", orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Some(Map()), Some(Map()) ))
     val jsonInput = """{ "workloads": """ + write(input) + " }"
     val response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

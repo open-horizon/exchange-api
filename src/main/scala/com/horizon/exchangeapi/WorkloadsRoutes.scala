@@ -23,7 +23,7 @@ case class GetWorkloadsResponse(workloads: Map[String,Workload], lastIndex: Int)
 case class GetWorkloadAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST /microservices or PUT /orgs/{orgid}/workloads/<workload-id> */
-case class PostPutWorkloadRequest(label: String, description: String, public: Boolean, workloadUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: List[WMicroservices], userInput: List[Map[String,String]], workloads: List[MDockerImages]) {
+case class PostPutWorkloadRequest(label: String, description: String, public: Boolean, workloadUrl: String, version: String, arch: String, downloadUrl: Option[String], apiSpec: List[WMicroservices], userInput: List[Map[String,String]], workloads: List[MDockerImages]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
     // Currently we do not want to force that the workloadUrl is a valid URL
@@ -51,7 +51,7 @@ case class PostPutWorkloadRequest(label: String, description: String, public: Bo
 
   def formId(orgid: String) = WorkloadsTQ.formId(orgid, workloadUrl, version, arch)
 
-  def toWorkloadRow(workload: String, orgid: String, owner: String) = WorkloadRow(workload, orgid, owner, label, description, public, workloadUrl, version, arch, downloadUrl, write(apiSpec), write(userInput), write(workloads), ApiTime.nowUTC)
+  def toWorkloadRow(workload: String, orgid: String, owner: String) = WorkloadRow(workload, orgid, owner, label, description, public, workloadUrl, version, arch, downloadUrl.getOrElse(""), write(apiSpec), write(userInput), write(workloads), ApiTime.nowUTC)
 }
 
 case class PatchWorkloadRequest(label: Option[String], description: Option[String], public: Option[Boolean], workloadUrl: Option[String], version: Option[String], arch: Option[String], downloadUrl: Option[String]) {
@@ -192,7 +192,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   "workloadUrl": "https://bluehorizon.network/documentation/workload/location",   // the unique identifier of this workload
   "version": "1.0.0",
   "arch": "amd64",
-  "downloadUrl": "",    // reserved for future use
+  "downloadUrl": "",    // reserved for future use, can be omitted
   // The microservices used by this workload. (The microservices must exist before creating this workload.)
   "apiSpec": [
     {
@@ -302,7 +302,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   "workloadUrl": "https://bluehorizon.network/documentation/workload/location",   // the unique identifier of this workload
   "version": "1.0.0",
   "arch": "amd64",
-  "downloadUrl": "",    // reserved for future use
+  "downloadUrl": "",    // reserved for future use, can be omitted
   // The microservices used by this workload. (The microservices must exist before creating this workload.)
   "apiSpec": [
     {

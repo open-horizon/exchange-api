@@ -39,8 +39,17 @@ case class PostPutPatternRequest(label: String, description: String, public: Boo
   // Build a list of db actions to verify that the referenced workloads exist
   def validateWorkloadIds: DBIO[Vector[Int]] = PatternsTQ.validateWorkloadIds(workloads)
 
-  //def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(microservices), write(workloads), write(dataVerification), write(agreementProtocols), write(properties), write(counterPartyProperties), maxAgreements, ApiTime.nowUTC)
   def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(workloads), write(agreementProtocols), ApiTime.nowUTC)
+  /* This is what to do if we want to fill in a default value for nodeHealth when it is not specified...
+  def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
+    // The nodeHealth field is optional, so fill in a default in each element of workloads if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
+    val workloads2 = workloads.map({ w =>
+      val nodeHealth2 = if (w.nodeHealth.nonEmpty) w.nodeHealth else Some(Map[String,Int]())
+      PWorkloads(w.workloadUrl, w.workloadOrgid, w.workloadArch, w.workloadVersions, w.dataVerification, nodeHealth2)
+    })
+    PatternRow(pattern, orgid, owner, label, description, public, write(workloads2), write(agreementProtocols), ApiTime.nowUTC)
+  }
+  */
 }
 
 case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], workloads: Option[List[PWorkloads]], agreementProtocols: Option[List[Map[String,String]]]) {
@@ -186,7 +195,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             "retry_durations": 3600,
             "verified_durations": 52
           },
-          // When Horizon should upgrade nodes to newer workload versions
+          // When Horizon should upgrade nodes to newer workload versions. Can be set to {} to take the default of immediate.
           "upgradePolicy": {
             "lifecycle": "immediate",
             "time": "01:00AM"     // reserved for future use
@@ -194,7 +203,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         }
       ],
       // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the workload is sending data.
-      // If not using this, the dataVerification field can be set to {}.
+      // If not using this, the dataVerification field can be set to {} or omitted completely.
       "dataVerification": {
         "enabled": true,
         "URL": "",
@@ -208,9 +217,10 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           "notification_interval": 30
         }
       },
+      // If not using agbot node health check, this field can be set to {} or omitted completely.
       "nodeHealth": {
-        "missing_heartbeat_interval": 600,      // How long a node heartbeat can be missing until node is considered missing (in seconds)
-        "check_agreement_status": 120        // How often to check that the node agreement entry still exists in the exchange (in seconds)
+        "missing_heartbeat_interval": 600,      // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
+        "check_agreement_status": 120        // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
       }
     }
   ],
@@ -320,7 +330,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             "retry_durations": 3600,
             "verified_durations": 52
           },
-          // When Horizon should upgrade nodes to newer workload versions
+          // When Horizon should upgrade nodes to newer workload versions. Can be set to {} to take the default of immediate.
           "upgradePolicy": {
             "lifecycle": "immediate",
             "time": "01:00AM"     // reserved for future use
@@ -328,7 +338,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         }
       ],
       // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the workload is sending data.
-      // If not using this, the dataVerification field can be set to {}.
+      // If not using this, the dataVerification field can be set to {} or omitted completely.
       "dataVerification": {
         "enabled": true,
         "URL": "",
@@ -342,9 +352,10 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           "notification_interval": 30
         }
       },
+      // If not using agbot node health check, this field can be set to {} or omitted completely.
       "nodeHealth": {
-        "missing_heartbeat_interval": 600,      // How long a node heartbeat can be missing until node is considered missing (in seconds)
-        "check_agreement_status": 120        // How often to check that the node agreement entry still exists in the exchange (in seconds)
+        "missing_heartbeat_interval": 600,      // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
+        "check_agreement_status": 120        // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
       }
     }
   ],

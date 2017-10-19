@@ -6,13 +6,13 @@ curl $copts -X POST -H 'Content-Type: application/json' -H 'Accept: application/
   "workloads": [
     {
       "workloadUrl": "https://bluehorizon.network/workloads/netspeed",
-      "workloadOrgid": "IBM",
+      "workloadOrgid": "'$EXCHANGE_ORG'",
       "workloadArch": "amd64",
       "workloadVersions": [
         {
-          "version": "1.0.1",
+          "version": "1.0.0",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "",
+          "deployment_overrides_signature": "a",
           "priority": {},
           "upgradePolicy": {}
         }

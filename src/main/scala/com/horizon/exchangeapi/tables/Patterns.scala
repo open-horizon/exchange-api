@@ -11,7 +11,7 @@ import scala.collection.mutable.ListBuffer
 //case class PPriority(priority_value: Int, retries: Int, retry_durations: Int, verified_durations: Int)
 //case class PUpgradePolicy(lifecycle: String, time: String)
 //case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification, nodeHealth: Map[String,Int])
-case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: Map[String,Any], nodeHealth: Map[String,Int])
+case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: Option[Map[String,Any]], nodeHealth: Option[Map[String,Int]])
 //case class POldWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification)
 case class POldWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: Map[String,Any])
 case class PWorkloadVersions(version: String, deployment_overrides: String, deployment_overrides_signature: String, priority: Map[String,Int], upgradePolicy: Map[String,String])
@@ -22,14 +22,17 @@ case class PatternRow(pattern: String, orgid: String, owner: String, label: Stri
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toPattern: Pattern = {
-    val wrk = if (workloads == "") List[PWorkloads]() else {
-        try { read[List[PWorkloads]](workloads) }     //todo: figure out if json4s can be made to be tolerant of missing fields
+    val wrk = if (workloads == "") List[PWorkloads]() else read[List[PWorkloads]](workloads)
+      /* Do not need this anymore because putting Option[] around the nodeHealth type makes the json reading and writing tolerant of it not being there
+      {
+        try { read[List[PWorkloads]](workloads) }
         catch { case _: MappingException => val oldWrk = read[List[POldWorkloads]](workloads)   // this pattern in the DB does not have the new nodeHealth field, so convert it
             val newList = new ListBuffer[PWorkloads]
-            for (w <- oldWrk) { newList += PWorkloads(w.workloadUrl, w.workloadOrgid, w.workloadArch, w.workloadVersions, w.dataVerification, Map()) }
+            for (w <- oldWrk) { newList += PWorkloads(w.workloadUrl, w.workloadOrgid, w.workloadArch, w.workloadVersions, w.dataVerification, Some(Map())) }
             newList.toList
         }
       }
+      */
     val agproto = if (agreementProtocols != "") read[List[Map[String,String]]](agreementProtocols) else List[Map[String,String]]()
     new Pattern(owner, label, description, public, wrk, agproto, lastUpdated)
   }

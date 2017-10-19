@@ -170,7 +170,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/workloads - add "+workid+" so pattern can reference it") {
-    val input = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, "", List(), List(Map()), List())
+    val input = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, None, List(), List(Map()), List())
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -179,7 +179,7 @@ class NodesSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+" - so nodes can reference it") {
     val input = PostPutPatternRequest(patid, "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+patid).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

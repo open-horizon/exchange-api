@@ -21,7 +21,7 @@ case class GetMicroservicesResponse(microservices: Map[String,Microservice], las
 case class GetMicroserviceAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST /orgs/{orgid}/microservices or PUT /orgs/{orgid}/microservices/<microservice-id> */
-case class PostPutMicroserviceRequest(label: String, description: String, public: Boolean, specRef: String, version: String, arch: String, sharable: String, downloadUrl: String, matchHardware: Map[String,String], userInput: List[Map[String,String]], workloads: List[MDockerImages]) {
+case class PostPutMicroserviceRequest(label: String, description: String, public: Boolean, specRef: String, version: String, arch: String, sharable: String, downloadUrl: Option[String], matchHardware: Option[Map[String,String]], userInput: List[Map[String,String]], workloads: List[MDockerImages]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
     // Currently we do not want to force that the specRef is a valid URL
@@ -38,7 +38,7 @@ case class PostPutMicroserviceRequest(label: String, description: String, public
 
   def formId(orgid: String) = MicroservicesTQ.formId(orgid, specRef, version, arch)
 
-  def toMicroserviceRow(microservice: String, orgid: String, owner: String) = MicroserviceRow(microservice, orgid, owner, label, description, public, specRef, version, arch, sharable, downloadUrl, write(matchHardware), write(userInput), write(workloads), ApiTime.nowUTC)
+  def toMicroserviceRow(microservice: String, orgid: String, owner: String) = MicroserviceRow(microservice, orgid, owner, label, description, public, specRef, version, arch, sharable, downloadUrl.getOrElse(""), write(matchHardware), write(userInput), write(workloads), ApiTime.nowUTC)
 }
 
 case class PatchMicroserviceRequest(label: Option[String], description: Option[String], public: Option[Boolean], specRef: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], downloadUrl: Option[String]) {
@@ -174,8 +174,8 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   "version": "1.0.0",
   "arch": "amd64",
   "sharable": "exclusive",   // or: "single", "multiple"
-  "downloadUrl": "",    // reserved for future use
-  "matchHardware": {},    // reserved for future use (will be hints to the node about how to tell if it has the physical sensors required by this MS
+  "downloadUrl": "",    // reserved for future use, can be omitted
+  "matchHardware": {},    // reserved for future use, can be omitted (will be hints to the node about how to tell if it has the physical sensors required by this MS
   // Values the node owner will be prompted for and will be set as env vars to the container.
   "userInput": [
     {
@@ -260,8 +260,8 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   "version": "1.0.0",
   "arch": "amd64",
   "sharable": "exclusive",   // or: "single", "multiple"
-  "downloadUrl": "",    // reserved for future use
-  "matchHardware": {},    // reserved for future use (will be hints to the node about how to tell if it has the physical sensors required by this MS
+  "downloadUrl": "",    // reserved for future use, can be omitted
+  "matchHardware": {},    // reserved for future use, can be omitted (will be hints to the node about how to tell if it has the physical sensors required by this MS
   // Values the node owner will be prompted for and will be set as env vars to the container.
   "userInput": [
     {
@@ -339,7 +339,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   "version": "1.0.0",
   "arch": "amd64",
   "sharable": "exclusive",   // or: "single", "multiple"
-  "downloadUrl": ""    // not used yet
+  "downloadUrl": ""    // reserved for future use
 }
 ```"""
       parameters(

@@ -78,14 +78,17 @@ services in the exchange.
 
 - Added GET /admin/version
 - Docker tag for exchange docker image no longer has the "v" before the version number
-- Modified pattern resource so dataVerification field could be specified as `{}` if you are not using it
 - For the references between resources that are not enforced by DB foreign keys, added checking when the resource is created, updated, or patched:
     - microservices referenced by a workload
     - workloads referenced by a pattern
     - patterns referenced by an agbot
     - pattern referenced by a node
+- Made the following resource fields optional:
+    - pattern: dataVerification can be omitted or specified as `{}`
+    - microservice: downloadUrl can be omitted, matchHardware can be omitted or specified as `{}`
+    - workload: downloadUrl can be omitted
 
-(No need to upgrade the db if coming from version 1.38)
+(No need to upgrade the db if coming from version 1.38 or later, altho it won't hurt either)
 
 ### Todos left to be finished in subsequent versions
 
@@ -107,10 +110,10 @@ services in the exchange.
 - Updated jetty version to 9.4.7 and fixed build to pull latest bug fixes in the 9.4 range
 - Fixed non-pattern node search to not find pattern nodes
 - Now filter both pattern and non-pattern node searches to not return nodes with empty publicKey values
-- Added `"nodeHealth": { "missing_heartbeat_interval": 600, "check_agreement_status": 120 }` policy to patterns (it is a peer to the dataVerification field). Existing pattern resources in the DB will be converted on the way out. New POST/PUTs must include this new field.
+- Added `"nodeHealth": { "missing_heartbeat_interval": 600, "check_agreement_status": 120 }` policy to patterns (it is a peer to the dataVerification field). Existing pattern resources in the DB will be converted on the way out. For new POST/PUTs this new field is optional in 1.40.
 - Added POST /orgs/{orgid}/patterns/{patid}/nodehealth and POST /orgs/{orgid}/search/nodehealth for agbot to get node lastHeartbeat and agreement status
 
-(No need to upgrade the db if coming from version 1.38)
+(No need to upgrade the db if coming from version 1.38, altho it won't hurt either)
 
 
 ## Changes in v1.38.0

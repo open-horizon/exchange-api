@@ -266,7 +266,7 @@ class AgbotsSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/workloads - add "+workid+" and check that agbot can read it") {
-    val input = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, "", List(), List(Map()), List())
+    val input = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, None, List(), List(Map()), List())
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -281,7 +281,7 @@ class AgbotsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" and check that agbot can read it") {
     val input = PostPutPatternRequest(pattern, "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -329,7 +329,7 @@ class AgbotsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2) {
     val input = PostPutPatternRequest(pattern2, "desc", false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]()), Map("check_agreement_status" -> 120) )),
+      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -339,7 +339,7 @@ class AgbotsSuite extends FunSuite {
   // Note: when we delete the org, this pattern will get deleted
 
   test("POST /orgs/"+orgid+"/microservices - add "+micro+" and check that agbot can read it") {
-    val input = PostPutMicroserviceRequest(micro+" arm", "desc", false, "https://msurl", "1.0.0", "arm", "singleton", "", Map(), List(Map()), List())
+    val input = PostPutMicroserviceRequest(micro+" arm", "desc", false, "https://msurl", "1.0.0", "arm", "single", None, None, List(Map()), List())
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

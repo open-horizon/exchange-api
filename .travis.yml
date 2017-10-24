@@ -1,0 +1,40 @@
+sudo: true
+services: docker
+language: scala
+jdk: openjdk8
+scala: 2.12.1
+notifications:
+  slack:
+    secure: THJgpgr1+UgkWvM1ZHzRBeWyWATk0DThSBfdlCAK9waD+9cxfB7e7G6YX7J8FUl9RaLt1301MdIVq2eSplzJ9/rmozVCbVKOh9WRzV0anw70wip93XBAwJ7+DSQ8ShVgklIRBvfWJe6h5mHdLxZRqeAq0TJGnj3JL7gDoUlHvhnISpcsuZ9Y/E94sqW7HQaWlQ24mT8I/r47C+hVm2Qhi1ICOQyBjLW3FGjrCUpIgihB1lJiy0eXqiB5Xtk+NDBZ1FgmhAiEcsT9v8vzg6M3lowFW1uJnT2OT3zfH2riBx3tyKGwy7rHYnXc7hEIyV0KCwlywiXeL7LipMSwFvMW2enkksDnAmKSjSpvjYinNpXm9AnTckXZ8s8v9tPtbmPSq9PwSV0B4oLhm3275Z6TT+/QGzUmOirOVzpdyecMWNqmLbEDBGs4UxTi1ZLjCLIt79o0o4SCCMCK/z+KV0eZMoPPLAIYpMTcaBIVh/JVNSRGCemBNzBHaAF1EOASOlS2IHmXQgPv6jtisgPL4Y3B5oI0v4RxJF3ryG/uNeYjwCvLssiI8IpPdS/na8U+piEU5YVS43oYE0W/T3eJR8pPZuqzhvOhkRb2dx0G8D1pXk7rc3CRB7JBiD9SB0b1EbTsAflxSYI3FNdRC2Y52mCd4l4rtcRcsTcd5AE6a6ADgew=
+before_install:
+- sudo apt-get update
+- sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
+before_cache:
+- find ${HOME}/.ivy2/cache -name "ivydata-*.properties" -print -delete
+- find ${HOME}/.sbt        -name "*.lock"               -print -delete
+cache:
+  directories:
+  - "${HOME}/.ivy2/cache"
+  - "${HOME}/.sbt"
+env:
+- DOCKER_TAG=latest DOCKER_REGISTRY=summit.hovitos.engineering POSTGRES_PORT=5432
+  EXCHANGE_ROOTPW=ci-password POSTGRES_DB=exchange POSTGRES_USER=admin EXCHANGE_FE_HEADER=issuer
+before_script:
+- docker run -d -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER --name
+  postgres postgres
+- export POSTGRES_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
+  postgres)
+- sudo mkdir -p /etc/horizon/exchange
+- 'sudo bash -c "echo ''{ \"api\": { \"db\": { \"jdbcUrl\": \"jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB\",
+  \"user\": \"$POSTGRES_USER\" }, \"root\": { \"password\": \"$EXCHANGE_ROOTPW\",
+  \"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" } } }'' > /etc/horizon/exchange/config.json"'
+- cat /etc/horizon/exchange/config.json
+- unset SBT_OPTS
+- make
+- sleep 20
+- curl -X POST -u root/root:$EXCHANGE_ROOTPW -s -w %{http_code} http://localhost:8080/v1/admin/initdb
+- docker logs exchange-api
+script:
+- sudo ./sbt test
+after_success:
+- "{ test $TRAVIS_PULL_REQUEST = 'false' && test $TRAVIS_BRANCH = 'master' && [[ ! \"$TRAVIS_COMMIT_MESSAGE\" =~ \"--skip-push\" ]]  && docker login -u=\"$SUMMIT_USER\" -p=\"$SUMMIT_PASS\" && make docker-push-only; } || echo 'Skipping the push'"

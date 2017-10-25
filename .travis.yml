@@ -30,11 +30,11 @@ before_script:
   \"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" } } }'' > /etc/horizon/exchange/config.json"'
 - cat /etc/horizon/exchange/config.json
 - unset SBT_OPTS
-- make
+- travis_wait make
 - sleep 20
 - curl -X POST -u root/root:$EXCHANGE_ROOTPW -s -w %{http_code} http://localhost:8080/v1/admin/initdb
 - docker logs exchange-api
 script:
 - sudo ./sbt test
 after_success:
-- "{ test $TRAVIS_PULL_REQUEST = 'false' && test $TRAVIS_BRANCH = 'master' && [[ ! \"$TRAVIS_COMMIT_MESSAGE\" =~ \"--skip-push\" ]]  && docker login -u=\"$SUMMIT_USER\" -p=\"$SUMMIT_PASS\" && make docker-push-only; } || echo 'Skipping the push'"
+- "{ test $TRAVIS_PULL_REQUEST = 'false' && test $TRAVIS_BRANCH = 'master' && [[ ! \"$TRAVIS_COMMIT_MESSAGE\" =~ \"--skip-push\" ]]  && docker login -u=\"$SUMMIT_USER\" -p=\"$SUMMIT_PASS\" $DOCKER_REGISTRY && make docker-push-only; } || echo 'Skipping the push'"

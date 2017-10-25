@@ -43,7 +43,7 @@ case class PostPutWorkloadRequest(label: String, description: String, public: Bo
     if (apiSpec.isEmpty) return DBIO.successful(Vector())
     val actions = ListBuffer[DBIO[Int]]()
     for (m <- apiSpec) {
-      val microId = MicroservicesTQ.formId(m.org, m.specRef, m.version, m.arch)
+      val microId = MicroservicesTQ.formId(m.org, m.specRef, m.version, m.arch)     // need to wildcard version, because it is an osgi version range
       actions += MicroservicesTQ.getMicroservice(microId).length.result
     }
     return DBIO.sequence(actions.toVector)      // convert the list of actions to a DBIO sequence because that returns query values
@@ -198,7 +198,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     {
       "specRef": "https://bluehorizon.network/documentation/microservice/gps",
       "org": "myorg",
-      "version": "1.0.0",
+      "version": "[1.0.0,INFINITY)",     // an OSGI-formatted version range
       "arch": "amd64"
     }
   ],
@@ -241,15 +241,29 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val workload = workloadReq.formId(orgid)
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
-    db.run(workloadReq.validateMicroserviceIds.asTry.flatMap({ xs =>
+
+    val msIds = workloadReq.apiSpec.map( m => MicroservicesTQ.formId(m.org, m.specRef, "%", m.arch) )   // make a list of MS wildcarded searches for the required MSes
+    val action = if (workloadReq.apiSpec.isEmpty) DBIO.successful(Vector())   // no MSes to look for
+      else {
+        // The inner map() and reduceLeft() OR together all of the likes to give to filter()
+        MicroservicesTQ.rows.filter(m => { msIds.map(m.microservice like _).reduceLeft(_ || _) }).map(m => (m.orgid, m.specRef, m.version, m.arch)).result
+      }
+
+    db.run(action.asTry.flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/workloads apiSpec validation: "+xs.toString)
       xs match {
-        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each microservice query). If any are zero we should error out.
-          breakable { for ( (len, index) <- v.zipWithIndex) {
-            if (len <= 0) {
-              invalidIndex = index
-              break
-            }
+        case Success(rows) => var invalidIndex = -1
+          // rows is a sequence of some MicroserviceRow cols which is a superset of what we need. Go thru each apiSpec in the workload request and make
+          // sure there is an MS that matches the version range specified. If the apiSpec list is empty, this will fall thru and succeed.
+          breakable { for ( (apiSpec, index) <- workloadReq.apiSpec.zipWithIndex) {
+            breakable {
+              for ( (orgid,specRef,version,arch) <- rows ) {
+                //logger.debug("orgid: "+orgid+", specRef: "+specRef+", version: "+version+", arch: "+arch)
+                if (specRef == apiSpec.specRef && orgid == apiSpec.org && arch == apiSpec.arch && (Version(version) in VersionRange(apiSpec.version)) ) break  // we satisfied this apiSpec requirement so move on to the next
+              }
+              invalidIndex = index    // we finished the inner for loop but did not find an MS that satisfied the requirement
+            }     //  if we find an MS that satisfies the requirment, it breaks to this line
+            if (invalidIndex >= 0) break    // an apiSpec requirement was not satisfied, so break out and return an error
           } }
           if (invalidIndex < 0) WorkloadsTQ.getNumOwned(owner).result.asTry
           else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced microservice (apiSpec) does not exist in the exchange")).asTry
@@ -308,7 +322,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     {
       "specRef": "https://bluehorizon.network/documentation/microservice/gps",
       "org": "myorg",
-      "version": "1.0.0",
+      "version": "[1.0.0,INFINITY)",     // an OSGI-formatted version range
       "arch": "amd64"
     }
   ],
@@ -353,15 +367,29 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     workloadReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
-    db.run(workloadReq.validateMicroserviceIds.asTry.flatMap({ xs =>
+
+    val msIds = workloadReq.apiSpec.map( m => MicroservicesTQ.formId(m.org, m.specRef, "%", m.arch) )   // make a list of MS wildcarded searches for the required MSes
+    val action = if (workloadReq.apiSpec.isEmpty) DBIO.successful(Vector())   // no MSes to look for
+    else {
+      // The inner map() and reduceLeft() OR together all of the likes to give to filter()
+      MicroservicesTQ.rows.filter(m => { msIds.map(m.microservice like _).reduceLeft(_ || _) }).map(m => (m.orgid, m.specRef, m.version, m.arch)).result
+    }
+
+    db.run(action.asTry.flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/workloads apiSpec validation: "+xs.toString)
       xs match {
-        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each microservice query). If any are zero we should error out.
-          breakable { for ( (len, index) <- v.zipWithIndex) {
-            if (len <= 0) {
-              invalidIndex = index
-              break
-            }
+        case Success(rows) => var invalidIndex = -1
+          // rows is a sequence of some MicroserviceRow cols which is a superset of what we need. Go thru each apiSpec in the workload request and make
+          // sure there is an MS that matches the version range specified. If the apiSpec list is empty, this will fall thru and succeed.
+          breakable { for ( (apiSpec, index) <- workloadReq.apiSpec.zipWithIndex) {
+            breakable {
+              for ( (orgid,specRef,version,arch) <- rows ) {
+                //logger.debug("orgid: "+orgid+", specRef: "+specRef+", version: "+version+", arch: "+arch)
+                if (specRef == apiSpec.specRef && orgid == apiSpec.org && arch == apiSpec.arch && (Version(version) in VersionRange(apiSpec.version)) ) break  // we satisfied this apiSpec requirement so move on to the next
+              }
+              invalidIndex = index    // we finished the inner for loop but did not find an MS that satisfied the requirement
+            }     //  if we find an MS that satisfies the requirment, it breaks to this line
+            if (invalidIndex >= 0) break    // an apiSpec requirement was not satisfied, so break out and return an error
           } }
           if (invalidIndex < 0) workloadReq.toWorkloadRow(workload, orgid, owner).update.asTry
           else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced microservice (apiSpec) does not exist in the exchange")).asTry
@@ -400,7 +428,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   "description": "blah blah",
   "public": true,       // whether or not it can be viewed by other organizations
   "workloadUrl": "https://bluehorizon.network/documentation/workload/gps",   // the unique identifier of this workload
-  "version": "1.0.0",
+  "version": "[1.0.0,INFINITY)",     // an OSGI-formatted version range
   "arch": "amd64",
   "downloadUrl": ""    // not used yet
 }

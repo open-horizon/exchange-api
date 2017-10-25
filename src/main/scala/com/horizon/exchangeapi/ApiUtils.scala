@@ -208,12 +208,12 @@ object ApiTime {
   }
 }
 
-/** Parse a version string like 1.2.3 into its parts and define equals() and toString() */
+/** Parse a version string like 1.2.3 into its parts and define >(), in(), etc. */
 case class Version(version: String) {
   val R3 = """(\d+)\.(\d+)\.(\d+)""".r
   val R2 = """(\d+)\.(\d+)""".r
   val R1 = """(\d+)""".r
-  val (major, minor, mod, isInfinity) = version.trim() match {
+  val (major, minor, mod, isInfinity) = version.trim().toLowerCase match {
     case "infinity" => (0, 0, 0, true)
     case R3(maj, min, mo) => (maj.toInt, min.toInt, mo.toInt, false)
     case R2(maj, min) => (maj.toInt, min.toInt, 0, false)
@@ -254,7 +254,7 @@ case class Version(version: String) {
   }
 }
 
-/** Parse an osgi version range string and define in() to test if a Version is in a VersionRange */
+/** Parse an osgi version range string and define includes() to test if a Version is in a VersionRange */
 case class VersionRange(range: String) {
   /* The typical format of a range is like [1.2.3,4.5.6), where
   The 1st version is the lower bound (floor), if not specified 0.0.0 is the default
@@ -265,7 +265,7 @@ case class VersionRange(range: String) {
   For more detail, see section 3.2.6 of the OSGi Core Specification: https://www.osgi.org/developer/downloads/
   */
   // split the lower and upper bounds
-  val (firstPart, secondPart) = range.trim().split("""\s*,\s*""") match {
+  val (firstPart, secondPart) = range.trim().toLowerCase.split("""\s*,\s*""") match {
     case Array(s) => (s, "infinity")
     case Array(s1, s2) => (s1, s2)
     case _ => ("x", "x")
@@ -277,7 +277,7 @@ case class VersionRange(range: String) {
     case R1(i,f) => ((i != "("), Version(f))
     case _ => (false, Version("x"))         // Version("x") is just an invalid version object
   }
-  // split the version number from the trailing ] or )
+  // separate the version number from the trailing ] or )
   val R2 = """(.*\d)([\]\)]?)""".r
   val R3 = """(infinity)([\]\)]?)""".r
   val (ceiling, ceilingInclusive) = secondPart match {

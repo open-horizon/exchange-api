@@ -26,6 +26,8 @@ case class MicroserviceRow(microservice: String, orgid: String, owner: String, l
   def insert: DBIO[_] = MicroservicesTQ.rows += this
 }
 
+//case class MicroIdentifiers(orgid: Rep[String], specRef: Rep[String], version: Rep[String], arch: Rep[String])
+
 /** Mapping of the microservices db table to a scala class */
 class Microservices(tag: Tag) extends Table[MicroserviceRow](tag, "microservices") {
   def microservice = column[String]("microservice", O.PrimaryKey)    // the content of this is orgid/microservice
@@ -61,7 +63,7 @@ object MicroservicesTQ {
   }
 
   def getAllMicroservices(orgid: String) = rows.filter(_.orgid === orgid)
-  def getMicroservice(microservice: String) = rows.filter(_.microservice === microservice)
+  def getMicroservice(microservice: String) = if (microservice.contains("%")) rows.filter(_.microservice like microservice) else rows.filter(_.microservice === microservice)
   def getOwner(microservice: String) = rows.filter(_.microservice === microservice).map(_.owner)
   def getNumOwned(owner: String) = rows.filter(_.owner === owner).length
   def getLabel(microservice: String) = rows.filter(_.microservice === microservice).map(_.label)

@@ -57,6 +57,11 @@ microurl="https://bluehorizon.network/microservices/network"
 microarch="amd64"
 microversion="1.0.0"
 
+microid2="bluehorizon.network-microservices-rtlsdr_2.0.0_amd64"
+microurl2="https://bluehorizon.network/microservices/rtlsdr"
+microarch2="amd64"
+microversion2="2.0.0"
+
 workid="bluehorizon.network-workloads-netspeed_1.0.0_amd64"
 workurl="https://bluehorizon.network/workloads/netspeed"
 workarch="amd64"
@@ -181,6 +186,18 @@ if [[ $rc != 200 ]]; then
   "workloads": [] }'
 else
     echo "orgs/$orgid/microservices/$microid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/microservices/$microid2")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauth "orgs/$orgid/microservices" '{"label": "Network x86_64", "description": "blah blah", "public": true, "specRef": "'$microurl2'",
+  "version": "'$microversion2'", "arch": "'$microarch2'", "sharable": "single", "downloadUrl": "",
+  "matchHardware": {},
+  "userInput": [],
+  "workloads": [] }'
+else
+    echo "orgs/$orgid/microservices/$microid2 exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/workloads/$workid")

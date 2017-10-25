@@ -72,6 +72,28 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
+## Changes in 1.41.0
+
+### External changes
+
+- When creating/updating a workload and verifying the existence of the apiSpecs, it now treats the MS versions as ranges
+- (No need to upgrade the db if coming from version 1.38 or later, altho it won't hurt either)
+
+### Todos left to be finished in subsequent versions
+
+- If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
+- Add api for wiotp to get number of devices and agreements
+- Allow random PW creation for user creation
+- Add ability to change owner of node
+- Add patch capability for node registered microservices?
+- Add an unauthenticated admin status rest api
+- Change local automated tests in Makefile to be more consistent with travis ci
+- Figure out how to set "Response Class (Status 200)" in swagger
+- See if there is a way to fix the swagger hack for 2 level resources
+- Consider changing all creates to POST, and update (via put/patch) return codes to 200
+- Any other schema changes?
+
+
 ## Changes in 1.40.0
 
 ### External changes
@@ -89,18 +111,6 @@ services in the exchange.
     - workload: downloadUrl can be omitted
 
 (No need to upgrade the db if coming from version 1.38 or later, altho it won't hurt either)
-
-### Todos left to be finished in subsequent versions
-
-- If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
-- Add api for wiotp to get number of devices and agreements
-- Allow random PW creation for user creation
-- Add ability to change owner of node
-- Add an unauthenticated admin status rest api
-- Figure out how to set "Response Class (Status 200)" in swagger
-- See if there is a way to fix the swagger hack for 2 level resources
-- Consider changing all creates to POST, and update (via put/patch) return codes to 200
-- Any other schema changes?
 
 
 ## Changes in v1.39.0

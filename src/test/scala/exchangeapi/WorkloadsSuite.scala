@@ -64,6 +64,9 @@ class WorkloadsSuite extends FunSuite {
   val microurl = "https://bluehorizon.network/microservices/network"
   val microarch = "amd64"
   val microversion = "1.0.0"
+  val microurl2 = "https://bluehorizon.network/microservices/rtlsdr"
+  val microarch2 = "amd64"
+  val microversion2 = "2.0.0"
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -150,6 +153,13 @@ class WorkloadsSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
+  test("POST /orgs/"+orgid+"/workloads - add "+workload+" that needs 2 MSes - should fail") {
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", None, List(WMicroservices(microurl,orgid,microversion,microarch),WMicroservices(microurl2,orgid,microversion2,microarch2)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","")))
+    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
   test("POST /orgs/"+orgid+"/workloads - add "+workload+" as user") {
     val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", None, List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -166,11 +176,39 @@ class WorkloadsSuite extends FunSuite {
     assert(response.code === HttpCode.ALREADY_EXISTS)
   }
 
-  test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update as same user") {
+  test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update to need 2 MSes - should fail") {
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", Some("updated"), List(WMicroservices(microurl,orgid,microversion,microarch),WMicroservices(microurl2,orgid,microversion2,microarch2)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val response = Http(URL+"/workloads/"+workload).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
+  test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update needing only the existing MS") {
     val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", Some("updated"), List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads/"+workload).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/microservices - add 2nd microservice so workloads can reference both") {
+    val input = PostPutMicroserviceRequest("testMicro", "desc", false, microurl2, microversion2, microarch2, "single", None, None, List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update to need 2 MSes - this time should succeed") {
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", Some("updated"), List(WMicroservices(microurl,orgid,microversion,microarch),WMicroservices(microurl2,orgid,microversion2,microarch2)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val response = Http(URL+"/workloads/"+workload).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update to need 2 MSes, but 1 version is not in range - should fail") {
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", Some("updated"), List(WMicroservices(microurl,orgid,"2.0.0",microarch),WMicroservices(microurl2,orgid,microversion2,microarch2)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val response = Http(URL+"/workloads/"+workload).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("PUT /orgs/"+orgid+"/workloads/"+workload+" - update as 2nd user - should fail") {
@@ -197,17 +235,24 @@ class WorkloadsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/workloads - add "+workload2+" as node - should fail") {
-    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", false, wkUrl2, "1.0.0", "arm", None, List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", false, wkUrl2, "1.0.0", "arm", None, List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
-  test("POST /orgs/"+orgid+"/workloads - add "+workload2+" as 2nd user") {
-    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", true, wkUrl2, "1.0.0", "arm", None, List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+  test("POST /orgs/"+orgid+"/workloads - add "+workload2+" as 2nd user, with no referenced MSes") {
+    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", true, wkUrl2, "1.0.0", "arm", None, List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/workloads/"+workload2+" - add "+workload2+" as 2nd user, with a referenced MS so future GETs work") {
+    val input = PostPutWorkloadRequest(wkBase2+" arm", "desc", true, wkUrl2, "1.0.0", "arm", None, List(WMicroservices(microurl,orgid,microversion,microarch)), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val response = Http(URL+"/workloads/"+workload2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
   }
 
   /*todo: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
@@ -243,7 +288,7 @@ class WorkloadsSuite extends FunSuite {
   test("GET /orgs/"+orgid+"/workloads") {
     val response: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
+    //info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetWorkloadsResponse]
     assert(respObj.workloads.size === 2)

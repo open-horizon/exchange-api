@@ -17,8 +17,8 @@ cache:
   - "${HOME}/.ivy2/cache"
   - "${HOME}/.sbt"
 env:
-- DOCKER_TAG=latest DOCKER_REGISTRY=summit.hovitos.engineering POSTGRES_PORT=5432
-  EXCHANGE_ROOTPW=ci-password POSTGRES_DB=exchange POSTGRES_USER=admin EXCHANGE_FE_HEADER=issuer
+- DOCKER_REGISTRY=summit.hovitos.engineering POSTGRES_PORT=5432 EXCHANGE_ROOTPW=ci-password
+  POSTGRES_DB=exchange POSTGRES_USER=admin EXCHANGE_FE_HEADER=issuer
 before_script:
 - docker run -d -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER --name
   postgres postgres

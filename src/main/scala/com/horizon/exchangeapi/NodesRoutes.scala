@@ -267,12 +267,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     apiOperation() is a method of org.scalatra.swagger.SwaggerSupport. It returns org.scalatra.swagger.SwaggerSupportSyntax$$OperationBuilder
     and then all of the other methods below that (summary, notes, etc.) are all part of OperationBuilder and return OperationBuilder.
     So instead of the infix invocation in the code below, we could alternatively code it like this:
-    val getNodes = apiOperation[GetNodesResponse]("getNodes").summary("Returns matching nodes").notes("Based on the input selection criteria, returns the matching nodes (RPis) in the exchange DB.")
+    val getNodes = apiOperation[GetNodesResponse]("getNodes").summary("Returns matching nodes").description("Based on the input selection criteria, returns the matching nodes (RPis) in the exchange DB.")
   */
   val getNodes =
     (apiOperation[GetNodesResponse]("getNodes")
       summary("Returns all nodes")
-      notes("""Returns all nodes (RPis) in the exchange DB. Can be run by a user or agbot (but not a node).
+      description("""Returns all nodes (RPis) in the exchange DB. Can be run by a user or agbot (but not a node).
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       // authorizations("basicAuth")
@@ -323,7 +323,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val getOneNode =
     (apiOperation[GetNodesResponse]("getOneNode")
       summary("Returns a node")
-      notes("""Returns the node (RPi) with the specified id in the exchange DB. Can be run by that node, a user, or an agbot.
+      description("""Returns the node (RPi) with the specified id in the exchange DB. Can be run by that node, a user, or an agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -382,7 +382,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postPatternSearch =
     (apiOperation[PostPatternSearchResponse]("postPatternSearch")
       summary("Returns matching nodes of a particular pattern")
-      notes """Returns the matching nodes that are this pattern and do not already have an agreement for the specified workload. Can be run by a user or agbot (but not a node). The **request body** structure:
+      description """Returns the matching nodes that are this pattern and do not already have an agreement for the specified workload. Can be run by a user or agbot (but not a node). The **request body** structure:
 
 ```
 {
@@ -402,7 +402,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         paramType = ParamType.Body)
     )
       )
-  val postPatternSearch2 = (apiOperation[PostPatternSearchResponse]("postPatternSearch2") summary("a") notes("a"))
+  val postPatternSearch2 = (apiOperation[PostPatternSearchResponse]("postPatternSearch2") summary("a") description("a"))
 
   /** Normally called by the agbot to search for available nodes. */
   post("/orgs/:orgid/patterns/:pattern/search", operation(postPatternSearch)) ({
@@ -482,7 +482,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postPatternNodeHealth =
     (apiOperation[PostNodeHealthResponse]("postPatternNodeHealth")
       summary("Returns agreement health of nodes of a particular pattern")
-      notes """Returns the lastHeartbeat and agreement times for all nodes that are this pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node). The **request body** structure:
+      description """Returns the lastHeartbeat and agreement times for all nodes that are this pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node). The **request body** structure:
 
 ```
 {
@@ -499,7 +499,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         paramType = ParamType.Body)
     )
       )
-  val postPatternNodeHealth2 = (apiOperation[PostNodeHealthResponse]("postPatternNodeHealth2") summary("a") notes("a"))
+  val postPatternNodeHealth2 = (apiOperation[PostNodeHealthResponse]("postPatternNodeHealth2") summary("a") description("a"))
 
   /** Called by the agbot to get recent info about nodes with this pattern (and the agreements the node has). */
   post("/orgs/:orgid/patterns/:pattern/nodehealth", operation(postPatternNodeHealth)) ({
@@ -540,7 +540,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postSearchNodes =
     (apiOperation[PostSearchNodesResponse]("postSearchNodes")
       summary("Returns matching nodes")
-      notes """Based on the input selection criteria, returns the matching nodes (RPis) in the exchange DB. Can be run by a user or agbot (but not a node). The **request body** structure:
+      description """Based on the input selection criteria, returns the matching nodes (RPis) in the exchange DB. Can be run by a user or agbot (but not a node). The **request body** structure:
 
 ```
 {
@@ -574,7 +574,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         paramType = ParamType.Body)
     )
       )
-  val postSearchNodes2 = (apiOperation[PostSearchNodesRequest]("postSearchNodes2") summary("a") notes("a"))
+  val postSearchNodes2 = (apiOperation[PostSearchNodesRequest]("postSearchNodes2") summary("a") description("a"))
 
   /** Normally called by the agbot to search for available nodes. */
   post("/orgs/:orgid/search/nodes", operation(postSearchNodes)) ({
@@ -615,7 +615,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postSearchNodeHealth =
     (apiOperation[PostNodeHealthResponse]("postSearchNodeHealth")
       summary("Returns agreement health of nodes with no pattern")
-      notes """Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node). The **request body** structure:
+      description """Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node). The **request body** structure:
 
 ```
 {
@@ -631,7 +631,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         paramType = ParamType.Body)
     )
       )
-  val postSearchNodeHealth2 = (apiOperation[PostNodeHealthResponse]("postSearchNodeHealth2") summary("a") notes("a"))
+  val postSearchNodeHealth2 = (apiOperation[PostNodeHealthResponse]("postSearchNodeHealth2") summary("a") description("a"))
 
   /** Called by the agbot to get recent info about nodes with no pattern (and the agreements the node has). */
   post("/orgs/:orgid/search/nodehealth", operation(postSearchNodeHealth)) ({
@@ -672,7 +672,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val putNodes =
     (apiOperation[Map[String,String]]("putNodes")
       summary "Adds/updates a node"
-      notes """Adds a new node (RPi) to the exchange DB, or updates an existing node, and returns the microservice templates for the microservices being registered. This must be called by the user to add a node, and then can be called by that user or node to update itself. The **request body** structure:
+      description """Adds a new node (RPi) to the exchange DB, or updates an existing node, and returns the microservice templates for the microservices being registered. This must be called by the user to add a node, and then can be called by that user or node to update itself. The **request body** structure:
 
 ```
 {
@@ -708,7 +708,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           paramType = ParamType.Body)
         )
       )
-  val putNodes2 = (apiOperation[PutNodesRequest]("putNodes2") summary("a") notes("a"))  // for some bizarre reason, the PutNodesRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putNodes2 = (apiOperation[PutNodesRequest]("putNodes2") summary("a") description("a"))  // for some bizarre reason, the PutNodesRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   /** Handles PUT /node/{id}. Must be called by user to add node, normally called by node to update itself. */
   put("/orgs/:orgid/nodes/:id", operation(putNodes)) ({
@@ -773,7 +773,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val patchNodes =
     (apiOperation[Map[String,String]]("patchNodes")
       summary "Updates 1 attribute of a node"
-      notes """Updates some attributes of a node (RPi) in the exchange DB. This can be called by the user or the node. The **request body** structure can include **1 of these attributes**:
+      description """Updates some attributes of a node (RPi) in the exchange DB. This can be called by the user or the node. The **request body** structure can include **1 of these attributes**:
 
 ```
 {
@@ -796,7 +796,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           paramType = ParamType.Body)
         )
       )
-  val patchNodes2 = (apiOperation[PatchNodesRequest]("patchNodes2") summary("a") notes("a"))  // for some bizarre reason, the PatchNodesRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val patchNodes2 = (apiOperation[PatchNodesRequest]("patchNodes2") summary("a") description("a"))  // for some bizarre reason, the PatchNodesRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   /** Handles PATCH /node/{id}. Must be called by user to add node, normally called by node to update itself. */
   patch("/orgs/:orgid/nodes/:id", operation(patchNodes)) ({
@@ -842,7 +842,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val deleteNodes =
     (apiOperation[ApiResponse]("deleteNodes")
       summary "Deletes a node"
-      notes "Deletes a node (RPi) from the exchange DB, and deletes the agreements stored for this node (but does not actually cancel the agreements between the node and agbots). Can be run by the owning user or the node."
+      description "Deletes a node (RPi) from the exchange DB, and deletes the agreements stored for this node (but does not actually cancel the agreements between the node and agbots). Can be run by the owning user or the node."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be deleted."), paramType = ParamType.Path),
@@ -878,7 +878,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postNodesHeartbeat =
     (apiOperation[ApiResponse]("postNodesHeartbeat")
       summary "Tells the exchange this node is still operating"
-      notes "Lets the exchange know this node is still active so it is still a candidate for contracting. Can be run by the owning user or the node."
+      description "Lets the exchange know this node is still active so it is still a candidate for contracting. Can be run by the owning user or the node."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be updated."), paramType = ParamType.Path),
@@ -913,7 +913,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val getNodeStatus =
     (apiOperation[NodeStatus]("getNodeStatus")
       summary("Returns the node status")
-      notes("""Returns the node run time status, for example workload container status. Can be run by a user or the node.
+      description("""Returns the node run time status, for example workload container status. Can be run by a user or the node.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -940,7 +940,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val putNodeStatus =
     (apiOperation[ApiResponse]("putNodeStatus")
       summary "Adds/updates the node status"
-      notes """Adds or updates the run time status of a node. This is called by the
+      description """Adds or updates the run time status of a node. This is called by the
         node or owning user. The **request body** structure:
 
 ```
@@ -993,7 +993,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         paramType = ParamType.Body)
     )
       )
-  val putNodeStatus2 = (apiOperation[PutNodeStatusRequest]("putNodeStatus2") summary("a") notes("a"))  // for some bizarre reason, the PutNodeStatusRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putNodeStatus2 = (apiOperation[PutNodeStatusRequest]("putNodeStatus2") summary("a") description("a"))  // for some bizarre reason, the PutNodeStatusRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/nodes/:id/status", operation(putNodeStatus)) ({
     val orgid = swaggerHack("orgid")
@@ -1023,7 +1023,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val deleteNodeStatus =
     (apiOperation[ApiResponse]("deleteNodeStatus")
       summary "Deletes the status of a node"
-      notes "Deletes the status of a node from the exchange DB. Can be run by the owning user or the node."
+      description "Deletes the status of a node from the exchange DB. Can be run by the owning user or the node."
       parameters(
       Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
       Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node for which the status is to be deleted."), paramType = ParamType.Path),
@@ -1058,7 +1058,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val getNodeAgreements =
     (apiOperation[GetNodeAgreementsResponse]("getNodeAgreements")
       summary("Returns all agreements this node is in")
-      notes("""Returns all agreements in the exchange DB that this node is part of. Can be run by a user or the node.
+      description("""Returns all agreements in the exchange DB that this node is part of. Can be run by a user or the node.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -1087,7 +1087,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val getOneNodeAgreement =
     (apiOperation[GetNodeAgreementsResponse]("getOneNodeAgreement")
       summary("Returns an agreement for a node")
-      notes("""Returns the agreement with the specified agid for the specified node id in the exchange DB. Can be run by a user or the node. **Because of a swagger bug this method can not be run via swagger.**
+      description("""Returns the agreement with the specified agid for the specified node id in the exchange DB. Can be run by a user or the node. **Because of a swagger bug this method can not be run via swagger.**
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -1118,7 +1118,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val putNodeAgreement =
     (apiOperation[ApiResponse]("putNodeAgreement")
       summary "Adds/updates an agreement of a node"
-      notes """Adds a new agreement of a node to the exchange DB, or updates an existing agreement. This is called by the
+      description """Adds a new agreement of a node to the exchange DB, or updates an existing agreement. This is called by the
         node or owning user to give their information about the agreement. The **request body** structure:
 
 ```
@@ -1144,7 +1144,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           paramType = ParamType.Body)
         )
       )
-  val putNodeAgreement2 = (apiOperation[PutNodeAgreementRequest]("putAgreement2") summary("a") notes("a"))  // for some bizarre reason, the PutAgreementsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putNodeAgreement2 = (apiOperation[PutNodeAgreementRequest]("putAgreement2") summary("a") description("a"))  // for some bizarre reason, the PutAgreementsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/nodes/:id/agreements/:agid", operation(putNodeAgreement)) ({
     //todo: keep a running total of agreements for each MS so we can search quickly for available MSs
@@ -1184,7 +1184,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val deleteNodeAllAgreement =
     (apiOperation[ApiResponse]("deleteNodeAllAgreement")
       summary "Deletes all agreements of a node"
-      notes "Deletes all of the current agreements of a node from the exchange DB. Can be run by the owning user or the node."
+      description "Deletes all of the current agreements of a node from the exchange DB. Can be run by the owning user or the node."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node for which the agreement is to be deleted."), paramType = ParamType.Path),
@@ -1218,7 +1218,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val deleteNodeAgreement =
     (apiOperation[ApiResponse]("deleteNodeAgreement")
       summary "Deletes an agreement of a node"
-      notes "Deletes an agreement of a node from the exchange DB. Can be run by the owning user or the node."
+      description "Deletes an agreement of a node from the exchange DB. Can be run by the owning user or the node."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node for which the agreement is to be deleted."), paramType = ParamType.Path),
@@ -1254,7 +1254,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postNodesMsgs =
     (apiOperation[ApiResponse]("postNodesMsgs")
       summary "Sends a msg from an agbot to a node"
-      notes """Sends a msg from an agbot to a node. The agbot must 1st sign the msg (with its private key) and then encrypt the msg (with the node's public key). Can be run by any agbot. The **request body** structure:
+      description """Sends a msg from an agbot to a node. The agbot must 1st sign the msg (with its private key) and then encrypt the msg (with the node's public key). Can be run by any agbot. The **request body** structure:
 
 ```
 {
@@ -1272,7 +1272,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           paramType = ParamType.Body)
         )
       )
-  val postNodesMsgs2 = (apiOperation[PostNodesMsgsRequest]("postNodesMsgs2") summary("a") notes("a"))
+  val postNodesMsgs2 = (apiOperation[PostNodesMsgsRequest]("postNodesMsgs2") summary("a") description("a"))
 
   post("/orgs/:orgid/nodes/:id/msgs", operation(postNodesMsgs)) ({
     val orgid = swaggerHack("orgid")
@@ -1327,7 +1327,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val getNodeMsgs =
     (apiOperation[GetNodeMsgsResponse]("getNodeMsgs")
       summary("Returns all msgs sent to this node")
-      notes("""Returns all msgs that have been sent to this node. They will be returned in the order they were sent. All msgs that have been sent to this node will be returned, unless the node has deleted some, or some are past their TTL. Can be run by a user or the node.""")
+      description("""Returns all msgs that have been sent to this node. They will be returned in the order they were sent. All msgs that have been sent to this node will be returned, unless the node has deleted some, or some are past their TTL. Can be run by a user or the node.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Query),
@@ -1359,7 +1359,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val deleteNodeMsg =
     (apiOperation[ApiResponse]("deleteNodeMsg")
       summary "Deletes an msg of a node"
-      notes "Deletes an msg that was sent to a node. This should be done by the node after each msg is read. Can be run by the owning user or the node."
+      description "Deletes an msg that was sent to a node. This should be done by the node after each msg is read. Can be run by the owning user or the node."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be deleted."), paramType = ParamType.Path),

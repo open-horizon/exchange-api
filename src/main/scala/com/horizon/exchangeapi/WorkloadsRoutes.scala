@@ -85,7 +85,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val getWorkloads =
     (apiOperation[GetWorkloadsResponse]("getWorkloads")
       summary("Returns all workloads")
-      notes("""Returns all workload definitions in the exchange DB. Can be run by any user, node, or agbot.
+      description("""Returns all workload definitions in the exchange DB. Can be run by any user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -134,7 +134,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val getOneWorkload =
     (apiOperation[GetWorkloadsResponse]("getOneWorkload")
       summary("Returns a workload")
-      notes("""Returns the workload with the specified id in the exchange DB. Can be run by a user, node, or agbot.
+      description("""Returns the workload with the specified id in the exchange DB. Can be run by a user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -181,7 +181,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val postWorkloads =
     (apiOperation[ApiResponse]("postWorkloads")
       summary "Adds a workload"
-      notes """Creates a workload resource. A workload resource contains the metadata that Horizon needs to deploy the docker images that implement this workload. Think of a workload as an edge application. The workload can require 1 or more microservices that Horizon should also deploy when deploying this workload. If public is set to true, the workload can be shared across organizations. This can only be called by a user. The **request body** structure:
+      description """Creates a workload resource. A workload resource contains the metadata that Horizon needs to deploy the docker images that implement this workload. Think of a workload as an edge application. The workload can require 1 or more microservices that Horizon should also deploy when deploying this workload. If public is set to true, the workload can be shared across organizations. This can only be called by a user. The **request body** structure:
 
 ```
 // (remove all of the comments like this before using)
@@ -230,7 +230,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         paramType = ParamType.Body)
     )
       )
-  val postWorkloads2 = (apiOperation[PostPutWorkloadRequest]("postWorkloads2") summary("a") notes("a"))  // for some bizarre reason, the PostWorkloadRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val postWorkloads2 = (apiOperation[PostPutWorkloadRequest]("postWorkloads2") summary("a") description("a"))  // for some bizarre reason, the PostWorkloadRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   post("/orgs/:orgid/workloads", operation(postWorkloads)) ({
     val orgid = swaggerHack("orgid")
@@ -305,7 +305,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val putWorkloads =
     (apiOperation[ApiResponse]("putWorkloads")
       summary "Updates a workload"
-      notes """Does a full replace of an existing workload. This can only be called by the user that originally created it. The **request body** structure:
+      description """Does a full replace of an existing workload. This can only be called by the user that originally created it. The **request body** structure:
 
 ```
 // (remove all of the comments like this before using)
@@ -355,7 +355,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         paramType = ParamType.Body)
     )
       )
-  val putWorkloads2 = (apiOperation[PostPutWorkloadRequest]("putWorkloads2") summary("a") notes("a"))  // for some bizarre reason, the PutWorkloadRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putWorkloads2 = (apiOperation[PostPutWorkloadRequest]("putWorkloads2") summary("a") description("a"))  // for some bizarre reason, the PutWorkloadRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/workloads/:workload", operation(putWorkloads)) ({
     val orgid = swaggerHack("orgid")
@@ -420,7 +420,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val patchWorkloads =
     (apiOperation[Map[String,String]]("patchWorkloads")
       summary "Updates 1 attribute of a workload"
-      notes """Updates one attribute of a workload in the exchange DB. This can only be called by the user that originally created this workload resource. The **request body** structure can include **1 of these attributes**:
+      description """Updates one attribute of a workload in the exchange DB. This can only be called by the user that originally created this workload resource. The **request body** structure can include **1 of these attributes**:
 
 ```
 {
@@ -443,7 +443,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           paramType = ParamType.Body)
         )
       )
-  val patchWorkloads2 = (apiOperation[PatchWorkloadRequest]("patchWorkloads2") summary("a") notes("a"))  // for some bizarre reason, the PatchWorkloadRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val patchWorkloads2 = (apiOperation[PatchWorkloadRequest]("patchWorkloads2") summary("a") description("a"))  // for some bizarre reason, the PatchWorkloadRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid/workloads/:workload", operation(patchWorkloads)) ({
     val orgid = swaggerHack("orgid")
@@ -480,7 +480,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val deleteWorkloads =
     (apiOperation[ApiResponse]("deleteWorkloads")
       summary "Deletes a workload"
-      notes "Deletes a workload from the exchange DB. Can only be run by the owning user."
+      description "Deletes a workload from the exchange DB. Can only be run by the owning user."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Query),

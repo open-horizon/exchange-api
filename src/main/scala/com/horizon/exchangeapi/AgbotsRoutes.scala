@@ -109,7 +109,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val getAgbots =
     (apiOperation[GetAgbotsResponse]("getAgbots")
       summary("Returns all agbots")
-      notes("""Returns all agbots (Agreement Bots) in the exchange DB. Can be run by any user.
+      description("""Returns all agbots (Agreement Bots) in the exchange DB. Can be run by any user.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -146,7 +146,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val getOneAgbot =
     (apiOperation[GetAgbotsResponse]("getOneAgbot")
       summary("Returns a agbot")
-      notes("""Returns the agbot (Agreement Bot) with the specified id in the exchange DB. Can be run by a user or the agbot.
+      description("""Returns the agbot (Agreement Bot) with the specified id in the exchange DB. Can be run by a user or the agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -193,7 +193,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val putAgbots =
     (apiOperation[ApiResponse]("putAgbots")
       summary "Adds/updates a agbot"
-      notes """Adds a new agbot (Agreement Bot) to the exchange DB, or updates an existing agbot. This must be called by the user to add a agbot, and then can be called by that user or agbot to update itself. The **request body** structure:
+      description """Adds a new agbot (Agreement Bot) to the exchange DB, or updates an existing agbot. This must be called by the user to add a agbot, and then can be called by that user or agbot to update itself. The **request body** structure:
 
 ```
 {
@@ -212,7 +212,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           paramType = ParamType.Body)
         )
       )
-  val putAgbots2 = (apiOperation[PutAgbotsRequest]("putAgbots2") summary("a") notes("a"))  // for some bizarre reason, the PutAgbotsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putAgbots2 = (apiOperation[PutAgbotsRequest]("putAgbots2") summary("a") description("a"))  // for some bizarre reason, the PutAgbotsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/agbots/:id", operation(putAgbots)) ({
     val orgid = swaggerHack("orgid")
@@ -263,7 +263,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val patchAgbots =
     (apiOperation[Map[String,String]]("patchAgbots")
       summary "Updates 1 attribute of an agbot"
-      notes """Updates some attributes of an agbot in the exchange DB. This can be called by the user or the agbot. The **request body** structure can include **1 of these attributes**:
+      description """Updates some attributes of an agbot in the exchange DB. This can be called by the user or the agbot. The **request body** structure can include **1 of these attributes**:
 
 ```
 {
@@ -284,7 +284,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           paramType = ParamType.Body)
         )
       )
-  val patchAgbots2 = (apiOperation[PatchAgbotsRequest]("patchAgbots2") summary("a") notes("a"))  // for some bizarre reason, the PatchAgbotsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val patchAgbots2 = (apiOperation[PatchAgbotsRequest]("patchAgbots2") summary("a") description("a"))  // for some bizarre reason, the PatchAgbotsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid/agbots/:id", operation(patchAgbots)) ({
     val orgid = swaggerHack("orgid")
@@ -321,7 +321,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val deleteAgbots =
     (apiOperation[ApiResponse]("deleteAgbots")
       summary "Deletes a agbot"
-      notes "Deletes a agbot (Agreement Bot) from the exchange DB, and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the nodes and agbot). Can be run by the owning user or the agbot."
+      description "Deletes a agbot (Agreement Bot) from the exchange DB, and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the nodes and agbot). Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be deleted."), paramType = ParamType.Path),
@@ -357,7 +357,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val postAgbotsHeartbeat =
     (apiOperation[ApiResponse]("postAgbotsHeartbeat")
       summary "Tells the exchange this agbot is still operating"
-      notes "Lets the exchange know this agbot is still active. Can be run by the owning user or the agbot."
+      description "Lets the exchange know this agbot is still active. Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be updated."), paramType = ParamType.Path),
@@ -393,7 +393,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val getAgbotPatterns =
     (apiOperation[GetAgbotPatternsResponse]("getAgbotPatterns")
       summary("Returns all patterns served by this agbot")
-      notes("""Returns all patterns that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.
+      description("""Returns all patterns that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -423,7 +423,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val getOneAgbotPattern =
     (apiOperation[GetAgbotPatternsResponse]("getOneAgbotPattern")
       summary("Returns a pattern this agbot is serving")
-      notes("""Returns the pattern with the specified patid for the specified agbot id. The patid should be in the form patternOrgid_pattern. Can be run by the owning user or the agbot. **Because of a swagger bug this method can not be run via swagger.**
+      description("""Returns the pattern with the specified patid for the specified agbot id. The patid should be in the form patternOrgid_pattern. Can be run by the owning user or the agbot. **Because of a swagger bug this method can not be run via swagger.**
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -454,7 +454,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val putAgbotPattern =
     (apiOperation[ApiResponse]("putAgbotPattern")
       summary "Adds/updates a pattern that the agbot should serve"
-      notes """Adds a new pattern, or updates an existing pattern, that this agbot should find nodes for to make agreements with them. This is called by the owning user or the
+      description """Adds a new pattern, or updates an existing pattern, that this agbot should find nodes for to make agreements with them. This is called by the owning user or the
         agbot to give their information about the pattern. The **request body** structure:
 
 ```
@@ -473,7 +473,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           paramType = ParamType.Body)
         )
       )
-  val putAgbotPattern2 = (apiOperation[PutAgbotPatternRequest]("putPattern2") summary("a") notes("a"))  // for some bizarre reason, the PutPatternsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putAgbotPattern2 = (apiOperation[PutAgbotPatternRequest]("putPattern2") summary("a") description("a"))  // for some bizarre reason, the PutPatternsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/agbots/:id/patterns/:patid", operation(putAgbotPattern)) ({
     val orgid = swaggerHack("orgid")
@@ -512,7 +512,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val deleteAgbotAllPattern =
     (apiOperation[ApiResponse]("deleteAgbotAllPattern")
       summary "Deletes all patterns of a agbot"
-      notes "Deletes all of the current patterns that this agbot was serving. Can be run by the owning user or the agbot."
+      description "Deletes all of the current patterns that this agbot was serving. Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the pattern is to be deleted."), paramType = ParamType.Path),
@@ -546,7 +546,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val deleteAgbotPattern =
     (apiOperation[ApiResponse]("deleteAgbotPattern")
       summary "Deletes a pattern of a agbot"
-      notes "Deletes a pattern that this agbot was serving. Can be run by the owning user or the agbot."
+      description "Deletes a pattern that this agbot was serving. Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the pattern is to be deleted."), paramType = ParamType.Path),
@@ -584,7 +584,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val getAgbotAgreements =
     (apiOperation[GetAgbotAgreementsResponse]("getAgbotAgreements")
       summary("Returns all agreements this agbot is in")
-      notes("""Returns all agreements in the exchange DB that this agbot is part of. Can be run by the owning user or the agbot.
+      description("""Returns all agreements in the exchange DB that this agbot is part of. Can be run by the owning user or the agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -614,7 +614,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val getOneAgbotAgreement =
     (apiOperation[GetAgbotAgreementsResponse]("getOneAgbotAgreement")
       summary("Returns an agreement for a agbot")
-      notes("""Returns the agreement with the specified agid for the specified agbot id in the exchange DB. Can be run by the owning user or the agbot. **Because of a swagger bug this method can not be run via swagger.**
+      description("""Returns the agreement with the specified agid for the specified agbot id in the exchange DB. Can be run by the owning user or the agbot. **Because of a swagger bug this method can not be run via swagger.**
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -645,7 +645,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val putAgbotAgreement =
     (apiOperation[ApiResponse]("putAgbotAgreement")
       summary "Adds/updates an agreement of a agbot"
-      notes """Adds a new agreement of a agbot to the exchange DB, or updates an existing agreement. This is called by the owning user or the
+      description """Adds a new agreement of a agbot to the exchange DB, or updates an existing agreement. This is called by the owning user or the
         agbot to give their information about the agreement. The **request body** structure:
 
 ```
@@ -668,7 +668,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         paramType = ParamType.Body)
     )
       )
-  val putAgbotAgreement2 = (apiOperation[PutAgbotAgreementRequest]("putAgreement2") summary("a") notes("a"))  // for some bizarre reason, the PutAgreementsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putAgbotAgreement2 = (apiOperation[PutAgbotAgreementRequest]("putAgreement2") summary("a") description("a"))  // for some bizarre reason, the PutAgreementsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/agbots/:id/agreements/:agid", operation(putAgbotAgreement)) ({
     val orgid = swaggerHack("orgid")
@@ -707,7 +707,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val deleteAgbotAllAgreement =
     (apiOperation[ApiResponse]("deleteAgbotAllAgreement")
       summary "Deletes all agreements of a agbot"
-      notes "Deletes all of the current agreements of a agbot from the exchange DB. Can be run by the owning user or the agbot."
+      description "Deletes all of the current agreements of a agbot from the exchange DB. Can be run by the owning user or the agbot."
       parameters(
       Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
       Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
@@ -741,7 +741,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val deleteAgbotAgreement =
     (apiOperation[ApiResponse]("deleteAgbotAgreement")
       summary "Deletes an agreement of a agbot"
-      notes "Deletes an agreement of a agbot from the exchange DB. Can be run by the owning user or the agbot."
+      description "Deletes an agreement of a agbot from the exchange DB. Can be run by the owning user or the agbot."
       parameters(
       Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
       Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
@@ -779,7 +779,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val postAgbotsDataHeartbeat =
     (apiOperation[ApiResponse]("postAgbotsDataHeartbeat")
       summary "Not supported yet - Tells the exchange that data has been received for these agreements"
-      notes "Lets the exchange know that data has just been received for this list of agreement IDs. This is normally run by a cloud data aggregation service that is registered as an agbot of the same exchange user account that owns the agbots that are contracting on behalf of a workload. Can be run by the owning user or any of the agbots owned by that user. The other agbot that negotiated this agreement id can run POST /agbots/{id}/isrecentdata check the dataLastReceived value of the agreement to determine if the agreement should be canceled (if data verification is enabled)."
+      description "Lets the exchange know that data has just been received for this list of agreement IDs. This is normally run by a cloud data aggregation service that is registered as an agbot of the same exchange user account that owns the agbots that are contracting on behalf of a workload. Can be run by the owning user or any of the agbots owned by that user. The other agbot that negotiated this agreement id can run POST /agbots/{id}/isrecentdata check the dataLastReceived value of the agreement to determine if the agreement should be canceled (if data verification is enabled)."
       parameters(
         Parameter("id", DataType.String, Option[String]("ID of the agbot running this REST API method."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -824,7 +824,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val postAgbotsIsRecentData =
     (apiOperation[List[PostAgbotsIsRecentDataElement]]("postAgbotsIsRecentData")
       summary "Not supported yet - Returns whether each agreement has received data or not"
-      notes "Queries the exchange to find out if each of the specified agreement IDs has had POST /agbots/{id}/dataheartbeat run on it recently (within secondsStale ago). This is normally run by agbots that are contracting on behalf of this workload to decide whether the agreement should be canceled or not. Can be run by the owning user or any of the agbots owned by that user."
+      description "Queries the exchange to find out if each of the specified agreement IDs has had POST /agbots/{id}/dataheartbeat run on it recently (within secondsStale ago). This is normally run by agbots that are contracting on behalf of this workload to decide whether the agreement should be canceled or not. Can be run by the owning user or any of the agbots owned by that user."
       parameters(
         Parameter("id", DataType.String, Option[String]("ID of the agbot running this REST API method."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -833,7 +833,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           paramType = ParamType.Body)
         )
       )
-  val postAgbotsIsRecentData2 = (apiOperation[PostAgbotsIsRecentDataRequest]("postAgbotsIsRecentData2") summary("a") notes("a"))
+  val postAgbotsIsRecentData2 = (apiOperation[PostAgbotsIsRecentDataRequest]("postAgbotsIsRecentData2") summary("a") description("a"))
   post("/agbots/:id/isrecentdata", operation(postAgbotsIsRecentData)) ({
     val id = swaggerHack("id")
     // validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
@@ -874,7 +874,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val postAgreementsConfirm =
     (apiOperation[ApiResponse]("postAgreementsConfirm")
       summary "Confirms if this agbot agreement is active"
-      notes "Confirms whether or not this agreement id is valid, is owned by an agbot owned by this same username, and is a currently active agreement. Can only be run by an agbot or user."
+      description "Confirms whether or not this agreement id is valid, is owned by an agbot owned by this same username, and is a currently active agreement. Can only be run by an agbot or user."
       parameters(
         Parameter("username", DataType.String, Option[String]("Username or agbot id. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password or token of the user/agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -883,7 +883,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           paramType = ParamType.Body)
         )
       )
-  val postAgreementsConfirm2 = (apiOperation[PostAgreementsConfirmRequest]("postAgreementsConfirm2") summary("a") notes("a"))
+  val postAgreementsConfirm2 = (apiOperation[PostAgreementsConfirmRequest]("postAgreementsConfirm2") summary("a") description("a"))
 
   post("/orgs/:orgid/agreements/confirm", operation(postAgreementsConfirm)) ({
     val orgid = swaggerHack("orgid")
@@ -943,7 +943,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val postAgbotsMsgs =
     (apiOperation[ApiResponse]("postAgbotsMsgs")
       summary "Sends a msg from a node to a agbot"
-      notes """Sends a msg from a node to a agbot. The node must 1st sign the msg (with its private key) and then encrypt the msg (with the agbots's public key). Can be run by any node. The **request body** structure:
+      description """Sends a msg from a node to a agbot. The node must 1st sign the msg (with its private key) and then encrypt the msg (with the agbots's public key). Can be run by any node. The **request body** structure:
 
 ```
 {
@@ -961,7 +961,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           paramType = ParamType.Body)
         )
       )
-  val postAgbotsMsgs2 = (apiOperation[PostAgbotsMsgsRequest]("postAgbotsMsgs2") summary("a") notes("a"))
+  val postAgbotsMsgs2 = (apiOperation[PostAgbotsMsgsRequest]("postAgbotsMsgs2") summary("a") description("a"))
 
   // The credentials for this are usually a node id
   post("/orgs/:orgid/agbots/:id/msgs", operation(postAgbotsMsgs)) ({
@@ -1014,7 +1014,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val getAgbotMsgs =
     (apiOperation[GetAgbotMsgsResponse]("getAgbotMsgs")
       summary("Returns all msgs sent to this agbot")
-      notes("""Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.""")
+      description("""Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
@@ -1047,7 +1047,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val deleteAgbotMsg =
     (apiOperation[ApiResponse]("deleteAgbotMsg")
       summary "Deletes an msg of a agbot"
-      notes "Deletes an msg that was sent to a agbot. This should be done by the agbot after each msg is read. Can be run by the owning user or the agbot."
+      description "Deletes an msg that was sent to a agbot. This should be done by the agbot after each msg is read. Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be deleted."), paramType = ParamType.Path),

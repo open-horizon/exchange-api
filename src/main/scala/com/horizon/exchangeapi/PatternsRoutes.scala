@@ -81,7 +81,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val getPatterns =
     (apiOperation[GetPatternsResponse]("getPatterns")
       summary("Returns all patterns")
-      notes("""Returns all pattern definitions in this organization. Can be run by any user, node, or agbot.
+      description("""Returns all pattern definitions in this organization. Can be run by any user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -122,7 +122,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val getOnePattern =
     (apiOperation[GetPatternsResponse]("getOnePattern")
       summary("Returns a pattern")
-      notes("""Returns the pattern with the specified id in the exchange DB. Can be run by a user, node, or agbot.
+      description("""Returns the pattern with the specified id in the exchange DB. Can be run by a user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -169,7 +169,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val postPatterns =
     (apiOperation[ApiResponse]("postPatterns")
       summary "Adds a pattern"
-      notes """Creates a pattern resource. A pattern resource specifies all of the deployment information (workloads and microservices) for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. Patterns are not typically intended to be shared across organizations because they also specify deployment policy. This can only be called by a user. The **request body** structure:
+      description """Creates a pattern resource. A pattern resource specifies all of the deployment information (workloads and microservices) for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. Patterns are not typically intended to be shared across organizations because they also specify deployment policy. This can only be called by a user. The **request body** structure:
 
 ```
 // (remove all of the comments like this before using)
@@ -242,7 +242,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         paramType = ParamType.Body)
     )
       )
-  val postPatterns2 = (apiOperation[PostPutPatternRequest]("postPatterns2") summary("a") notes("a"))  // for some bizarre reason, the PostPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val postPatterns2 = (apiOperation[PostPutPatternRequest]("postPatterns2") summary("a") description("a"))  // for some bizarre reason, the PostPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   post("/orgs/:orgid/patterns/:pattern", operation(postPatterns)) ({
     val orgid = swaggerHack("orgid")
@@ -304,7 +304,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val putPatterns =
     (apiOperation[ApiResponse]("putPatterns")
       summary "Updates a pattern"
-      notes """Updates a pattern resource. This can only be called by the user that created it. The **request body** structure:
+      description """Updates a pattern resource. This can only be called by the user that created it. The **request body** structure:
 
 ```
 // (remove all of the comments like this before using)
@@ -377,7 +377,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         paramType = ParamType.Body)
     )
       )
-  val putPatterns2 = (apiOperation[PostPutPatternRequest]("putPatterns2") summary("a") notes("a"))  // for some bizarre reason, the PutPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putPatterns2 = (apiOperation[PostPutPatternRequest]("putPatterns2") summary("a") description("a"))  // for some bizarre reason, the PutPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/patterns/:pattern", operation(putPatterns)) ({
     val orgid = swaggerHack("orgid")
@@ -428,7 +428,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val patchPatterns =
     (apiOperation[Map[String,String]]("patchPatterns")
       summary "Updates 1 attribute of a pattern"
-      notes """Updates one attribute of a pattern in the exchange DB. This can only be called by the user that originally created this pattern resource. The **request body** structure can include **1 of these attributes**:
+      description """Updates one attribute of a pattern in the exchange DB. This can only be called by the user that originally created this pattern resource. The **request body** structure can include **1 of these attributes**:
 
 ```
 {
@@ -449,7 +449,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           paramType = ParamType.Body)
         )
       )
-  val patchPatterns2 = (apiOperation[PatchPatternRequest]("patchPatterns2") summary("a") notes("a"))  // for some bizarre reason, the PatchPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val patchPatterns2 = (apiOperation[PatchPatternRequest]("patchPatterns2") summary("a") description("a"))  // for some bizarre reason, the PatchPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid/patterns/:pattern", operation(patchPatterns)) ({
     val orgid = swaggerHack("orgid")
@@ -501,7 +501,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val deletePatterns =
     (apiOperation[ApiResponse]("deletePatterns")
       summary "Deletes a pattern"
-      notes "Deletes a pattern from the exchange DB. Can only be run by the owning user."
+      description "Deletes a pattern from the exchange DB. Can only be run by the owning user."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Query),

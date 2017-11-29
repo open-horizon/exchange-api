@@ -51,7 +51,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminReload =
     (apiOperation[ApiResponse]("postAdminReload")
       summary "Tells the exchange reread its config file"
-      notes "Directs the exchange server to reread /etc/horizon/exchange/config.json and continue running with those new settings. Can only be run by the root user."
+      description "Directs the exchange server to reread /etc/horizon/exchange/config.json and continue running with those new settings. Can only be run by the root user."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -71,7 +71,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminHashPw =
     (apiOperation[AdminHashpwResponse]("postAdminHashPw")
       summary "Returns a salted hash of a password"
-      notes "Takes the password specified in the body, hashes it with a random salt, and returns the result. This can be useful if you to specify root's hash pw in the config file instead of the clear pw. Can only be run by the root user."
+      description "Takes the password specified in the body, hashes it with a random salt, and returns the result. This can be useful if you to specify root's hash pw in the config file instead of the clear pw. Can only be run by the root user."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -80,7 +80,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           paramType = ParamType.Body)
         )
       )
-  val postAdminHashPw2 = (apiOperation[AdminHashpwRequest]("postAdminHashPw2") summary("a") notes("a"))
+  val postAdminHashPw2 = (apiOperation[AdminHashpwRequest]("postAdminHashPw2") summary("a") description("a"))
 
   post("/admin/hashpw", operation(postAdminHashPw)) ({
     // validateUser(BaseAccess.ADMIN, "")
@@ -95,7 +95,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val putAdminLogLevel =
     (apiOperation[ApiResponse]("putAdminLogLevel")
       summary "Sets the logging level of the exchange"
-      notes "Dynamically set the logging level of the data exchange server, taking effect immediately. If POST /admin/reload is run at a later time, and logging.level is specified in the config.json file, that will overrided this setting. Can only be run by the root user."
+      description "Dynamically set the logging level of the data exchange server, taking effect immediately. If POST /admin/reload is run at a later time, and logging.level is specified in the config.json file, that will overrided this setting. Can only be run by the root user."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -104,7 +104,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           paramType = ParamType.Body)
         )
       )
-  val putAdminLogLevel2 = (apiOperation[AdminLogLevelRequest]("putAdminLogLevel2") summary("a") notes("a"))
+  val putAdminLogLevel2 = (apiOperation[AdminLogLevelRequest]("putAdminLogLevel2") summary("a") description("a"))
 
   post("/admin/loglevel", operation(putAdminLogLevel)) ({
     // validateUser(BaseAccess.ADMIN, "")
@@ -123,7 +123,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val getDropdbToken =
     (apiOperation[AdminDropdbTokenResponse]("getDropdbToken")
       summary "Gets a 1-time token for dropping the DB"
-      notes "Returns a timed token that can be given to POST /admin/dropdb. The token is good for 10 minutes. Since dropping the DB tables deletes all of their data, this is a way of confirming you really want to do it. This can only be run as root."
+      description "Returns a timed token that can be given to POST /admin/dropdb. The token is good for 10 minutes. Since dropping the DB tables deletes all of their data, this is a way of confirming you really want to do it. This can only be run as root."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -140,7 +140,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminDropDb =
     (apiOperation[ApiResponse]("postAdminDropDb")
       summary "Deletes the tables from the DB"
-      notes "Deletes the tables from the Exchange DB. **Warning: this will delete the data too!** Because this is a dangerous method, you must first get a 1-time token using GET /admin/dropdb/token, and use that to authenticate to this REST API method. Can only be run by the root user."
+      description "Deletes the tables from the Exchange DB. **Warning: this will delete the data too!** Because this is a dangerous method, you must first get a 1-time token using GET /admin/dropdb/token, and use that to authenticate to this REST API method. Can only be run by the root user."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("The token received from GET /admin/dropdb/token. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -170,7 +170,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminInitDb =
     (apiOperation[ApiResponse]("postAdminInitDb")
       summary "Creates the table schema in the DB"
-      notes "Creates the tables with the necessary schema in the Exchange DB. Can only be run by the root user."
+      description "Creates the tables with the necessary schema in the Exchange DB. Can only be run by the root user."
       parameters(
       Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
       Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -202,7 +202,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminUpgradeDb =
     (apiOperation[ApiResponse]("postAdminUpgradeDb")
       summary "Upgrades the DB schema"
-      notes "Updates (alters) the schemas of the DB tables as necessary (w/o losing any data) to get to the latest DB schema. Can only be run by the root user."
+      description "Updates (alters) the schemas of the DB tables as necessary (w/o losing any data) to get to the latest DB schema. Can only be run by the root user."
       parameters(
       Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
       Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -240,7 +240,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminMigrateDb =
     (apiOperation[ApiResponse]("postAdminMigrateDb")
       summary "Migrates the DB to a new schema"
-      notes "Consider running POST /admin/upgradedb instead. Note: for now you must run POST /admin/dumptables before running this. Dumps all of the tables to files, drops the tables, creates the tables (usually with new schema), and loads the tables from the files. Can only be run by the root user."
+      description "Consider running POST /admin/upgradedb instead. Note: for now you must run POST /admin/dumptables before running this. Dumps all of the tables to files, drops the tables, creates the tables (usually with new schema), and loads the tables from the files. Can only be run by the root user."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -288,7 +288,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminUnupgradeDb =
     (apiOperation[ApiResponse]("postAdminUnupgradeDb")
       summary "Undoes the upgrades of the DB schema"
-      notes "Undoes the updates (alters) of the schemas of the db tables in case we need to fix the upgradedb code and try it again. Can only be run by the root user."
+      description "Undoes the updates (alters) of the schemas of the db tables in case we need to fix the upgradedb code and try it again. Can only be run by the root user."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -322,7 +322,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminDumpTables =
     (apiOperation[Seq[String]]("postAdminDumpTables")
       summary "Dumps all the DB tables"
-      notes "Dumps all the DB tables to files in "+dumpDir+" in json format. Can only be run by the root user."
+      description "Dumps all the DB tables to files in "+dumpDir+" in json format. Can only be run by the root user."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -352,7 +352,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminLoadTables =
     (apiOperation[Seq[String]]("postAdminLoadTables")
       summary "Loads content for all the DB tables"
-      notes "Loads content for all the DB tables from files in "+dumpDir+" in json format. Can only be run by the root user."
+      description "Loads content for all the DB tables from files in "+dumpDir+" in json format. Can only be run by the root user."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -383,7 +383,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val getAdminVersion =
     (apiOperation[String]("getAdminVersion")
       summary "Returns the version of the Exchange server"
-      notes "Returns the version of the Exchange server as a simple string (no JSON or quotes). Can be run by anyone."
+      description "Returns the version of the Exchange server as a simple string (no JSON or quotes). Can be run by anyone."
       )
 
   get("/admin/version", operation(getAdminVersion)) ({
@@ -399,7 +399,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val getAdminStatus =
     (apiOperation[GetAdminStatusResponse]("getAdminStatus")
       summary "Returns status of the Exchange server"
-      notes "Returns a dictionary of statuses/statistics. Can be run by any user."
+      description "Returns a dictionary of statuses/statistics. Can be run by any user."
       parameters(
       Parameter("username", DataType.String, Option[String]("The username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
       Parameter("password", DataType.String, Option[String]("The password. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)

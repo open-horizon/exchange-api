@@ -54,7 +54,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val getOrgs =
     (apiOperation[GetOrgsResponse]("getOrgs")
       summary("Returns all orgs")
-      notes("""Returns all org definitions in the exchange DB. Can be run by an admin user, or the root user.
+      description("""Returns all org definitions in the exchange DB. Can be run by an admin user, or the root user.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -84,7 +84,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val getOneOrg =
     (apiOperation[GetOrgsResponse]("getOneOrg")
       summary("Returns a org")
-      notes("""Returns the org with the specified id in the exchange DB. Can be run by any user in this org.
+      description("""Returns the org with the specified id in the exchange DB. Can be run by any user in this org.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -128,7 +128,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val postOrgs =
     (apiOperation[ApiResponse]("postOrgs")
       summary "Adds a org"
-      notes """Creates an org resource. This can only be called by the root user. The **request body** structure:
+      description """Creates an org resource. This can only be called by the root user. The **request body** structure:
 
 ```
 {
@@ -145,7 +145,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
         paramType = ParamType.Body)
     )
       )
-  val postOrgs2 = (apiOperation[PostPutOrgRequest]("postOrgs2") summary("a") notes("a"))  // for some bizarre reason, the PostOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val postOrgs2 = (apiOperation[PostPutOrgRequest]("postOrgs2") summary("a") description("a"))  // for some bizarre reason, the PostOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   post("/orgs/:orgid", operation(postOrgs)) ({
     val orgId = swaggerHack("orgid")
@@ -177,7 +177,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val putOrgs =
     (apiOperation[ApiResponse]("putOrgs")
       summary "Updates a org"
-      notes """Does a full replace of an existing org. This can only be called by root or a user in the org with the admin role. The **request body** structure:
+      description """Does a full replace of an existing org. This can only be called by root or a user in the org with the admin role. The **request body** structure:
 
 ```
 {
@@ -194,7 +194,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
         paramType = ParamType.Body)
     )
       )
-  val putOrgs2 = (apiOperation[PostPutOrgRequest]("putOrgs2") summary("a") notes("a"))  // for some bizarre reason, the PutOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putOrgs2 = (apiOperation[PostPutOrgRequest]("putOrgs2") summary("a") description("a"))  // for some bizarre reason, the PutOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid", operation(putOrgs)) ({
     val orgId = swaggerHack("orgid")
@@ -226,7 +226,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val patchOrgs =
     (apiOperation[Map[String,String]]("patchOrgs")
       summary "Updates 1 attribute of a org"
-      notes """Updates one attribute of a org in the exchange DB. This can only be called by root or a user in the org with the admin role. The **request body** structure can include **1 of these attributes**:
+      description """Updates one attribute of a org in the exchange DB. This can only be called by root or a user in the org with the admin role. The **request body** structure can include **1 of these attributes**:
 
 ```
 {
@@ -243,7 +243,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
           paramType = ParamType.Body)
         )
       )
-  val patchOrgs2 = (apiOperation[PatchOrgRequest]("patchOrgs2") summary("a") notes("a"))  // for some bizarre reason, the PatchOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val patchOrgs2 = (apiOperation[PatchOrgRequest]("patchOrgs2") summary("a") description("a"))  // for some bizarre reason, the PatchOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid", operation(patchOrgs)) ({
     val orgId = swaggerHack("orgid")
@@ -277,7 +277,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val deleteOrgs =
     (apiOperation[ApiResponse]("deleteOrgs")
       summary "Deletes a org"
-      notes "Deletes a org from the exchange DB. This can only be called by root or a user in the org with the admin role."
+      description "Deletes a org from the exchange DB. This can only be called by root or a user in the org with the admin role."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),

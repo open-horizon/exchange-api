@@ -62,7 +62,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val getUsers =
     (apiOperation[GetUsersResponse]("getUsers")
       summary("Returns all users")
-      notes("""Returns all users in the exchange DB. Can only be run by the root user.
+      description("""Returns all users in the exchange DB. Can only be run by the root user.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -93,7 +93,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val getOneUser =
     (apiOperation[GetUsersResponse]("getOneUser")
       summary("Returns a user")
-      notes("""Returns the user with the specified username in the exchange DB. Can only be run by that user or root.
+      description("""Returns the user with the specified username in the exchange DB. Can only be run by that user or root.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -130,7 +130,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postUsers =
     (apiOperation[ApiResponse]("postUsers")
       summary "Adds a user"
-      notes """Creates a new user in the exchange DB. This can be run root/root, or a user with admin privilege. If run anonymously, it can create a user in the 'public' org. Note: this REST API method is limited in terms of how many times it can be run from the same source IP in a single day. The **request body** structure:
+      description """Creates a new user in the exchange DB. This can be run root/root, or a user with admin privilege. If run anonymously, it can create a user in the 'public' org. Note: this REST API method is limited in terms of how many times it can be run from the same source IP in a single day. The **request body** structure:
 
 ```
 {
@@ -147,7 +147,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         paramType = ParamType.Body)
     )
       )
-  val postUsers2 = (apiOperation[PostPutUsersRequest]("postUsers2") summary("a") notes("a"))  // for some bizarre reason, the PutUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val postUsers2 = (apiOperation[PostPutUsersRequest]("postUsers2") summary("a") description("a"))  // for some bizarre reason, the PutUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   post("/orgs/:orgid/users/:username", operation(postUsers)) ({
     // Note: we do not currently verify this is a real person creating this (with, for example, captcha), so instead haproxy restricts the number of times a single IP address can call this in a day to a small number
@@ -179,7 +179,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val putUsers =
     (apiOperation[ApiResponse]("putUsers")
       summary "Adds/updates a user"
-      notes """Updates an existing user. Only the user itself or root can update an existing user. If run with root credentials this REST API method can also be used to create new users. The **request body** structure:
+      description """Updates an existing user. Only the user itself or root can update an existing user. If run with root credentials this REST API method can also be used to create new users. The **request body** structure:
 
 ```
 {
@@ -197,7 +197,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         paramType = ParamType.Body)
     )
       )
-  val putUsers2 = (apiOperation[PostPutUsersRequest]("putUsers2") summary("a") notes("a"))  // for some bizarre reason, the PutUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putUsers2 = (apiOperation[PostPutUsersRequest]("putUsers2") summary("a") description("a"))  // for some bizarre reason, the PutUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/users/:username", operation(putUsers)) ({
     val orgid = swaggerHack("orgid")
@@ -245,7 +245,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val patchUsers =
     (apiOperation[ApiResponse]("patchUsers")
       summary "Updates 1 attribute of a user"
-      notes """Updates 1 attribute of an existing user. Only the user itself or root can update an existing user. The **request body** structure can include **1 of these attributes**:
+      description """Updates 1 attribute of an existing user. Only the user itself or root can update an existing user. The **request body** structure can include **1 of these attributes**:
 
 ```
 {
@@ -263,7 +263,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         paramType = ParamType.Body)
     )
       )
-  val patchUsers2 = (apiOperation[PatchUsersRequest]("patchUsers2") summary("a") notes("a"))  // for some bizarre reason, the PatchUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val patchUsers2 = (apiOperation[PatchUsersRequest]("patchUsers2") summary("a") description("a"))  // for some bizarre reason, the PatchUsersRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid/users/:username", operation(patchUsers)) ({
     // Note: we currently do not have a way to verify this is a real person creating this, so we use rate limiting in haproxy
@@ -302,7 +302,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val deleteUsers =
     (apiOperation[ApiResponse]("deleteUsers")
       summary "Deletes a user"
-      notes "Deletes a user from the exchange DB and all of its nodes and agbots. Can only be run by that user or root."
+      description "Deletes a user from the exchange DB and all of its nodes and agbots. Can only be run by that user or root."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be deleted."), paramType = ParamType.Path),
@@ -338,7 +338,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postUsersConfirm =
     (apiOperation[ApiResponse]("postUsersConfirm")
       summary "Confirms if this username/password is valid"
-      notes "Confirms whether or not this username exists and has the specified password. Can only be run by that user or root."
+      description "Confirms whether or not this username exists and has the specified password. Can only be run by that user or root."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be confirmed."), paramType = ParamType.Path),
@@ -360,7 +360,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postUsersReset =
     (apiOperation[ApiResponse]("postUsersReset")
       summary "Emails the user a token for resetting their password"
-      notes """Use this if you have forgotten your password. (If you know your password and want to change it, you can use PUT /orgs/{orgid}/users/{username}.) Emails the user a timed token that can be given to POST /orgs/{orgid}/users/{username}/changepw. The token is good for 10 minutes. In the special case in which root's credentials are specified in the HTTP header, the token will not be emailed, instead it be returned in the response like this:
+      description """Use this if you have forgotten your password. (If you know your password and want to change it, you can use PUT /orgs/{orgid}/users/{username}.) Emails the user a timed token that can be given to POST /orgs/{orgid}/users/{username}/changepw. The token is good for 10 minutes. In the special case in which root's credentials are specified in the HTTP header, the token will not be emailed, instead it be returned in the response like this:
 
 ```
 {
@@ -433,7 +433,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postUsersChangePw =
     (apiOperation[ApiResponse]("postUsersChangePw")
       summary "Changes the user's password using a reset token for authentication"
-      notes "Use POST /orgs/{orgid}/users/{username}/reset to have a timed token sent to your email address. Then give that token and your new password to this REST API method."
+      description "Use POST /orgs/{orgid}/users/{username}/reset to have a timed token sent to your email address. Then give that token and your new password to this REST API method."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be reset."), paramType = ParamType.Path),
@@ -443,7 +443,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           paramType = ParamType.Body)
         )
       )
-  val postUsersChangePw2 = (apiOperation[ChangePwRequest]("postUsersChangePw2") summary("a") notes("a"))
+  val postUsersChangePw2 = (apiOperation[ChangePwRequest]("postUsersChangePw2") summary("a") description("a"))
 
   post("/orgs/:orgid/users/:username/changepw", operation(postUsersChangePw)) ({
     val orgid = swaggerHack("orgid")

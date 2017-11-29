@@ -748,7 +748,7 @@ trait AuthenticationSupport extends ScalatraBase {
     }
 
     def isMsgToMultiTenantAgbot(target: Target, access: Access): Boolean = {
-      return target.getOrg == "IBM" && access == Access.SEND_MSG_TO_AGBOT    //todo: implement instance-level ACLs instead of hardcoding this
+      return target.getOrg == "IBM" && (access == Access.SEND_MSG_TO_AGBOT || access == Access.READ)    //todo: implement instance-level ACLs instead of hardcoding this
     }
   }
 

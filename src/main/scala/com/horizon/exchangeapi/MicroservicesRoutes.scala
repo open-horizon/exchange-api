@@ -73,7 +73,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val getMicroservices =
     (apiOperation[GetMicroservicesResponse]("getMicroservices")
       summary("Returns all microservices")
-      notes("""Returns all microservice definitions in this org. Can be run by any user, node, or agbot.
+      description("""Returns all microservice definitions in this org. Can be run by any user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -114,7 +114,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val getOneMicroservice =
     (apiOperation[GetMicroservicesResponse]("getOneMicroservice")
       summary("Returns a microservice")
-      notes("""Returns the microservice with the specified id in the exchange DB. Can be run by a user, node, or agbot.
+      description("""Returns the microservice with the specified id in the exchange DB. Can be run by a user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -162,7 +162,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val postMicroservices =
     (apiOperation[ApiResponse]("postMicroservices")
       summary "Adds a microservice"
-      notes """Creates a microservice resource. A microservice provides access to node data or services that can be used by potentially multiple workloads. The microservice resource contains the metadata that Horizon needs to deploy the docker images that implement this microservice. If public is set to true, the microservice can be shared across organizations. This can only be called by a user. The **request body** structure:
+      description """Creates a microservice resource. A microservice provides access to node data or services that can be used by potentially multiple workloads. The microservice resource contains the metadata that Horizon needs to deploy the docker images that implement this microservice. If public is set to true, the microservice can be shared across organizations. This can only be called by a user. The **request body** structure:
 
 ```
 // (remove all of the comments like this before using)
@@ -204,7 +204,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
         paramType = ParamType.Body)
     )
       )
-  val postMicroservices2 = (apiOperation[PostPutMicroserviceRequest]("postMicroservices2") summary("a") notes("a"))  // for some bizarre reason, the PostMicroserviceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val postMicroservices2 = (apiOperation[PostPutMicroserviceRequest]("postMicroservices2") summary("a") description("a"))  // for some bizarre reason, the PostMicroserviceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   post("/orgs/:orgid/microservices", operation(postMicroservices)) ({
     val orgid = swaggerHack("orgid")
@@ -248,7 +248,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val putMicroservices =
     (apiOperation[ApiResponse]("putMicroservices")
       summary "Updates a microservice"
-      notes """Does a full replace of an existing microservice. This can only be called by the user that originally created it. The **request body** structure:
+      description """Does a full replace of an existing microservice. This can only be called by the user that originally created it. The **request body** structure:
 
 ```
 // (remove all of the comments like this before using)
@@ -291,7 +291,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
         paramType = ParamType.Body)
     )
       )
-  val putMicroservices2 = (apiOperation[PostPutMicroserviceRequest]("putMicroservices2") summary("a") notes("a"))  // for some bizarre reason, the PutMicroserviceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putMicroservices2 = (apiOperation[PostPutMicroserviceRequest]("putMicroservices2") summary("a") description("a"))  // for some bizarre reason, the PutMicroserviceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/microservices/:microservice", operation(putMicroservices)) ({
     val orgid = swaggerHack("orgid")
@@ -328,7 +328,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val patchMicroservices =
     (apiOperation[Map[String,String]]("patchMicroservices")
       summary "Updates 1 attribute of a microservice"
-      notes """Updates one attribute of a microservice in the exchange DB. This can only be called by the user that originally created this microservice resource. The **request body** structure can include **1 of these attributes**:
+      description """Updates one attribute of a microservice in the exchange DB. This can only be called by the user that originally created this microservice resource. The **request body** structure can include **1 of these attributes**:
 
 ```
 {
@@ -352,7 +352,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
           paramType = ParamType.Body)
         )
       )
-  val patchMicroservices2 = (apiOperation[PatchMicroserviceRequest]("patchMicroservices2") summary("a") notes("a"))  // for some bizarre reason, the PatchMicroserviceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val patchMicroservices2 = (apiOperation[PatchMicroserviceRequest]("patchMicroservices2") summary("a") description("a"))  // for some bizarre reason, the PatchMicroserviceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid/microservices/:microservice", operation(patchMicroservices)) ({
     val orgid = swaggerHack("orgid")
@@ -389,7 +389,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val deleteMicroservices =
     (apiOperation[ApiResponse]("deleteMicroservices")
       summary "Deletes a microservice"
-      notes "Deletes a microservice from the exchange DB. Can only be run by the owning user."
+      description "Deletes a microservice from the exchange DB. Can only be run by the owning user."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("microservice", DataType.String, Option[String]("Microservice id (orgid/micro-id)."), paramType=ParamType.Query),

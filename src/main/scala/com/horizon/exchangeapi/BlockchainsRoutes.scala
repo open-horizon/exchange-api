@@ -91,7 +91,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val getBctypes =
     (apiOperation[GetBctypesResponse]("getBctypes")
       summary("Returns all blockchain types")
-      notes("""Returns all Blockchain type definitions in the exchange DB. Can be run by any user, node, or agbot.
+      description("""Returns all Blockchain type definitions in the exchange DB. Can be run by any user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -127,7 +127,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val getOneBctype =
     (apiOperation[GetBctypesResponse]("getOneBctype")
       summary("Returns a blockchain type")
-      notes("""Returns the blockchain type with the specified type name in the exchange DB. Can be run by a user, node, or agbot.
+      description("""Returns the blockchain type with the specified type name in the exchange DB. Can be run by a user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -175,7 +175,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val putBctypes =
     (apiOperation[ApiResponse]("putBctypes")
       summary "Adds/updates a blockchain type"
-      notes """Adds a new blockchain type to the exchange DB, or updates an existing blockchain type. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
+      description """Adds a new blockchain type to the exchange DB, or updates an existing blockchain type. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
 
 ```
 {
@@ -193,7 +193,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
           paramType = ParamType.Body)
         )
       )
-  val putBctypes2 = (apiOperation[PutBctypeRequest]("putBctypes2") summary("a") notes("a"))  // for some bizarre reason, the PutBctypeRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putBctypes2 = (apiOperation[PutBctypeRequest]("putBctypes2") summary("a") description("a"))  // for some bizarre reason, the PutBctypeRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   /** Handles PUT /bctype/{bctype}. Called by a user to create, must be called by same user to update. */
   put("/orgs/:orgid/bctypes/:bctype", operation(putBctypes)) ({
@@ -236,7 +236,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val patchBctypes =
     (apiOperation[Map[String,String]]("patchBctypes")
       summary "Updates 1 attribute of a blockchain type"
-      notes """Updates one attribute of a blockchain type in the exchange DB. This can only be called by the user that originally created this bctype resource. The **request body** structure can include **1 of these attributes**:
+      description """Updates one attribute of a blockchain type in the exchange DB. This can only be called by the user that originally created this bctype resource. The **request body** structure can include **1 of these attributes**:
 
 ```
 {
@@ -254,7 +254,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
           paramType = ParamType.Body)
         )
       )
-  val patchBctypes2 = (apiOperation[PatchBctypeRequest]("patchBctypes2") summary("a") notes("a"))  // for some bizarre reason, the PatchBctypeRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val patchBctypes2 = (apiOperation[PatchBctypeRequest]("patchBctypes2") summary("a") description("a"))  // for some bizarre reason, the PatchBctypeRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid/bctypes/:bctype", operation(patchBctypes)) ({
     val orgid = swaggerHack("orgid")
@@ -290,7 +290,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val deleteBctypes =
     (apiOperation[ApiResponse]("deleteBctypes")
       summary "Deletes a blockchain type"
-      notes "Deletes a blockchain type from the exchange DB, and deletes the blockchain definitions stored for this blockchain type. Can only be run by the owning user."
+      description "Deletes a blockchain type from the exchange DB, and deletes the blockchain definitions stored for this blockchain type. Can only be run by the owning user."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
@@ -327,7 +327,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val getBlockchains =
     (apiOperation[GetBlockchainsResponse]("getBlockchains")
       summary("Returns all blockchains of this blockchain type")
-      notes("""Returns all blockchain instances that are this blockchain type. Can be run by any user, node, or agbot.
+      description("""Returns all blockchain instances that are this blockchain type. Can be run by any user, node, or agbot.
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -358,7 +358,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val getOneBlockchain =
     (apiOperation[GetBlockchainsResponse]("getOneBlockchain")
       summary("Returns a blockchain for a blockchain type")
-      notes("""Returns the blockchain definition with the specified name for the specified blockchain type in the exchange DB. Can be run by any user, node, or agbot. **Because of a swagger bug this method can not be run via swagger.**
+      description("""Returns the blockchain definition with the specified name for the specified blockchain type in the exchange DB. Can be run by any user, node, or agbot. **Because of a swagger bug this method can not be run via swagger.**
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
@@ -409,7 +409,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val putBlockchain =
     (apiOperation[ApiResponse]("putBlockchain")
       summary "Adds/updates a blockchain of a blockchain type"
-      notes """Adds a new blockchain definition of a blockchain type to the exchange DB, or updates an existing blockchain definition. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
+      description """Adds a new blockchain definition of a blockchain type to the exchange DB, or updates an existing blockchain definition. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
 
 ```
 {
@@ -429,7 +429,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
           paramType = ParamType.Body)
         )
       )
-  val putBlockchain2 = (apiOperation[PutBlockchainRequest]("putBlockchain2") summary("a") notes("a"))  // for some bizarre reason, the PutBlockchainsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putBlockchain2 = (apiOperation[PutBlockchainRequest]("putBlockchain2") summary("a") description("a"))  // for some bizarre reason, the PutBlockchainsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/bctypes/:bctype/blockchains/:name", operation(putBlockchain)) ({
     val orgid = swaggerHack("orgid")
@@ -483,7 +483,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val patchBlockchain =
     (apiOperation[Map[String,String]]("patchBlockchain")
       summary "Updates 1 attribute of a blockchain definition"
-      notes """Updates one attribute of a blockchain instance in the exchange DB. This can only be called by the user that originally created this blockchain resource. The **request body** structure can include **1 of these attributes**:
+      description """Updates one attribute of a blockchain instance in the exchange DB. This can only be called by the user that originally created this blockchain resource. The **request body** structure can include **1 of these attributes**:
 
 ```
 {
@@ -503,7 +503,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
           paramType = ParamType.Body)
         )
       )
-  val patchBlockchain2 = (apiOperation[PatchBlockchainRequest]("patchBlockchain2") summary("a") notes("a"))  // for some bizarre reason, the PatchBlockchainRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val patchBlockchain2 = (apiOperation[PatchBlockchainRequest]("patchBlockchain2") summary("a") description("a"))  // for some bizarre reason, the PatchBlockchainRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   /** Handles PATCH /bctype/{bctype}/blockchains/{name}. Must be called by the same user that created this bc. */
   patch("/orgs/:orgid/bctypes/:bctype/blockchains/:name", operation(patchBlockchain)) ({
@@ -543,7 +543,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val deleteBlockchain =
     (apiOperation[ApiResponse]("deleteBlockchain")
       summary "Deletes a blockchain of a blockchain type"
-      notes "Deletes a blockchain definition of a blockchain type from the exchange DB. Can only be run by the owning user."
+      description "Deletes a blockchain definition of a blockchain type from the exchange DB. Can only be run by the owning user."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
         Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),

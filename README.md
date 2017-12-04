@@ -72,15 +72,22 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
-## Changes in 1.41.0
+## Changes in 1.43.0
 
 ### External changes
 
-- When creating/updating a workload and verifying the existence of the apiSpecs, it now treats the MS versions as ranges
-- (No need to upgrade the db if coming from version 1.38 or later, altho it won't hurt either)
+- Fixed swagger
 
 ### Todos left to be finished in subsequent versions
 
+* return db schema version in /status
+* add keys sub-resource under users
+- detect if pattern has ms/wk with different arch's
+- detect if pattern contains 2 workloads that depend on the same exclusive MS
+- detect if wk requires ms with different arch
+- detect if a pattern is updated with ms/wk that has userInput w/o default values, and give warning
+- issue #39
+- Switch to microservices/workloads to services terminology
 - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
 - Add api for wiotp to get number of devices and agreements
 - Allow random PW creation for user creation
@@ -92,6 +99,21 @@ services in the exchange.
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 - Any other schema changes?
+
+
+## Changes in 1.42.0
+
+### External changes
+
+- Allowed node in other org to access agbot in IBM org
+
+
+## Changes in 1.41.0
+
+### External changes
+
+- When creating/updating a workload and verifying the existence of the apiSpecs, it now treats the MS versions as ranges
+- (No need to upgrade the db if coming from version 1.38 or later, altho it won't hurt either)
 
 
 ## Changes in 1.40.0

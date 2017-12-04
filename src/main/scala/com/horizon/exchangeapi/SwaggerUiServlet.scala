@@ -41,13 +41,13 @@ class SwaggerUiServlet extends ScalatraServlet {
       // In staging want to produce:  https://exchange.staging.bluehorizon.network/api/api?url=https://exchange.staging.bluehorizon.network/api/api-docs
       // In prod want to produce:  https://exchange.bluehorizon.network/api/api?url=https://exchange.bluehorizon.network/api/api-docs
       // (FYI: params that can be passed into the swagger-ui js (have to edit index.html to do it): https://github.com/swagger-api/swagger-ui#parameters )
-      case Some(url) => redirect(url+"/api?url="+url+"/api-docs#/v1")
+      case Some(url) => redirect(url+"/api?url="+url+"/api-docs/swagger.json#/default")
       // Local development environment, we need to change http://localhost:8080/api/exchange to http://localhost:8080/api?url=http://localhost:8080/api-docs
       case None => val R1 = "^(.*)/api$".r
         val R2 = "^(.*)/([^/]*)/exchange$".r
         request.uri.toString match {
-          case R1(first) => redirect(first+"/api?url="+first+"/api-docs#/v1")
-          case R2(first,second) => redirect(first+"/"+second+"?url="+first+"/api-docs#/v1")
+          case R1(first) => redirect(first+"/api?url="+first+"/api-docs/swagger.json#/default")
+          case R2(first,second) => redirect(first+"/"+second+"?url="+first+"/api-docs/swagger.json#/default")
           case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "unexpected uri"))
         }
       }

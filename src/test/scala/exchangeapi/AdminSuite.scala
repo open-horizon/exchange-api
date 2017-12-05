@@ -73,6 +73,14 @@ class AdminSuite extends FunSuite {
     assert(postResp.code === ApiResponseType.BAD_INPUT)
   }
 
+  test("GET /admin/status") {
+    val response = Http(URL+"/admin/status").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    val getResp = parse(response.body).extract[GetAdminStatusResponse]
+    assert(getResp.msg.contains("operating normally"))
+  }
+
   test("GET /admin/version") {
     val response = Http(URL+"/admin/version").headers(ACCEPT).asString
     info("code: "+response.code)

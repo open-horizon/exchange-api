@@ -50,6 +50,7 @@ object SchemaTQ {
   val rows = TableQuery[SchemaTable]
 
   def getSchemaRow = rows.filter(_.id === 0)
+  def getSchemaVersion = rows.filter(_.id === 0).map(_.schemaversion)
 
   // Returns a sequence of DBIOActions that will upgrade the DB schema from fromSchemaVersion to the latest schema version.
   // It is assumed that this sequence of DBIOActions will be run transactionally.

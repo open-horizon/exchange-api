@@ -76,11 +76,17 @@ services in the exchange.
 
 ### External changes
 
-- Fixed swagger
+- Made swagger work again, with these limitations:
+    - "Try it out" button still doesn't work
+    - The longer "description" field of each method is not appearing
+- Added dbSchemaVersion field to the output of /admin/status
+- Upgraded:
+    - scala from 2.12.1 to 2.12.4
+    - scalatra from 2.5.1 to 2.6.2
+    - from scalatra-sbt 0.5.1 to sbt-scalatra 1.0.1
 
 ### Todos left to be finished in subsequent versions
 
-* return db schema version in /status
 * add keys sub-resource under users
 - detect if pattern has ms/wk with different arch's
 - detect if pattern contains 2 workloads that depend on the same exclusive MS

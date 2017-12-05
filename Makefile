@@ -112,7 +112,7 @@ sync-swagger-ui:
 	rsync -aiu ../../swagger-api/swagger-ui/dist/ src/main/webapp      # copy the latest dist dir from the repo into our repo
 	mv src/main/webapp/index.html src/main/webapp/swagger-index.html
 	mv src/main/webapp/our-index.html src/main/webapp/index.html
-	sed -i '' 's/\(new SwaggerUi({\) *$$/\1 validatorUrl: null,/' src/main/webapp/swagger-index.html   # this is the only way to set validatorUrl to null in swagger
+	#sed -i '' 's/\(new SwaggerUi({\) *$$/\1 validatorUrl: null,/' src/main/webapp/swagger-index.html   # this is the only way to set validatorUrl to null in swagger
 
 testmake:
 	echo $(EXCHANGE_EMAIL)

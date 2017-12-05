@@ -24,7 +24,7 @@ case class AdminConfigRequest(varPath: String, value: String)
 
 case class AdminDropdbTokenResponse(token: String)
 
-case class GetAdminStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfNodeMsgs: Int, numberOfAgbots: Int, numberOfAgbotAgreements: Int, numberOfAgbotMsgs: Int)
+case class GetAdminStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfNodeMsgs: Int, numberOfAgbots: Int, numberOfAgbotAgreements: Int, numberOfAgbotMsgs: Int, dbSchemaVersion: Int)
 class AdminStatus() {
   var msg: String = ""
   var numberOfUsers: Int = 0
@@ -34,7 +34,8 @@ class AdminStatus() {
   var numberOfAgbots: Int = 0
   var numberOfAgbotAgreements: Int = 0
   var numberOfAgbotMsgs: Int = 0
-  def toGetAdminStatusResponse = GetAdminStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements, numberOfNodeMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs)
+  var dbSchemaVersion: Int = 0
+  def toGetAdminStatusResponse = GetAdminStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements, numberOfNodeMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs, dbSchemaVersion)
 }
 
 
@@ -452,10 +453,17 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           AgbotMsgsTQ.rows.length.result.asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
       logger.debug("GET /admin/status agbotmsgs length: "+xs)
       xs match {
         case Success(v) => statusResp.numberOfAgbotMsgs = v
+          SchemaTQ.getSchemaVersion.result.asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      logger.debug("GET /admin/status schemaversion: "+xs)
+      xs match {
+        case Success(v) => statusResp.dbSchemaVersion = v.head
           statusResp.msg = "Exchange server operating normally"
         case Failure(t) => statusResp.msg = t.getMessage
       }

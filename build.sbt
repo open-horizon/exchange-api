@@ -1,11 +1,11 @@
-lazy val scalatraVersion = "2.5.1"    // can see the latest version at https://github.com/scalatra/scalatra/blob/2.5.x/version.sbt
+lazy val scalatraVersion = "2.6.2"    // can see the latest version at https://github.com/scalatra/scalatra/releases
 
 lazy val root = (project in file(".")).
   settings(
     organization := "com.horizon",
     name := "Exchange API",
     version := "0.1.0",
-    scalaVersion := "2.12.1",
+    scalaVersion := "2.12.4",
     resolvers += Classpaths.typesafeReleases,
     libraryDependencies ++= Seq(
       "org.scalatra" %% "scalatra" % "latest.integration",

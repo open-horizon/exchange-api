@@ -80,7 +80,7 @@ class NodesSuite extends FunSuite {
   val AGBOT2AUTH = ("Authorization","Basic "+orgagbotId2+":"+agbotToken2)
   val agProto = "ExchangeAutomatedTest"    // using this to avoid db entries from real users and predefined ones
 
-  var nodeHealthLastTime = ""     // used to store lastTime between calls to nodehealth
+  //var nodeHealthLastTime = ""     // used to store lastTime between calls to nodehealth
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -585,10 +585,13 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/nodehealth - as agbot, with current time - should get no nodes") {
-    val input = PostNodeHealthRequest(ApiTime.nowUTC)
+    //Thread.sleep(500)    // delay 0.5 seconds so no agreements will be current
+    val currentTime = ApiTime.futureUTC(100000)   // sometimes there is a mismatch between the exch svr time and this client's time
+    info("currentTime: "+currentTime)
+    val input = PostNodeHealthRequest(currentTime)
     val response = Http(URL+"/patterns/"+patid+"/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    //info("code: "+response.code+", response.body: "+response.body)
-    info("code: "+response.code)
+    info("code: "+response.code+", response.body: "+response.body)
+    //info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND)
     val postResp = parse(response.body).extract[PostNodeHealthResponse]
     val nodes = postResp.nodes
@@ -835,7 +838,8 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodehealth - as agbot, with current time - should get no nodes") {
-    val input = PostNodeHealthRequest(ApiTime.nowUTC)
+    //Thread.sleep(500)    // delay 0.5 seconds so no agreements will be current
+    val input = PostNodeHealthRequest(ApiTime.futureUTC(100000))
     val response = Http(URL+"/search/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1157,7 +1161,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/heartbeat - so this node won't be stale for pattern search") {
-    nodeHealthLastTime = ApiTime.nowUTC     // saving this for the nodehealth call in the next test
+    //nodeHealthLastTime = ApiTime.nowUTC     // saving this for the nodehealth call in the next test
     val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("post").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -1166,8 +1170,19 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/nodehealth - as agbot, after heartbeat - should find 1 node and 1 agreement for "+nodeId) {
+    // The time sync between exch svr and this client is not reliable, so get the actual last update time of the node we are after
+    //Thread.sleep(500)    // delay 0.5 seconds so no agreements will be current
+    var response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    val node = getDevResp.nodes.get(orgnodeId).get // the 2nd get turns the Some(val) into val
+    val nodeHealthLastTime = node.lastHeartbeat
+
     val input = PostNodeHealthRequest(nodeHealthLastTime)
-    val response = Http(URL+"/patterns/"+patid+"/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    response = Http(URL+"/patterns/"+patid+"/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)

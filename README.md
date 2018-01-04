@@ -72,27 +72,14 @@ services in the exchange.
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
-## Changes in 1.43.0
-
-### External changes
-
-- Made swagger work again, with these limitations:
-    - "Try it out" button still doesn't work
-    - The longer "description" field of each method is not appearing
-- Added dbSchemaVersion field to the output of /admin/status
-- Upgraded:
-    - scala from 2.12.1 to 2.12.4
-    - scalatra from 2.5.1 to 2.6.2
-    - from scalatra-sbt 0.5.1 to sbt-scalatra 1.0.1
-
 ### Todos left to be finished in subsequent versions
 
-* add keys sub-resource under users
-- detect if pattern has ms/wk with different arch's
-- detect if pattern contains 2 workloads that depend on the same exclusive MS
+* Added optional param in POST pattern to automatically add it to agbots
+- add keys to ms, wk, pattern (when docker image signing is supported - issue 481)
 - detect if wk requires ms with different arch
+- detect if pattern contains 2 workloads that depend on the same exclusive MS
 - detect if a pattern is updated with ms/wk that has userInput w/o default values, and give warning
-- issue #39
+- issue #39 (pattern node search api does not validate the workloadUrl)
 - Switch to microservices/workloads to services terminology
 - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
 - Add api for wiotp to get number of devices and agreements
@@ -105,6 +92,26 @@ services in the exchange.
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 - Any other schema changes?
+
+
+## Changes in 1.44.0
+
+### External changes
+
+- Allowed missing or empty torrent field in microservice and workload
+
+## Changes in 1.43.0
+
+### External changes
+
+- Made swagger work again, with these limitations:
+    - "Try it out" button still doesn't work
+    - The longer "description" field of each method is not appearing
+- Added dbSchemaVersion field to the output of /admin/status
+- Upgraded:
+    - scala from 2.12.1 to 2.12.4
+    - scalatra from 2.5.1 to 2.6.2
+    - from scalatra-sbt 0.5.1 to sbt-scalatra 1.0.1
 
 
 ## Changes in 1.42.0

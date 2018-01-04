@@ -122,7 +122,7 @@ class MicroservicesSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/microservices/"+microservice+" - update MS that is not there yet - should fail") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "single", Some("updated"), Some(Map("usbNodeIds" -> "1546:01a7")), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "single", Some("updated"), Some(Map("usbNodeIds" -> "1546:01a7")), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","")))
     val response = Http(URL+"/microservices/"+microservice).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)

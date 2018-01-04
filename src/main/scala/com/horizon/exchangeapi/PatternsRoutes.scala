@@ -237,6 +237,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Query),
         Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("updateagbot", DataType.String, Option[String]("An agbot resource id (org/agbotid) that should be updated to serve this pattern. Can be specified multiple times."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PostPutPatternRequest],
         Option[String]("Pattern object that needs to be updated in the exchange. See details in the Implementation Notes above."),
         paramType = ParamType.Body)
@@ -253,6 +254,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     patternReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
+    // Get optional agbots that should be updated with this new pattern
+    //val agbotParams = multiParams("updateagbot")
     val resp = response
     db.run(patternReq.validateWorkloadIds.asTry.flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" workload validation: "+xs.toString)

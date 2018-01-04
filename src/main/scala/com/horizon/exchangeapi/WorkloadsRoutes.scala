@@ -34,7 +34,8 @@ case class PostPutWorkloadRequest(label: String, description: String, public: Bo
 
     // Check that it is signed
     for (w <- workloads) {
-      if (w.deployment != "" && (w.deployment_signature == "" || w.torrent == "")) { halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this workload definition does not appear to be signed.")) }
+      //if (w.deployment != "" && (w.deployment_signature == "" || w.torrent == "")) { halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this workload definition does not appear to be signed.")) }
+      if (w.deployment != "" && w.deployment_signature == "") { halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this workload definition does not appear to be signed.")) }
     }
   }
 

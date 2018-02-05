@@ -15,14 +15,14 @@ services in the exchange.
     - `echo 'host all all <my-local-subnet> trust' >> /usr/local/var/postgres/pg_hba.conf`
     - `sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = 'my-ip'/" /usr/local/var/postgres/postgresql.conf`
     - `brew services start postgresql`
-    - test: `psql "host=<my-ip> dbname=<myuser> user=<myuser> password=''"`
+    - test: `psql "host=<my-ip> dbname=postgres user=<myuser> password=''"`
 - Add a config file on your development system at /etc/horizon/exchange/config.json with at least the following content (this is needed for the automated tests). Defaults and the full list of config variables are in `src/main/resources/config.json`:
 
 ```
 {
 	"api": {
 		"db": {
-			"jdbcUrl": "jdbc:postgresql://localhost/myuser",		// my local postgres db
+			"jdbcUrl": "jdbc:postgresql://localhost/postgres",		// my local postgres db
 			"user": "myuser",
 			"password": ""
 		},

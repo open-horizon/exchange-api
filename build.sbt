@@ -30,6 +30,7 @@ lazy val root = (project in file(".")).
       "org.json4s" %% "json4s-jackson" % "3.5.3",
       "org.scalatra" %% "scalatra-swagger"  % "latest.release",
       "org.scalatest" %% "scalatest" % "latest.release" % "test",
+      "org.scalacheck" %% "scalacheck" % "latest.release" % "test",
       "junit" % "junit" % "latest.release" % "test",
       "org.scalaj" %% "scalaj-http" % "latest.release",
       "com.typesafe" % "config" % "latest.release",

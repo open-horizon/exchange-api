@@ -74,7 +74,8 @@ services in the exchange.
 
 ### Todos left to be finished in subsequent versions
 
-* Added optional param in POST pattern to automatically add it to agbots
+* complain if no arch in ms/wk
+* Add optional param in POST pattern to automatically add it to agbots
 - add keys to ms, wk, pattern (when docker image signing is supported - issue 481)
 - detect if wk requires ms with different arch
 - detect if pattern contains 2 workloads that depend on the same exclusive MS
@@ -92,6 +93,13 @@ services in the exchange.
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 - Any other schema changes?
+
+
+## Changes in 1.45.0
+
+### External changes
+
+- fixed some library versions to make the build work again
 
 
 ## Changes in 1.44.0

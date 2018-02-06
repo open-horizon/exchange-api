@@ -436,7 +436,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         for ( (id, msgEndPoint, publicKey, workloadUrlOption, stateOption) <- list ) {
           //logger.trace("id: "+id+", workloadUrlOption: "+workloadUrlOption.getOrElse("")+", searchProps.workloadUrl: "+searchProps.workloadUrl+", stateOption: "+stateOption.getOrElse(""))
           nodeHash.get(id) match {
-            case Some(_) => if (workloadUrlOption.getOrElse("") == searchProps.workloadUrl && stateOption.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, false)) }  // this is no longer a candidate
+            case Some(_) => if (workloadUrlOption.getOrElse("") == searchProps.workloadUrl && stateOption.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
             case None => val noAgr = if (workloadUrlOption.getOrElse("") == searchProps.workloadUrl && stateOption.getOrElse("") != "") false else true
               nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgr))   // this node id not in the hash yet, and it and start it out true
           }

@@ -150,7 +150,7 @@ class UsersSuite extends FunSuite {
     getOrgsResp = parse(response.body).extract[GetOrgsResponse]
     assert(getOrgsResp.orgs.size === 1)
     assert(getOrgsResp.orgs.contains(orgid))
-    val o = getOrgsResp.orgs.get(orgid).get // the 2nd get turns the Some(val) into val
+    val o = getOrgsResp.orgs(orgid) // the 2nd get turns the Some(val) into val
     assert(o.description === "desc - patched")
   }
 
@@ -180,7 +180,7 @@ class UsersSuite extends FunSuite {
   // }
 
   test("POST /orgs/"+orgid+"/users/"+user+" - no email - should fail") {
-    val input = PostPutUsersRequest(pw, true, "")
+    val input = PostPutUsersRequest(pw, admin = true, "")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
@@ -188,14 +188,14 @@ class UsersSuite extends FunSuite {
 
   /** Add a normal user */
   test("POST /orgs/"+orgid+"/users/"+user+" - normal") {
-    val input = PostPutUsersRequest(pw, false, user+"@hotmail.com")
+    val input = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
   test("PUT /orgs/"+orgid+"/users/"+user+" - update his own email") {
-    val input = PostPutUsersRequest(pw, false, user+"@gmail.com")
+    val input = PostPutUsersRequest(pw, admin = false, user+"@gmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -208,7 +208,7 @@ class UsersSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/users/"+user+" - try to himself admin privilege - should fail") {
-    val input = PostPutUsersRequest(pw, true, user+"@msn.com")
+    val input = PostPutUsersRequest(pw, admin = true, user+"@msn.com")
     var response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
@@ -242,7 +242,7 @@ class UsersSuite extends FunSuite {
     assert(getUserResp.users.size === 1)
 
     assert(getUserResp.users.contains(orguser))
-    val u = getUserResp.users.get(orguser).get // the 2nd get turns the Some(val) into val
+    val u = getUserResp.users(orguser) // the 2nd get turns the Some(val) into val
     assert(u.email === user+"@gmail.com")
   }
 
@@ -263,20 +263,20 @@ class UsersSuite extends FunSuite {
     assert(getUserResp.users.size === 1)
 
     assert(getUserResp.users.contains(orguser))
-    val u = getUserResp.users.get(orguser).get // the 2nd get turns the Some(val) into val
+    val u = getUserResp.users(orguser) // the 2nd get turns the Some(val) into val
     assert(u.email === user+"@gmail.com")
   }
 
   /** Update the normal user with encoded creds */
   test("PUT /orgs/"+orgid+"/users/"+user+" - update normal with encoded creds") {
-    val input = PostPutUsersRequest(pw, true, user+"-updated@gmail.com")
+    val input = PostPutUsersRequest(pw, admin = true, user+"-updated@gmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ENCODEDAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("POST /orgs/"+orgid+"/users/"+user2+" - as admin user") {
-    val input = PostPutUsersRequest(pw2, false, user2+"@hotmail.com")
+    val input = PostPutUsersRequest(pw2, admin = false, user2+"@hotmail.com")
     val response = Http(URL+"/users/"+user2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -293,7 +293,7 @@ class UsersSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/users/"+user3+" - as non-admin user - should fail") {
-    val input = PostPutUsersRequest(pw3, false, user3+"@hotmail.com")
+    val input = PostPutUsersRequest(pw3, admin = false, user3+"@hotmail.com")
     val response = Http(URL+"/users/"+user3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -307,7 +307,7 @@ class UsersSuite extends FunSuite {
     assert(response.code === HttpCode.OK)
     val getUserResp = parse(response.body).extract[GetUsersResponse]
     assert(getUserResp.users.contains(orguser))
-    val u = getUserResp.users.get(orguser).get // the 2nd get turns the Some(val) into val
+    val u = getUserResp.users(orguser) // the 2nd get turns the Some(val) into val
     assert(u.email === user+"-updated@gmail.com")
   }
 
@@ -399,7 +399,7 @@ class UsersSuite extends FunSuite {
       val getUserResp = parse(response.body).extract[GetUsersResponse]
       assert(getUserResp.users.size === 1)
       assert(getUserResp.users.contains(orguser))
-      val u = getUserResp.users.get(orguser).get // the 2nd get turns the Some(val) into val
+      val u = getUserResp.users(orguser) // the 2nd get turns the Some(val) into val
       assert(u.email === spamEmail)
 
       /* Reset as anonymous does not work with orgs...
@@ -421,7 +421,7 @@ class UsersSuite extends FunSuite {
 
   /** Create the normal user - as root */
   test("PUT /orgs/"+orgid+"/users/"+user+" - create normal - as root") {
-    val input = PostPutUsersRequest(pw, true, user+"@gmail.com")
+    val input = PostPutUsersRequest(pw, admin = true, user+"@gmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -436,27 +436,27 @@ class UsersSuite extends FunSuite {
     assert(getUserResp.users.size === 1)
 
     assert(getUserResp.users.contains(orguser))
-    val u = getUserResp.users.get(orguser).get // the 2nd get turns the Some(val) into val
+    val u = getUserResp.users(orguser) // the 2nd get turns the Some(val) into val
     assert(u.email === user+"@gmail.com")
   }
 
   // Anonymous creates
   test("POST /orgs/"+orgid+"/users/"+user3+" - as anonymous - should fail") {
-    val input = PostPutUsersRequest(pw3, false, user3+"@hotmail.com")
+    val input = PostPutUsersRequest(pw3, admin = false, user3+"@hotmail.com")
     val response = Http(URL+"/users/"+user3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).asString    // as anonymous
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("POST /orgs/public/users/"+user+" - create admin user as anonymous - should fail") {
-    val input = PostPutUsersRequest(pw, true, user+"@hotmail.com")
+    val input = PostPutUsersRequest(pw, admin = true, user+"@hotmail.com")
     val response = Http(NOORGURL+"/orgs/public/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).asString    // as anonymous
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("POST /orgs/public/users/"+user+" - create non-admin user as anonymous") {
-    val input = PostPutUsersRequest(pw, false, user+"@hotmail.com")
+    val input = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     val response = Http(NOORGURL+"/orgs/public/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).asString    // as anonymous
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -482,7 +482,7 @@ class UsersSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid2+"/users/"+user+" - create user in org2 so we can test cross-org ACLs") {
-    val input = PostPutUsersRequest(pw, true, user+"@hotmail.com")
+    val input = PostPutUsersRequest(pw, admin = true, user+"@hotmail.com")
     val response = Http(URL2+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -490,7 +490,7 @@ class UsersSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/microservices - add "+microservice+" as not public in 1st org") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "single", None, None, List(), List())
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", public = false, msUrl, "1.0.0", "arm", "single", None, None, List(), List())
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -537,7 +537,7 @@ class UsersSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/workloads - add "+workload+" as not public in 1st org") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", false, wkUrl, "1.0.0", "arm", None, List(), List(), List())
+    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", public = false, wkUrl, "1.0.0", "arm", None, List(), List(), List())
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -584,7 +584,7 @@ class UsersSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as not public in 1st org") {
-    val input = PostPutPatternRequest("Pattern", "desc", false, List(), List[Map[String,String]]() )
+    val input = PostPutPatternRequest("Pattern", "desc", public = false, List(), List[Map[String,String]]() )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

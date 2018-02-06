@@ -1,20 +1,13 @@
 package exchangeapi
 
-import org.scalatest.FunSuite
+import org.json4s._
 import org.junit.runner.RunWith
+import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
 
 import scalaj.http._
-import org.json4s._
-//import org.json4s.JsonDSL._
-//import org.json4s.jackson.JsonMethods._
-import org.json4s.native.Serialization.write
 import com.horizon.exchangeapi._
-
-import scala.collection.immutable._
-//import java.time._
-
-import com.horizon.exchangeapi.tables._
+import org.json4s.native.Serialization.write
 
 //TODO: have not decided if i should use this or stick with the scr/test/bash/scale scripts (which can easily have multiple instances run concurrently, and from different clients)
 

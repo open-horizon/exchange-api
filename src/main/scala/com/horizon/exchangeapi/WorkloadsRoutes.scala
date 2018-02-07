@@ -23,7 +23,7 @@ case class GetWorkloadsResponse(workloads: Map[String,Workload], lastIndex: Int)
 case class GetWorkloadAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST /microservices or PUT /orgs/{orgid}/workloads/<workload-id> */
-case class PostPutWorkloadRequest(label: String, description: String, public: Boolean, workloadUrl: String, version: String, arch: String, downloadUrl: Option[String], apiSpec: List[WMicroservices], userInput: List[Map[String,String]], workloads: List[MDockerImages]) {
+case class PostPutWorkloadRequest(label: String, description: String, public: Boolean, workloadUrl: String, version: String, arch: String, downloadUrl: Option[String], apiSpec: List[ServiceRef], userInput: List[Map[String,String]], workloads: List[MDockerImages]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
     // Currently we do not want to force that the workloadUrl is a valid URL
@@ -44,7 +44,7 @@ case class PostPutWorkloadRequest(label: String, description: String, public: Bo
     if (apiSpec.isEmpty) return DBIO.successful(Vector())
     val actions = ListBuffer[DBIO[Int]]()
     for (m <- apiSpec) {
-      val microId = MicroservicesTQ.formId(m.org, m.specRef, m.version, m.arch)     // need to wildcard version, because it is an osgi version range
+      val microId = MicroservicesTQ.formId(m.org, m.url, m.version, m.arch)     // need to wildcard version, because it is an osgi version range
       actions += MicroservicesTQ.getMicroservice(microId).length.result
     }
     return DBIO.sequence(actions.toVector)      // convert the list of actions to a DBIO sequence because that returns query values
@@ -243,7 +243,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
 
-    val msIds = workloadReq.apiSpec.map( m => MicroservicesTQ.formId(m.org, m.specRef, "%", m.arch) )   // make a list of MS wildcarded searches for the required MSes
+    val msIds = workloadReq.apiSpec.map( m => MicroservicesTQ.formId(m.org, m.url, "%", m.arch) )   // make a list of MS wildcarded searches for the required MSes
     val action = if (workloadReq.apiSpec.isEmpty) DBIO.successful(Vector())   // no MSes to look for
       else {
         // The inner map() and reduceLeft() OR together all of the likes to give to filter()
@@ -260,7 +260,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
             breakable {
               for ( (orgid,specRef,version,arch) <- rows ) {
                 //logger.debug("orgid: "+orgid+", specRef: "+specRef+", version: "+version+", arch: "+arch)
-                if (specRef == apiSpec.specRef && orgid == apiSpec.org && arch == apiSpec.arch && (Version(version) in VersionRange(apiSpec.version)) ) break  // we satisfied this apiSpec requirement so move on to the next
+                if (specRef == apiSpec.url && orgid == apiSpec.org && arch == apiSpec.arch && (Version(version) in VersionRange(apiSpec.version)) ) break  // we satisfied this apiSpec requirement so move on to the next
               }
               invalidIndex = index    // we finished the inner for loop but did not find an MS that satisfied the requirement
             }     //  if we find an MS that satisfies the requirment, it breaks to this line
@@ -369,7 +369,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
 
-    val msIds = workloadReq.apiSpec.map( m => MicroservicesTQ.formId(m.org, m.specRef, "%", m.arch) )   // make a list of MS wildcarded searches for the required MSes
+    val msIds = workloadReq.apiSpec.map( m => MicroservicesTQ.formId(m.org, m.url, "%", m.arch) )   // make a list of MS wildcarded searches for the required MSes
     val action = if (workloadReq.apiSpec.isEmpty) DBIO.successful(Vector())   // no MSes to look for
     else {
       // The inner map() and reduceLeft() OR together all of the likes to give to filter()
@@ -386,7 +386,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
             breakable {
               for ( (orgid,specRef,version,arch) <- rows ) {
                 //logger.debug("orgid: "+orgid+", specRef: "+specRef+", version: "+version+", arch: "+arch)
-                if (specRef == apiSpec.specRef && orgid == apiSpec.org && arch == apiSpec.arch && (Version(version) in VersionRange(apiSpec.version)) ) break  // we satisfied this apiSpec requirement so move on to the next
+                if (specRef == apiSpec.url && orgid == apiSpec.org && arch == apiSpec.arch && (Version(version) in VersionRange(apiSpec.version)) ) break  // we satisfied this apiSpec requirement so move on to the next
               }
               invalidIndex = index    // we finished the inner for loop but did not find an MS that satisfied the requirement
             }     //  if we find an MS that satisfies the requirment, it breaks to this line

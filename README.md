@@ -74,16 +74,14 @@ services in the exchange.
 
 ### Todos left to be finished in subsequent versions
 
-* complain if no arch in ms/wk
-* Add optional param in POST pattern to automatically add it to agbots
-- add keys to ms, wk, pattern (when docker image signing is supported - issue 481)
 - detect if wk requires ms with different arch
-- detect if pattern contains 2 workloads that depend on the same exclusive MS
-- detect if a pattern is updated with ms/wk that has userInput w/o default values, and give warning
 - issue #39 (pattern node search api does not validate the workloadUrl)
-- Switch to microservices/workloads to services terminology
+- add keys to ms, wk, pattern (when docker image signing is supported - issue 481)
+- Add optional param in POST pattern to automatically add it to agbots
+- consider detect if pattern contains 2 workloads that depend on the same exclusive MS
+- detect if a pattern is updated with ms/wk that has userInput w/o default values, and give warning
 - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
-- Add api for wiotp to get number of devices and agreements
+- Add api for wiotp to get number of nodes and agreements
 - Allow random PW creation for user creation
 - Add ability to change owner of node
 - Add patch capability for node registered microservices?
@@ -100,6 +98,7 @@ services in the exchange.
 ### External changes
 
 - fixed some library versions to make the build work again
+- added service resource (issue #51)
 
 
 ## Changes in 1.44.0

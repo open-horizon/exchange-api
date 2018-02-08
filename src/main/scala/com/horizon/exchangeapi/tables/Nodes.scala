@@ -122,8 +122,8 @@ object NodesTQ {
     for ((nodeId, d) <- nodes) {
       if (micros.get(nodeId).isDefined) {
         var microList = ListBuffer[RegMicroservice]()
-        for ((msId, m) <- micros.get(nodeId).get) {
-          val propList = if (props.get(msId).isDefined) props.get(msId).get.values.toList else List[Prop]()
+        for ((msId, m) <- micros(nodeId)) {
+          val propList = if (props.get(msId).isDefined) props(msId).values.toList else List[Prop]()
           microList += RegMicroservice(m.url, m.numAgreements, m.policy, propList)
         }
         d.registeredMicroservices = microList.toList    // replace the empty micro list we put in there initially
@@ -313,7 +313,7 @@ case class RegMicroserviceRow(msId: String, nodeId: String, url: String, numAgre
       case Some(_) => ; // do not need to add the entry, because it is already there
       case None => micros.put(nodeId, new MutableHashMap[String,RegMicroservice])
     }
-    val mMap = micros.get(nodeId).get
+    val mMap = micros(nodeId)
     mMap.get(msId) match {
       case Some(_) => ; // do not need to add the entry, because it is already there
       case None => mMap.put(msId, toRegMicroservice)
@@ -388,7 +388,7 @@ case class PropRow(propId: String, msId: String, name: String, value: String, pr
       case Some(_) => ; // do not need to add the entry, because it is already there
       case None => props.put(msId, new MutableHashMap[String,Prop])
     }
-    val pMap = props.get(msId).get
+    val pMap = props(msId)
     pMap.get(propId) match {
       case Some(_) => ; // do not need to add the entry, because it is already there
       case None => pMap.put(propId, toProp)

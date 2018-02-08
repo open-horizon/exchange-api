@@ -28,7 +28,7 @@ case class PutAgbotsRequestOld(token: String, name: String, msgEndPoint: String)
 /** Input format for PUT /orgs/{orgid}/agbots/<agbot-id> */
 case class PutAgbotsRequest(token: String, name: String, /*patterns: List[APattern],*/ msgEndPoint: String, publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = {
+  def validate(): Unit = {
     // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /nodes/{id}/msgs checks for the publicKey
     if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token specified must not be blank"))
   }

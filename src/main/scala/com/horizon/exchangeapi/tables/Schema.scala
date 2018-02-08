@@ -43,9 +43,10 @@ object SchemaTQ {
   val upgradeSchemaVector = Vector(
     /* 0 */ DBIO.seq(),       // v1.35.0 - no changes needed to get to time zero
     /* 1 */ DBIO.seq(NodeStatusTQ.rows.schema.create),    // v1.37.0
-    /* 2 */ DBIO.seq(sqlu"alter table agbots drop column patterns", AgbotPatternsTQ.rows.schema.create)   // v1.38.0
+    /* 2 */ DBIO.seq(sqlu"alter table agbots drop column patterns", AgbotPatternsTQ.rows.schema.create),   // v1.38.0
+    /* 3 */ DBIO.seq(ServicesTQ.rows.schema.create)   // v1.45.0
   )
-  val latestSchemaDescription = "Added agbotpatterns table and dropped the patterns column from agbot table"
+  val latestSchemaDescription = "Added services table"
 
   val rows = TableQuery[SchemaTable]
 

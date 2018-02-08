@@ -104,7 +104,7 @@ object ExchConfig {
       }).flatMap({ xs =>
         logger.debug("Upsert /orgs/public result: "+xs.toString)
         xs match {
-          case Success(_) => UserRow(Role.superUser, "root", rootpw, true, rootemail, ApiTime.nowUTC).upsertUser.asTry    // next action
+          case Success(_) => UserRow(Role.superUser, "root", rootpw, admin = true, rootemail, ApiTime.nowUTC).upsertUser.asTry    // next action
           case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
         }
       })).map({ xs =>

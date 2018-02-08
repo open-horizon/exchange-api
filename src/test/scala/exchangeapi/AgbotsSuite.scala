@@ -121,7 +121,7 @@ class AgbotsSuite extends FunSuite {
 
   /** Add a normal user */
   test("POST /orgs/"+orgid+"/users/"+user+" - normal") {
-    val input = PostPutUsersRequest(pw, false, user+"@hotmail.com")
+    val input = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -180,7 +180,7 @@ class AgbotsSuite extends FunSuite {
     // assert(getAgbotResp.agbots.size === 1)   // since the other test suites are creating some of these too, we can not know how many there are right now
 
     assert(getAgbotResp.agbots.contains(orgagbotId))
-    val dev = getAgbotResp.agbots.get(orgagbotId).get // the 2nd get turns the Some(val) into val
+    val dev = getAgbotResp.agbots(orgagbotId) // the 2nd get turns the Some(val) into val
     assert(dev.name === "agbot"+agbotId+"-normal")
     //val pat = dev.patterns.head
     //assert(pat.pattern === "mypattern-normal")
@@ -214,7 +214,7 @@ class AgbotsSuite extends FunSuite {
     assert(getAgbotResp.agbots.size === 1)
 
     assert(getAgbotResp.agbots.contains(orgagbotId))
-    val agbot = getAgbotResp.agbots.get(orgagbotId).get // the 2nd get turns the Some(val) into val
+    val agbot = getAgbotResp.agbots(orgagbotId) // the 2nd get turns the Some(val) into val
     assert(agbot.name === "agbot"+agbotId+"-normal")
 
     // Verify the lastHeartbeat from the POST heartbeat above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
@@ -266,7 +266,7 @@ class AgbotsSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/workloads - add "+workid+" and check that agbot can read it") {
-    val input = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, None, List(), List(Map()), List())
+    val input = PostPutWorkloadRequest("test-workload", "desc", public = false, workurl, workversion, workarch, None, List(), List(Map()), List())
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -280,7 +280,7 @@ class AgbotsSuite extends FunSuite {
   // Note: when we delete the org, this workload will get deleted
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" and check that agbot can read it") {
-    val input = PostPutPatternRequest(pattern, "desc", false,
+    val input = PostPutPatternRequest(pattern, "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -328,7 +328,7 @@ class AgbotsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2) {
-    val input = PostPutPatternRequest(pattern2, "desc", false,
+    val input = PostPutPatternRequest(pattern2, "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -339,7 +339,7 @@ class AgbotsSuite extends FunSuite {
   // Note: when we delete the org, this pattern will get deleted
 
   test("POST /orgs/"+orgid+"/microservices - add "+micro+" and check that agbot can read it") {
-    val input = PostPutMicroserviceRequest(micro+" arm", "desc", false, "https://msurl", "1.0.0", "arm", "single", None, None, List(Map()), List())
+    val input = PostPutMicroserviceRequest(micro+" arm", "desc", public = false, "https://msurl", "1.0.0", "arm", "single", None, None, List(Map()), List())
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -384,7 +384,7 @@ class AgbotsSuite extends FunSuite {
     assert(getAgbotResp.patterns.size === 2)
 
     assert(getAgbotResp.patterns.contains(patId))
-    val pat = getAgbotResp.patterns.get(patId).get // the 2nd get turns the Some(val) into val
+    val pat = getAgbotResp.patterns(patId) // the 2nd get turns the Some(val) into val
     assert(pat.pattern === pattern)
   }
 
@@ -397,7 +397,7 @@ class AgbotsSuite extends FunSuite {
     assert(getAgbotResp.patterns.size === 1)
 
     assert(getAgbotResp.patterns.contains(patId2))
-    val pat = getAgbotResp.patterns.get(patId2).get // the 2nd get turns the Some(val) into val
+    val pat = getAgbotResp.patterns(patId2) // the 2nd get turns the Some(val) into val
     assert(pat.pattern === pattern2)
   }
 
@@ -540,7 +540,7 @@ class AgbotsSuite extends FunSuite {
     assert(getAgResp.agreements.size === 2)
 
     assert(getAgResp.agreements.contains(agreementId))
-    val ag = getAgResp.agreements.get(agreementId).get // the 2nd get turns the Some(val) into val
+    val ag = getAgResp.agreements(agreementId) // the 2nd get turns the Some(val) into val
     assert(ag.workload.url === "sdr")
     assert(ag.state === "negotiating")
     assert(getAgResp.agreements.contains("9951"))
@@ -554,7 +554,7 @@ class AgbotsSuite extends FunSuite {
     assert(getAgResp.agreements.size === 1)
 
     assert(getAgResp.agreements.contains(agreementId))
-    val ag = getAgResp.agreements.get(agreementId).get // the 2nd get turns the Some(val) into val
+    val ag = getAgResp.agreements(agreementId) // the 2nd get turns the Some(val) into val
     assert(ag.workload.url === "sdr")
     assert(ag.state === "negotiating")
 

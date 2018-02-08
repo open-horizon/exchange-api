@@ -99,12 +99,12 @@ class PatternsSuite extends FunSuite {
 
   /** Add users, node, pattern for future tests */
   test("Add users, node, pattern for future tests") {
-    var userInput = PostPutUsersRequest(pw, false, user + "@hotmail.com")
+    var userInput = PostPutUsersRequest(pw, admin = false, user + "@hotmail.com")
     var userResponse = Http(URL + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
-    userInput = PostPutUsersRequest(pw2, false, user2 + "@hotmail.com")
+    userInput = PostPutUsersRequest(pw2, admin = false, user2 + "@hotmail.com")
     userResponse = Http(URL + "/users/" + user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
@@ -124,7 +124,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" before workload is exists - should fail") {
-    val input = PostPutPatternRequest(ptBase, "desc", false,
+    val input = PostPutPatternRequest(ptBase, "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -134,14 +134,14 @@ class PatternsSuite extends FunSuite {
   }
 
   test("Add workload for future tests") {
-    val workInput = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, None, List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
+    val workInput = PostPutWorkloadRequest("test-workload", "desc", public = false, workurl, workversion, workarch, None, List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
     val workResponse = Http(URL+"/workloads").postData(write(workInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+workResponse.code+", response.body: "+workResponse.body)
     assert(workResponse.code === HttpCode.POST_OK)
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update pattern that is not there yet - should fail") {
-    val input = PostPutPatternRequest("Bad Pattern", "desc", false,
+    val input = PostPutPatternRequest("Bad Pattern", "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -151,7 +151,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" that is not signed - should fail") {
-    val input = PostPutPatternRequest(ptBase, "desc", false,
+    val input = PostPutPatternRequest(ptBase, "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "{\"services\":{}}", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -161,7 +161,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as user") {
-    val input = PostPutPatternRequest(ptBase, "desc", false,
+    val input = PostPutPatternRequest(ptBase, "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "{\"services\":{}}", "a", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -173,7 +173,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" again - should fail") {
-    val input = PostPutPatternRequest("Bad Pattern", "desc", false,
+    val input = PostPutPatternRequest("Bad Pattern", "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -183,7 +183,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as same user, w/o dataVerification or nodeHealth fields") {
-    val input = PostPutPatternRequest(ptBase+" amd64", "desc", false,
+    val input = PostPutPatternRequest(ptBase+" amd64", "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), None, None )),
       List[Map[String,String]]()
     )
@@ -193,7 +193,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as 2nd user - should fail") {
-    val input = PostPutPatternRequest("Bad Pattern", "desc", false,
+    val input = PostPutPatternRequest("Bad Pattern", "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -203,7 +203,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as agbot - should fail") {
-    val input = PostPutPatternRequest("Bad Pattern", "desc", false,
+    val input = PostPutPatternRequest("Bad Pattern", "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -222,7 +222,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as node - should fail") {
-    val input = PostPutPatternRequest("Bad Pattern2", "desc", false,
+    val input = PostPutPatternRequest("Bad Pattern2", "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -232,7 +232,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as 2nd user") {
-    val input = PostPutPatternRequest(ptBase2+" amd64", "desc", true,
+    val input = PostPutPatternRequest(ptBase2+" amd64", "desc", public = true,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -280,12 +280,12 @@ class PatternsSuite extends FunSuite {
     assert(respObj.patterns.size === 2)
 
     assert(respObj.patterns.contains(orgpattern))
-    var pt = respObj.patterns.get(orgpattern).get     // the 2nd get turns the Some(val) into val
+    var pt = respObj.patterns(orgpattern)     // the 2nd get turns the Some(val) into val
     assert(pt.label === ptBase+" amd64")
     assert(pt.owner === orguser)
 
     assert(respObj.patterns.contains(orgpattern2))
-    pt = respObj.patterns.get(orgpattern2).get     // the 2nd get turns the Some(val) into val
+    pt = respObj.patterns(orgpattern2)     // the 2nd get turns the Some(val) into val
     assert(pt.label === ptBase2+" amd64")
     assert(pt.owner === orguser2)
   }
@@ -345,7 +345,7 @@ class PatternsSuite extends FunSuite {
     assert(respObj.patterns.size === 1)
 
     assert(respObj.patterns.contains(orgpattern))
-    val pt = respObj.patterns.get(orgpattern).get     // the 2nd get turns the Some(val) into val
+    val pt = respObj.patterns(orgpattern)     // the 2nd get turns the Some(val) into val
     assert(pt.label === ptBase+" amd64")
 
     // Verify the lastUpdated from the PUT above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]

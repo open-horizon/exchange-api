@@ -154,7 +154,7 @@ class NodesSuite extends FunSuite {
 
   /** Add a normal user */
   test("POST /orgs/"+orgid+"/users/"+user+" - normal") {
-    val input = PostPutUsersRequest(pw, false, user+"@hotmail.com")
+    val input = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -170,7 +170,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/workloads - add "+workid+" so pattern can reference it") {
-    val input = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, None, List(), List(Map()), List())
+    val input = PostPutWorkloadRequest("test-workload", "desc", public = false, workurl, workversion, workarch, None, List(), List(Map()), List())
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -178,7 +178,7 @@ class NodesSuite extends FunSuite {
   // Note: when we delete the org, this workload will get deleted
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+" - so nodes can reference it") {
-    val input = PostPutPatternRequest(patid, "desc", false,
+    val input = PostPutPatternRequest(patid, "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -346,13 +346,15 @@ class NodesSuite extends FunSuite {
     assert(getDevResp.nodes.size === 4)
 
     assert(getDevResp.nodes.contains(orgnodeId))
-    var dev = getDevResp.nodes.get(orgnodeId).get     // the 2nd get turns the Some(val) into val
+    var dev = getDevResp.nodes(orgnodeId)
     assert(dev.name === "rpi"+nodeId+"-normal")
     assert(dev.registeredMicroservices.length === 2)
-    var micro: RegMicroservice = dev.registeredMicroservices.find(m => m.url==SDRSPEC) match {
-      case Some(m) => m
-      case None => assert(false); null
-    }
+    var micro: RegMicroservice = dev.registeredMicroservices.find(m => m.url == SDRSPEC).orNull
+    assert(micro !== null)
+//    var micro: RegMicroservice = dev.registeredMicroservices.find(m => m.url==SDRSPEC) match {
+//      case Some(m) => m
+//      case None => assert(condition = false); null
+//    }
     assert(micro.url === SDRSPEC)
     assert(micro.policy === "{json policy for "+nodeId+" sdr}")
     var archProp = micro.properties.find(p => p.name=="arch").orNull
@@ -362,17 +364,15 @@ class NodesSuite extends FunSuite {
     assert((memProp !== null) && (memProp.value === "300"))
     assert(dev.softwareVersions.size === 1)
     assert(dev.softwareVersions.contains("horizon"))
-    assert(dev.softwareVersions.get("horizon").get === "3.2.1")
-    micro = dev.registeredMicroservices.find(m => m.url==NETSPEEDSPEC) match {
-      case Some(m) => m
-      case None => assert(false); null
-    }
+    assert(dev.softwareVersions("horizon") === "3.2.1")
+    micro = dev.registeredMicroservices.find(m => m.url==NETSPEEDSPEC).orNull
+    assert(micro !== null)
     assert(micro.properties.find(p => p.name=="cpus") === None)
     assert(micro.properties.find(p => p.name=="agreementProtocols") !== None)
     assert(dev.registeredMicroservices.find(m => m.url==PWSSPEC) === None)
 
     assert(getDevResp.nodes.contains(orgnodeId2))
-    dev = getDevResp.nodes.get(orgnodeId2).get     // the 2nd get turns the Some(val) into val
+    dev = getDevResp.nodes(orgnodeId2)
     assert(dev.name === "rpi9901-mem-400-vers-2")
     assert(dev.registeredMicroservices.length === 1)
     micro = dev.registeredMicroservices.head
@@ -385,7 +385,7 @@ class NodesSuite extends FunSuite {
     assert(dev.softwareVersions.size === 0)
 
     assert(getDevResp.nodes.contains(orgnodeId3))
-    dev = getDevResp.nodes.get(orgnodeId3).get     // the 2nd get turns the Some(val) into val
+    dev = getDevResp.nodes(orgnodeId3)
     assert(dev.name === "rpi9902-netspeed-amd64")
     assert(dev.registeredMicroservices.length === 1)
     micro = dev.registeredMicroservices.head
@@ -457,7 +457,7 @@ class NodesSuite extends FunSuite {
     // assert(getDevResp.nodes.size === 1)    // since the other test suites are creating some of these too, we can not know how many there are right now
 
     assert(getDevResp.nodes.contains(orgnodeId))
-    val dev = getDevResp.nodes.get(orgnodeId).get // the 2nd get turns the Some(val) into val
+    val dev = getDevResp.nodes(orgnodeId)
     assert(dev.name === "rpi"+nodeId+"-normal")
 
     // Verify the lastHeartbeat from the POST heartbeat above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
@@ -466,10 +466,8 @@ class NodesSuite extends FunSuite {
     assert(now - lastHb <= 3)    // should not now be more than 3 seconds from the time the heartbeat was done above
 
     assert(dev.registeredMicroservices.length === 2)
-    val micro: RegMicroservice = dev.registeredMicroservices.find(m => m.url==SDRSPEC) match {
-      case Some(m) => m
-      case None => assert(false); null
-    }
+    val micro: RegMicroservice = dev.registeredMicroservices.find(m => m.url==SDRSPEC).orNull
+    assert(micro !== null)
     assert(micro.url === SDRSPEC)
     assert(micro.policy === "{json policy for "+nodeId+" sdr}")
     var archProp = micro.properties.find(p => p.name=="arch").orNull
@@ -498,7 +496,7 @@ class NodesSuite extends FunSuite {
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === 1)
     assert(getDevResp.nodes.contains(orgnodeId))
-    val dev = getDevResp.nodes.get(orgnodeId).get     // the 2nd get turns the Some(val) into val
+    val dev = getDevResp.nodes(orgnodeId)
     assert(dev.name === "rpi"+nodeId+"-normal")
   }
 
@@ -862,7 +860,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getResp = parse(response.body).extract[NodeStatus]
-    assert(getResp.connectivity.get("images.bluehorizon.network").get === true)
+    assert(getResp.connectivity("images.bluehorizon.network") === true)
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
@@ -922,7 +920,7 @@ class NodesSuite extends FunSuite {
     val nodes = postResp.nodes
     assert(nodes.size === 4)
     assert(nodes.contains(orgnodeId) && nodes.contains(orgnodeId2) && nodes.contains(orgnodeId3) && nodes.contains(orgnodeId4))
-    val dev = nodes.get(orgnodeId).get // the 2nd get turns the Some(val) into val
+    val dev = nodes(orgnodeId)
     assert(dev.agreements.contains(agreementId))
   }
 
@@ -960,7 +958,7 @@ class NodesSuite extends FunSuite {
     val nodes = postResp.nodes
     assert(nodes.size === 4)
     assert(nodes.contains(orgnodeId) && nodes.contains(orgnodeId2) && nodes.contains(orgnodeId3) && nodes.contains(orgnodeId4))
-    val dev = nodes.get(orgnodeId).get // the 2nd get turns the Some(val) into val
+    val dev = nodes(orgnodeId)
     assert(dev.agreements.contains(agreementId))
   }
 
@@ -980,7 +978,7 @@ class NodesSuite extends FunSuite {
     assert(getAgResp.agreements.size === 2)
 
     assert(getAgResp.agreements.contains(agreementId))
-    val ag = getAgResp.agreements.get(agreementId).get // the 2nd get turns the Some(val) into val
+    val ag = getAgResp.agreements(agreementId)
     assert(ag.microservices === List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)))
     assert(ag.state === "negotiating")
     assert(getAgResp.agreements.contains("9951"))
@@ -994,7 +992,7 @@ class NodesSuite extends FunSuite {
     assert(getAgResp.agreements.size === 1)
 
     assert(getAgResp.agreements.contains(agreementId))
-    val ag = getAgResp.agreements.get(agreementId).get // the 2nd get turns the Some(val) into val
+    val ag = getAgResp.agreements(agreementId)
     assert(ag.microservices === List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)))
     assert(ag.state === "negotiating")
 
@@ -1178,7 +1176,7 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.OK)
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.contains(orgnodeId))
-    val node = getDevResp.nodes.get(orgnodeId).get // the 2nd get turns the Some(val) into val
+    val node = getDevResp.nodes(orgnodeId)
     val nodeHealthLastTime = node.lastHeartbeat
 
     val input = PostNodeHealthRequest(nodeHealthLastTime)
@@ -1190,7 +1188,7 @@ class NodesSuite extends FunSuite {
     val nodes = postResp.nodes
     assert(nodes.size === 1)
     assert(nodes.contains(orgnodeId))
-    val dev = nodes.get(orgnodeId).get // the 2nd get turns the Some(val) into val
+    val dev = nodes(orgnodeId)
     assert(dev.agreements.contains(agreementId))
   }
 
@@ -1407,24 +1405,18 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.OK)
     val resp = parse(response.body).extract[GetNodeMsgsResponse]
     assert(resp.messages.size === 3)
-    var msg = resp.messages.find(m => m.message=="{msg1 from agbot1 to node1}") match {
-      case Some(m) => m
-      case None => assert(false); null
-    }
+    var msg = resp.messages.find(m => m.message=="{msg1 from agbot1 to node1}").orNull
+    assert(msg !== null)
     assert(msg.agbotId === orgagbotId)
     assert(msg.agbotPubKey === "AGBOTABC")
 
-    msg = resp.messages.find(m => m.message=="{msg2 from agbot1 to node1}") match {
-      case Some(m) => m
-      case None => assert(false); null
-    }
+    msg = resp.messages.find(m => m.message=="{msg2 from agbot1 to node1}").orNull
+    assert(msg !== null)
     assert(msg.agbotId === orgagbotId)
     assert(msg.agbotPubKey === "AGBOTABC")
 
-    msg = resp.messages.find(m => m.message=="{msg1 from agbot2 to node1}") match {
-      case Some(m) => m
-      case None => assert(false); null
-    }
+    msg = resp.messages.find(m => m.message=="{msg1 from agbot2 to node1}").orNull
+    assert(msg !== null)
     assert(msg.agbotId === orgagbotId2)
     assert(msg.agbotPubKey === "AGBOT2ABC")
   }
@@ -1436,10 +1428,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.OK)
     val resp = parse(response.body).extract[GetNodeMsgsResponse]
     assert(resp.messages.size === 1)
-    val msg = resp.messages.find(m => m.message == "{msg1 from agbot2 to node2}") match {
-      case Some(m) => m
-      case None => assert(false); null
-    }
+    val msg = resp.messages.find(m => m.message == "{msg1 from agbot2 to node2}").orNull
+    assert(msg !== null)
     assert(msg.agbotId === orgagbotId2)
     assert(msg.agbotPubKey === "AGBOT2ABC")
     val msgId = msg.msgId
@@ -1514,24 +1504,18 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.OK)
     val resp = parse(response.body).extract[GetAgbotMsgsResponse]
     assert(resp.messages.size === 3)
-    var msg = resp.messages.find(m => m.message=="{msg1 from node1 to agbot1}") match {
-      case Some(m) => m
-      case None => assert(false); null
-    }
+    var msg = resp.messages.find(m => m.message=="{msg1 from node1 to agbot1}").orNull
+    assert(msg !== null)
     assert(msg.nodeId === orgnodeId)
     assert(msg.nodePubKey === "NODEABC")
 
-    msg = resp.messages.find(m => m.message=="{msg2 from node1 to agbot1}") match {
-      case Some(m) => m
-      case None => assert(false); null
-    }
+    msg = resp.messages.find(m => m.message=="{msg2 from node1 to agbot1}").orNull
+    assert(msg !== null)
     assert(msg.nodeId === orgnodeId)
     assert(msg.nodePubKey === "NODEABC")
 
-    msg = resp.messages.find(m => m.message=="{msg1 from node2 to agbot1}") match {
-      case Some(m) => m
-      case None => assert(false); null
-    }
+    msg = resp.messages.find(m => m.message=="{msg1 from node2 to agbot1}").orNull
+    assert(msg !== null)
     assert(msg.nodeId === orgnodeId2)
     assert(msg.nodePubKey === "NODE2ABC")
   }
@@ -1543,10 +1527,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.OK)
     val resp = parse(response.body).extract[GetAgbotMsgsResponse]
     assert(resp.messages.size === 1)
-    val msg = resp.messages.find(m => m.message == "{msg1 from node2 to agbot2}") match {
-      case Some(m) => m
-      case None => assert(false); null
-    }
+    val msg = resp.messages.find(m => m.message == "{msg1 from node2 to agbot2}").orNull
+    assert(msg !== null)
     assert(msg.nodeId === orgnodeId2)
     assert(msg.nodePubKey === "NODE2ABC")
     val msgId = msg.msgId

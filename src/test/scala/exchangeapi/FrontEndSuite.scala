@@ -121,14 +121,14 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/users/"+user+" - create user") {
-    val input = PostPutUsersRequest(pw, false, user+"@hotmail.com")
+    val input = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
   test("POST /orgs/"+orgid+"/microservices - create "+microservice) {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", false, msUrl, "1.0.0", "arm", "single", None, None, List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","")))
+    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", public = false, msUrl, "1.0.0", "arm", "single", None, None, List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","")))
     val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -147,7 +147,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/workloads - create "+workid) {
-    val input = PostPutWorkloadRequest("test-workload", "desc", false, workurl, workversion, workarch, None, List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","")))
+    val input = PostPutWorkloadRequest("test-workload", "desc", public = false, workurl, workversion, workarch, None, List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","")))
     val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -165,7 +165,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - create "+pattern) {
-    val input = PostPutPatternRequest(ptBase, "desc", false,
+    val input = PostPutPatternRequest(ptBase, "desc", public = false,
       List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       List[Map[String,String]]()
     )
@@ -223,7 +223,7 @@ class FrontEndSuite extends FunSuite {
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === 1)
     assert(getDevResp.nodes.contains(orgnodeId))
-    val node = getDevResp.nodes.get(orgnodeId).get
+    val node = getDevResp.nodes(orgnodeId)
     assert(node.name === nodeId+"-update")
   }
 
@@ -244,7 +244,7 @@ class FrontEndSuite extends FunSuite {
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === 1)
     assert(getDevResp.nodes.contains(orgnodeId))
-    val node = getDevResp.nodes.get(orgnodeId).get
+    val node = getDevResp.nodes(orgnodeId)
     assert(node.publicKey === "NODEABC")
   }
 
@@ -344,7 +344,7 @@ class FrontEndSuite extends FunSuite {
     val getAgbotResp = parse(response.body).extract[GetAgbotsResponse]
     assert(getAgbotResp.agbots.size === 1)
     assert(getAgbotResp.agbots.contains(orgagbotId))
-    val agbot = getAgbotResp.agbots.get(orgagbotId).get
+    val agbot = getAgbotResp.agbots(orgagbotId)
     assert(agbot.name === agbotId+"name")
   }
 

@@ -97,12 +97,12 @@ class BlockchainsSuite extends FunSuite {
 
   /** Add users, node, bctype for future tests */
   test("Add users, node, bctype for future tests") {
-    var userInput = PostPutUsersRequest(pw, false, user+"@hotmail.com")
+    var userInput = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
-    userInput = PostPutUsersRequest(pw2, false, user2+"@hotmail.com")
+    userInput = PostPutUsersRequest(pw2, admin = false, user2+"@hotmail.com")
     userResponse = Http(URL+"/users/"+user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
@@ -232,12 +232,12 @@ class BlockchainsSuite extends FunSuite {
     assert(getBctypeResp.bctypes.size === 2)
 
     assert(getBctypeResp.bctypes.contains(orgbctype))
-    var bt = getBctypeResp.bctypes.get(orgbctype).get     // the 2nd get turns the Some(val) into val
+    var bt = getBctypeResp.bctypes(orgbctype)     // the 2nd get turns the Some(val) into val
     assert(bt.description === bctype+" new desc")
     assert(bt.definedBy === orguser)
 
     assert(getBctypeResp.bctypes.contains(orgbctype2))
-    bt = getBctypeResp.bctypes.get(orgbctype2).get     // the 2nd get turns the Some(val) into val
+    bt = getBctypeResp.bctypes(orgbctype2)     // the 2nd get turns the Some(val) into val
     assert(bt.description === bctype2+" desc")
     assert(bt.definedBy === orguser2)
   }
@@ -279,7 +279,7 @@ class BlockchainsSuite extends FunSuite {
     assert(getBctypeResp.bctypes.size === 1)
 
     assert(getBctypeResp.bctypes.contains(orgbctype))
-    val bt = getBctypeResp.bctypes.get(orgbctype).get     // the 2nd get turns the Some(val) into val
+    val bt = getBctypeResp.bctypes(orgbctype)     // the 2nd get turns the Some(val) into val
     assert(bt.description === bctype+" new desc")
 
     // Verify the lastHeartbeat from the POST heartbeat above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
@@ -355,21 +355,21 @@ class BlockchainsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - add as user") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname+" desc", true, "json escaped string")
+    val input = PutBlockchainRequest(bctype+"-"+bcname+" desc", public = true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - update as same user") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname+" new desc", true, "json escaped string")
+    val input = PutBlockchainRequest(bctype+"-"+bcname+" new desc", public = true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - update as 2nd user - should fail") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname+" yet another desc", true, "json escaped string")
+    val input = PutBlockchainRequest(bctype+"-"+bcname+" yet another desc", public = true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -386,28 +386,28 @@ class BlockchainsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname2+" - as node - should fail") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", true, "json escaped string")
+    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", public = true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname2+" - as agbot - should fail") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", true, "json escaped string")
+    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", public = true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname2+" - add bcname2 as user2") {
-    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", true, "json escaped string")
+    val input = PutBlockchainRequest(bctype+"-"+bcname2+" desc", public = true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/bctypes/"+bctype2+"/blockchains/"+bcname2+" - as user2 - and duplicate bcname should be ok") {
-    val input = PutBlockchainRequest(bctype2+"-"+bcname2+" desc", true, "json escaped string")
+    val input = PutBlockchainRequest(bctype2+"-"+bcname2+" desc", public = true, "json escaped string")
     val response = Http(URL+"/bctypes/"+bctype2+"/blockchains/"+bcname2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -426,7 +426,7 @@ class BlockchainsSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
 
       // Now try adding another blockchain - expect it to be rejected
-      val input = PutBlockchainRequest(bctype+"-"+bcname3+" desc", true, "json escaped string")
+      val input = PutBlockchainRequest(bctype+"-"+bcname3+" desc", public = true, "json escaped string")
       response = Http(URL+"/bctypes/"+bctype+"/blockchains/"+bcname3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
@@ -449,12 +449,12 @@ class BlockchainsSuite extends FunSuite {
     assert(getBcResp.blockchains.size === 2)
 
     assert(getBcResp.blockchains.contains(bcname))
-    var bc = getBcResp.blockchains.get(bcname).get     // the 2nd get turns the Some(val) into val
+    var bc = getBcResp.blockchains(bcname)     // the 2nd get turns the Some(val) into val
     assert(bc.description === bctype+"-"+bcname+" new desc")
     assert(bc.definedBy === orguser)
 
     assert(getBcResp.blockchains.contains(bcname2))
-    bc = getBcResp.blockchains.get(bcname2).get     // the 2nd get turns the Some(val) into val
+    bc = getBcResp.blockchains(bcname2)     // the 2nd get turns the Some(val) into val
     assert(bc.description === bctype+"-"+bcname2+" desc")
     assert(bc.definedBy === orguser2)
   }
@@ -486,7 +486,7 @@ class BlockchainsSuite extends FunSuite {
     assert(getBcResp.blockchains.size === 1)
 
     assert(getBcResp.blockchains.contains(bcname))
-    val bc = getBcResp.blockchains.get(bcname).get // the 2nd get turns the Some(val) into val
+    val bc = getBcResp.blockchains(bcname) // the 2nd get turns the Some(val) into val
     assert(bc.description === bctype+"-"+bcname+" new desc")
 
     // Verify the lastHeartbeat from the POST heartbeat above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]

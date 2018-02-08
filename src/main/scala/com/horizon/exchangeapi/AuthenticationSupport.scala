@@ -63,6 +63,11 @@ object Access extends Enumeration {
   val READ_ALL_WORKLOADS = Value("READ_ALL_WORKLOADS")
   val WRITE_ALL_WORKLOADS = Value("WRITE_ALL_WORKLOADS")
   val CREATE_WORKLOADS = Value("CREATE_WORKLOADS")
+  val READ_MY_SERVICES = Value("READ_MY_SERVICES")
+  val WRITE_MY_SERVICES = Value("WRITE_MY_SERVICES")
+  val READ_ALL_SERVICES = Value("READ_ALL_SERVICES")
+  val WRITE_ALL_SERVICES = Value("WRITE_ALL_SERVICES")
+  val CREATE_SERVICES = Value("CREATE_SERVICES")
   val READ_MY_PATTERNS = Value("READ_MY_PATTERNS")
   val WRITE_MY_PATTERNS = Value("WRITE_MY_PATTERNS")
   val READ_ALL_PATTERNS = Value("READ_ALL_PATTERNS")
@@ -215,6 +220,7 @@ object AuthCache {
         case "blockchains" => db.run(BlockchainsTQ.rows.map(x => (x.name, x.bctype, x.definedBy, x.public)).result).map({ list => this._initBCs(list) })
         case "microservices" => db.run(MicroservicesTQ.rows.map(x => (x.microservice, x.owner, x.public)).result).map({ list => this._initMicroservices(list) })
         case "workloads" => db.run(WorkloadsTQ.rows.map(x => (x.workload, x.owner, x.public)).result).map({ list => this._initWorkloads(list) })
+        case "services" => db.run(ServicesTQ.rows.map(x => (x.service, x.owner, x.public)).result).map({ list => this._initServices(list) })
         case "patterns" => db.run(PatternsTQ.rows.map(x => (x.pattern, x.owner, x.public)).result).map({ list => this._initPatterns(list) })
       }
     }
@@ -267,6 +273,14 @@ object AuthCache {
       for ((workload,owner,isPub) <- credList) {
         if (owner != "") _putOwner(workload, owner)
         _putIsPublic(workload, isPub)
+      }
+    }
+
+    /** Put owners of workloads in the cache */
+    def _initServices(credList: Seq[(String,String,Boolean)]): Unit = {
+      for ((service,owner,isPub) <- credList) {
+        if (owner != "") _putOwner(service, owner)
+        _putIsPublic(service, isPub)
       }
     }
 
@@ -376,6 +390,7 @@ object AuthCache {
             case "blockchains" => BlockchainsTQ.getOwner2(id).result
             case "microservices" => MicroservicesTQ.getOwner(id).result
             case "workloads" => WorkloadsTQ.getOwner(id).result
+            case "services" => ServicesTQ.getOwner(id).result
             case "patterns" => PatternsTQ.getOwner(id).result
           }
           val ownerVector = Await.result(db.run(a), Duration(3000, MILLISECONDS))
@@ -398,6 +413,7 @@ object AuthCache {
           case "blockchains" => BlockchainsTQ.getPublic2(id).result
           case "microservices" => MicroservicesTQ.getPublic(id).result
           case "workloads" => WorkloadsTQ.getPublic(id).result
+          case "services" => ServicesTQ.getPublic(id).result
           case "patterns" => PatternsTQ.getPublic(id).result
           case _ => return Some(false)      // should never get here
         }
@@ -479,6 +495,7 @@ object AuthCache {
   val blockchains = new Cache("blockchains")
   val microservices = new Cache("microservices")
   val workloads = new Cache("workloads")
+  val services = new Cache("services")
   val patterns = new Cache("patterns")
 }
 
@@ -620,6 +637,12 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => Access.CREATE_WORKLOADS
             case _ => access
           }
+          case TService(_) => access match { // a user accessing a service
+            case Access.READ => if (iOwnTarget(target)) Access.READ_MY_SERVICES else Access.READ_ALL_SERVICES
+            case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_SERVICES else Access.WRITE_ALL_SERVICES
+            case Access.CREATE => Access.CREATE_SERVICES
+            case _ => access
+          }
           case TPattern(_) => access match { // a user accessing a pattern
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_PATTERNS else Access.READ_ALL_PATTERNS
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_PATTERNS else Access.WRITE_ALL_PATTERNS
@@ -662,6 +685,7 @@ trait AuthenticationSupport extends ScalatraBase {
           case TBlockchain(id) => AuthCache.blockchains.getOwner(id)
           case TMicroservice(id) => AuthCache.microservices.getOwner(id)
           case TWorkload(id) => AuthCache.workloads.getOwner(id)
+          case TService(id) => AuthCache.services.getOwner(id)
           case TPattern(id) => AuthCache.patterns.getOwner(id)
           case _ => return false
         }
@@ -727,6 +751,12 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.READ => Access.READ_ALL_WORKLOADS
             case Access.WRITE => Access.WRITE_ALL_WORKLOADS
             case Access.CREATE => Access.CREATE_WORKLOADS
+            case _ => access
+          }
+          case TService(_) => access match { // a node accessing a service
+            case Access.READ => Access.READ_ALL_SERVICES
+            case Access.WRITE => Access.WRITE_ALL_SERVICES
+            case Access.CREATE => Access.CREATE_SERVICES
             case _ => access
           }
           case TPattern(_) => access match { // a user accessing a pattern
@@ -806,6 +836,12 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.READ => Access.READ_ALL_WORKLOADS
             case Access.WRITE => Access.WRITE_ALL_WORKLOADS
             case Access.CREATE => Access.CREATE_WORKLOADS
+            case _ => access
+          }
+          case TService(_) => access match { // a agbot accessing a service
+            case Access.READ => Access.READ_ALL_SERVICES
+            case Access.WRITE => Access.WRITE_ALL_SERVICES
+            case Access.CREATE => Access.CREATE_SERVICES
             case _ => access
           }
           case TPattern(_) => access match { // a user accessing a pattern
@@ -894,6 +930,12 @@ trait AuthenticationSupport extends ScalatraBase {
             case Access.CREATE => Access.CREATE_WORKLOADS
             case _ => access
           }
+          case TService(_) => access match { // a anonymous accessing a service
+            case Access.READ => Access.READ_ALL_SERVICES
+            case Access.WRITE => Access.WRITE_ALL_SERVICES
+            case Access.CREATE => Access.CREATE_SERVICES
+            case _ => access
+          }
           case TPattern(_) => access match { // a user accessing a pattern
             case Access.READ => Access.READ_ALL_PATTERNS
             case Access.WRITE => Access.WRITE_ALL_PATTERNS
@@ -939,12 +981,6 @@ trait AuthenticationSupport extends ScalatraBase {
     }
   }
 
-  /*
-          case TBlockchain(id) => AuthCache.blockchains.getOwner(id)
-          case TMicroservice(id) => AuthCache.microservices.getOwner(id)
-          case TWorkload(id) => AuthCache.workloads.getOwner(id)
-          case TPattern(id) => AuthCache.patterns.getOwner(id)
-  */
   case class TOrg(id: String) extends Target {
     override def getOrg = id    // otherwise the regex in the base class will return blank because there is no /
     override def getId = ""
@@ -962,6 +998,9 @@ trait AuthenticationSupport extends ScalatraBase {
   }
   case class TWorkload(id: String) extends Target {      // for workloads only the user that created it can update/delete it
     override def isPublic: Boolean = if (all) return true else return AuthCache.workloads.getIsPublic(id).getOrElse(false)
+  }
+  case class TService(id: String) extends Target {      // for services only the user that created it can update/delete it
+    override def isPublic: Boolean = if (all) return true else return AuthCache.services.getIsPublic(id).getOrElse(false)
   }
   case class TPattern(id: String) extends Target {      // for patterns only the user that created it can update/delete it
     override def isPublic: Boolean = if (all) return true else return AuthCache.patterns.getIsPublic(id).getOrElse(false)

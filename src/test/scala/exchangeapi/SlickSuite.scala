@@ -1,23 +1,8 @@
 package exchangeapi
 
-import org.scalatest.FunSuite
-
-import com.mchange.v2.c3p0.ComboPooledDataSource
 import org.junit.runner.RunWith
+import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
-import scalaj.http._
-import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
-import org.json4s.native.Serialization.write
-import com.horizon.exchangeapi._
-import scala.collection.immutable._
-import java.time._
-import slick.jdbc.PostgresProfile.api._
-import scala.concurrent.ExecutionContext.Implicits.global
-import com.horizon.exchangeapi.ExchangeApiTables
-import scala.util.{Success, Failure}
-import com.horizon.exchangeapi.tables._
 
 //TODO: use : http://blog.abhinav.ca/blog/2014/09/08/unit-testing-futures-with-scalatest/ to add slick unit tests
 

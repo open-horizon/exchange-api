@@ -15,14 +15,14 @@ services in the exchange.
     - `echo 'host all all <my-local-subnet> trust' >> /usr/local/var/postgres/pg_hba.conf`
     - `sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = 'my-ip'/" /usr/local/var/postgres/postgresql.conf`
     - `brew services start postgresql`
-    - test: `psql "host=<my-ip> dbname=<myuser> user=<myuser> password=''"`
+    - test: `psql "host=<my-ip> dbname=postgres user=<myuser> password=''"`
 - Add a config file on your development system at /etc/horizon/exchange/config.json with at least the following content (this is needed for the automated tests). Defaults and the full list of config variables are in `src/main/resources/config.json`:
 
 ```
 {
 	"api": {
 		"db": {
-			"jdbcUrl": "jdbc:postgresql://localhost/myuser",		// my local postgres db
+			"jdbcUrl": "jdbc:postgresql://localhost/postgres",		// my local postgres db
 			"user": "myuser",
 			"password": ""
 		},
@@ -74,15 +74,14 @@ services in the exchange.
 
 ### Todos left to be finished in subsequent versions
 
-* Added optional param in POST pattern to automatically add it to agbots
-- add keys to ms, wk, pattern (when docker image signing is supported - issue 481)
-- detect if wk requires ms with different arch
-- detect if pattern contains 2 workloads that depend on the same exclusive MS
-- detect if a pattern is updated with ms/wk that has userInput w/o default values, and give warning
+- change pattern, node, and searches to refer to service
 - issue #39 (pattern node search api does not validate the workloadUrl)
-- Switch to microservices/workloads to services terminology
+- add keys to ms, wk, pattern (when docker image signing is supported - issue 481)
+- Add optional param in POST pattern to automatically add it to agbots
+- consider detect if pattern contains 2 workloads that depend on the same exclusive MS
+- detect if a pattern is updated with ms/wk that has userInput w/o default values, and give warning
 - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
-- Add api for wiotp to get number of devices and agreements
+- Add api for wiotp to get number of nodes and agreements
 - Allow random PW creation for user creation
 - Add ability to change owner of node
 - Add patch capability for node registered microservices?
@@ -92,6 +91,15 @@ services in the exchange.
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 - Any other schema changes?
+
+
+## Changes in 1.45.0
+
+### External changes
+
+- fixed some library versions to make the build work again
+- added service resource (issue #51)
+- detect if svc requires other svc with different arch
 
 
 ## Changes in 1.44.0

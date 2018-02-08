@@ -45,8 +45,13 @@ case class PostPutServiceRequest(label: String, description: String, public: Boo
     val allSharableVals = SharableVals.values.map(_.toString)
     if (sharable == "" || !allSharableVals.contains(sharable)) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value '"+sharable+"' for the sharable attribute."))
 
+    // Check for requiring a service that is a different arch than this service
+    for (rs <- requiredServices.getOrElse(List())) {
+      if (rs.arch != arch) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "required service '"+rs.url+"' has arch '"+rs.arch+"', which is different than this service's arch '"+arch+"'"))
+    }
+
     // Check that it is signed
-    if (deployment != "" && deploymentSignature == "") { halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this service definition does not appear to be signed.")) }
+    if (deployment != "" && deploymentSignature == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this service definition does not appear to be signed."))
   }
 
   // Build a list of db actions to verify that the referenced services exist
@@ -144,14 +149,6 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public) services.put(a.service, a.toService)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetServicesResponse(services.toMap, 0)
-      /* debugging...
-      val services = new MutableHashMap[String,ServiceRow]
-      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public) services.put(a.service, a)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      services.toMap
-      //list.head.toService
-      //list.map(_.toService)
-      */
     })
   })
 

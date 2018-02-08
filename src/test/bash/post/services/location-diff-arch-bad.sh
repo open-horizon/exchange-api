@@ -7,8 +7,8 @@ curl $copts -X POST -H 'Content-Type: application/json' -H 'Accept: application/
   "public": true,
   "url": "https://bluehorizon.network/services/location",
   "version": "4.5.6",
-  "arch": "amd64",
-  "sharable": "multiple",
+  "arch": "arm",
+  "sharable": "single",
   "matchHardware": {},
   "requiredServices": [
     {

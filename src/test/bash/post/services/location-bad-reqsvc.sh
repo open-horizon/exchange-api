@@ -8,11 +8,11 @@ curl $copts -X POST -H 'Content-Type: application/json' -H 'Accept: application/
   "url": "https://bluehorizon.network/services/location",
   "version": "4.5.6",
   "arch": "amd64",
-  "sharable": "multiple",
+  "sharable": "single",
   "matchHardware": {},
   "requiredServices": [
     {
-      "url": "https://bluehorizon.network/services/gps",
+      "url": "https://bluehorizon.network/services/foo",
       "org": "IBM",
       "version": "[1.0.0,INFINITY)",
       "arch": "amd64"

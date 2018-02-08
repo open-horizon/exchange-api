@@ -74,7 +74,7 @@ services in the exchange.
 
 ### Todos left to be finished in subsequent versions
 
-- detect if wk requires ms with different arch
+- change pattern, node, and searches to refer to service
 - issue #39 (pattern node search api does not validate the workloadUrl)
 - add keys to ms, wk, pattern (when docker image signing is supported - issue 481)
 - Add optional param in POST pattern to automatically add it to agbots
@@ -99,6 +99,7 @@ services in the exchange.
 
 - fixed some library versions to make the build work again
 - added service resource (issue #51)
+- detect if svc requires other svc with different arch
 
 
 ## Changes in 1.44.0

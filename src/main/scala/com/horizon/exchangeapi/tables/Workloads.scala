@@ -13,7 +13,7 @@ case class WorkloadRow(workload: String, orgid: String, owner: String, label: St
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toWorkload: Workload = {
-    val spec = if (apiSpec != "") read[List[ServiceRef]](apiSpec) else List[ServiceRef]()
+    val spec = if (apiSpec != "") read[List[WMicroservices]](apiSpec) else List[WMicroservices]()
     val input = if (userInput != "") read[List[Map[String,String]]](userInput) else List[Map[String,String]]()
     val wrk = if (workloads != "") read[List[MDockerImages]](workloads) else List[MDockerImages]()
     new Workload(owner, label, description, public, workloadUrl, version, arch, downloadUrl, spec, input, wrk, lastUpdated)
@@ -101,7 +101,7 @@ object WorkloadsTQ {
 }
 
 // This is the workload table minus the key - used as the data structure to return to the REST clients
-class Workload(var owner: String, var label: String, var description: String, var public: Boolean, var workloadUrl: String, var version: String, var arch: String, var downloadUrl: String, var apiSpec: List[ServiceRef], var userInput: List[Map[String,String]], var workloads: List[MDockerImages], var lastUpdated: String) {
+class Workload(var owner: String, var label: String, var description: String, var public: Boolean, var workloadUrl: String, var version: String, var arch: String, var downloadUrl: String, var apiSpec: List[WMicroservices], var userInput: List[Map[String,String]], var workloads: List[MDockerImages], var lastUpdated: String) {
   def copy = new Workload(owner, label, description, public, workloadUrl, version, arch, downloadUrl, apiSpec, userInput, workloads, lastUpdated)
 }
 

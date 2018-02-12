@@ -29,7 +29,9 @@ class ServicesSuite extends FunSuite {
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
   val runningLocally = (urlRoot == localUrlRoot)
   val ACCEPT = ("Accept","application/json")
+  val ACCEPTTEXT = ("Accept","text/plain")
   val CONTENT = ("Content-Type","application/json")
+  val CONTENTTEXT = ("Content-Type","text/plain")
   val orgid = "ServicesSuiteTests"
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
@@ -76,6 +78,10 @@ class ServicesSuite extends FunSuite {
   val reqsvcurl3 = "https://bluehorizon.network/services/rtlsdr"
   val reqsvcarch3 = "amd64"   // intentionally different arch
   val reqsvcversion3 = "1.0.0"
+  val keyId = "mykey.pem"
+  val key = "abcdefghijk"
+  val keyId2 = "mykey2.pem"
+  val key2 = "lnmopqrstuvwxyz"
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -441,6 +447,83 @@ class ServicesSuite extends FunSuite {
     val getServiceResp = parse(response.body).extract[GetServicesResponse]
     assert(getServiceResp.services.size === 0)
   }
+
+
+  // Key tests ==============================================
+  test("GET /orgs/"+orgid+"/services/"+service+"/keys - no keys have been created yet - should fail") {
+    val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+    val resp = parse(response.body).extract[List[String]]
+    assert(resp.size === 0)
+  }
+
+  test("PUT /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" - add "+keyId+" as user") {
+    //val input = PutServiceKeyRequest(key)
+    val response = Http(URL+"/services/"+service+"/keys/"+keyId).postData(key).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/services/"+service+"/keys/"+keyId2+" - add "+keyId2+" as user") {
+    //val input = PutServiceKeyRequest(key2)
+    val response = Http(URL+"/services/"+service+"/keys/"+keyId2).postData(key2).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/services/"+service+"/keys - should be 2 now") {
+    val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    val resp = parse(response.body).extract[List[String]]
+    assert(resp.size === 2)
+    assert(resp.contains(keyId) && resp.contains(keyId2))
+  }
+
+  test("GET /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" - get 1 of the keys and check content") {
+    val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys/"+keyId).headers(ACCEPTTEXT).headers(USERAUTH).asString
+    //val response: HttpResponse[Array[Byte]] = Http(URL+"/services/"+service+"/keys/"+keyId).headers(ACCEPTTEXT).headers(USERAUTH).asBytes
+    //val bodyStr = (response.body.map(_.toChar)).mkString
+    //info("code: "+response.code+", response.body: "+bodyStr)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    assert(response.body === key)
+  }
+
+
+  test("DELETE /orgs/"+orgid+"/services/"+service+"/keys/"+keyId) {
+    val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys/"+keyId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("DELETE /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" try deleting it again - should fail") {
+    val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys/"+keyId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
+  test("GET /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" - verify it is gone") {
+    val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys/"+keyId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
+  test("DELETE /orgs/"+orgid+"/services/"+service+"/keys - delete all keys") {
+    val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys").method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("GET /orgs/"+orgid+"/services/"+service+"/keys - all keys should be gone now") {
+    val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+    val resp = parse(response.body).extract[List[String]]
+    assert(resp.size === 0)
+  }
+
 
   test("DELETE /orgs/"+orgid+"/services/"+service) {
     val response = Http(URL+"/services/"+service).method("delete").headers(ACCEPT).headers(USERAUTH).asString

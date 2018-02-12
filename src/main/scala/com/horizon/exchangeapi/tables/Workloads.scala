@@ -1,5 +1,7 @@
 package com.horizon.exchangeapi.tables
 
+//import java.sql.Blob
+
 import com.horizon.exchangeapi.OrgAndId
 import org.json4s._
 import org.json4s.jackson.Serialization.read
@@ -105,3 +107,29 @@ class Workload(var owner: String, var label: String, var description: String, va
   def copy = new Workload(owner, label, description, public, workloadUrl, version, arch, downloadUrl, apiSpec, userInput, workloads, lastUpdated)
 }
 
+
+// Key is a sub-resource of workload
+case class WorkloadKeyRow(keyId: String, workloadId: String, key: String, lastUpdated: String) {
+  def toWorkloadKey = WorkloadKey(key, lastUpdated)
+
+  def upsert: DBIO[_] = WorkloadKeysTQ.rows.insertOrUpdate(this)
+}
+
+class WorkloadKeys(tag: Tag) extends Table[WorkloadKeyRow](tag, "workloadkeys") {
+  def keyId = column[String]("keyid")     // key - the key name
+  def workloadId = column[String]("workloadid")               // additional key - the composite orgid/workloadid
+  def key = column[String]("key")                   // the actual key content
+  def lastUpdated = column[String]("lastupdated")
+  def * = (keyId, workloadId, key, lastUpdated) <> (WorkloadKeyRow.tupled, WorkloadKeyRow.unapply)
+  def primKey = primaryKey("pk_wkk", (keyId, workloadId))
+  def workload = foreignKey("workload_fk", workloadId, WorkloadsTQ.rows)(_.workload, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object WorkloadKeysTQ {
+  val rows = TableQuery[WorkloadKeys]
+
+  def getKeys(workloadId: String) = rows.filter(_.workloadId === workloadId)
+  def getKey(workloadId: String, keyId: String) = rows.filter( r => {r.workloadId === workloadId && r.keyId === keyId} )
+}
+
+case class WorkloadKey(key: String, lastUpdated: String)

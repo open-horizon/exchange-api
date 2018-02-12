@@ -26,7 +26,7 @@ case class PutAgbotsRequestOld(token: String, name: String, msgEndPoint: String)
   */
 
 /** Input format for PUT /orgs/{orgid}/agbots/<agbot-id> */
-case class PutAgbotsRequest(token: String, name: String, /*patterns: List[APattern],*/ msgEndPoint: String, publicKey: String) {
+case class PutAgbotsRequest(token: String, name: String, msgEndPoint: String, publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(): Unit = {
     // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /nodes/{id}/msgs checks for the publicKey
@@ -34,13 +34,13 @@ case class PutAgbotsRequest(token: String, name: String, /*patterns: List[APatte
   }
 
   /** Get the db queries to insert or update the agbot */
-  def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, /*write(patterns),*/ msgEndPoint, ApiTime.nowUTC, publicKey).upsert
+  def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, msgEndPoint, ApiTime.nowUTC, publicKey).upsert
 
   /** Get the db queries to update the agbot */
-  def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, /*write(patterns),*/ msgEndPoint, ApiTime.nowUTC, publicKey).update
+  def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, msgEndPoint, ApiTime.nowUTC, publicKey).update
 }
 
-case class PatchAgbotsRequest(token: Option[String], name: Option[String], /*patterns: Option[List[APattern]],*/ msgEndPoint: Option[String], publicKey: Option[String]) {
+case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], publicKey: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the agbot, and the attribute name being updated. */
@@ -55,7 +55,6 @@ case class PatchAgbotsRequest(token: Option[String], name: Option[String], /*pat
       case _ => ;
     }
     name match { case Some(name2) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name2, lastHeartbeat)), "name"); case _ => ; }
-    //patterns match { case Some(pat) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.patterns,d.lastHeartbeat)).update((id, write(pat), lastHeartbeat)), "patterns"); case _ => ; }
     msgEndPoint match { case Some(msgEndPoint2) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint2, lastHeartbeat)), "msgEndPoint"); case _ => ; }
     publicKey match { case Some(publicKey2) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey2, lastHeartbeat)), "publicKey"); case _ => ; }
     return (null, null)

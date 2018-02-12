@@ -63,6 +63,16 @@ case class PatchMicroserviceRequest(label: Option[String], description: Option[S
 }
 
 
+/** Input format for PUT /orgs/{orgid}/microservices/{id}/keys/<key-id> */
+case class PutMicroserviceKeyRequest(key: String) {
+  def toMicroserviceKey = MicroserviceKey(key, ApiTime.nowUTC)
+  def toMicroserviceKeyRow(microserviceId: String, keyId: String) = MicroserviceKeyRow(keyId, microserviceId, key, ApiTime.nowUTC)
+  def validate(keyId: String) = {
+    //if (keyId != formId) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the key id should be in the form keyOrgid_key"))
+  }
+}
+
+
 
 /** Implementation for all of the /microservices routes */
 trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
@@ -420,6 +430,188 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "microservice '"+microservice+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  /* ====== GET /orgs/{orgid}/microservices/{id}/keys ================================ */
+  val getMicroserviceKeys =
+    (apiOperation[List[String]]("getMicroserviceKeys")
+      summary "Returns all keys/certs for this microservice"
+      description """Returns all the signing public keys/certs for this microservice. Can be run by any credentials able to view the microservice.
+
+- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/microserviceid) of the microservice."), paramType=ParamType.Query),
+      Parameter("token", DataType.String, Option[String]("Token of the microservice. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  get("/orgs/:orgid/microservices/:id/keys", operation(getMicroserviceKeys)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    credsAndLog().authenticate().authorizeTo(TMicroservice(compositeId),Access.READ)
+    val resp = response
+    db.run(MicroserviceKeysTQ.getKeys(compositeId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/microservices/"+id+"/keys result size: "+list.size)
+      //logger.trace("GET /orgs/"+orgid+"/microservices/"+id+"/keys result: "+list.toString)
+      if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
+      list.map(_.keyId)
+    })
+  })
+
+  /* ====== GET /orgs/{orgid}/microservices/{id}/keys/{keyid} ================================ */
+  val getOneMicroserviceKey =
+    (apiOperation[String]("getOneMicroserviceKey")
+      summary "Returns a key/cert for this microservice"
+      description """Returns the signing public key/cert with the specified keyid for this microservice. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the microservice. **Because of a swagger bug this method can not be run via swagger.**
+
+- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/microserviceid) of the microservice."), paramType=ParamType.Query),
+      Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType=ParamType.Query),
+      Parameter("token", DataType.String, Option[String]("Token of the microservice. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  get("/orgs/:orgid/microservices/:id/keys/:keyid", operation(getOneMicroserviceKey)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TMicroservice(compositeId),Access.READ)
+    val resp = response
+    db.run(MicroserviceKeysTQ.getKey(compositeId, keyId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/microservices/"+id+"/keys/"+keyId+" result: "+list.size)
+      if (list.nonEmpty) {
+        // Return the raw key, not json
+        resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
+        resp.setHeader("Content-Type", "text/plain")
+        resp.setHeader("Content-Length", list.head.key.length.toString)
+        list.head.key
+      }
+      else {
+        resp.setStatus(HttpCode.NOT_FOUND)
+        ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' not found")
+      }
+    })
+  })
+
+  // =========== PUT /orgs/{orgid}/microservices/{id}/keys/{keyid} ===============================
+  val putMicroserviceKey =
+    (apiOperation[ApiResponse]("putMicroserviceKey")
+      summary "Adds/updates a key/cert for the microservice"
+      description """Adds a new signing public key/cert, or updates an existing key/cert, for this microservice. This can only be run by the microservice owning user. Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'."""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/microserviceid) of the microservice wanting to add/update this key."), paramType = ParamType.Query),
+      Parameter("keyid", DataType.String, Option[String]("ID of the key to be added/updated."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the microservice. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PutMicroserviceKeyRequest],
+        Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      )
+  val putMicroserviceKey2 = (apiOperation[PutMicroserviceKeyRequest]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  put("/orgs/:orgid/microservices/:id/keys/:keyid", operation(putMicroserviceKey)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TMicroservice(compositeId),Access.WRITE)
+    val keyReq = PutMicroserviceKeyRequest(request.body)
+    //val keyReq = try { parse(request.body).extract[PutMicroserviceKeyRequest] }
+    //catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    keyReq.validate(keyId)
+    val resp = response
+    db.run(keyReq.toMicroserviceKeyRow(compositeId, keyId).upsert.asTry).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/microservices/"+id+"/keys/"+keyId+" result: "+xs.toString)
+      xs match {
+        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "key added or updated")
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "key '"+keyId+"' for microservice '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "key '"+keyId+"' for microservice '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        }
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/microservices/{id}/keys ===============================
+  val deleteMicroserviceAllKey =
+    (apiOperation[ApiResponse]("deleteMicroserviceAllKey")
+      summary "Deletes all keys of a microservice"
+      description "Deletes all of the current keys/certs for this microservice. This can only be run by the microservice owning user."
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/microserviceid) of the microservice for which the key is to be deleted."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the microservice. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  delete("/orgs/:orgid/microservices/:id/keys", operation(deleteMicroserviceAllKey)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    credsAndLog().authenticate().authorizeTo(TMicroservice(compositeId),Access.WRITE)
+    val resp = response
+    db.run(MicroserviceKeysTQ.getKeys(compositeId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /microservices/"+id+"/keys result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "microservice keys deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "no keys for microservice '"+compositeId+"' found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "keys for microservice '"+compositeId+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/microservices/{id}/keys/{keyid} ===============================
+  val deleteMicroserviceKey =
+    (apiOperation[ApiResponse]("deleteMicroserviceKey")
+      summary "Deletes a key of a microservice"
+      description "Deletes a key/cert for this microservice. This can only be run by the microservice owning user."
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/microserviceid) of the microservice for which the key is to be deleted."), paramType = ParamType.Path),
+      Parameter("keyid", DataType.String, Option[String]("ID of the key to be deleted."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the microservice. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  delete("/orgs/:orgid/microservices/:id/keys/:keyid", operation(deleteMicroserviceKey)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TMicroservice(compositeId),Access.WRITE)
+    val resp = response
+    db.run(MicroserviceKeysTQ.getKey(compositeId,keyId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /microservices/"+id+"/keys/"+keyId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "microservice key deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' for microservice '"+compositeId+"' not found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "key '"+keyId+"' for microservice '"+compositeId+"' not deleted: "+t.toString)
       }
     })
   })

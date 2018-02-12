@@ -9,6 +9,7 @@ import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 import com.horizon.exchangeapi.tables._
+//import org.scalatra.servlet.{FileUploadSupport, MultipartConfig, SizeConstraintExceededException}
 
 import scala.collection.immutable._
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
@@ -75,12 +76,23 @@ case class PatchWorkloadRequest(label: Option[String], description: Option[Strin
 }
 
 
+/** Input format for PUT /orgs/{orgid}/workloads/{id}/keys/<key-id> */
+case class PutWorkloadKeyRequest(key: String) {
+  def toWorkloadKey = WorkloadKey(key, ApiTime.nowUTC)
+  def toWorkloadKeyRow(workloadId: String, keyId: String) = WorkloadKeyRow(keyId, workloadId, key, ApiTime.nowUTC)
+  def validate(keyId: String) = {
+    //if (keyId != formId) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the key id should be in the form keyOrgid_key"))
+  }
+}
+
+
 
 /** Implementation for all of the /orgs/{orgid}/workloads routes */
-trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
+trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport /*with FileUploadSupport*/ {
   def db: Database      // get access to the db object in ExchangeApiApp
   def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
+  //configureMultipartHandling(MultipartConfig(maxFileSize = Some(3*1024*1024)))
 
   /* ====== GET /orgs/{orgid}/workloads ================================ */
   val getWorkloads =
@@ -511,6 +523,188 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "workload '"+workload+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  /* ====== GET /orgs/{orgid}/workloads/{id}/keys ================================ */
+  val getWorkloadKeys =
+    (apiOperation[List[String]]("getWorkloadKeys")
+      summary "Returns all keys/certs for this workload"
+      description """Returns all the signing public keys/certs for this workload. Can be run by any credentials able to view the workload.
+ |
+- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/workloadid) of the workload."), paramType=ParamType.Query),
+      Parameter("token", DataType.String, Option[String]("Token of the workload. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  get("/orgs/:orgid/workloads/:id/keys", operation(getWorkloadKeys)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    credsAndLog().authenticate().authorizeTo(TWorkload(compositeId),Access.READ)
+    val resp = response
+    db.run(WorkloadKeysTQ.getKeys(compositeId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/workloads/"+id+"/keys result size: "+list.size)
+      //logger.trace("GET /orgs/"+orgid+"/workloads/"+id+"/keys result: "+list.toString)
+      if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
+      list.map(_.keyId)
+    })
+  })
+
+  /* ====== GET /orgs/{orgid}/workloads/{id}/keys/{keyid} ================================ */
+  val getOneWorkloadKey =
+    (apiOperation[String]("getOneWorkloadKey")
+      summary "Returns a key/cert for this workload"
+      description """Returns the signing public key/cert with the specified keyid for this workload. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the workload. **Because of a swagger bug this method can not be run via swagger.**
+ |
+- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/workloadid) of the workload."), paramType=ParamType.Query),
+      Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType=ParamType.Query),
+      Parameter("token", DataType.String, Option[String]("Token of the workload. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  get("/orgs/:orgid/workloads/:id/keys/:keyid", operation(getOneWorkloadKey)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TWorkload(compositeId),Access.READ)
+    val resp = response
+    db.run(WorkloadKeysTQ.getKey(compositeId, keyId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/workloads/"+id+"/keys/"+keyId+" result: "+list.size)
+      if (list.nonEmpty) {
+        // Return the raw key, not json
+        resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
+        resp.setHeader("Content-Type", "text/plain")
+        resp.setHeader("Content-Length", list.head.key.length.toString)
+        list.head.key
+      }
+      else {
+        resp.setStatus(HttpCode.NOT_FOUND)
+        ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' not found")
+      }
+    })
+  })
+
+  // =========== PUT /orgs/{orgid}/workloads/{id}/keys/{keyid} ===============================
+  val putWorkloadKey =
+    (apiOperation[ApiResponse]("putWorkloadKey")
+      summary "Adds/updates a key/cert for the workload"
+      description """Adds a new signing public key/cert, or updates an existing key/cert, for this workload. This can only be run by the workload owning user. Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'."""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/workloadid) of the workload wanting to add/update this key."), paramType = ParamType.Query),
+      Parameter("keyid", DataType.String, Option[String]("ID of the key to be added/updated."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the workload. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PutWorkloadKeyRequest],
+        Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      )
+  val putWorkloadKey2 = (apiOperation[PutWorkloadKeyRequest]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  put("/orgs/:orgid/workloads/:id/keys/:keyid", operation(putWorkloadKey)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TWorkload(compositeId),Access.WRITE)
+    val keyReq = PutWorkloadKeyRequest(request.body)
+    //val keyReq = try { parse(request.body).extract[PutWorkloadKeyRequest] }
+    //catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    keyReq.validate(keyId)
+    val resp = response
+    db.run(keyReq.toWorkloadKeyRow(compositeId, keyId).upsert.asTry).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/workloads/"+id+"/keys/"+keyId+" result: "+xs.toString)
+      xs match {
+        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "key added or updated")
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "key '"+keyId+"' for workload '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "key '"+keyId+"' for workload '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        }
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/workloads/{id}/keys ===============================
+  val deleteWorkloadAllKey =
+    (apiOperation[ApiResponse]("deleteWorkloadAllKey")
+      summary "Deletes all keys of a workload"
+      description "Deletes all of the current keys/certs for this workload. This can only be run by the workload owning user."
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/workloadid) of the workload for which the key is to be deleted."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the workload. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  delete("/orgs/:orgid/workloads/:id/keys", operation(deleteWorkloadAllKey)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    credsAndLog().authenticate().authorizeTo(TWorkload(compositeId),Access.WRITE)
+    val resp = response
+    db.run(WorkloadKeysTQ.getKeys(compositeId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /workloads/"+id+"/keys result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "workload keys deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "no keys for workload '"+compositeId+"' found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "keys for workload '"+compositeId+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/workloads/{id}/keys/{keyid} ===============================
+  val deleteWorkloadKey =
+    (apiOperation[ApiResponse]("deleteWorkloadKey")
+      summary "Deletes a key of a workload"
+      description "Deletes a key/cert for this workload. This can only be run by the workload owning user."
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/workloadid) of the workload for which the key is to be deleted."), paramType = ParamType.Path),
+      Parameter("keyid", DataType.String, Option[String]("ID of the key to be deleted."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the workload. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  delete("/orgs/:orgid/workloads/:id/keys/:keyid", operation(deleteWorkloadKey)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TWorkload(compositeId),Access.WRITE)
+    val resp = response
+    db.run(WorkloadKeysTQ.getKey(compositeId,keyId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /workloads/"+id+"/keys/"+keyId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "workload key deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' for workload '"+compositeId+"' not found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "key '"+keyId+"' for workload '"+compositeId+"' not deleted: "+t.toString)
       }
     })
   })

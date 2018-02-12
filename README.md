@@ -76,7 +76,6 @@ services in the exchange.
 
 - change pattern, node, and searches to refer to service
 - issue #39 (pattern node search api does not validate the workloadUrl)
-- add keys to ms, wk, pattern (when docker image signing is supported - issue 481)
 - Add optional param in POST pattern to automatically add it to agbots
 - consider detect if pattern contains 2 workloads that depend on the same exclusive MS
 - detect if a pattern is updated with ms/wk that has userInput w/o default values, and give warning
@@ -91,6 +90,13 @@ services in the exchange.
 - See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 - Any other schema changes?
+
+
+## Changes in 1.46.0
+
+### External changes
+
+- add keys to ms, wk, pattern (anax issue 498)
 
 
 ## Changes in 1.45.0

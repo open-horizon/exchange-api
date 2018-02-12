@@ -95,6 +95,16 @@ case class PatchServiceRequest(label: Option[String], description: Option[String
 }
 
 
+/** Input format for PUT /orgs/{orgid}/services/{id}/keys/<key-id> */
+case class PutServiceKeyRequest(key: String) {
+  def toServiceKey = ServiceKey(key, ApiTime.nowUTC)
+  def toServiceKeyRow(serviceId: String, keyId: String) = ServiceKeyRow(keyId, serviceId, key, ApiTime.nowUTC)
+  def validate(keyId: String) = {
+    //if (keyId != formId) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the key id should be in the form keyOrgid_key"))
+  }
+}
+
+
 
 /** Implementation for all of the /orgs/{orgid}/services routes */
 trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
@@ -564,6 +574,188 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "service '"+service+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  /* ====== GET /orgs/{orgid}/services/{id}/keys ================================ */
+  val getServiceKeys =
+    (apiOperation[List[String]]("getServiceKeys")
+      summary "Returns all keys/certs for this service"
+      description """Returns all the signing public keys/certs for this service. Can be run by any credentials able to view the service.
+
+- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/serviceid) of the service."), paramType=ParamType.Query),
+      Parameter("token", DataType.String, Option[String]("Token of the service. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  get("/orgs/:orgid/services/:id/keys", operation(getServiceKeys)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.READ)
+    val resp = response
+    db.run(ServiceKeysTQ.getKeys(compositeId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/services/"+id+"/keys result size: "+list.size)
+      //logger.trace("GET /orgs/"+orgid+"/services/"+id+"/keys result: "+list.toString)
+      if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
+      list.map(_.keyId)
+    })
+  })
+
+  /* ====== GET /orgs/{orgid}/services/{id}/keys/{keyid} ================================ */
+  val getOneServiceKey =
+    (apiOperation[String]("getOneServiceKey")
+      summary "Returns a key/cert for this service"
+      description """Returns the signing public key/cert with the specified keyid for this service. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the service. **Because of a swagger bug this method can not be run via swagger.**
+
+- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/serviceid) of the service."), paramType=ParamType.Query),
+      Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType=ParamType.Query),
+      Parameter("token", DataType.String, Option[String]("Token of the service. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  get("/orgs/:orgid/services/:id/keys/:keyid", operation(getOneServiceKey)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.READ)
+    val resp = response
+    db.run(ServiceKeysTQ.getKey(compositeId, keyId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/services/"+id+"/keys/"+keyId+" result: "+list.size)
+      if (list.nonEmpty) {
+        // Return the raw key, not json
+        resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
+        resp.setHeader("Content-Type", "text/plain")
+        resp.setHeader("Content-Length", list.head.key.length.toString)
+        list.head.key
+      }
+      else {
+        resp.setStatus(HttpCode.NOT_FOUND)
+        ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' not found")
+      }
+    })
+  })
+
+  // =========== PUT /orgs/{orgid}/services/{id}/keys/{keyid} ===============================
+  val putServiceKey =
+    (apiOperation[ApiResponse]("putServiceKey")
+      summary "Adds/updates a key/cert for the service"
+      description """Adds a new signing public key/cert, or updates an existing key/cert, for this service. This can only be run by the service owning user. Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'."""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/serviceid) of the service wanting to add/update this key."), paramType = ParamType.Query),
+      Parameter("keyid", DataType.String, Option[String]("ID of the key to be added/updated."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the service. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PutServiceKeyRequest],
+        Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      )
+  val putServiceKey2 = (apiOperation[PutServiceKeyRequest]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  put("/orgs/:orgid/services/:id/keys/:keyid", operation(putServiceKey)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    val keyReq = PutServiceKeyRequest(request.body)
+    //val keyReq = try { parse(request.body).extract[PutServiceKeyRequest] }
+    //catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    keyReq.validate(keyId)
+    val resp = response
+    db.run(keyReq.toServiceKeyRow(compositeId, keyId).upsert.asTry).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/services/"+id+"/keys/"+keyId+" result: "+xs.toString)
+      xs match {
+        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "key added or updated")
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "key '"+keyId+"' for service '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "key '"+keyId+"' for service '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        }
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/services/{id}/keys ===============================
+  val deleteServiceAllKey =
+    (apiOperation[ApiResponse]("deleteServiceAllKey")
+      summary "Deletes all keys of a service"
+      description "Deletes all of the current keys/certs for this service. This can only be run by the service owning user."
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/serviceid) of the service for which the key is to be deleted."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the service. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  delete("/orgs/:orgid/services/:id/keys", operation(deleteServiceAllKey)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    val resp = response
+    db.run(ServiceKeysTQ.getKeys(compositeId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /services/"+id+"/keys result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "service keys deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "no keys for service '"+compositeId+"' found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "keys for service '"+compositeId+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/services/{id}/keys/{keyid} ===============================
+  val deleteServiceKey =
+    (apiOperation[ApiResponse]("deleteServiceKey")
+      summary "Deletes a key of a service"
+      description "Deletes a key/cert for this service. This can only be run by the service owning user."
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/serviceid) of the service for which the key is to be deleted."), paramType = ParamType.Path),
+      Parameter("keyid", DataType.String, Option[String]("ID of the key to be deleted."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the service. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      )
+
+  delete("/orgs/:orgid/services/:id/keys/:keyid", operation(deleteServiceKey)) ({
+    val orgid = swaggerHack("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    val resp = response
+    db.run(ServiceKeysTQ.getKey(compositeId,keyId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /services/"+id+"/keys/"+keyId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "service key deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' for service '"+compositeId+"' not found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "key '"+keyId+"' for service '"+compositeId+"' not deleted: "+t.toString)
       }
     })
   })

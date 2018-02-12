@@ -301,14 +301,30 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
 
-    // Assemble the list of db actions to: delete tables that are new in this version, and unalter schema changes made to existing tables
+    // Get the list of db actions to: delete tables that are new in this version, and unalter schema changes made to existing tables
     // val dbActions = DBIO.seq(ExchangeApiTables.deleteNewTables, ExchangeApiTables.unAlterTables)
     val dbActions = ExchangeApiTables.deleteNewTables
-    // Note: add unAlterTables if its not null
 
     // This should stop performing the actions if any of them fail. Currently intentionally not running it all as a transaction
-    db.run(dbActions.asTry).map({ xs =>
-      logger.debug("POST /admin/unupgradedb result: "+xs.toString)
+    db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
+      logger.debug("POST /admin/upgradedb current schema result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v.nonEmpty) {
+          val schemaRow = v.head
+          // Probably should do the dbActions 1st, but this is more convenient because we have the schemaVersion right now
+          SchemaTQ.getDecrementVersionAction(schemaRow.schemaVersion).asTry
+        }
+        else DBIO.failed(new Throwable("DB unupgrade error: did not find a row in the schemas table")).asTry
+        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
+      }
+    }).flatMap({ xs =>
+      logger.debug("POST get schema row result: "+xs.toString)
+      xs match {
+        case Success(_) => dbActions.asTry
+        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
+      }
+    })).map({ xs =>
+      logger.debug("POST /admin/unupgrade result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "db table schemas unupgraded successfully")

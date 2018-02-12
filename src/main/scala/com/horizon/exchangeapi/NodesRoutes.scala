@@ -327,7 +327,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Query),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified, and it must be 1 of the direct attributes of the node resource (not of the microservices). If not specified, the entire node resource (including microservices) will be returned."), paramType=ParamType.Query, required=false)
@@ -335,8 +335,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   get("/orgs/:orgid/nodes/:id", operation(getOneNode)) ({
-    val orgid = swaggerHack("orgid")
-    val bareId = params("id")   // but do not have a hack/fix for the name
+    val orgid = params("orgid")
+    val bareId = swaggerHack("id")
     val id = OrgAndId(orgid,bareId).toString
     val ident = credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
     val superUser = ident.isSuperUser
@@ -346,7 +346,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         val q = NodesTQ.getAttribute(id, attribute)
         if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Node attribute name '"+attribute+"' is not an attribute of the node resource."))
         db.run(q.result).map({ list =>
-          logger.trace("GET /orgs/"+orgid+"/nodes/"+bareId+" attribute result: "+list.toString)
+          logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+" attribute result: "+list.size)
           if (list.nonEmpty) {
             GetNodeAttributeResponse(attribute, list.head.toString)
           } else {
@@ -366,7 +366,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         } yield (d, m, p)
 
         db.run(q.result).map({ list =>
-          logger.trace("GET /orgs/"+orgid+"/nodes/"+bareId+" result: "+list.toString)
+          logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+" result: "+list.size)
           if (list.nonEmpty) {
             val nodes = NodesTQ.parseJoin(superUser, list)
             GetNodesResponse(nodes, 0)
@@ -1091,7 +1091,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
 - **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Query),
         Parameter("agid", DataType.String, Option[String]("ID of the agreement."), paramType=ParamType.Query),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -1099,10 +1099,10 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   get("/orgs/:orgid/nodes/:id/agreements/:agid", operation(getOneNodeAgreement)) ({
-    val orgid = swaggerHack("orgid")
-    val bareId = params("id")   // but do not have a hack/fix for the name
+    val orgid = params("orgid")
+    val bareId = swaggerHack("id")   // but do not have a hack/fix for the name
     val id = OrgAndId(orgid,bareId).toString
-    val agId = params("agid")
+    val agId = swaggerHack("agid")
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
     val resp = response
     db.run(NodeAgreementsTQ.getAgreement(id, agId).result).map({ list =>

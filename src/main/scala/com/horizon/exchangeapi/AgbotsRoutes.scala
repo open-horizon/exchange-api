@@ -154,6 +154,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire node resource (including microservices) will be returned."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/agbots/:id", operation(getOneAgbot)) ({
@@ -203,8 +204,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 }
 ```"""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be added/updated."), paramType = ParamType.Path),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be added/updated."), paramType = ParamType.Query),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PutAgbotsRequest],
           Option[String]("Agbot object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
@@ -214,8 +215,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val putAgbots2 = (apiOperation[PutAgbotsRequest]("putAgbots2") summary("a") description("a"))  // for some bizarre reason, the PutAgbotsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/agbots/:id", operation(putAgbots)) ({
-    val orgid = swaggerHack("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
+    val orgid = params("orgid")
+    val id = swaggerHack("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
     val ident = credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val agbot = try { parse(request.body).extract[PutAgbotsRequest] }

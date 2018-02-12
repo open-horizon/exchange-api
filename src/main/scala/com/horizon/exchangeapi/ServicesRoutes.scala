@@ -393,7 +393,6 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val putServices2 = (apiOperation[PostPutServiceRequest]("putServices2") summary("a") description("a"))  // for some bizarre reason, the PutServiceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/services/:service", operation(putServices)) ({
-  //put("/orgs/:orgid/services/:service") ({
     val orgid = swaggerHack("orgid")
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
@@ -491,9 +490,9 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 }
 ```"""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchServiceRequest],
           Option[String]("Partial service object that contains 1 attribute to be updated in this service. See details in the Implementation Notes above."),
@@ -504,7 +503,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   patch("/orgs/:orgid/services/:service", operation(patchServices)) ({
   //patch("/orgs/:orgid/services/:service") ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
     credsAndLog().authenticate().authorizeTo(TService(service),Access.WRITE)

@@ -70,6 +70,16 @@ case class PatchPatternRequest(label: Option[String], description: Option[String
 }
 
 
+/** Input format for PUT /orgs/{orgid}/patterns/{pattern}/keys/<key-id> */
+case class PutPatternKeyRequest(key: String) {
+  def toPatternKey = PatternKey(key, ApiTime.nowUTC)
+  def toPatternKeyRow(patternId: String, keyId: String) = PatternKeyRow(keyId, patternId, key, ApiTime.nowUTC)
+  def validate(keyId: String) = {
+    //if (keyId != formId) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the key id should be in the form keyOrgid_key"))
+  }
+}
+
+
 
 /** Implementation for all of the /orgs/{orgid}/patterns routes */
 trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
@@ -305,69 +315,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val putPatterns =
     (apiOperation[ApiResponse]("putPatterns")
       summary "Updates a pattern"
-      description """Updates a pattern resource. This can only be called by the user that created it. The **request body** structure:
-
-```
-// (remove all of the comments like this before using)
-{
-  "label": "name of the edge pattern",     // this will be displayed in the node registration UI
-  "description": "descriptive text",
-  "public": false,       // typically patterns are not appropriate to share across orgs because they contain policy choices
-  // The workloads that should be deployed to the edge for this pattern. (The workloads must exist before creating this pattern.)
-  "workloads": [
-    {
-      "workloadUrl": "https://bluehorizon.network/workloads/weather",
-      "workloadOrgid": "myorg",
-      "workloadArch": "amd64",
-      // If multiple workload versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
-      "workloadVersions": [
-        {
-          "version": "1.0.1",
-          "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "",     // filled in by the Horizon signing process
-          "priority": {
-            "priority_value": 50,
-            "retries": 1,
-            "retry_durations": 3600,
-            "verified_durations": 52
-          },
-          // When Horizon should upgrade nodes to newer workload versions. Can be set to {} to take the default of immediate.
-          "upgradePolicy": {
-            "lifecycle": "immediate",
-            "time": "01:00AM"     // reserved for future use
-          }
-        }
-      ],
-      // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the workload is sending data.
-      // If not using this, the dataVerification field can be set to {} or omitted completely.
-      "dataVerification": {
-        "enabled": true,
-        "URL": "",
-        "user": "",
-        "password": "",
-        "interval": 480,
-        "check_rate": 120,
-        "metering": {
-          "tokens": 1,
-          "per_time_unit": "min",
-          "notification_interval": 30
-        }
-      },
-      // If not using agbot node health check, this field can be set to {} or omitted completely.
-      "nodeHealth": {
-        "missing_heartbeat_interval": 600,      // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
-        "check_agreement_status": 120        // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
-      }
-    }
-  ],
-  // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
-  "agreementProtocols": [
-    {
-      "name": "Basic"
-    }
-  ]
-}
-```"""
+      description """Updates a pattern resource. This can only be called by the user that created it."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
@@ -525,6 +473,195 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  /* ====== GET /orgs/{orgid}/patterns/{pattern}/keys ================================ */
+  val getPatternKeys =
+    (apiOperation[List[String]]("getPatternKeys")
+      summary "Returns all keys/certs for this pattern"
+      description """Returns all the signing public keys/certs for this pattern. Can be run by any credentials able to view the pattern."""
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  get("/orgs/:orgid/patterns/:pattern/keys", operation(getPatternKeys)) ({
+    val orgid = params("orgid")
+    val pattern = params("pattern")
+    val compositeId = OrgAndId(orgid,pattern).toString
+    credsAndLog().authenticate().authorizeTo(TPattern(compositeId),Access.READ)
+    val resp = response
+    db.run(PatternKeysTQ.getKeys(compositeId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys result size: "+list.size)
+      //logger.trace("GET /orgs/"+orgid+"/patterns/"+id+"/keys result: "+list.toString)
+      if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
+      list.map(_.keyId)
+    })
+  })
+
+  /* ====== GET /orgs/{orgid}/patterns/{pattern}/keys/{keyid} ================================ */
+  val getOnePatternKey =
+    (apiOperation[String]("getOnePatternKey")
+      summary "Returns a key/cert for this pattern"
+      description """Returns the signing public key/cert with the specified keyid for this pattern. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the pattern."""
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      produces "text/plain"
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  get("/orgs/:orgid/patterns/:pattern/keys/:keyid", operation(getOnePatternKey)) ({
+    val orgid = params("orgid")
+    val pattern = params("pattern")
+    val compositeId = OrgAndId(orgid,pattern).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TPattern(compositeId),Access.READ)
+    val resp = response
+    db.run(PatternKeysTQ.getKey(compositeId, keyId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" result: "+list.size)
+      if (list.nonEmpty) {
+        // Return the raw key, not json
+        resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
+        resp.setHeader("Content-Type", "text/plain")
+        resp.setHeader("Content-Length", list.head.key.length.toString)
+        list.head.key
+      }
+      else {
+        resp.setStatus(HttpCode.NOT_FOUND)
+        ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' not found")
+      }
+    })
+  })
+
+  // =========== PUT /orgs/{orgid}/patterns/{pattern}/keys/{keyid} ===============================
+  val putPatternKey =
+    (apiOperation[ApiResponse]("putPatternKey")
+      summary "Adds/updates a key/cert for the pattern"
+      description """Adds a new signing public key/cert, or updates an existing key/cert, for this pattern. This can only be run by the pattern owning user. Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'."""
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PutPatternKeyRequest],
+          Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+  val putPatternKey2 = (apiOperation[PutPatternKeyRequest]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  put("/orgs/:orgid/patterns/:pattern/keys/:keyid", operation(putPatternKey)) ({
+    val orgid = params("orgid")
+    val pattern = params("pattern")
+    val compositeId = OrgAndId(orgid,pattern).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TPattern(compositeId),Access.WRITE)
+    val keyReq = PutPatternKeyRequest(request.body)
+    //val keyReq = try { parse(request.body).extract[PutPatternKeyRequest] }
+    //catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    keyReq.validate(keyId)
+    val resp = response
+    db.run(keyReq.toPatternKeyRow(compositeId, keyId).upsert.asTry).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" result: "+xs.toString)
+      xs match {
+        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "key added or updated")
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "key '"+keyId+"' for pattern '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "key '"+keyId+"' for pattern '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        }
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/patterns/{pattern}/keys ===============================
+  val deletePatternAllKey =
+    (apiOperation[ApiResponse]("deletePatternAllKey")
+      summary "Deletes all keys of a pattern"
+      description "Deletes all of the current keys/certs for this pattern. This can only be run by the pattern owning user."
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  delete("/orgs/:orgid/patterns/:pattern/keys", operation(deletePatternAllKey)) ({
+    val orgid = params("orgid")
+    val pattern = params("pattern")
+    val compositeId = OrgAndId(orgid,pattern).toString
+    credsAndLog().authenticate().authorizeTo(TPattern(compositeId),Access.WRITE)
+    val resp = response
+    db.run(PatternKeysTQ.getKeys(compositeId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /patterns/"+pattern+"/keys result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "pattern keys deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "no keys for pattern '"+compositeId+"' found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "keys for pattern '"+compositeId+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/patterns/{pattern}/keys/{keyid} ===============================
+  val deletePatternKey =
+    (apiOperation[ApiResponse]("deletePatternKey")
+      summary "Deletes a key of a pattern"
+      description "Deletes a key/cert for this pattern. This can only be run by the pattern owning user."
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  delete("/orgs/:orgid/patterns/:pattern/keys/:keyid", operation(deletePatternKey)) ({
+    val orgid = params("orgid")
+    val pattern = params("pattern")
+    val compositeId = OrgAndId(orgid,pattern).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TPattern(compositeId),Access.WRITE)
+    val resp = response
+    db.run(PatternKeysTQ.getKey(compositeId,keyId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /patterns/"+pattern+"/keys/"+keyId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "pattern key deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' for pattern '"+compositeId+"' not found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "key '"+keyId+"' for pattern '"+compositeId+"' not deleted: "+t.toString)
       }
     })
   })

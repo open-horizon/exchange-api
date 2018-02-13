@@ -19,7 +19,7 @@ object ExchangeApiTables {
       ++ NodesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ NodeAgreementsTQ.rows.schema ++ NodeStatusTQ.rows.schema
       ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ AgbotPatternsTQ.rows.schema
       ++ NodeMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema
-      ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ ServicesTQ.rows.schema ++ ServiceKeysTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ MicroserviceKeysTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ WorkloadKeysTQ.rows.schema ++ PatternsTQ.rows.schema
+      ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ ServicesTQ.rows.schema ++ ServiceKeysTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ MicroserviceKeysTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ WorkloadKeysTQ.rows.schema ++ PatternsTQ.rows.schema ++ PatternKeysTQ.rows.schema
     ).create
 
   // Alter the schema of existing tables - used to be used in /admin/upgradedb
@@ -34,7 +34,7 @@ object ExchangeApiTables {
   // Note: doing this with raw sql stmts because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints (only adding), we should be ok with the drops below?
   //val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
   val delete = DBIO.seq(
-    sqlu"drop table if exists patterns", sqlu"drop table if exists servicekeys", sqlu"drop table if exists services", sqlu"drop table if exists workloadkeys", sqlu"drop table if exists workloads", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes",  // no table depends on these
+    sqlu"drop table if exists patternkeys", sqlu"drop table if exists patterns", sqlu"drop table if exists servicekeys", sqlu"drop table if exists services", sqlu"drop table if exists workloadkeys", sqlu"drop table if exists workloads", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes",  // no table depends on these
     sqlu"drop table if exists mmicroservices",       // from older schema
     sqlu"drop table if exists devmsgs",   // from older schema
     sqlu"drop table if exists nodemsgs", sqlu"drop table if exists agbotmsgs",     // these depend on both nodes and agbots
@@ -50,12 +50,12 @@ object ExchangeApiTables {
   // Delete the previous version's tables - used to be used by /admin/migratedb
   //val deletePrevious = DBIO.seq(sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
 
-  // Remove the alters of existing tables - used to be used by /admin/unupgradedb
+  // Remove the alters of existing tables - used to be used by /admin/downgradedb
   // val unAlterTables = DBIO.seq(sqlu"alter table nodes drop column publickey", sqlu"alter table agbots drop column publickey")
   // val unAlterTables = DBIO.seq(sqlu"alter table nodes add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
 
-  // Used to delete just the new tables in this version (so we can recreate) - used by /admin/unupgradedb
-  val deleteNewTables = DBIO.seq(sqlu"drop table if exists workloadkeys")
+  // Used to delete just the new tables in this version (so we can recreate) - used by /admin/downgradedb
+  val deleteNewTables = DBIO.seq(sqlu"drop table if exists workloadkeys", sqlu"drop table if exists microservicekeys", sqlu"drop table if exists servicekeys")
 
   /** Returns a db action that queries each table and dumps it to a file in json format - used in /admin/dumptables and /admin/migratedb */
   def dump(dumpDir: String, dumpSuffix: String)(implicit logger: Logger): DBIO[_] = {
@@ -149,6 +149,11 @@ object ExchangeApiTables {
       val filename = dumpDir+"/patterns"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[PatternRow](filename).dump(xs)
+      PatternKeysTQ.rows.result
+    }).flatMap({ xs =>
+      val filename = dumpDir+"/patternkeys"+dumpSuffix
+      logger.info("dumping "+xs.size+" rows to "+filename)
+      new TableIo[PatternKeyRow](filename).dump(xs)
       OrgsTQ.rows.result
     }).flatMap({ xs =>
       val filename = dumpDir+"/orgs"+dumpSuffix
@@ -246,6 +251,9 @@ object ExchangeApiTables {
 
     val patterns = new TableIo[PatternRow](dumpDir+"/patterns"+dumpSuffix).load
     if (patterns.nonEmpty) actions += (PatternsTQ.rows ++= patterns)
+
+    val patternkeys = new TableIo[PatternKeyRow](dumpDir+"/patternkeys"+dumpSuffix).load
+    if (patternkeys.nonEmpty) actions += (PatternKeysTQ.rows ++= patternkeys)
 
     val orgs = new TableIo[OrgRow](dumpDir+"/orgs"+dumpSuffix).load
     if (orgs.nonEmpty) actions += (OrgsTQ.rows ++= orgs)

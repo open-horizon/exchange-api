@@ -292,9 +292,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   */
 
   /* Just for re-testing upgrade...
-  // =========== POST /admin/unupgradedb ===============================
-  val postAdminUnupgradeDb =
-    (apiOperation[ApiResponse]("postAdminUnupgradeDb")
+  // =========== POST /admin/downgradedb ===============================
+  val postAdminDowngradeDb =
+    (apiOperation[ApiResponse]("postAdminDowngradeDb")
       summary "Undoes the upgrades of the DB schema"
       description "Undoes the updates (alters) of the schemas of the db tables in case we need to fix the upgradedb code and try it again. Can only be run by the root user."
       parameters(
@@ -304,7 +304,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
   */
 
-  post("/admin/unupgradedb" /*, operation(postAdminUnupgradeDb)*/) ({
+  post("/admin/downgradedb" /*, operation(postAdminDowngradeDb)*/) ({
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
 
@@ -321,7 +321,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           // Probably should do the dbActions 1st, but this is more convenient because we have the schemaVersion right now
           SchemaTQ.getDecrementVersionAction(schemaRow.schemaVersion).asTry
         }
-        else DBIO.failed(new Throwable("DB unupgrade error: did not find a row in the schemas table")).asTry
+        else DBIO.failed(new Throwable("DB downgrade error: did not find a row in the schemas table")).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }
     }).flatMap({ xs =>
@@ -331,12 +331,12 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }
     })).map({ xs =>
-      logger.debug("POST /admin/unupgrade result: "+xs.toString)
+      logger.debug("POST /admin/downgrade result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "db table schemas unupgraded successfully")
+          ApiResponse(ApiResponseType.OK, "db table schemas downgraded successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db table schemas not unupgraded: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db table schemas not downgraded: "+t.toString)
       }
     })
   })

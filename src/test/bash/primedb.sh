@@ -110,13 +110,21 @@ workurl2="https://bluehorizon.network/workloads/weather"
 
 patid="p1"
 
+ptKeyId="mykey4.pem"
+ptKey='-----BEGIN CERTIFICATE-----
+MIII+jCCBOKgAwIBAgIUEfeMrmSFxCUKATcNPcowfs/lU9owDQYJKoZIhvcNAQEL
+BQAwJjEMMAoGA1UEChMDaWJtMRYwFAYDVQQDDA1icEB1cy5pYm0uY29tMB4XDTE4
+MDEwMjAxNDkyMFoXDTIyMDEwMjEzNDgzMFowJjEMMAoGA1UEChMDaWJtMRYwFAYD
+VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
+-----END CERTIFICATE-----
+'
+
 bctypeid="bct1"
 
 blockchainid="bc1"
 
 #curlBasicArgs="-s -w %{http_code} --output /dev/null $accept"
-curlBasicArgs="-s -w %{http_code} $accept"
-# curlBasicArgs="-s -f"
+curlBasicArgs="-sS -w %{http_code} $accept"
 # set -x
 
 # Check the http code returned by curl. Args: returned rc, good rc, second good rc (optional)
@@ -382,6 +390,14 @@ if [[ $rc != 200 ]]; then
   "agreementProtocols": [{ "name": "Basic" }] }'
 else
     echo "orgs/$orgid/patterns/$patid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/patterns/$patid/keys/$ptKeyId")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/patterns/$patid/keys/$ptKeyId" "$ptKey" "$contenttext"
+else
+    echo "orgs/$orgid/patterns/$patid/keys/$ptKeyId exists"
 fi
 
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid")

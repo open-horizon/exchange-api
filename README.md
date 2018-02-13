@@ -94,9 +94,9 @@ services in the exchange.
 
 ### External changes
 
-- add keys to ms, wk, service, pattern (anax issue 498)
-- Figure out how to set "Response Class (Status 200)" in swagger
-- See if there is a way to fix the swagger hack for 2 level resources
+- added keys to ms, wk, service, pattern (anax issue 498)
+- Figured out how to set the Response codes in swagger
+- Fixed the swagger 2 level resource problem
 
 
 ## Changes in 1.45.0

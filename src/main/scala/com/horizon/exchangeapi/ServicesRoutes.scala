@@ -95,7 +95,7 @@ case class PatchServiceRequest(label: Option[String], description: Option[String
 }
 
 
-/** Input format for PUT /orgs/{orgid}/services/{id}/keys/<key-id> */
+/** Input format for PUT /orgs/{orgid}/services/{service}/keys/<key-id> */
 case class PutServiceKeyRequest(key: String) {
   def toServiceKey = ServiceKey(key, ApiTime.nowUTC)
   def toServiceKeyRow(serviceId: String, keyId: String) = ServiceKeyRow(keyId, serviceId, key, ApiTime.nowUTC)
@@ -116,11 +116,9 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val getServices =
     (apiOperation[GetServicesResponse]("getServices")
       summary("Returns all services")
-      description("""Returns all service definitions in the exchange DB. Can be run by any user, node, or agbot.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns all service definitions in the exchange DB. Can be run by any user, node, or agbot.""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("owner", DataType.String, Option[String]("Filter results to only include services with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
@@ -130,11 +128,12 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("arch", DataType.String, Option[String]("Filter results to only include services with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("requiredurl", DataType.String, Option[String]("Filter results to only include services that use this service with this url (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/services", operation(getServices)) ({
   //get("/orgs/:orgid/services") ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val ident = credsAndLog().authenticate().authorizeTo(TService(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
     var q = ServicesTQ.getAllServices(orgid)
@@ -166,21 +165,20 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val getOneService =
     (apiOperation[GetServicesResponse]("getOneService")
       summary("Returns a service")
-      description("""Returns the service with the specified id in the exchange DB. Can be run by a user, node, or agbot.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns the service with the specified id in the exchange DB. Can be run by a user, node, or agbot.""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire service resource will be returned."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/services/:service", operation(getOneService)) ({
   //get("/orgs/:orgid/services/:service") ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
     credsAndLog().authenticate().authorizeTo(TService(service),Access.READ)
@@ -255,19 +253,20 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 }
 ```"""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
-      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PostPutServiceRequest],
-        Option[String]("Service object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PostPutServiceRequest],
+          Option[String]("Service object that needs to be updated in the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val postServices2 = (apiOperation[PostPutServiceRequest]("postServices2") summary("a") description("a"))  // for some bizarre reason, the PostServiceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   post("/orgs/:orgid/services", operation(postServices)) ({
   //post("/orgs/:orgid/services") ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val ident = credsAndLog().authenticate().authorizeTo(TService(OrgAndId(orgid,"").toString),Access.CREATE)
     val serviceReq = try { parse(request.body).extract[PostPutServiceRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
@@ -340,60 +339,22 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val putServices =
     (apiOperation[ApiResponse]("putServices")
       summary "Updates a service"
-      description """Does a full replace of an existing service. This can only be called by the user that originally created it. The **request body** structure:
-
-```
-// (remove all of the comments like this before using)
-{
-  "label": "Location for amd64",     // this will be displayed in the node registration UI
-  "description": "blah blah",
-  "public": true,       // whether or not it can be viewed by other organizations
-  "url": "https://bluehorizon.network/services/location",   // the unique identifier of this service
-  "version": "1.0.0",
-  "arch": "amd64",
-  "sharable": "single",   // if multiple services require this service, how many instances are deployed: "exclusive", "single", "multiple"
-  "matchHardware": {},    // reserved for future use, can be omitted (will be hints to the node about how to tell if it has the physical sensors required by this service)
-  // The other services this service requires. (The other services must exist in the exchange before creating this service.)
-  "requiredServices": [
-    {
-      "url": "https://bluehorizon.network/services/gps",
-      "org": "myorg",
-      "version": "[1.0.0,INFINITY)",     // an OSGI-formatted version range
-      "arch": "amd64"
-    }
-  ],
-  // Values the node owner will be prompted for and will be set as env vars to the container.
-  "userInput": [
-    {
-      "name": "foo",
-      "label": "The Foo Value",
-      "type": "string",   // or: "int", "float", "boolean", or "list of strings"
-      "defaultValue": "bar"   // if empty then the node owner must provide a value at registration time
-    }
-  ],
-  // Information about how to deploy the docker images for this service
-  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-  "deployment_signature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
-  "pkg": {
-    // There could be several different package reference schemes so the schema will be left open. However, the storeType must be set for all cases to discriminate the type of storage being used.
-    "storeType": "dockerRegistry" // imageServer and dockerRegistry are the only supported values right now
-  }
-}
-```"""
+      description """Does a full replace of an existing service. This can only be called by the user that originally created it."""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PostPutServiceRequest],
-        Option[String]("Service object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
+          Option[String]("Service object that needs to be updated in the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putServices2 = (apiOperation[PostPutServiceRequest]("putServices2") summary("a") description("a"))  // for some bizarre reason, the PutServiceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/services/:service", operation(putServices)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
     val ident = credsAndLog().authenticate().authorizeTo(TService(service),Access.WRITE)
@@ -456,39 +417,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val patchServices =
     (apiOperation[Map[String,String]]("patchServices")
       summary "Updates 1 attribute of a service"
-      description """Updates one attribute of a service in the exchange DB. This can only be called by the user that originally created this service resource. The **request body** structure can include **1 of these attributes**:
-
-```
-// Specify only **one** of these attributes. See POST /orgs/{orgid}/services for a description of each attribute.
-{
-  "label": "Location for amd64",
-  "description": "blah blah",
-  "public": true,
-  "sharable": "single",
-  "matchHardware": {},
-  "requiredServices": [
-    {
-      "url": "https://bluehorizon.network/services/gps",
-      "org": "myorg",
-      "version": "[1.0.0,INFINITY)",
-      "arch": "amd64"
-    }
-  ],
-  "userInput": [
-    {
-      "name": "foo",
-      "label": "The Foo Value",
-      "type": "string",
-      "defaultValue": "bar"
-    }
-  ],
-  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-  "deployment_signature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
-  "pkg": {
-    "storeType": "dockerRegistry"
-  }
-}
-```"""
+      description """Updates one attribute of a service in the exchange DB. This can only be called by the user that originally created this service resource."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
@@ -498,11 +427,11 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           Option[String]("Partial service object that contains 1 attribute to be updated in this service. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val patchServices2 = (apiOperation[PatchServiceRequest]("patchServices2") summary("a") description("a"))  // for some bizarre reason, the PatchServiceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid/services/:service", operation(patchServices)) ({
-  //patch("/orgs/:orgid/services/:service") ({
     val orgid = params("orgid")
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
@@ -544,16 +473,16 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       summary "Deletes a service"
       description "Deletes a service from the exchange DB. Can only be run by the owning user."
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   delete("/orgs/:orgid/services/:service", operation(deleteServices)) ({
-  //delete("/orgs/:orgid/services/:service") ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
     credsAndLog().authenticate().authorizeTo(TService(service),Access.WRITE)
@@ -579,58 +508,59 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  /* ====== GET /orgs/{orgid}/services/{id}/keys ================================ */
+  /* ====== GET /orgs/{orgid}/services/{service}/keys ================================ */
   val getServiceKeys =
     (apiOperation[List[String]]("getServiceKeys")
       summary "Returns all keys/certs for this service"
-      description """Returns all the signing public keys/certs for this service. Can be run by any credentials able to view the service.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**"""
+      description """Returns all the signing public keys/certs for this service. Can be run by any credentials able to view the service."""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/serviceid) of the service."), paramType=ParamType.Query),
-      Parameter("token", DataType.String, Option[String]("Token of the service. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
-  get("/orgs/:orgid/services/:id/keys", operation(getServiceKeys)) ({
-    val orgid = swaggerHack("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
+  get("/orgs/:orgid/services/:service/keys", operation(getServiceKeys)) ({
+    val orgid = params("orgid")
+    val service = params("service")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,service).toString
     credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.READ)
     val resp = response
     db.run(ServiceKeysTQ.getKeys(compositeId).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/services/"+id+"/keys result size: "+list.size)
+      logger.debug("GET /orgs/"+orgid+"/services/"+service+"/keys result size: "+list.size)
       //logger.trace("GET /orgs/"+orgid+"/services/"+id+"/keys result: "+list.toString)
       if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
       list.map(_.keyId)
     })
   })
 
-  /* ====== GET /orgs/{orgid}/services/{id}/keys/{keyid} ================================ */
+  /* ====== GET /orgs/{orgid}/services/{service}/keys/{keyid} ================================ */
   val getOneServiceKey =
     (apiOperation[String]("getOneServiceKey")
       summary "Returns a key/cert for this service"
-      description """Returns the signing public key/cert with the specified keyid for this service. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the service. **Because of a swagger bug this method can not be run via swagger.**
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**"""
+      description """Returns the signing public key/cert with the specified keyid for this service. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the service."""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/serviceid) of the service."), paramType=ParamType.Query),
-      Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType=ParamType.Query),
-      Parameter("token", DataType.String, Option[String]("Token of the service. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
-  get("/orgs/:orgid/services/:id/keys/:keyid", operation(getOneServiceKey)) ({
-    val orgid = swaggerHack("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
+  get("/orgs/:orgid/services/:service/keys/:keyid", operation(getOneServiceKey)) ({
+    val orgid = params("orgid")
+    val service = params("service")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,service).toString
     val keyId = params("keyid")
     credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.READ)
     val resp = response
     db.run(ServiceKeysTQ.getKey(compositeId, keyId).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/services/"+id+"/keys/"+keyId+" result: "+list.size)
+      logger.debug("GET /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" result: "+list.size)
       if (list.nonEmpty) {
         // Return the raw key, not json
         resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
@@ -645,27 +575,29 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     })
   })
 
-  // =========== PUT /orgs/{orgid}/services/{id}/keys/{keyid} ===============================
+  // =========== PUT /orgs/{orgid}/services/{service}/keys/{keyid} ===============================
   val putServiceKey =
     (apiOperation[ApiResponse]("putServiceKey")
       summary "Adds/updates a key/cert for the service"
       description """Adds a new signing public key/cert, or updates an existing key/cert, for this service. This can only be run by the service owning user. Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'."""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/serviceid) of the service wanting to add/update this key."), paramType = ParamType.Query),
-      Parameter("keyid", DataType.String, Option[String]("ID of the key to be added/updated."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the service. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PutServiceKeyRequest],
-        Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PutServiceKeyRequest],
+          Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putServiceKey2 = (apiOperation[PutServiceKeyRequest]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
-  put("/orgs/:orgid/services/:id/keys/:keyid", operation(putServiceKey)) ({
-    val orgid = swaggerHack("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
+  put("/orgs/:orgid/services/:service/keys/:keyid", operation(putServiceKey)) ({
+    val orgid = params("orgid")
+    val service = params("service")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,service).toString
     val keyId = params("keyid")
     credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val keyReq = PutServiceKeyRequest(request.body)
@@ -674,7 +606,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     keyReq.validate(keyId)
     val resp = response
     db.run(keyReq.toServiceKeyRow(compositeId, keyId).upsert.asTry).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/services/"+id+"/keys/"+keyId+" result: "+xs.toString)
+      logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, "key added or updated")
@@ -689,26 +621,28 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     })
   })
 
-  // =========== DELETE /orgs/{orgid}/services/{id}/keys ===============================
+  // =========== DELETE /orgs/{orgid}/services/{service}/keys ===============================
   val deleteServiceAllKey =
     (apiOperation[ApiResponse]("deleteServiceAllKey")
       summary "Deletes all keys of a service"
       description "Deletes all of the current keys/certs for this service. This can only be run by the service owning user."
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/serviceid) of the service for which the key is to be deleted."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the service. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
-  delete("/orgs/:orgid/services/:id/keys", operation(deleteServiceAllKey)) ({
-    val orgid = swaggerHack("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
+  delete("/orgs/:orgid/services/:service/keys", operation(deleteServiceAllKey)) ({
+    val orgid = params("orgid")
+    val service = params("service")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,service).toString
     credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val resp = response
     db.run(ServiceKeysTQ.getKeys(compositeId).delete.asTry).map({ xs =>
-      logger.debug("DELETE /services/"+id+"/keys result: "+xs.toString)
+      logger.debug("DELETE /services/"+service+"/keys result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
@@ -723,28 +657,30 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     })
   })
 
-  // =========== DELETE /orgs/{orgid}/services/{id}/keys/{keyid} ===============================
+  // =========== DELETE /orgs/{orgid}/services/{service}/keys/{keyid} ===============================
   val deleteServiceKey =
     (apiOperation[ApiResponse]("deleteServiceKey")
       summary "Deletes a key of a service"
       description "Deletes a key/cert for this service. This can only be run by the service owning user."
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/serviceid) of the service for which the key is to be deleted."), paramType = ParamType.Path),
-      Parameter("keyid", DataType.String, Option[String]("ID of the key to be deleted."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the service. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
-  delete("/orgs/:orgid/services/:id/keys/:keyid", operation(deleteServiceKey)) ({
-    val orgid = swaggerHack("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
+  delete("/orgs/:orgid/services/:service/keys/:keyid", operation(deleteServiceKey)) ({
+    val orgid = params("orgid")
+    val service = params("service")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,service).toString
     val keyId = params("keyid")
     credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val resp = response
     db.run(ServiceKeysTQ.getKey(compositeId,keyId).delete.asTry).map({ xs =>
-      logger.debug("DELETE /services/"+id+"/keys/"+keyId+" result: "+xs.toString)
+      logger.debug("DELETE /services/"+service+"/keys/"+keyId+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)

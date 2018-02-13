@@ -84,11 +84,9 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val getMicroservices =
     (apiOperation[GetMicroservicesResponse]("getMicroservices")
       summary("Returns all microservices")
-      description("""Returns all microservice definitions in this org. Can be run by any user, node, or agbot.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns all microservice definitions in this org. Can be run by any user, node, or agbot.""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("owner", DataType.String, Option[String]("Filter results to only include microservices with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
@@ -97,10 +95,11 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
         Parameter("version", DataType.String, Option[String]("Filter results to only include microservices with this version (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("arch", DataType.String, Option[String]("Filter results to only include microservices with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/microservices", operation(getMicroservices)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val ident = credsAndLog().authenticate().authorizeTo(TMicroservice(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
     //var q = MicroservicesTQ.rows.subquery
@@ -125,23 +124,21 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val getOneMicroservice =
     (apiOperation[GetMicroservicesResponse]("getOneMicroservice")
       summary("Returns a microservice")
-      description("""Returns the microservice with the specified id in the exchange DB. Can be run by a user, node, or agbot.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns the microservice with the specified id in the exchange DB. Can be run by a user, node, or agbot.""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("microservice", DataType.String, Option[String]("Microservice id (orgid/micro-id)."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Microservice id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire microservice resource will be returned."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/microservices/:microservice", operation(getOneMicroservice)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val bareMicro = params("microservice")   // but do not have a hack/fix for the name
     val microservice = OrgAndId(orgid,bareMicro).toString
-    //val microservice = swaggerHack("microservice")
     credsAndLog().authenticate().authorizeTo(TMicroservice(microservice),Access.READ)
     val resp = response
     params.get("attribute") match {
@@ -207,18 +204,19 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
 }
 ```"""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
-      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PostPutMicroserviceRequest],
-        Option[String]("Microservice object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PostPutMicroserviceRequest],
+          Option[String]("Microservice object that needs to be updated in the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val postMicroservices2 = (apiOperation[PostPutMicroserviceRequest]("postMicroservices2") summary("a") description("a"))  // for some bizarre reason, the PostMicroserviceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   post("/orgs/:orgid/microservices", operation(postMicroservices)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val ident = credsAndLog().authenticate().authorizeTo(TMicroservice(OrgAndId(orgid,"").toString),Access.CREATE)
     val microserviceReq = try { parse(request.body).extract[PostPutMicroserviceRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
@@ -259,53 +257,22 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val putMicroservices =
     (apiOperation[ApiResponse]("putMicroservices")
       summary "Updates a microservice"
-      description """Does a full replace of an existing microservice. This can only be called by the user that originally created it. The **request body** structure:
-
-```
-// (remove all of the comments like this before using)
-{
-  "label": "GPS for x86_64",     // this will be displayed in the node registration UI
-  "description": "blah blah",
-  "public": true,       // whether or not it can be viewed by other organizations
-  "specRef": "https://bluehorizon.network/documentation/microservice/gps",   // the unique identifier of this MS
-  "version": "1.0.0",
-  "arch": "amd64",
-  "sharable": "exclusive",   // or: "single", "multiple"
-  "downloadUrl": "",    // reserved for future use, can be omitted
-  "matchHardware": {},    // reserved for future use, can be omitted (will be hints to the node about how to tell if it has the physical sensors required by this MS
-  // Values the node owner will be prompted for and will be set as env vars to the container.
-  "userInput": [
-    {
-      "name": "foo",
-      "label": "The Foo Value",
-      "type": "string",   // or: "int", "float", "list of strings"
-      "defaultValue": "bar"
-    }
-  ],
-  // The docker images that will be deployed on edge nodes for this microservice
-  "workloads": [
-    {
-      "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:2.0.3\",\"privileged\":true,\"nodes\":[\"/dev/bus/usb/001/001:/dev/bus/usb/001/001\"]}}}",
-      "deployment_signature": "EURzSk=",     // filled in by the Horizon signing process
-      "torrent": "{\"url\":\"https://images.bluehorizon.network/139e5b32f271e43698565ff0a37c525609f86178.json\",\"signature\":\"L6/iZxGXloE=\"}"     // filled in by the Horizon signing process
-    }
-  ]
-}
-```"""
+      description """Does a full replace of an existing microservice. This can only be called by the user that originally created it."""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("microservice", DataType.String, Option[String]("Microservice id (orgid/micro-id)."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Microservice id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PostPutMicroserviceRequest],
-        Option[String]("Microservice object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
+          Option[String]("Microservice object that needs to be updated in the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putMicroservices2 = (apiOperation[PostPutMicroserviceRequest]("putMicroservices2") summary("a") description("a"))  // for some bizarre reason, the PutMicroserviceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/microservices/:microservice", operation(putMicroservices)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val bareMicro = params("microservice")   // but do not have a hack/fix for the name
     val microservice = OrgAndId(orgid,bareMicro).toString
     val ident = credsAndLog().authenticate().authorizeTo(TMicroservice(microservice),Access.WRITE)
@@ -339,34 +306,22 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
   val patchMicroservices =
     (apiOperation[Map[String,String]]("patchMicroservices")
       summary "Updates 1 attribute of a microservice"
-      description """Updates one attribute of a microservice in the exchange DB. This can only be called by the user that originally created this microservice resource. The **request body** structure can include **1 of these attributes**:
-
-```
-{
-  "label": "GPS x86_64",     // for the registration UI
-  "description": "blah blah",
-  "public": true,       // whether or not it can be viewed by other organizations
-  "specRef": "https://bluehorizon.network/documentation/microservice/gps",   // the unique identifier of this microservice
-  "version": "1.0.0",
-  "arch": "amd64",
-  "sharable": "exclusive",   // or: "single", "multiple"
-  "downloadUrl": ""    // reserved for future use
-}
-```"""
+      description """Updates one attribute of a microservice in the exchange DB. This can only be called by the user that originally created this microservice resource."""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("microservice", DataType.String, Option[String]("Microservice id (orgid/micro-id)."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Microservice id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchMicroserviceRequest],
           Option[String]("Partial microservice object that contains an attribute to be updated in this microservice. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val patchMicroservices2 = (apiOperation[PatchMicroserviceRequest]("patchMicroservices2") summary("a") description("a"))  // for some bizarre reason, the PatchMicroserviceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid/microservices/:microservice", operation(patchMicroservices)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val bareMicro = params("microservice")   // but do not have a hack/fix for the name
     val microservice = OrgAndId(orgid,bareMicro).toString
     credsAndLog().authenticate().authorizeTo(TMicroservice(microservice),Access.WRITE)
@@ -402,15 +357,16 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
       summary "Deletes a microservice"
       description "Deletes a microservice from the exchange DB. Can only be run by the owning user."
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("microservice", DataType.String, Option[String]("Microservice id (orgid/micro-id)."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Microservice id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   delete("/orgs/:orgid/microservices/:microservice", operation(deleteMicroservices)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val bareMicro = params("microservice")   // but do not have a hack/fix for the name
     val microservice = OrgAndId(orgid,bareMicro).toString
     credsAndLog().authenticate().authorizeTo(TMicroservice(microservice),Access.WRITE)
@@ -436,58 +392,58 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
 
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  /* ====== GET /orgs/{orgid}/microservices/{id}/keys ================================ */
+  /* ====== GET /orgs/{orgid}/microservices/{microservice}/keys ================================ */
   val getMicroserviceKeys =
     (apiOperation[List[String]]("getMicroserviceKeys")
       summary "Returns all keys/certs for this microservice"
-      description """Returns all the signing public keys/certs for this microservice. Can be run by any credentials able to view the microservice.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**"""
+      description """Returns all the signing public keys/certs for this microservice. Can be run by any credentials able to view the microservice."""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/microserviceid) of the microservice."), paramType=ParamType.Query),
-      Parameter("token", DataType.String, Option[String]("Token of the microservice. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Microservice id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
-  get("/orgs/:orgid/microservices/:id/keys", operation(getMicroserviceKeys)) ({
-    val orgid = swaggerHack("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
+  get("/orgs/:orgid/microservices/:microservice/keys", operation(getMicroserviceKeys)) ({
+    val orgid = params("orgid")
+    val microservice = params("microservice")
+    val compositeId = OrgAndId(orgid,microservice).toString
     credsAndLog().authenticate().authorizeTo(TMicroservice(compositeId),Access.READ)
     val resp = response
     db.run(MicroserviceKeysTQ.getKeys(compositeId).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/microservices/"+id+"/keys result size: "+list.size)
+      logger.debug("GET /orgs/"+orgid+"/microservices/"+microservice+"/keys result size: "+list.size)
       //logger.trace("GET /orgs/"+orgid+"/microservices/"+id+"/keys result: "+list.toString)
       if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
       list.map(_.keyId)
     })
   })
 
-  /* ====== GET /orgs/{orgid}/microservices/{id}/keys/{keyid} ================================ */
+  /* ====== GET /orgs/{orgid}/microservices/{microservice}/keys/{keyid} ================================ */
   val getOneMicroserviceKey =
     (apiOperation[String]("getOneMicroserviceKey")
       summary "Returns a key/cert for this microservice"
-      description """Returns the signing public key/cert with the specified keyid for this microservice. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the microservice. **Because of a swagger bug this method can not be run via swagger.**
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**"""
+      description """Returns the signing public key/cert with the specified keyid for this microservice. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the microservice."""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/microserviceid) of the microservice."), paramType=ParamType.Query),
-      Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType=ParamType.Query),
-      Parameter("token", DataType.String, Option[String]("Token of the microservice. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Microservice id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
-  get("/orgs/:orgid/microservices/:id/keys/:keyid", operation(getOneMicroserviceKey)) ({
-    val orgid = swaggerHack("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
+  get("/orgs/:orgid/microservices/:microservice/keys/:keyid", operation(getOneMicroserviceKey)) ({
+    val orgid = params("orgid")
+    val microservice = params("microservice")
+    val compositeId = OrgAndId(orgid,microservice).toString
     val keyId = params("keyid")
     credsAndLog().authenticate().authorizeTo(TMicroservice(compositeId),Access.READ)
     val resp = response
     db.run(MicroserviceKeysTQ.getKey(compositeId, keyId).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/microservices/"+id+"/keys/"+keyId+" result: "+list.size)
+      logger.debug("GET /orgs/"+orgid+"/microservices/"+microservice+"/keys/"+keyId+" result: "+list.size)
       if (list.nonEmpty) {
         // Return the raw key, not json
         resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
@@ -502,27 +458,29 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
     })
   })
 
-  // =========== PUT /orgs/{orgid}/microservices/{id}/keys/{keyid} ===============================
+  // =========== PUT /orgs/{orgid}/microservices/{microservice}/keys/{keyid} ===============================
   val putMicroserviceKey =
     (apiOperation[ApiResponse]("putMicroserviceKey")
       summary "Adds/updates a key/cert for the microservice"
       description """Adds a new signing public key/cert, or updates an existing key/cert, for this microservice. This can only be run by the microservice owning user. Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'."""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/microserviceid) of the microservice wanting to add/update this key."), paramType = ParamType.Query),
-      Parameter("keyid", DataType.String, Option[String]("ID of the key to be added/updated."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the microservice. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PutMicroserviceKeyRequest],
-        Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Microservice id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PutMicroserviceKeyRequest],
+          Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putMicroserviceKey2 = (apiOperation[PutMicroserviceKeyRequest]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
-  put("/orgs/:orgid/microservices/:id/keys/:keyid", operation(putMicroserviceKey)) ({
-    val orgid = swaggerHack("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
+  put("/orgs/:orgid/microservices/:microservice/keys/:keyid", operation(putMicroserviceKey)) ({
+    val orgid = params("orgid")
+    val microservice = params("microservice")
+    val compositeId = OrgAndId(orgid,microservice).toString
     val keyId = params("keyid")
     credsAndLog().authenticate().authorizeTo(TMicroservice(compositeId),Access.WRITE)
     val keyReq = PutMicroserviceKeyRequest(request.body)
@@ -531,7 +489,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
     keyReq.validate(keyId)
     val resp = response
     db.run(keyReq.toMicroserviceKeyRow(compositeId, keyId).upsert.asTry).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/microservices/"+id+"/keys/"+keyId+" result: "+xs.toString)
+      logger.debug("PUT /orgs/"+orgid+"/microservices/"+microservice+"/keys/"+keyId+" result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, "key added or updated")
@@ -546,26 +504,28 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
     })
   })
 
-  // =========== DELETE /orgs/{orgid}/microservices/{id}/keys ===============================
+  // =========== DELETE /orgs/{orgid}/microservices/{microservice}/keys ===============================
   val deleteMicroserviceAllKey =
     (apiOperation[ApiResponse]("deleteMicroserviceAllKey")
       summary "Deletes all keys of a microservice"
       description "Deletes all of the current keys/certs for this microservice. This can only be run by the microservice owning user."
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/microserviceid) of the microservice for which the key is to be deleted."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the microservice. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Microservice id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+    )
 
-  delete("/orgs/:orgid/microservices/:id/keys", operation(deleteMicroserviceAllKey)) ({
-    val orgid = swaggerHack("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
+  delete("/orgs/:orgid/microservices/:microservice/keys", operation(deleteMicroserviceAllKey)) ({
+    val orgid = params("orgid")
+    val microservice = params("microservice")
+    val compositeId = OrgAndId(orgid,microservice).toString
     credsAndLog().authenticate().authorizeTo(TMicroservice(compositeId),Access.WRITE)
     val resp = response
     db.run(MicroserviceKeysTQ.getKeys(compositeId).delete.asTry).map({ xs =>
-      logger.debug("DELETE /microservices/"+id+"/keys result: "+xs.toString)
+      logger.debug("DELETE /microservices/"+microservice+"/keys result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
@@ -580,28 +540,30 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
     })
   })
 
-  // =========== DELETE /orgs/{orgid}/microservices/{id}/keys/{keyid} ===============================
+  // =========== DELETE /orgs/{orgid}/microservices/{microservice}/keys/{keyid} ===============================
   val deleteMicroserviceKey =
     (apiOperation[ApiResponse]("deleteMicroserviceKey")
       summary "Deletes a key of a microservice"
       description "Deletes a key/cert for this microservice. This can only be run by the microservice owning user."
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/microserviceid) of the microservice for which the key is to be deleted."), paramType = ParamType.Path),
-      Parameter("keyid", DataType.String, Option[String]("ID of the key to be deleted."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the microservice. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("microservice", DataType.String, Option[String]("Microservice id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
-  delete("/orgs/:orgid/microservices/:id/keys/:keyid", operation(deleteMicroserviceKey)) ({
-    val orgid = swaggerHack("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
+  delete("/orgs/:orgid/microservices/:microservice/keys/:keyid", operation(deleteMicroserviceKey)) ({
+    val orgid = params("orgid")
+    val microservice = params("microservice")
+    val compositeId = OrgAndId(orgid,microservice).toString
     val keyId = params("keyid")
     credsAndLog().authenticate().authorizeTo(TMicroservice(compositeId),Access.WRITE)
     val resp = response
     db.run(MicroserviceKeysTQ.getKey(compositeId,keyId).delete.asTry).map({ xs =>
-      logger.debug("DELETE /microservices/"+id+"/keys/"+keyId+" result: "+xs.toString)
+      logger.debug("DELETE /microservices/"+microservice+"/keys/"+keyId+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)

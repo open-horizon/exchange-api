@@ -521,7 +521,7 @@ class NodesSuite extends FunSuite {
   */
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - as user in the URL params") {
-    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId+"?id="+orguser+"&token="+pw).headers(ACCEPT).asString
+    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId+"?id="+user+"&token="+pw).headers(ACCEPT).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)

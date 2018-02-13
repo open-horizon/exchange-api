@@ -54,14 +54,13 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val getOrgs =
     (apiOperation[GetOrgsResponse]("getOrgs")
       summary("Returns all orgs")
-      description("""Returns all org definitions in the exchange DB. Can be run by an admin user, or the root user.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns all org definitions in the exchange DB. Can be run by an admin user, or the root user.""")
       parameters(
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("label", DataType.String, Option[String]("Filter results to only include orgs with this label (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs", operation(getOrgs)) ({
@@ -84,19 +83,18 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val getOneOrg =
     (apiOperation[GetOrgsResponse]("getOneOrg")
       summary("Returns a org")
-      description("""Returns the org with the specified id in the exchange DB. Can be run by any user in this org.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns the org with the specified id in the exchange DB. Can be run by any user in this org.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire org resource will be returned."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid", operation(getOneOrg)) ({
-    val orgId = swaggerHack("orgid")
+    val orgId = params("orgid")
     credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.READ)
     val resp = response
     params.get("attribute") match {
@@ -128,27 +126,21 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val postOrgs =
     (apiOperation[ApiResponse]("postOrgs")
       summary "Adds a org"
-      description """Creates an org resource. This can only be called by the root user. The **request body** structure:
-
-```
-{
-  "label": "MyCompany Inc.",
-  "description": "blah blah"
-}
-```"""
+      description """Creates an org resource. This can only be called by the root user."""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
-      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PostPutOrgRequest],
-        Option[String]("Org object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PostPutOrgRequest],
+          Option[String]("Org object that needs to be updated in the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val postOrgs2 = (apiOperation[PostPutOrgRequest]("postOrgs2") summary("a") description("a"))  // for some bizarre reason, the PostOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   post("/orgs/:orgid", operation(postOrgs)) ({
-    val orgId = swaggerHack("orgid")
+    val orgId = params("orgid")
     credsAndLog().authenticate().authorizeTo(TOrg(""),Access.CREATE)
     val orgReq = try { parse(request.body).extract[PostPutOrgRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
@@ -177,27 +169,21 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val putOrgs =
     (apiOperation[ApiResponse]("putOrgs")
       summary "Updates a org"
-      description """Does a full replace of an existing org. This can only be called by root or a user in the org with the admin role. The **request body** structure:
-
-```
-{
-  "label": "MyCompany Inc.",
-  "description": "blah blah"
-}
-```"""
+      description """Does a full replace of an existing org. This can only be called by root or a user in the org with the admin role."""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
-      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PostPutOrgRequest],
-        Option[String]("Org object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PostPutOrgRequest],
+          Option[String]("Org object that needs to be updated in the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putOrgs2 = (apiOperation[PostPutOrgRequest]("putOrgs2") summary("a") description("a"))  // for some bizarre reason, the PutOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid", operation(putOrgs)) ({
-    val orgId = swaggerHack("orgid")
+    val orgId = params("orgid")
     credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
     val orgReq = try { parse(request.body).extract[PostPutOrgRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
@@ -226,27 +212,21 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val patchOrgs =
     (apiOperation[Map[String,String]]("patchOrgs")
       summary "Updates 1 attribute of a org"
-      description """Updates one attribute of a org in the exchange DB. This can only be called by root or a user in the org with the admin role. The **request body** structure can include **1 of these attributes**:
-
-```
-{
-  "label": "MyCompany, Inc.",
-  "description": "blah blah"
-}
-```"""
+      description """Updates one attribute of a org in the exchange DB. This can only be called by root or a user in the org with the admin role."""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchOrgRequest],
           Option[String]("Partial org object that contains an attribute to be updated in this org. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val patchOrgs2 = (apiOperation[PatchOrgRequest]("patchOrgs2") summary("a") description("a"))  // for some bizarre reason, the PatchOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid", operation(patchOrgs)) ({
-    val orgId = swaggerHack("orgid")
+    val orgId = params("orgid")
     credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
     val orgReq = try { parse(request.body).extract[PatchOrgRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
@@ -279,14 +259,15 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
       summary "Deletes a org"
       description "Deletes a org from the exchange DB. This can only be called by root or a user in the org with the admin role."
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   delete("/orgs/:orgid", operation(deleteOrgs)) ({
-    val orgId = swaggerHack("orgid")
+    val orgId = params("orgid")
     credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response

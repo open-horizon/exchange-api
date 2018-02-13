@@ -86,8 +86,6 @@ services in the exchange.
 - Add patch capability for node registered microservices?
 - Add an unauthenticated admin status rest api
 - Change local automated tests in Makefile to be more consistent with travis ci
-- Figure out how to set "Response Class (Status 200)" in swagger
-- See if there is a way to fix the swagger hack for 2 level resources
 - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 - Any other schema changes?
 
@@ -96,7 +94,9 @@ services in the exchange.
 
 ### External changes
 
-- add keys to ms, wk, pattern (anax issue 498)
+- add keys to ms, wk, service, pattern (anax issue 498)
+- Figure out how to set "Response Class (Status 200)" in swagger
+- See if there is a way to fix the swagger hack for 2 level resources
 
 
 ## Changes in 1.45.0

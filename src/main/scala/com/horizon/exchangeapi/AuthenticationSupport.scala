@@ -1087,7 +1087,7 @@ trait AuthenticationSupport extends ScalatraBase {
   }
 
   /** Work around A swagger Try It button bug that specifies id as "{id}" instead of the actual id. In this case, get the id from the query string.
-    * This might now actually be a swagger bug. The situation arises when the resource is 1 of those that can also be used as creds (user, node, agbot)
+    * This might not actually be a swagger bug. The situation arises when the resource is 1 of those that can also be used as creds (user, node, agbot)
     * In this case the swagger Parameter must be identified as Path or Query, but we really want it to be both. In lieu of that we make it Query and use this
     * hack to get it from there even for the resource id. */
   def swaggerHack(paramName: String): String = {

@@ -57,6 +57,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
       )
 
   post("/admin/reload", operation(postAdminReload)) ({
@@ -80,6 +81,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           Option[String]("The clear text password."),
           paramType = ParamType.Body)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
       )
   val postAdminHashPw2 = (apiOperation[AdminHashpwRequest]("postAdminHashPw2") summary("a") description("a"))
 
@@ -104,6 +106,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           Option[String]("The new logging level: OFF, ERROR, WARN, INFO, DEBUG, TRACE, or ALL"),
           paramType = ParamType.Body)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"))
       )
   val putAdminLogLevel2 = (apiOperation[AdminLogLevelRequest]("putAdminLogLevel2") summary("a") description("a"))
 
@@ -129,6 +132,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
       )
 
   get("/admin/dropdb/token", operation(getDropdbToken)) ({
@@ -146,6 +150,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("The token received from GET /admin/dropdb/token. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
       )
 
   post("/admin/dropdb", operation(postAdminDropDb)) ({
@@ -173,9 +178,10 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       summary "Creates the table schema in the DB"
       description "Creates the tables with the necessary schema in the Exchange DB. Can only be run by the root user."
       parameters(
-      Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-      Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
+        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
       )
 
   post("/admin/initdb", operation(postAdminInitDb)) ({
@@ -205,9 +211,10 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       summary "Upgrades the DB schema"
       description "Updates (alters) the schemas of the DB tables as necessary (w/o losing any data) to get to the latest DB schema. Can only be run by the root user."
       parameters(
-      Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-      Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
+        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
       )
 
   post("/admin/upgradedb", operation(postAdminUpgradeDb)) ({
@@ -401,6 +408,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     (apiOperation[String]("getAdminVersion")
       summary "Returns the version of the Exchange server"
       description "Returns the version of the Exchange server as a simple string (no JSON or quotes). Can be run by anyone."
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"))
       )
 
   get("/admin/version", operation(getAdminVersion)) ({
@@ -418,9 +426,10 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       summary "Returns status of the Exchange server"
       description "Returns a dictionary of statuses/statistics. Can be run by any user."
       parameters(
-      Parameter("username", DataType.String, Option[String]("The username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-      Parameter("password", DataType.String, Option[String]("The password. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
+        Parameter("username", DataType.String, Option[String]("The username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("The password. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
       )
 
   get("/admin/status", operation(getAdminStatus)) ({

@@ -81,11 +81,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val getPatterns =
     (apiOperation[GetPatternsResponse]("getPatterns")
       summary("Returns all patterns")
-      description("""Returns all pattern definitions in this organization. Can be run by any user, node, or agbot.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns all pattern definitions in this organization. Can be run by any user, node, or agbot.""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("idfilter", DataType.String, Option[String]("Filter results to only include patterns with this id (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
@@ -94,10 +92,11 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("label", DataType.String, Option[String]("Filter results to only include patterns with this label (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("description", DataType.String, Option[String]("Filter results to only include patterns with this description (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/patterns", operation(getPatterns)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val ident = credsAndLog().authenticate().authorizeTo(TPattern(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
     //var q = PatternsTQ.rows.subquery
@@ -122,20 +121,19 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val getOnePattern =
     (apiOperation[GetPatternsResponse]("getOnePattern")
       summary("Returns a pattern")
-      description("""Returns the pattern with the specified id in the exchange DB. Can be run by a user, node, or agbot.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns the pattern with the specified id in the exchange DB. Can be run by a user, node, or agbot.""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire pattern resource will be returned."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/patterns/:pattern", operation(getOnePattern)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
     val pattern = OrgAndId(orgid,barePattern).toString
     credsAndLog().authenticate().authorizeTo(TPattern(pattern),Access.READ)
@@ -233,8 +231,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 }
 ```"""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
         Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         //Parameter("updateagbot", DataType.String, Option[String]("An agbot resource id (org/agbotid) that should be updated to serve this pattern. Can be specified multiple times."), paramType=ParamType.Query, required=false),
@@ -246,7 +244,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val postPatterns2 = (apiOperation[PostPutPatternRequest]("postPatterns2") summary("a") description("a"))  // for some bizarre reason, the PostPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   post("/orgs/:orgid/patterns/:pattern", operation(postPatterns)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
     val pattern = OrgAndId(orgid,barePattern).toString
     val ident = credsAndLog().authenticate().authorizeTo(TPattern(OrgAndId(orgid,"").toString),Access.CREATE)
@@ -371,19 +369,20 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 }
 ```"""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Query),
-      Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
-      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PostPutPatternRequest],
-        Option[String]("Pattern object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PostPutPatternRequest],
+          Option[String]("Pattern object that needs to be updated in the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putPatterns2 = (apiOperation[PostPutPatternRequest]("putPatterns2") summary("a") description("a"))  // for some bizarre reason, the PutPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/patterns/:pattern", operation(putPatterns)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
     val pattern = OrgAndId(orgid,barePattern).toString
     val ident = credsAndLog().authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
@@ -431,31 +430,22 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val patchPatterns =
     (apiOperation[Map[String,String]]("patchPatterns")
       summary "Updates 1 attribute of a pattern"
-      description """Updates one attribute of a pattern in the exchange DB. This can only be called by the user that originally created this pattern resource. The **request body** structure can include **1 of these attributes**:
-
-```
-{
-  "label": "name of the edge pattern",
-  "description": "descriptive text",
-  "public": false,
-  "workloads": [ ... ],
-  "agreementProtocols": [ ... ]
-}
-```"""
+      description """Updates one attribute of a pattern in the exchange DB. This can only be called by the user that originally created this pattern resource."""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchPatternRequest],
           Option[String]("Partial pattern object that contains an attribute to be updated in this pattern. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val patchPatterns2 = (apiOperation[PatchPatternRequest]("patchPatterns2") summary("a") description("a"))  // for some bizarre reason, the PatchPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid/patterns/:pattern", operation(patchPatterns)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
     val pattern = OrgAndId(orgid,barePattern).toString
     credsAndLog().authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
@@ -506,15 +496,16 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       summary "Deletes a pattern"
       description "Deletes a pattern from the exchange DB. Can only be run by the owning user."
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   delete("/orgs/:orgid/patterns/:pattern", operation(deletePatterns)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
     val pattern = OrgAndId(orgid,barePattern).toString
     credsAndLog().authenticate().authorizeTo(TPattern(pattern),Access.WRITE)

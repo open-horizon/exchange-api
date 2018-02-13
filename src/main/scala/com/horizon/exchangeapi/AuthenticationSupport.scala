@@ -156,7 +156,7 @@ case class Creds(id: String, token: String) {     // id and token are generic na
 }
 
 case class OrgAndId(org: String, id: String) {
-  override def toString = org + "/" + id
+  override def toString = if (org == "" || id.startsWith(org + "/")) id else org + "/" + id
 }
 
 case class CompositeId(compositeId: String) {
@@ -1076,9 +1076,10 @@ trait AuthenticationSupport extends ScalatraBase {
         }
       // Not in the header, look in the url query string. Parameters() gives you the params after "?". Params() gives you the routes variables (if they have same name)
       case None => (params.get("orgid"), request.parameters.get("id").orElse(params.get("id")), request.parameters.get("token")) match {
-        case (Some(org), Some(id), Some(tok)) => if (id == "{id}") Creds(OrgAndId(org,swaggerHack("id")).toString,tok) else Creds(OrgAndId(org,id).toString,tok)
-        case _ => (params.get("orgid"), request.parameters.get("username").orElse(params.get("username")), request.parameters.get("password").orElse(request.parameters.get("token"))) match {
-          case (Some(org), Some(user), Some(pw)) => if (user == "{username}") Creds(OrgAndId(org,swaggerHack("username")).toString,pw) else Creds(OrgAndId(org,user).toString,pw)
+        case (Some(org), Some(id), Some(tok)) => Creds(OrgAndId(org,id).toString,tok)
+        // Did not find id/token, so look for username/password
+        case _ => (params.get("orgid").getOrElse(""), request.parameters.get("username").orElse(params.get("username")), request.parameters.get("password").orElse(request.parameters.get("token"))) match {
+          case (org, Some(user), Some(pw)) => Creds(OrgAndId(org,user).toString,pw)
           case _ => if (anonymousOk) Creds("","")
             else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "no credentials given"))
         }
@@ -1089,7 +1090,7 @@ trait AuthenticationSupport extends ScalatraBase {
   /** Work around A swagger Try It button bug that specifies id as "{id}" instead of the actual id. In this case, get the id from the query string.
     * This might not actually be a swagger bug. The situation arises when the resource is 1 of those that can also be used as creds (user, node, agbot)
     * In this case the swagger Parameter must be identified as Path or Query, but we really want it to be both. In lieu of that we make it Query and use this
-    * hack to get it from there even for the resource id. */
+    * hack to get it from there even for the resource id.
   def swaggerHack(paramName: String): String = {
     val paramsVal = params(paramName)
     if (paramsVal != "{"+paramName+"}") return paramsVal
@@ -1100,6 +1101,7 @@ trait AuthenticationSupport extends ScalatraBase {
       case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "swagger specifies the "+paramName+" incorrectly in this case"))
     }
   }
+  */
 
   /** Returns a temporary pw reset token. */
   def createToken(username: String): String = {

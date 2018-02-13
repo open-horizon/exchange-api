@@ -27,6 +27,7 @@ class AdminSuite extends FunSuite {
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080")
   val URL = urlRoot+"/v1"
   val ACCEPT = ("Accept","application/json")
+  val ACCEPTTEXT = ("Accept","text/plain")
   val CONTENT = ("Content-Type","application/json")
   val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "Horizon-Rul3s")      // need to put this root pw in config.json
@@ -82,7 +83,7 @@ class AdminSuite extends FunSuite {
   }
 
   test("GET /admin/version") {
-    val response = Http(URL+"/admin/version").headers(ACCEPT).asString
+    val response = Http(URL+"/admin/version").headers(ACCEPTTEXT).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
   }

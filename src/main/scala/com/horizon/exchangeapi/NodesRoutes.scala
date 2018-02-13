@@ -325,7 +325,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description("""Returns the node (RPi) with the specified id in the exchange DB. Can be run by that node, a user, or an agbot.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified, and it must be 1 of the direct attributes of the node resource (not of the microservices). If not specified, the entire node resource (including microservices) will be returned."), paramType=ParamType.Query, required=false)
         )
@@ -334,7 +334,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   get("/orgs/:orgid/nodes/:id", operation(getOneNode)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     val ident = credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
     val superUser = ident.isSuperUser
@@ -703,7 +703,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 ```"""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be added/updated."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be added/updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PutNodesRequest],
           Option[String]("Node object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
@@ -716,7 +716,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   put("/orgs/:orgid/nodes/:id", operation(putNodes)) ({
     // consider writing a customer deserializer that will do error checking on the body, see: https://gist.github.com/fehguy/4191861#file-gistfile1-scala-L74
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     val ident = credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
     val node = try { parse(request.body).extract[PutNodesRequest] }
@@ -778,7 +778,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description """Updates some attributes of a node (RPi) in the exchange DB. This can be called by the user or the node."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be updated."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchNodesRequest],
           Option[String]("Node object that contains attributes to updated in, the exchange. See details in the Implementation Notes above."),
@@ -790,7 +790,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   patch("/orgs/:orgid/nodes/:id", operation(patchNodes)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
     val node = try { parse(request.body).extract[PatchNodesRequest] }
@@ -834,7 +834,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description "Deletes a node (RPi) from the exchange DB, and deletes the agreements stored for this node (but does not actually cancel the agreements between the node and agbots). Can be run by the owning user or the node."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be deleted."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -842,7 +842,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   delete("/orgs/:orgid/nodes/:id", operation(deleteNodes)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
@@ -871,7 +871,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description "Lets the exchange know this node is still active so it is still a candidate for contracting. Can be run by the owning user or the node."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be updated."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -879,7 +879,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   post("/orgs/:orgid/nodes/:id/heartbeat", operation(postNodesHeartbeat)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
     val resp = response
@@ -907,7 +907,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description("""Returns the node run time status, for example workload container status. Can be run by a user or the node.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -915,7 +915,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   get("/orgs/:orgid/nodes/:id/status", operation(getNodeStatus)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
     val resp = response
@@ -976,7 +976,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 ```"""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node wanting to add/update this status."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node wanting to add/update this status."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PutNodeStatusRequest],
           Option[String]("Status object add or update. See details in the Implementation Notes above."),
@@ -988,7 +988,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   put("/orgs/:orgid/nodes/:id/status", operation(putNodeStatus)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
     val status = try { parse(request.body).extract[PutNodeStatusRequest] }
@@ -1017,7 +1017,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description "Deletes the status of a node from the exchange DB. Can be run by the owning user or the node."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node for which the status is to be deleted."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node for which the status is to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -1025,7 +1025,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   delete("/orgs/:orgid/nodes/:id/status", operation(deleteNodeStatus)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
     val resp = response
@@ -1053,14 +1053,14 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description("""Returns all agreements in the exchange DB that this node is part of. Can be run by a user or the node.""")
       parameters(
       Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Query),
+      Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Path),
       Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
     )
       )
 
   get("/orgs/:orgid/nodes/:id/agreements", operation(getNodeAgreements)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
     val resp = response
@@ -1080,7 +1080,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description("""Returns the agreement with the specified agid for the specified node id in the exchange DB. Can be run by a user or the node.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Path),
         Parameter("agid", DataType.String, Option[String]("ID of the agreement."), paramType=ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -1089,7 +1089,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   get("/orgs/:orgid/nodes/:id/agreements/:agid", operation(getOneNodeAgreement)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     val agId = params("agid")
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
@@ -1125,7 +1125,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 ```"""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node wanting to add/update this agreement."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node wanting to add/update this agreement."), paramType = ParamType.Path),
         Parameter("agid", DataType.String, Option[String]("ID of the agreement to be added/updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PutNodeAgreementRequest],
@@ -1139,7 +1139,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   put("/orgs/:orgid/nodes/:id/agreements/:agid", operation(putNodeAgreement)) ({
     //todo: keep a running total of agreements for each MS so we can search quickly for available MSs
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     val agId = params("agid")
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
@@ -1184,7 +1184,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   delete("/orgs/:orgid/nodes/:id/agreements", operation(deleteNodeAllAgreement)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
     val resp = response
@@ -1211,7 +1211,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description "Deletes an agreement of a node from the exchange DB. Can be run by the owning user or the node."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node for which the agreement is to be deleted."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node for which the agreement is to be deleted."), paramType = ParamType.Path),
         Parameter("agid", DataType.String, Option[String]("ID of the agreement to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -1220,7 +1220,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   delete("/orgs/:orgid/nodes/:id/agreements/:agid", operation(deleteNodeAgreement)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     val agId = params("agid")
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
@@ -1322,7 +1322,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description("""Returns all msgs that have been sent to this node. They will be returned in the order they were sent. All msgs that have been sent to this node will be returned, unless the node has deleted some, or some are past their TTL. Can be run by a user or the node.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node."), paramType=ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -1330,7 +1330,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   get("/orgs/:orgid/nodes/:id/msgs", operation(getNodeMsgs)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
     val resp = response
@@ -1355,7 +1355,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description "Deletes an msg that was sent to a node. This should be done by the node after each msg is read. Can be run by the owning user or the node."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be deleted."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be deleted."), paramType = ParamType.Path),
         Parameter("msgid", DataType.String, Option[String]("ID of the msg to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -1364,7 +1364,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   delete("/orgs/:orgid/nodes/:id/msgs/:msgid", operation(deleteNodeMsg)) ({
     val orgid = params("orgid")
-    val bareId = swaggerHack("id")
+    val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "msgid must be an integer: "+e)) }    // the specific exception is NumberFormatException
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)

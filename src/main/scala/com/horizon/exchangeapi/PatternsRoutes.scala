@@ -233,7 +233,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         //Parameter("updateagbot", DataType.String, Option[String]("An agbot resource id (org/agbotid) that should be updated to serve this pattern. Can be specified multiple times."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PostPutPatternRequest],

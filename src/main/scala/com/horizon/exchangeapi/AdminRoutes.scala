@@ -408,6 +408,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     (apiOperation[String]("getAdminVersion")
       summary "Returns the version of the Exchange server"
       description "Returns the version of the Exchange server as a simple string (no JSON or quotes). Can be run by anyone."
+      produces "text/plain"
       responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"))
       )
 

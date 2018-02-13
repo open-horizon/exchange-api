@@ -147,7 +147,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description("""Returns the agbot (Agreement Bot) with the specified id in the exchange DB. Can be run by a user or the agbot.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire node resource (including microservices) will be returned."), paramType=ParamType.Query, required=false)
         )
@@ -156,7 +156,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   get("/orgs/:orgid/agbots/:id", operation(getOneAgbot)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")   // but do not have a hack/fix for the name
+    val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
     val ident = credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
     val superUser = ident.isSuperUser
@@ -193,7 +193,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description """Adds a new agbot (Agreement Bot) to the exchange DB, or updates an existing agbot. This must be called by the user to add a agbot, and then can be called by that user or agbot to update itself."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be added/updated."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be added/updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PutAgbotsRequest],
           Option[String]("Agbot object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
@@ -205,7 +205,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   put("/orgs/:orgid/agbots/:id", operation(putAgbots)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")   // but do not have a hack/fix for the name
+    val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
     val ident = credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val agbot = try { parse(request.body).extract[PutAgbotsRequest] }
@@ -255,7 +255,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description """Updates some attributes of an agbot in the exchange DB. This can be called by the user or the agbot."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be updated."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchAgbotsRequest],
           Option[String]("Agbot object that contains attributes to updated in, the exchange. See details in the Implementation Notes above."),
@@ -267,7 +267,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   patch("/orgs/:orgid/agbots/:id", operation(patchAgbots)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")   // but do not have a hack/fix for the name
+    val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val agbot = try { parse(request.body).extract[PatchAgbotsRequest] }
@@ -303,7 +303,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description "Deletes a agbot (Agreement Bot) from the exchange DB, and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the nodes and agbot). Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be deleted."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -311,7 +311,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   delete("/orgs/:orgid/agbots/:id", operation(deleteAgbots)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")   // but do not have a hack/fix for the name
+    val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
@@ -340,7 +340,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description "Lets the exchange know this agbot is still active. Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be updated."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -348,7 +348,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   post("/orgs/:orgid/agbots/:id/heartbeat", operation(postAgbotsHeartbeat)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")   // but do not have a hack/fix for the name
+    val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
@@ -377,7 +377,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description("""Returns all patterns that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -385,7 +385,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   get("/orgs/:orgid/agbots/:id/patterns", operation(getAgbotPatterns)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")   // but do not have a hack/fix for the name
+    val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
     val resp = response
@@ -406,7 +406,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description("""Returns the pattern with the specified patid for the specified agbot id. The patid should be in the form patternOrgid_pattern. Can be run by the owning user or the agbot.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
         Parameter("patid", DataType.String, Option[String]("ID of the pattern."), paramType=ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -415,7 +415,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   get("/orgs/:orgid/agbots/:id/patterns/:patid", operation(getOneAgbotPattern)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")
+    val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val patId = params("patid")
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
@@ -436,7 +436,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description """Adds a new pattern, or updates an existing pattern, that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the pattern."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add/update this pattern."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add/update this pattern."), paramType = ParamType.Path),
         Parameter("patid", DataType.String, Option[String]("ID of the pattern to be added/updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PutAgbotPatternRequest],
@@ -449,7 +449,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   put("/orgs/:orgid/agbots/:id/patterns/:patid", operation(putAgbotPattern)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")
+    val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val patId = params("patid")
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
@@ -487,7 +487,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description "Deletes all of the current patterns that this agbot was serving. Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the pattern is to be deleted."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the pattern is to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -495,7 +495,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   delete("/orgs/:orgid/agbots/:id/patterns", operation(deleteAgbotAllPattern)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")
+    val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
@@ -522,7 +522,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description "Deletes a pattern that this agbot was serving. Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the pattern is to be deleted."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the pattern is to be deleted."), paramType = ParamType.Path),
         Parameter("patid", DataType.String, Option[String]("ID of the pattern to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -531,7 +531,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   delete("/orgs/:orgid/agbots/:id/patterns/:patid", operation(deleteAgbotPattern)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")
+    val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val patId = params("patid")
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
@@ -561,7 +561,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description("""Returns all agreements in the exchange DB that this agbot is part of. Can be run by the owning user or the agbot.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -569,7 +569,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   get("/orgs/:orgid/agbots/:id/agreements", operation(getAgbotAgreements)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")
+    val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
     val resp = response
@@ -590,7 +590,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description("""Returns the agreement with the specified agid for the specified agbot id in the exchange DB. Can be run by the owning user or the agbot.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
         Parameter("agid", DataType.String, Option[String]("ID of the agreement."), paramType=ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
@@ -599,7 +599,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   get("/orgs/:orgid/agbots/:id/agreements/:agid", operation(getOneAgbotAgreement)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")
+    val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val agrId = params("agid")
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
@@ -620,7 +620,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description """Adds a new agreement of a agbot to the exchange DB, or updates an existing agreement. This is called by the owning user or the agbot to give their information about the agreement."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add/update this agreement."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add/update this agreement."), paramType = ParamType.Path),
         Parameter("agid", DataType.String, Option[String]("ID of the agreement to be added/updated."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PutAgbotAgreementRequest],
@@ -633,7 +633,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   put("/orgs/:orgid/agbots/:id/agreements/:agid", operation(putAgbotAgreement)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")
+    val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val agrId = params("agid")
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
@@ -671,7 +671,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description "Deletes all of the current agreements of a agbot from the exchange DB. Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -679,7 +679,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   delete("/orgs/:orgid/agbots/:id/agreements", operation(deleteAgbotAllAgreement)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")
+    val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
@@ -706,7 +706,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description "Deletes an agreement of a agbot from the exchange DB. Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
         Parameter("agid", DataType.String, Option[String]("ID of the agreement to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
@@ -715,7 +715,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   delete("/orgs/:orgid/agbots/:id/agreements/:agid", operation(deleteAgbotAgreement)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")
+    val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val agrId = params("agid")
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
@@ -752,7 +752,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         )
       )
   post("/agbots/:id/dataheartbeat", operation(postAgbotsDataHeartbeat)) ({
-    val id = swaggerHack("id")
+    val id = params("id")
     // validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
     credsAndLog().authenticate().authorizeTo(TAgbot("#"),Access.DATA_HEARTBEAT_MY_AGBOTS).creds
     val agrIds = try { parse(request.body).extract[List[String]] }
@@ -798,7 +798,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       )
   val postAgbotsIsRecentData2 = (apiOperation[PostAgbotsIsRecentDataRequest]("postAgbotsIsRecentData2") summary("a") description("a"))
   post("/agbots/:id/isrecentdata", operation(postAgbotsIsRecentData)) ({
-    val id = swaggerHack("id")
+    val id = params("id")
     // validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
     credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.READ).creds
     val req = try { parse(request.body).extract[PostAgbotsIsRecentDataRequest] }
@@ -924,7 +924,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   // The credentials for this are usually a node id
   post("/orgs/:orgid/agbots/:id/msgs", operation(postAgbotsMsgs)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")
+    val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val ident = credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.SEND_MSG_TO_AGBOT)
     val nodeId = ident.creds.id      //todo: handle the case where the acls allow users to send msgs
@@ -975,7 +975,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description("""Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -983,7 +983,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   get("/orgs/:orgid/agbots/:id/msgs", operation(getAgbotMsgs)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")
+    val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
     val resp = response
@@ -1009,7 +1009,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       description "Deletes an msg that was sent to a agbot. This should be done by the agbot after each msg is read. Can be run by the owning user or the agbot."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be deleted."), paramType = ParamType.Query),
+        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be deleted."), paramType = ParamType.Path),
         Parameter("msgid", DataType.String, Option[String]("ID of the msg to be deleted."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
@@ -1018,9 +1018,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   delete("/orgs/:orgid/agbots/:id/msgs/:msgid", operation(deleteAgbotMsg)) ({
     val orgid = params("orgid")
-    val id = swaggerHack("id")
+    val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
-    val msgId = try { swaggerHack("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "msgid must be an integer: "+e)) }    // the specific exception is NumberFormatException
+    val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "msgid must be an integer: "+e)) }    // the specific exception is NumberFormatException
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
     db.run(AgbotMsgsTQ.getMsg(compositeId,msgId).delete.asTry).map({ xs =>

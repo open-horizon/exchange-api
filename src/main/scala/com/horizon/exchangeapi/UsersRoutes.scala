@@ -95,7 +95,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description("""Returns the user with the specified username in the exchange DB. Can only be run by that user or root.""")
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user."), paramType=ParamType.Query),
+        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user."), paramType=ParamType.Path),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -103,7 +103,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   get("/orgs/:orgid/users/:username", operation(getOneUser)) ({
     val orgid = params("orgid")
-    val username = swaggerHack("username")
+    val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
     val ident = credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.READ)
     val superUser = ident.isSuperUser
@@ -139,7 +139,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 ```"""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be added."), paramType = ParamType.Query, required=false),
+        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be added."), paramType = ParamType.Path),
         Parameter("body", DataType[PostPutUsersRequest],
           Option[String]("User object that needs to be added to the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
@@ -152,7 +152,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     // Note: we do not currently verify this is a real person creating this (with, for example, captcha), so instead haproxy restricts the number of times a single IP address can call this in a day to a small number
     // Note: if this is invoked by anonymous, the ACLs will only succeed if the org is "public", because that is anonymous' org by default.
     val orgid = params("orgid")
-    val username = swaggerHack("username")
+    val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
     val ident = credsAndLog(true).authenticate().authorizeTo(TUser(compositeId),Access.CREATE)
     val user = try { parse(request.body).extract[PostPutUsersRequest] }
@@ -181,7 +181,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description """Updates an existing user. Only the user itself or root can update an existing user. If run with root credentials this REST API method can also be used to create new users."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be updated."), paramType = ParamType.Query, required=false),
+        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be updated."), paramType = ParamType.Path),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PostPutUsersRequest],
           Option[String]("User object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
@@ -193,7 +193,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   put("/orgs/:orgid/users/:username", operation(putUsers)) ({
     val orgid = params("orgid")
-    val username = swaggerHack("username")
+    val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
     val ident = credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
     val isRoot = ident.isSuperUser
@@ -240,7 +240,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description """Updates 1 attribute of an existing user. Only the user itself or root can update an existing user."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be updated."), paramType = ParamType.Query, required=false),
+        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be updated."), paramType = ParamType.Path),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchUsersRequest],
           Option[String]("User object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
@@ -253,7 +253,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   patch("/orgs/:orgid/users/:username", operation(patchUsers)) ({
     // Note: we currently do not have a way to verify this is a real person creating this, so we use rate limiting in haproxy
     val orgid = params("orgid")
-    val username = swaggerHack("username")
+    val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
     val ident = credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
     val user = try { parse(request.body).extract[PatchUsersRequest] }
@@ -290,7 +290,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description "Deletes a user from the exchange DB and all of its nodes and agbots. Can only be run by that user or root."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be deleted."), paramType = ParamType.Query),
+        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be deleted."), paramType = ParamType.Path),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -298,7 +298,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   delete("/orgs/:orgid/users/:username", operation(deleteUsers)) ({
     val orgid = params("orgid")
-    val username = swaggerHack("username")
+    val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
     credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
     val resp = response
@@ -327,7 +327,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description "Confirms whether or not this username exists and has the specified password. Can only be run by that user or root."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be confirmed."), paramType = ParamType.Query),
+        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be confirmed."), paramType = ParamType.Path),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -336,7 +336,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   post("/orgs/:orgid/users/:username/confirm", operation(postUsersConfirm)) ({
     // Note: the haproxy rate limiting guards against pw cracking attempts
     val orgid = params("orgid")
-    val username = swaggerHack("username")
+    val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
     credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.READ)
     status_=(HttpCode.POST_OK)
@@ -364,7 +364,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   post("/orgs/:orgid/users/:username/reset", operation(postUsersReset)) ({
     val orgid = params("orgid")
-    val username = swaggerHack("username")
+    val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
     // Note: anonymous is allowed, obviously, but haproxy rate limiting is used to prevent someone else flooding their email
     val ident = credsAndLog(true).authenticate().authorizeTo(TUser(compositeId),Access.RESET_USER_PW)
@@ -424,7 +424,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description "Use POST /orgs/{orgid}/users/{username}/reset to have a timed token sent to your email address. Then give that token and your new password to this REST API method."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be reset."), paramType = ParamType.Query),
+        Parameter("username", DataType.String, Option[String]("Username (orgid/username) of the user to be reset."), paramType = ParamType.Path),
         Parameter("token", DataType.String, Option[String]("Reset token obtained from POST /orgs/{orgid}/users/{username}/reset. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[ChangePwRequest],
           Option[String]("Your new password."),
@@ -436,7 +436,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   post("/orgs/:orgid/users/:username/changepw", operation(postUsersChangePw)) ({
     val orgid = params("orgid")
-    val username = swaggerHack("username")
+    val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
     credsAndLog().authenticate("token").authorizeTo(TUser(compositeId),Access.WRITE)
     val req = try { parse(request.body).extract[ChangePwRequest] }

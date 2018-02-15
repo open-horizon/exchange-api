@@ -354,7 +354,7 @@ if [[ $rc != 200 ]]; then
       "workloadVersions": [
         {
           "version": "'$workversion'",
-          "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+          "deployment_overrides": "{\"services\":{\"netspeed\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
           "deployment_overrides_signature": "a",
           "priority": {
             "priority_value": 50,

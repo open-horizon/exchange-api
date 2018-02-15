@@ -245,7 +245,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   ],
   // Information about how to deploy the docker images for this service
   "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-  "deployment_signature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
+  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
   "pkg": {
     // There could be several different package reference schemes so the schema will be left open. However, the storeType must be set for all cases to discriminate the type of storage being used.
     "storeType": "dockerRegistry" // imageServer and dockerRegistry are the only supported values right now

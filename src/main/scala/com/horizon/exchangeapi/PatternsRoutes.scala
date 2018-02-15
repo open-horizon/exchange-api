@@ -164,7 +164,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
       case None => ;  // Return the whole pattern resource
         db.run(PatternsTQ.getPattern(pattern).result).map({ list =>
-          logger.debug("GET /orgs/"+orgid+"/patterns/"+barePattern+" result: "+list.toString)
+          logger.debug("GET /orgs/"+orgid+"/patterns/"+barePattern+" result: "+list.size)
           val patterns = new MutableHashMap[String,Pattern]
           if (list.nonEmpty) for (a <- list) patterns.put(a.pattern, a.toPattern)
           else resp.setStatus(HttpCode.NOT_FOUND)

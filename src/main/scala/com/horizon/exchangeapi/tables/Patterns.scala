@@ -8,14 +8,9 @@ import scala.collection.mutable.ListBuffer
 
 /** Contains the object representations of the DB tables related to patterns. */
 
-//case class PPriority(priority_value: Int, retries: Int, retry_durations: Int, verified_durations: Int)
-//case class PUpgradePolicy(lifecycle: String, time: String)
-//case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification, nodeHealth: Map[String,Int])
 case class PWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: Option[Map[String,Any]], nodeHealth: Option[Map[String,Int]])
-//case class POldWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: PDataVerification)
 case class POldWorkloads(workloadUrl: String, workloadOrgid: String, workloadArch: String, workloadVersions: List[PWorkloadVersions], dataVerification: Map[String,Any])
 case class PWorkloadVersions(version: String, deployment_overrides: String, deployment_overrides_signature: String, priority: Map[String,Int], upgradePolicy: Map[String,String])
-//case class PMetering(tokens: Int, per_time_unit: String, notification_interval: Int)
 case class PDataVerification(enabled: Boolean, URL: String, user: String, password: String, interval: Int, check_rate: Int, metering: Map[String,Any])
 
 case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, workloads: String, agreementProtocols: String, lastUpdated: String) {
@@ -52,16 +47,10 @@ class Patterns(tag: Tag) extends Table[PatternRow](tag, "patterns") {
   def label = column[String]("label")
   def description = column[String]("description")
   def public = column[Boolean]("public")
-  //def microservices = column[String]("microservices")
   def workloads = column[String]("workloads")
-  //def dataVerification = column[String]("dataVerification")
   def agreementProtocols = column[String]("agreementProtocols")
-  //def properties = column[String]("properties")
-  //def counterPartyProperties = column[String]("counterPartyProperties")
-  //def maxAgreements = column[Int]("maxAgreements")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  //def * = (pattern, orgid, owner, label, description, public, microservices, workloads, dataVerification, agreementProtocols, properties, counterPartyProperties, maxAgreements, lastUpdated) <> (PatternRow.tupled, PatternRow.unapply)
   def * = (pattern, orgid, owner, label, description, public, workloads, agreementProtocols, lastUpdated) <> (PatternRow.tupled, PatternRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
@@ -118,8 +107,33 @@ object PatternsTQ {
 }
 
 // This is the pattern table minus the key - used as the data structure to return to the REST clients
-//class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var microservices: List[Map[String,String]], var workloads: List[PWorkloads], var dataVerification: PDataVerification, var agreementProtocols: List[Map[String,String]], var properties: List[Map[String,Any]], var counterPartyProperties: Map[String,List[Map[String,Any]]], var maxAgreements: Int, var lastUpdated: String) {
 class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var workloads: List[PWorkloads], var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {
   def copy = new Pattern(owner, label, description, public, workloads, agreementProtocols, lastUpdated)
 }
 
+
+// Key is a sub-resource of pattern
+case class PatternKeyRow(keyId: String, patternId: String, key: String, lastUpdated: String) {
+  def toPatternKey = PatternKey(key, lastUpdated)
+
+  def upsert: DBIO[_] = PatternKeysTQ.rows.insertOrUpdate(this)
+}
+
+class PatternKeys(tag: Tag) extends Table[PatternKeyRow](tag, "patternkeys") {
+  def keyId = column[String]("keyid")     // key - the key name
+  def patternId = column[String]("patternid")               // additional key - the composite orgid/patternid
+  def key = column[String]("key")                   // the actual key content
+  def lastUpdated = column[String]("lastupdated")
+  def * = (keyId, patternId, key, lastUpdated) <> (PatternKeyRow.tupled, PatternKeyRow.unapply)
+  def primKey = primaryKey("pk_ptk", (keyId, patternId))
+  def pattern = foreignKey("pattern_fk", patternId, PatternsTQ.rows)(_.pattern, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object PatternKeysTQ {
+  val rows = TableQuery[PatternKeys]
+
+  def getKeys(patternId: String) = rows.filter(_.patternId === patternId)
+  def getKey(patternId: String, keyId: String) = rows.filter( r => {r.patternId === patternId && r.keyId === keyId} )
+}
+
+case class PatternKey(key: String, lastUpdated: String)

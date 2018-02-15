@@ -9,6 +9,7 @@ import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 import com.horizon.exchangeapi.tables._
+//import org.scalatra.servlet.{FileUploadSupport, MultipartConfig, SizeConstraintExceededException}
 
 import scala.collection.immutable._
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
@@ -75,22 +76,31 @@ case class PatchWorkloadRequest(label: Option[String], description: Option[Strin
 }
 
 
+/** Input format for PUT /orgs/{orgid}/workloads/{workload}/keys/<key-id> */
+case class PutWorkloadKeyRequest(key: String) {
+  def toWorkloadKey = WorkloadKey(key, ApiTime.nowUTC)
+  def toWorkloadKeyRow(workloadId: String, keyId: String) = WorkloadKeyRow(keyId, workloadId, key, ApiTime.nowUTC)
+  def validate(keyId: String) = {
+    //if (keyId != formId) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the key id should be in the form keyOrgid_key"))
+  }
+}
+
+
 
 /** Implementation for all of the /orgs/{orgid}/workloads routes */
-trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
+trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport /*with FileUploadSupport*/ {
   def db: Database      // get access to the db object in ExchangeApiApp
   def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
+  //configureMultipartHandling(MultipartConfig(maxFileSize = Some(3*1024*1024)))
 
   /* ====== GET /orgs/{orgid}/workloads ================================ */
   val getWorkloads =
     (apiOperation[GetWorkloadsResponse]("getWorkloads")
       summary("Returns all workloads")
-      description("""Returns all workload definitions in the exchange DB. Can be run by any user, node, or agbot.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns all workload definitions in the exchange DB. Can be run by any user, node, or agbot.""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("owner", DataType.String, Option[String]("Filter results to only include workloads with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
@@ -100,10 +110,11 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("arch", DataType.String, Option[String]("Filter results to only include workloads with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("specRef", DataType.String, Option[String]("Filter results to only include workloads that use this microservice specRef (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/workloads", operation(getWorkloads)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val ident = credsAndLog().authenticate().authorizeTo(TWorkload(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
     //var q = WorkloadsTQ.rows.subquery
@@ -135,20 +146,19 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val getOneWorkload =
     (apiOperation[GetWorkloadsResponse]("getOneWorkload")
       summary("Returns a workload")
-      description("""Returns the workload with the specified id in the exchange DB. Can be run by a user, node, or agbot.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns the workload with the specified id in the exchange DB. Can be run by a user, node, or agbot.""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire workload resource will be returned."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/workloads/:workload", operation(getOneWorkload)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val bareWorkload = params("workload")   // but do not have a hack/fix for the name
     val workload = OrgAndId(orgid,bareWorkload).toString
     credsAndLog().authenticate().authorizeTo(TWorkload(workload),Access.READ)
@@ -223,18 +233,19 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
 }
 ```"""
       parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-      Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
-      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PostPutWorkloadRequest],
-        Option[String]("Workload object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PostPutWorkloadRequest],
+          Option[String]("Workload object that needs to be updated in the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val postWorkloads2 = (apiOperation[PostPutWorkloadRequest]("postWorkloads2") summary("a") description("a"))  // for some bizarre reason, the PostWorkloadRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   post("/orgs/:orgid/workloads", operation(postWorkloads)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val ident = credsAndLog().authenticate().authorizeTo(TWorkload(OrgAndId(orgid,"").toString),Access.CREATE)
     val workloadReq = try { parse(request.body).extract[PostPutWorkloadRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
@@ -306,60 +317,22 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val putWorkloads =
     (apiOperation[ApiResponse]("putWorkloads")
       summary "Updates a workload"
-      description """Does a full replace of an existing workload. This can only be called by the user that originally created it. The **request body** structure:
-
-```
-// (remove all of the comments like this before using)
-{
-  "label": "Location for x86_64",     // this will be displayed in the node registration UI
-  "description": "blah blah",
-  "public": true,       // whether or not it can be viewed by other organizations
-  "workloadUrl": "https://bluehorizon.network/documentation/workload/location",   // the unique identifier of this workload
-  "version": "1.0.0",
-  "arch": "amd64",
-  "downloadUrl": "",    // reserved for future use, can be omitted
-  // The microservices used by this workload. (The microservices must exist before creating this workload.)
-  "apiSpec": [
-    {
-      "specRef": "https://bluehorizon.network/documentation/microservice/gps",
-      "org": "myorg",
-      "version": "[1.0.0,INFINITY)",     // an OSGI-formatted version range
-      "arch": "amd64"
-    }
-  ],
-  // Values the node owner will be prompted for and will be set as env vars to the container.
-  "userInput": [
-    {
-      "name": "foo",
-      "label": "The Foo Value",
-      "type": "string",   // or: "int", "float", "list of strings"
-      "defaultValue": "bar"
-    }
-  ],
-  // The docker images that will be deployed on edge nodes for this workload
-  "workloads": [
-    {
-      "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-      "deployment_signature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
-      "torrent": "{\"url\":\"https://images.bluehorizon.network/139e5b32f271e43698565ff0a37c525609f86178.json\",\"signature\":\"L6/iZxGXloE=\"}"     // filled in by the Horizon signing process
-    }
-  ]
-}
-```"""
+      description """Does a full replace of an existing workload. This can only be called by the user that originally created it."""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PostPutWorkloadRequest],
-        Option[String]("Workload object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
+          Option[String]("Workload object that needs to be updated in the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putWorkloads2 = (apiOperation[PostPutWorkloadRequest]("putWorkloads2") summary("a") description("a"))  // for some bizarre reason, the PutWorkloadRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/workloads/:workload", operation(putWorkloads)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val bareWorkload = params("workload")   // but do not have a hack/fix for the name
     val workload = OrgAndId(orgid,bareWorkload).toString
     val ident = credsAndLog().authenticate().authorizeTo(TWorkload(workload),Access.WRITE)
@@ -421,33 +394,22 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   val patchWorkloads =
     (apiOperation[Map[String,String]]("patchWorkloads")
       summary "Updates 1 attribute of a workload"
-      description """Updates one attribute of a workload in the exchange DB. This can only be called by the user that originally created this workload resource. The **request body** structure can include **1 of these attributes**:
-
-```
-{
-  "label": "GPS x86_64",     // for the registration UI
-  "description": "blah blah",
-  "public": true,       // whether or not it can be viewed by other organizations
-  "workloadUrl": "https://bluehorizon.network/documentation/workload/gps",   // the unique identifier of this workload
-  "version": "[1.0.0,INFINITY)",     // an OSGI-formatted version range
-  "arch": "amd64",
-  "downloadUrl": ""    // not used yet
-}
-```"""
+      description """Updates one attribute of a workload in the exchange DB. This can only be called by the user that originally created this workload resource."""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchWorkloadRequest],
           Option[String]("Partial workload object that contains an attribute to be updated in this workload. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val patchWorkloads2 = (apiOperation[PatchWorkloadRequest]("patchWorkloads2") summary("a") description("a"))  // for some bizarre reason, the PatchWorkloadRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid/workloads/:workload", operation(patchWorkloads)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val bareWorkload = params("workload")   // but do not have a hack/fix for the name
     val workload = OrgAndId(orgid,bareWorkload).toString
     credsAndLog().authenticate().authorizeTo(TWorkload(workload),Access.WRITE)
@@ -483,15 +445,16 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       summary "Deletes a workload"
       description "Deletes a workload from the exchange DB. Can only be run by the owning user."
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   delete("/orgs/:orgid/workloads/:workload", operation(deleteWorkloads)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     val bareWorkload = params("workload")   // but do not have a hack/fix for the name
     val workload = OrgAndId(orgid,bareWorkload).toString
     credsAndLog().authenticate().authorizeTo(TWorkload(workload),Access.WRITE)
@@ -511,6 +474,195 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "workload '"+workload+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  /* ====== GET /orgs/{orgid}/workloads/{workload}/keys ================================ */
+  val getWorkloadKeys =
+    (apiOperation[List[String]]("getWorkloadKeys")
+      summary "Returns all keys/certs for this workload"
+      description """Returns all the signing public keys/certs for this workload. Can be run by any credentials able to view the workload."""
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  get("/orgs/:orgid/workloads/:workload/keys", operation(getWorkloadKeys)) ({
+    val orgid = params("orgid")
+    val workload = params("workload")
+    val compositeId = OrgAndId(orgid,workload).toString
+    credsAndLog().authenticate().authorizeTo(TWorkload(compositeId),Access.READ)
+    val resp = response
+    db.run(WorkloadKeysTQ.getKeys(compositeId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/workloads/"+workload+"/keys result size: "+list.size)
+      //logger.trace("GET /orgs/"+orgid+"/workloads/"+id+"/keys result: "+list.toString)
+      if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
+      list.map(_.keyId)
+    })
+  })
+
+  /* ====== GET /orgs/{orgid}/workloads/{workload}/keys/{keyid} ================================ */
+  val getOneWorkloadKey =
+    (apiOperation[String]("getOneWorkloadKey")
+      summary "Returns a key/cert for this workload"
+      description """Returns the signing public key/cert with the specified keyid for this workload. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the workload."""
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      produces "text/plain"
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  get("/orgs/:orgid/workloads/:workload/keys/:keyid", operation(getOneWorkloadKey)) ({
+    val orgid = params("orgid")
+    val workload = params("workload")
+    val compositeId = OrgAndId(orgid,workload).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TWorkload(compositeId),Access.READ)
+    val resp = response
+    db.run(WorkloadKeysTQ.getKey(compositeId, keyId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/workloads/"+workload+"/keys/"+keyId+" result: "+list.size)
+      if (list.nonEmpty) {
+        // Return the raw key, not json
+        resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
+        resp.setHeader("Content-Type", "text/plain")
+        resp.setHeader("Content-Length", list.head.key.length.toString)
+        list.head.key
+      }
+      else {
+        resp.setStatus(HttpCode.NOT_FOUND)
+        ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' not found")
+      }
+    })
+  })
+
+  // =========== PUT /orgs/{orgid}/workloads/{workload}/keys/{keyid} ===============================
+  val putWorkloadKey =
+    (apiOperation[ApiResponse]("putWorkloadKey")
+      summary "Adds/updates a key/cert for the workload"
+      description """Adds a new signing public key/cert, or updates an existing key/cert, for this workload. This can only be run by the workload owning user. Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'."""
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("body", DataType[PutWorkloadKeyRequest],
+          Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+          paramType = ParamType.Body)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+  val putWorkloadKey2 = (apiOperation[PutWorkloadKeyRequest]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  put("/orgs/:orgid/workloads/:workload/keys/:keyid", operation(putWorkloadKey)) ({
+    val orgid = params("orgid")
+    val workload = params("workload")
+    val compositeId = OrgAndId(orgid,workload).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TWorkload(compositeId),Access.WRITE)
+    val keyReq = PutWorkloadKeyRequest(request.body)
+    //val keyReq = try { parse(request.body).extract[PutWorkloadKeyRequest] }
+    //catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    keyReq.validate(keyId)
+    val resp = response
+    db.run(keyReq.toWorkloadKeyRow(compositeId, keyId).upsert.asTry).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/workloads/"+workload+"/keys/"+keyId+" result: "+xs.toString)
+      xs match {
+        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "key added or updated")
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "key '"+keyId+"' for workload '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "key '"+keyId+"' for workload '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        }
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/workloads/{workload}/keys ===============================
+  val deleteWorkloadAllKey =
+    (apiOperation[ApiResponse]("deleteWorkloadAllKey")
+      summary "Deletes all keys of a workload"
+      description "Deletes all of the current keys/certs for this workload. This can only be run by the workload owning user."
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  delete("/orgs/:orgid/workloads/:workload/keys", operation(deleteWorkloadAllKey)) ({
+    val orgid = params("orgid")
+    val workload = params("workload")
+    val compositeId = OrgAndId(orgid,workload).toString
+    credsAndLog().authenticate().authorizeTo(TWorkload(compositeId),Access.WRITE)
+    val resp = response
+    db.run(WorkloadKeysTQ.getKeys(compositeId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /workloads/"+workload+"/keys result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "workload keys deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "no keys for workload '"+compositeId+"' found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "keys for workload '"+compositeId+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/workloads/{workload}/keys/{keyid} ===============================
+  val deleteWorkloadKey =
+    (apiOperation[ApiResponse]("deleteWorkloadKey")
+      summary "Deletes a key of a workload"
+      description "Deletes a key/cert for this workload. This can only be run by the workload owning user."
+      parameters(
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("workload", DataType.String, Option[String]("Workload id."), paramType=ParamType.Path),
+        Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  delete("/orgs/:orgid/workloads/:workload/keys/:keyid", operation(deleteWorkloadKey)) ({
+    val orgid = params("orgid")
+    val workload = params("workload")
+    val compositeId = OrgAndId(orgid,workload).toString
+    val keyId = params("keyid")
+    credsAndLog().authenticate().authorizeTo(TWorkload(compositeId),Access.WRITE)
+    val resp = response
+    db.run(WorkloadKeysTQ.getKey(compositeId,keyId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /workloads/"+workload+"/keys/"+keyId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "workload key deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' for workload '"+compositeId+"' not found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "key '"+keyId+"' for workload '"+compositeId+"' not deleted: "+t.toString)
       }
     })
   })

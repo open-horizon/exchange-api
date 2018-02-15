@@ -114,3 +114,30 @@ object ServicesTQ {
   /** Returns the actions to delete the service */
   def getDeleteActions(service: String): DBIO[_] = getService(service).delete
 }
+
+
+// Key is a sub-resource of service
+case class ServiceKeyRow(keyId: String, serviceId: String, key: String, lastUpdated: String) {
+  def toServiceKey = ServiceKey(key, lastUpdated)
+
+  def upsert: DBIO[_] = ServiceKeysTQ.rows.insertOrUpdate(this)
+}
+
+class ServiceKeys(tag: Tag) extends Table[ServiceKeyRow](tag, "servicekeys") {
+  def keyId = column[String]("keyid")     // key - the key name
+  def serviceId = column[String]("serviceid")               // additional key - the composite orgid/serviceid
+  def key = column[String]("key")                   // the actual key content
+  def lastUpdated = column[String]("lastupdated")
+  def * = (keyId, serviceId, key, lastUpdated) <> (ServiceKeyRow.tupled, ServiceKeyRow.unapply)
+  def primKey = primaryKey("pk_svck", (keyId, serviceId))
+  def service = foreignKey("service_fk", serviceId, ServicesTQ.rows)(_.service, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object ServiceKeysTQ {
+  val rows = TableQuery[ServiceKeys]
+
+  def getKeys(serviceId: String) = rows.filter(_.serviceId === serviceId)
+  def getKey(serviceId: String, keyId: String) = rows.filter( r => {r.serviceId === serviceId && r.keyId === keyId} )
+}
+
+case class ServiceKey(key: String, lastUpdated: String)

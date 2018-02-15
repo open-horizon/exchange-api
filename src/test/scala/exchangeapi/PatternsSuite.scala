@@ -29,7 +29,9 @@ class PatternsSuite extends FunSuite {
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
   val runningLocally = (urlRoot == localUrlRoot)
   val ACCEPT = ("Accept","application/json")
+  val ACCEPTTEXT = ("Accept","text/plain")
   val CONTENT = ("Content-Type","application/json")
+  val CONTENTTEXT = ("Content-Type","text/plain")
   val orgid = "PatternsSuiteTests"
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
@@ -55,17 +57,17 @@ class PatternsSuite extends FunSuite {
   val workarch = "amd64"
   val workversion = "1.0.0"
   val ptBase = "pt9920"
-  //val ptUrl = "http://" + ptBase
   val pattern = ptBase
   val orgpattern = authpref+pattern
   val ptBase2 = "pt9921"
-  //val ptUrl2 = "http://" + ptBase2
   val pattern2 = ptBase2
   val orgpattern2 = authpref+pattern2
   val ptBase3 = "pt9922"
-  //val ptUrl3 = "http://" + ptBase3
   val pattern3 = ptBase3
-  //var numExistingPatterns = 0    // this will be set later
+  val keyId = "mykey.pem"
+  val key = "abcdefghijk"
+  val keyId2 = "mykey2.pem"
+  val key2 = "lnmopqrstuvwxyz"
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -405,6 +407,82 @@ class PatternsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
+
+
+  // Key tests ==============================================
+  test("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys - no keys have been created yet - should fail") {
+    val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+    val resp = parse(response.body).extract[List[String]]
+    assert(resp.size === 0)
+  }
+
+  test("PUT /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" - add "+keyId+" as user") {
+    //val input = PutPatternKeyRequest(key)
+    val response = Http(URL+"/patterns/"+pattern+"/keys/"+keyId).postData(key).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId2+" - add "+keyId2+" as user") {
+    //val input = PutPatternKeyRequest(key2)
+    val response = Http(URL+"/patterns/"+pattern+"/keys/"+keyId2).postData(key2).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys - should be 2 now") {
+    val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    val resp = parse(response.body).extract[List[String]]
+    assert(resp.size === 2)
+    assert(resp.contains(keyId) && resp.contains(keyId2))
+  }
+
+  test("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" - get 1 of the keys and check content") {
+    val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys/"+keyId).headers(ACCEPTTEXT).headers(USERAUTH).asString
+    //val response: HttpResponse[Array[Byte]] = Http(URL+"/patterns/"+pattern+"/keys/"+keyId).headers(ACCEPTTEXT).headers(USERAUTH).asBytes
+    //val bodyStr = (response.body.map(_.toChar)).mkString
+    //info("code: "+response.code+", response.body: "+bodyStr)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    assert(response.body === key)
+  }
+
+  test("DELETE /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId) {
+    val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys/"+keyId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("DELETE /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" try deleting it again - should fail") {
+    val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys/"+keyId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
+  test("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" - verify it is gone") {
+    val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys/"+keyId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
+  test("DELETE /orgs/"+orgid+"/patterns/"+pattern+"/keys - delete all keys") {
+    val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys").method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys - all keys should be gone now") {
+    val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+    val resp = parse(response.body).extract[List[String]]
+    assert(resp.size === 0)
+  }
+
 
   test("DELETE /orgs/"+orgid+"/patterns/"+pattern) {
     val response = Http(URL+"/patterns/"+pattern).method("delete").headers(ACCEPT).headers(USERAUTH).asString

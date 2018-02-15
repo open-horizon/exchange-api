@@ -29,7 +29,9 @@ class MicroservicesSuite extends FunSuite {
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
   val runningLocally = (urlRoot == localUrlRoot)
   val ACCEPT = ("Accept","application/json")
+  val ACCEPTTEXT = ("Accept","text/plain")
   val CONTENT = ("Content-Type","application/json")
+  val CONTENTTEXT = ("Content-Type","text/plain")
   val orgid = "MicroservicesSuiteTests"
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
@@ -62,6 +64,10 @@ class MicroservicesSuite extends FunSuite {
   val msBase3 = "ms9922"
   val msUrl3 = "http://" + msBase3
   val microservice3 = msBase3 + "_1.0.0_arm"
+  val keyId = "mykey.pem"
+  val key = "abcdefghijk"
+  val keyId2 = "mykey2.pem"
+  val key2 = "lnmopqrstuvwxyz"
   //val orgmicroservice3 = authpref+microservice3
   //var numExistingMicroservices = 0    // this will be set later
 
@@ -345,7 +351,83 @@ test("GET /orgs/"+orgid+"/microservices/"+microservice+"notthere - as user - sho
   assert(getMicroserviceResp.microservices.size === 0)
 }
 
-test("DELETE /orgs/"+orgid+"/microservices/"+microservice) {
+
+  // Key tests ==============================================
+  test("GET /orgs/"+orgid+"/microservices/"+microservice+"/keys - no keys have been created yet - should fail") {
+    val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice+"/keys").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+    val resp = parse(response.body).extract[List[String]]
+    assert(resp.size === 0)
+  }
+
+  test("PUT /orgs/"+orgid+"/microservices/"+microservice+"/keys/"+keyId+" - add "+keyId+" as user") {
+    //val input = PutMicroserviceKeyRequest(key)
+    val response = Http(URL+"/microservices/"+microservice+"/keys/"+keyId).postData(key).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/microservices/"+microservice+"/keys/"+keyId2+" - add "+keyId2+" as user") {
+    //val input = PutMicroserviceKeyRequest(key2)
+    val response = Http(URL+"/microservices/"+microservice+"/keys/"+keyId2).postData(key2).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/microservices/"+microservice+"/keys - should be 2 now") {
+    val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice+"/keys").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    val resp = parse(response.body).extract[List[String]]
+    assert(resp.size === 2)
+    assert(resp.contains(keyId) && resp.contains(keyId2))
+  }
+
+  test("GET /orgs/"+orgid+"/microservices/"+microservice+"/keys/"+keyId+" - get 1 of the keys and check content") {
+    val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice+"/keys/"+keyId).headers(ACCEPTTEXT).headers(USERAUTH).asString
+    //val response: HttpResponse[Array[Byte]] = Http(URL+"/microservices/"+microservice+"/keys/"+keyId).headers(ACCEPTTEXT).headers(USERAUTH).asBytes
+    //val bodyStr = (response.body.map(_.toChar)).mkString
+    //info("code: "+response.code+", response.body: "+bodyStr)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    assert(response.body === key)
+  }
+
+  test("DELETE /orgs/"+orgid+"/microservices/"+microservice+"/keys/"+keyId) {
+    val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice+"/keys/"+keyId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("DELETE /orgs/"+orgid+"/microservices/"+microservice+"/keys/"+keyId+" try deleting it again - should fail") {
+    val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice+"/keys/"+keyId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
+  test("GET /orgs/"+orgid+"/microservices/"+microservice+"/keys/"+keyId+" - verify it is gone") {
+    val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice+"/keys/"+keyId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
+  test("DELETE /orgs/"+orgid+"/microservices/"+microservice+"/keys - delete all keys") {
+    val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice+"/keys").method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("GET /orgs/"+orgid+"/microservices/"+microservice+"/keys - all keys should be gone now") {
+    val response: HttpResponse[String] = Http(URL+"/microservices/"+microservice+"/keys").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+    val resp = parse(response.body).extract[List[String]]
+    assert(resp.size === 0)
+  }
+
+
+  test("DELETE /orgs/"+orgid+"/microservices/"+microservice) {
   val response = Http(URL+"/microservices/"+microservice).method("delete").headers(ACCEPT).headers(USERAUTH).asString
   info("code: "+response.code+", response.body: "+response.body)
   assert(response.code === HttpCode.DELETED)

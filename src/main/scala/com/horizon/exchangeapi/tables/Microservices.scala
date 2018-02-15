@@ -111,3 +111,29 @@ class Microservice(var owner: String, var label: String, var description: String
   //def copy = new Microservice(owner, label, description, specRef, version, arch, sharable, downloadUrl, matchHardware, userInput, workloads, lastUpdated)
 }
 
+
+// Key is a sub-resource of microservice
+case class MicroserviceKeyRow(keyId: String, microserviceId: String, key: String, lastUpdated: String) {
+  def toMicroserviceKey = MicroserviceKey(key, lastUpdated)
+
+  def upsert: DBIO[_] = MicroserviceKeysTQ.rows.insertOrUpdate(this)
+}
+
+class MicroserviceKeys(tag: Tag) extends Table[MicroserviceKeyRow](tag, "microservicekeys") {
+  def keyId = column[String]("keyid")     // key - the key name
+  def microserviceId = column[String]("microserviceid")               // additional key - the composite orgid/microserviceid
+  def key = column[String]("key")                   // the actual key content
+  def lastUpdated = column[String]("lastupdated")
+  def * = (keyId, microserviceId, key, lastUpdated) <> (MicroserviceKeyRow.tupled, MicroserviceKeyRow.unapply)
+  def primKey = primaryKey("pk_msk", (keyId, microserviceId))
+  def microservice = foreignKey("microservice_fk", microserviceId, MicroservicesTQ.rows)(_.microservice, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object MicroserviceKeysTQ {
+  val rows = TableQuery[MicroserviceKeys]
+
+  def getKeys(microserviceId: String) = rows.filter(_.microserviceId === microserviceId)
+  def getKey(microserviceId: String, keyId: String) = rows.filter( r => {r.microserviceId === microserviceId && r.keyId === keyId} )
+}
+
+case class MicroserviceKey(key: String, lastUpdated: String)

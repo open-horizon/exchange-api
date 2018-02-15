@@ -91,21 +91,20 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val getBctypes =
     (apiOperation[GetBctypesResponse]("getBctypes")
       summary("Returns all blockchain types")
-      description("""Returns all Blockchain type definitions in the exchange DB. Can be run by any user, node, or agbot.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns all Blockchain type definitions in the exchange DB. Can be run by any user, node, or agbot.""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("bctype", DataType.String, Option[String]("Filter results to only include bctypes with this bctype (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("description", DataType.String, Option[String]("Filter results to only include bctypes with this description (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("definedBy", DataType.String, Option[String]("Filter results to only include bctypes defined by this user (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/bctypes", operation(getBctypes)) ({
-    val orgid = swaggerHack("orgid")
+    val orgid = params("orgid")
     credsAndLog().authenticate().authorizeTo(TBctype(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
     //var q = BctypesTQ.rows.subquery
@@ -127,22 +126,20 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val getOneBctype =
     (apiOperation[GetBctypesResponse]("getOneBctype")
       summary("Returns a blockchain type")
-      description("""Returns the blockchain type with the specified type name in the exchange DB. Can be run by a user, node, or agbot.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns the blockchain type with the specified type name in the exchange DB. Can be run by a user, node, or agbot.""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire bctype resource will be returned."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/bctypes/:bctype", operation(getOneBctype)) ({
-    //val bctype = swaggerHack("bctype")
-    val orgid = swaggerHack("orgid")
-    val bareBctype = params("bctype")   // but do not have a hack/fix for the name
+    val orgid = params("orgid")
+    val bareBctype = params("bctype")
     val bctype = OrgAndId(orgid,bareBctype).toString
     credsAndLog().authenticate().authorizeTo(TBctype(bctype),Access.READ)
     val resp = response
@@ -175,30 +172,24 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val putBctypes =
     (apiOperation[ApiResponse]("putBctypes")
       summary "Adds/updates a blockchain type"
-      description """Adds a new blockchain type to the exchange DB, or updates an existing blockchain type. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
-
-```
-{
-  "description": "abc",       // description of the blockchain type
-  "details": "escaped json string"
-}
-```"""
+      description """Adds a new blockchain type to the exchange DB, or updates an existing blockchain type. This can only be called by a user to create, and then only by that user to update."""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PutBctypeRequest],
           Option[String]("Bctype object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putBctypes2 = (apiOperation[PutBctypeRequest]("putBctypes2") summary("a") description("a"))  // for some bizarre reason, the PutBctypeRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   /** Handles PUT /bctype/{bctype}. Called by a user to create, must be called by same user to update. */
   put("/orgs/:orgid/bctypes/:bctype", operation(putBctypes)) ({
-    val orgid = swaggerHack("orgid")
-    val bareBctype = params("bctype")   // but do not have a hack/fix for the name
+    val orgid = params("orgid")
+    val bareBctype = params("bctype")
     val bctype = OrgAndId(orgid,bareBctype).toString
     val ident = credsAndLog().authenticate().authorizeTo(TBctype(bctype),Access.WRITE)
     val bctypeReq = try { parse(request.body).extract[PutBctypeRequest] }
@@ -236,29 +227,23 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val patchBctypes =
     (apiOperation[Map[String,String]]("patchBctypes")
       summary "Updates 1 attribute of a blockchain type"
-      description """Updates one attribute of a blockchain type in the exchange DB. This can only be called by the user that originally created this bctype resource. The **request body** structure can include **1 of these attributes**:
-
-```
-{
-  "description": "abc",       // description of the blockchain type
-  "details": "escaped json string"
-}
-```"""
+      description """Updates one attribute of a blockchain type in the exchange DB. This can only be called by the user that originally created this bctype resource."""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchBctypeRequest],
           Option[String]("Partial bctype object that contains an attribute to be updated in this bctype. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val patchBctypes2 = (apiOperation[PatchBctypeRequest]("patchBctypes2") summary("a") description("a"))  // for some bizarre reason, the PatchBctypeRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid/bctypes/:bctype", operation(patchBctypes)) ({
-    val orgid = swaggerHack("orgid")
-    val bareBctype = params("bctype")   // but do not have a hack/fix for the name
+    val orgid = params("orgid")
+    val bareBctype = params("bctype")
     val bctype = OrgAndId(orgid,bareBctype).toString
     credsAndLog().authenticate().authorizeTo(TBctype(bctype),Access.WRITE)
     val bctypeReq = try { parse(request.body).extract[PatchBctypeRequest] }
@@ -292,16 +277,17 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
       summary "Deletes a blockchain type"
       description "Deletes a blockchain type from the exchange DB, and deletes the blockchain definitions stored for this blockchain type. Can only be run by the owning user."
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   delete("/orgs/:orgid/bctypes/:bctype", operation(deleteBctypes)) ({
-    val orgid = swaggerHack("orgid")
-    val bareBctype = params("bctype")   // but do not have a hack/fix for the name
+    val orgid = params("orgid")
+    val bareBctype = params("bctype")
     val bctype = OrgAndId(orgid,bareBctype).toString
     credsAndLog().authenticate().authorizeTo(TBctype(bctype),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
@@ -327,20 +313,19 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val getBlockchains =
     (apiOperation[GetBlockchainsResponse]("getBlockchains")
       summary("Returns all blockchains of this blockchain type")
-      description("""Returns all blockchain instances that are this blockchain type. Can be run by any user, node, or agbot.
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns all blockchain instances that are this blockchain type. Can be run by any user, node, or agbot.""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Token of the bctype. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/bctypes/:bctype/blockchains", operation(getBlockchains)) ({
-    val orgid = swaggerHack("orgid")
-    val bareBctype = params("bctype")   // but do not have a hack/fix for the name
+    val orgid = params("orgid")
+    val bareBctype = params("bctype")
     val bctype = OrgAndId(orgid,bareBctype).toString
     val ident = credsAndLog().authenticate().authorizeTo(TBlockchain(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
@@ -358,22 +343,21 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val getOneBlockchain =
     (apiOperation[GetBlockchainsResponse]("getOneBlockchain")
       summary("Returns a blockchain for a blockchain type")
-      description("""Returns the blockchain definition with the specified name for the specified blockchain type in the exchange DB. Can be run by any user, node, or agbot. **Because of a swagger bug this method can not be run via swagger.**
-
-- **Due to a swagger bug, the format shown below is incorrect. Run the GET method to see the response format instead.**""")
+      description("""Returns the blockchain definition with the specified name for the specified blockchain type in the exchange DB. Can be run by any user, node, or agbot.""")
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Path),
         Parameter("name", DataType.String, Option[String]("Name of the blockchain."), paramType=ParamType.Query),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Token of the bctype. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire blockchain resource will be returned."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs/:orgid/bctypes/:bctype/blockchains/:name", operation(getOneBlockchain)) ({
-    val orgid = swaggerHack("orgid")
-    val bareBctype = params("bctype")   // but do not have a hack/fix for the name
+    val orgid = params("orgid")
+    val bareBctype = params("bctype")
     val bctype = OrgAndId(orgid,bareBctype).toString
     val name = params("name")
     //val compositeId = name+"|"+bctype
@@ -409,31 +393,24 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val putBlockchain =
     (apiOperation[ApiResponse]("putBlockchain")
       summary "Adds/updates a blockchain of a blockchain type"
-      description """Adds a new blockchain definition of a blockchain type to the exchange DB, or updates an existing blockchain definition. This can only be called by a user to create, and then only by that user to update. The **request body** structure:
-
-```
-{
-  "description": "abc",
-  "public": true,
-  "details": "escaped json string"
-}
-```"""
+      description """Adds a new blockchain definition of a blockchain type to the exchange DB, or updates an existing blockchain definition. This can only be called by a user to create, and then only by that user to update."""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Path),
         Parameter("name", DataType.String, Option[String]("Name of the blockchain to be added/updated."), paramType = ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PutBlockchainRequest],
           Option[String]("Blockchain object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putBlockchain2 = (apiOperation[PutBlockchainRequest]("putBlockchain2") summary("a") description("a"))  // for some bizarre reason, the PutBlockchainsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/bctypes/:bctype/blockchains/:name", operation(putBlockchain)) ({
-    val orgid = swaggerHack("orgid")
-    val bareBctype = params("bctype")   // but do not have a hack/fix for the name
+    val orgid = params("orgid")
+    val bareBctype = params("bctype")
     val bctype = OrgAndId(orgid,bareBctype).toString
     val name = params("name")
     //val compositeId = name+"|"+bctype
@@ -483,32 +460,24 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
   val patchBlockchain =
     (apiOperation[Map[String,String]]("patchBlockchain")
       summary "Updates 1 attribute of a blockchain definition"
-      description """Updates one attribute of a blockchain instance in the exchange DB. This can only be called by the user that originally created this blockchain resource. The **request body** structure can include **1 of these attributes**:
-
-```
-{
-  "description": "abc",
-  "public": true,
-  "details": "escaped json string"
-}
-```"""
+      description """Updates one attribute of a blockchain instance in the exchange DB. This can only be called by the user that originally created this blockchain resource."""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
-        Parameter("name", DataType.String, Option[String]("Blockchain instance name."), paramType=ParamType.Query),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Path),
+        Parameter("name", DataType.String, Option[String]("Blockchain instance name."), paramType=ParamType.Path),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchBlockchainRequest],
           Option[String]("Partial blockchain object that contains an attribute to be updated in this blockchain. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val patchBlockchain2 = (apiOperation[PatchBlockchainRequest]("patchBlockchain2") summary("a") description("a"))  // for some bizarre reason, the PatchBlockchainRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
-  /** Handles PATCH /bctype/{bctype}/blockchains/{name}. Must be called by the same user that created this bc. */
   patch("/orgs/:orgid/bctypes/:bctype/blockchains/:name", operation(patchBlockchain)) ({
-    val orgid = swaggerHack("orgid")
-    val bareBctype = params("bctype")   // but do not have a hack/fix for the name
+    val orgid = params("orgid")
+    val bareBctype = params("bctype")
     val bctype = OrgAndId(orgid,bareBctype).toString
     val name = params("name")
     //val compositeId = name+"|"+bctype
@@ -545,17 +514,18 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
       summary "Deletes a blockchain of a blockchain type"
       description "Deletes a blockchain definition of a blockchain type from the exchange DB. Can only be run by the owning user."
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Query),
-        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Query),
+        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+        Parameter("bctype", DataType.String, Option[String]("Blockchain type."), paramType=ParamType.Path),
         Parameter("name", DataType.String, Option[String]("Name of the blockchain to be deleted."), paramType = ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Path, required=false),
+        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   delete("/orgs/:orgid/bctypes/:bctype/blockchains/:name", operation(deleteBlockchain)) ({
-    val orgid = swaggerHack("orgid")
-    val bareBctype = params("bctype")   // but do not have a hack/fix for the name
+    val orgid = params("orgid")
+    val bareBctype = params("bctype")
     val bctype = OrgAndId(orgid,bareBctype).toString
     val name = params("name")
     //val compositeId = name+"|"+bctype

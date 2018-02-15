@@ -25,6 +25,7 @@ EXCHANGE_AGBOTAUTH="${EXCHANGE_AGBOTAUTH:-a1:abcdef}"
 appjson="application/json"
 accept="-H Accept:$appjson"
 content="-H Content-Type:$appjson"
+contenttext="-H Content-Type:text/plain"
 
 rootauth="root/root:$EXCHANGE_ROOTPW"
 
@@ -52,10 +53,38 @@ agreementid1="${agreementbase}1"
 agreementid1b="${agreementbase}1b"
 agreementid2="${agreementbase}2"
 
+svcid="bluehorizon.network-services-gps_1.2.3_amd64"
+svcurl="https://bluehorizon.network/services/gps"
+svcarch="amd64"
+svcversion="1.2.3"
+
+svcKeyId="mykey3.pem"
+svcKey='-----BEGIN CERTIFICATE-----
+MIII+jCCBOKgAwIBAgIUEfeMrmSFxCUKATcNPcowfs/lU9owDQYJKoZIhvcNAQEL
+BQAwJjEMMAoGA1UEChMDaWJtMRYwFAYDVQQDDA1icEB1cy5pYm0uY29tMB4XDTE4
+MDEwMjAxNDkyMFoXDTIyMDEwMjEzNDgzMFowJjEMMAoGA1UEChMDaWJtMRYwFAYD
+VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
+-----END CERTIFICATE-----
+'
+
+svc2id="bluehorizon.network-services-location_4.5.6_amd64"
+svc2url="https://bluehorizon.network/services/location"
+svc2arch="amd64"
+svc2version="4.5.6"
+
 microid="bluehorizon.network-microservices-network_1.0.0_amd64"
 microurl="https://bluehorizon.network/microservices/network"
 microarch="amd64"
 microversion="1.0.0"
+
+msKeyId="mykey.pem"
+msKey='-----BEGIN CERTIFICATE-----
+MIII+jCCBOKgAwIBAgIUEfeMrmSFxCUKATcNPcowfs/lU9owDQYJKoZIhvcNAQEL
+BQAwJjEMMAoGA1UEChMDaWJtMRYwFAYDVQQDDA1icEB1cy5pYm0uY29tMB4XDTE4
+MDEwMjAxNDkyMFoXDTIyMDEwMjEzNDgzMFowJjEMMAoGA1UEChMDaWJtMRYwFAYD
+VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
+-----END CERTIFICATE-----
+'
 
 microid2="bluehorizon.network-microservices-rtlsdr_2.0.0_amd64"
 microurl2="https://bluehorizon.network/microservices/rtlsdr"
@@ -66,18 +95,36 @@ workid="bluehorizon.network-workloads-netspeed_1.0.0_amd64"
 workurl="https://bluehorizon.network/workloads/netspeed"
 workarch="amd64"
 workversion="1.0.0"
+
+wkKeyId="mykey2.pem"
+wkKey='-----BEGIN CERTIFICATE-----
+MIII+jCCBOKgAwIBAgIUEfeMrmSFxCUKATcNPcowfs/lU9owDQYJKoZIhvcNAQEL
+BQAwJjEMMAoGA1UEChMDaWJtMRYwFAYDVQQDDA1icEB1cy5pYm0uY29tMB4XDTE4
+MDEwMjAxNDkyMFoXDTIyMDEwMjEzNDgzMFowJjEMMAoGA1UEChMDaWJtMRYwFAYD
+VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
+-----END CERTIFICATE-----
+'
+
 workid2="bluehorizon.network-workloads-weather_1.0.0_amd64"
 workurl2="https://bluehorizon.network/workloads/weather"
 
 patid="p1"
+
+ptKeyId="mykey4.pem"
+ptKey='-----BEGIN CERTIFICATE-----
+MIII+jCCBOKgAwIBAgIUEfeMrmSFxCUKATcNPcowfs/lU9owDQYJKoZIhvcNAQEL
+BQAwJjEMMAoGA1UEChMDaWJtMRYwFAYDVQQDDA1icEB1cy5pYm0uY29tMB4XDTE4
+MDEwMjAxNDkyMFoXDTIyMDEwMjEzNDgzMFowJjEMMAoGA1UEChMDaWJtMRYwFAYD
+VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
+-----END CERTIFICATE-----
+'
 
 bctypeid="bct1"
 
 blockchainid="bc1"
 
 #curlBasicArgs="-s -w %{http_code} --output /dev/null $accept"
-curlBasicArgs="-s -w %{http_code} $accept"
-# curlBasicArgs="-s -f"
+curlBasicArgs="-sS -w %{http_code} $accept"
 # set -x
 
 # Check the http code returned by curl. Args: returned rc, good rc, second good rc (optional)
@@ -119,12 +166,16 @@ function curlcreate {
     method=$1
     auth="$2"
     url=$3
-    body=$4
+    body="$4"
+    cont="$5"
 	if [[ $auth != "" ]]; then
 		auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
 	fi
-    echo curl -X $method $curlBasicArgs $content $auth -d "$body" $EXCHANGE_URL_ROOT/v1/$url
-    rc=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $EXCHANGE_URL_ROOT/v1/$url 2>&1)
+	if [[ $cont == "" ]]; then
+		cont="$content"
+	fi
+    echo curl -X $method $curlBasicArgs $cont $auth -d "$body" $EXCHANGE_URL_ROOT/v1/$url
+    rc=$(curl -X $method $curlBasicArgs $cont $auth -d "$body" $EXCHANGE_URL_ROOT/v1/$url 2>&1)
     checkrc "$rc" 201
 }
 
@@ -176,6 +227,57 @@ else
     echo "orgs/$orgid2/users/$user exists"
 fi
 
+rc=$(curlfind $userauth "orgs/$orgid/services/$svcid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauth "orgs/$orgid/services" '{"label": "GPS for amd64", "description": "blah blah", "public": true, "url": "'$svcurl'",
+  "version": "'$svcversion'", "arch": "'$svcarch'", "sharable": "single",
+  "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:1.2.3\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=" }'
+else
+    echo "orgs/$orgid/services/$svcid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/services/$svcid/keys/$svcKeyId")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/services/$svcid/keys/$svcKeyId" "$svcKey" "$contenttext"
+else
+    echo "orgs/$orgid/services/$svcid/keys/$svcKeyId exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/services/$svc2id")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauth "orgs/$orgid/services" '{"label": "Location for amd64", "description": "blah blah", "public": true, "url": "'$svc2url'",
+  "version": "'$svc2version'", "arch": "'$svc2arch'", "sharable": "single",
+  "matchHardware": {},
+  "requiredServices": [
+    {
+      "url": "https://bluehorizon.network/services/gps",
+      "org": "IBM",
+      "version": "[1.0.0,INFINITY)",
+      "arch": "amd64"
+    }
+  ],
+  "userInput": [
+    {
+      "name": "foo",
+      "label": "The Foo Value",
+      "type": "string",
+      "defaultValue": "bar"
+    }
+  ],
+  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:4.5.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",
+  "pkg": {
+    "storeType": "dockerRegistry"
+  }
+}'
+else
+    echo "orgs/$orgid/services/$svc2id exists"
+fi
+
 rc=$(curlfind $userauth "orgs/$orgid/microservices/$microid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
@@ -186,6 +288,14 @@ if [[ $rc != 200 ]]; then
   "workloads": [] }'
 else
     echo "orgs/$orgid/microservices/$microid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/microservices/$microid/keys/$msKeyId")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/microservices/$microid/keys/$msKeyId" "$msKey" "$contenttext"
+else
+    echo "orgs/$orgid/microservices/$microid/keys/$msKeyId exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/microservices/$microid2")
@@ -212,6 +322,14 @@ else
     echo "orgs/$orgid/workloads/$workid exists"
 fi
 
+rc=$(curlfind $userauth "orgs/$orgid/workloads/$workid/keys/$wkKeyId")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/workloads/$workid/keys/$wkKeyId" "$wkKey" "$contenttext"
+else
+    echo "orgs/$orgid/workloads/$workid/keys/$wkKeyId exists"
+fi
+
 rc=$(curlfind $userauth "orgs/$orgid/workloads/$workid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
@@ -236,7 +354,7 @@ if [[ $rc != 200 ]]; then
       "workloadVersions": [
         {
           "version": "'$workversion'",
-          "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+          "deployment_overrides": "{\"services\":{\"netspeed\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
           "deployment_overrides_signature": "a",
           "priority": {
             "priority_value": 50,
@@ -272,6 +390,14 @@ if [[ $rc != 200 ]]; then
   "agreementProtocols": [{ "name": "Basic" }] }'
 else
     echo "orgs/$orgid/patterns/$patid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/patterns/$patid/keys/$ptKeyId")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/patterns/$patid/keys/$ptKeyId" "$ptKey" "$contenttext"
+else
+    echo "orgs/$orgid/patterns/$patid/keys/$ptKeyId exists"
 fi
 
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid")

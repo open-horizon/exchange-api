@@ -2,7 +2,7 @@
 source `dirname $0`/../../functions.sh '' '' $*
 
 curl $copts -X POST -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic $EXCHANGE_ORG/$EXCHANGE_USER:$EXCHANGE_PW" -d '{
-  "label": "Location for amd64",
+  "label": "GPS for amd64",
   "description": "blah blah",
   "public": true,
   "url": "https://bluehorizon.network/services/gps",

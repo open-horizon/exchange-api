@@ -45,9 +45,10 @@ object SchemaTQ {
     /* 1 */ DBIO.seq(NodeStatusTQ.rows.schema.create),    // v1.37.0
     /* 2 */ DBIO.seq(sqlu"alter table agbots drop column patterns", AgbotPatternsTQ.rows.schema.create),   // v1.38.0
     /* 3 */ DBIO.seq(ServicesTQ.rows.schema.create),   // v1.45.0
-    /* 4 */ DBIO.seq(WorkloadKeysTQ.rows.schema.create, MicroserviceKeysTQ.rows.schema.create, ServiceKeysTQ.rows.schema.create, PatternKeysTQ.rows.schema.create)   // v1.46.0
+    /* 4 */ DBIO.seq(WorkloadKeysTQ.rows.schema.create, MicroserviceKeysTQ.rows.schema.create, ServiceKeysTQ.rows.schema.create, PatternKeysTQ.rows.schema.create),   // v1.46.0
+    /* 5 */ DBIO.seq(sqlu"alter table patterns add column services character varying not null default ''"),   // v1.47.0
   )
-  val latestSchemaDescription = "Added workloadkeys, microservicekeys, servicekeys, patternkeys tables"
+  val latestSchemaDescription = "Added services column to patterns tables"
 
   val rows = TableQuery[SchemaTable]
 

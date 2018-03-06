@@ -24,7 +24,7 @@ class FrontEndSuite extends FunSuite {
   val runningLocally = (urlRoot == localUrlRoot)
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
-  val SDRSPEC = "https://bluehorizon.network/workloads/sdr"
+  val SDRSPEC = "https://bluehorizon.network/services/sdr"
   val orgid = "FrontEndSuiteTests"
   val ORGHEAD = ("orgid",orgid)
   val ISSUERHEAD = ("issuer","IBM_ID")
@@ -54,11 +54,11 @@ class FrontEndSuite extends FunSuite {
   val msUrl = "http://" + msBase
   val microservice = msBase + "_1.0.0_arm"
   val orgmicroservice = authpref+microservice
-  val workid = "bluehorizon.network-workloads-netspeed_1.0.0_amd64"
-  val workurl = "https://bluehorizon.network/workloads/netspeed"
-  val workarch = "amd64"
-  val workversion = "1.0.0"
-  val orgworkload = authpref+workid
+  val svcid = "bluehorizon.network-services-netspeed_1.0.0_amd64"
+  val svcurl = "https://bluehorizon.network/services/netspeed"
+  val svcarch = "amd64"
+  val svcversion = "1.0.0"
+  val orgservice = authpref+svcid
   val ptBase = "pat1"
   val pattern = ptBase
   val orgpattern = authpref+pattern
@@ -146,27 +146,27 @@ class FrontEndSuite extends FunSuite {
     assert(respObj.microservices.contains(orgmicroservice))
   }
 
-  test("POST /orgs/"+orgid+"/workloads - create "+workid) {
-    val input = PostPutWorkloadRequest("test-workload", "desc", public = false, workurl, workversion, workarch, None, List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","")))
-    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
+  test("POST /orgs/"+orgid+"/services - create "+svcid) {
+    val input = PostPutServiceRequest("test-service", "desc", public = false, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
+    val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val respObj = parse(response.body).extract[ApiResponse]
-    assert(respObj.msg.contains("workload '"+orgworkload+"' created"))
+    assert(respObj.msg.contains("service '"+orgservice+"' created"))
   }
 
-  test("GET /orgs/"+orgid+"/workloads/"+workid+" - as user") {
-    val response: HttpResponse[String] = Http(URL + "/workloads/" + workid).headers(ACCEPT).headers(TYPEAPIKEY).headers(IDAPIKEY).headers(ORGHEAD).headers(ISSUERHEAD).asString
+  test("GET /orgs/"+orgid+"/services/"+svcid+" - as user") {
+    val response: HttpResponse[String] = Http(URL + "/services/" + svcid).headers(ACCEPT).headers(TYPEAPIKEY).headers(IDAPIKEY).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: " + response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
-    val respObj = parse(response.body).extract[GetWorkloadsResponse]
-    assert(respObj.workloads.size === 1)
+    val respObj = parse(response.body).extract[GetServicesResponse]
+    assert(respObj.services.size === 1)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - create "+pattern) {
-    val input = PostPutPatternRequest(ptBase, "desc", public = false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
+    val input = PostPutPatternRequest(ptBase, "desc", public = false, None,
+      Some(List( PServices(svcurl, orgid, svcarch, List(PServiceVersions(svcversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) ))),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString

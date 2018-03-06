@@ -395,7 +395,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostPatternSearchResponse],
+        Parameter("body", DataType[PostPatternSearchRequest],
           Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
@@ -627,7 +627,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostNodeHealthResponse],
+        Parameter("body", DataType[PostNodeHealthRequest],
           Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )

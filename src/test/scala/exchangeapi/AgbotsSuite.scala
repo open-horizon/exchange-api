@@ -61,10 +61,10 @@ class AgbotsSuite extends FunSuite {
   val patId2 = orgid + "_" + pattern2
   val pattern3 = "mypattern3"
   val patId3 = orgid + "_" + pattern3
-  val workid = "bluehorizon.network-workloads-netspeed_1.0.0_amd64"
-  val workurl = "https://bluehorizon.network/workloads/netspeed"
-  val workarch = "amd64"
-  val workversion = "1.0.0"
+  val svcid = "bluehorizon.network-services-netspeed_1.0.0_amd64"
+  val svcurl = "https://bluehorizon.network/services/netspeed"
+  val svcarch = "amd64"
+  val svcversion = "1.0.0"
   val micro = "mymicro"
   val nodeId = "mynode"
   val nodeToken = nodeId+"tok"
@@ -265,23 +265,23 @@ class AgbotsSuite extends FunSuite {
   }
 
 
-  test("POST /orgs/"+orgid+"/workloads - add "+workid+" and check that agbot can read it") {
-    val input = PostPutWorkloadRequest("test-workload", "desc", public = false, workurl, workversion, workarch, None, List(), List(Map()), List())
-    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+  test("POST /orgs/"+orgid+"/services - add "+svcid+" and check that agbot can read it") {
+    val input = PostPutServiceRequest("test-service", "desc", public = false, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
+    val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
 
-    val response2: HttpResponse[String] = Http(URL+"/workloads").headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response2: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response2.code)
     assert(response2.code === HttpCode.OK)
-    val respObj = parse(response2.body).extract[GetWorkloadsResponse]
-    assert(respObj.workloads.size === 1)
+    val respObj = parse(response2.body).extract[GetServicesResponse]
+    assert(respObj.services.size === 1)
   }
-  // Note: when we delete the org, this workload will get deleted
+  // Note: when we delete the org, this service will get deleted
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" and check that agbot can read it") {
-    val input = PostPutPatternRequest(pattern, "desc", public = false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
+    val input = PostPutPatternRequest(pattern, "desc", public = false, None,
+      Some(List( PServices(svcurl, orgid, svcarch, List(PServiceVersions(svcversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) ))),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -328,8 +328,8 @@ class AgbotsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2) {
-    val input = PostPutPatternRequest(pattern2, "desc", public = false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
+    val input = PostPutPatternRequest(pattern2, "desc", public = false, None,
+      Some(List( PServices(svcurl, orgid, svcarch, List(PServiceVersions(svcversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) ))),
       List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

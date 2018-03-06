@@ -346,15 +346,15 @@ rc=$(curlfind $userauth "orgs/$orgid/patterns/$patid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/patterns/$patid" '{"label": "My Pattern", "description": "blah blah", "public": true,
-  "workloads": [
+  "services": [
     {
-      "workloadUrl": "'$workurl'",
-      "workloadOrgid": "'$orgid'",
-      "workloadArch": "'$workarch'",
-      "workloadVersions": [
+      "serviceUrl": "'$svc2url'",
+      "serviceOrgid": "'$orgid'",
+      "serviceArch": "'$svc2arch'",
+      "serviceVersions": [
         {
-          "version": "'$workversion'",
-          "deployment_overrides": "{\"services\":{\"netspeed\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+          "version": "'$svc2version'",
+          "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
           "deployment_overrides_signature": "a",
           "priority": {
             "priority_value": 50,
@@ -404,7 +404,47 @@ rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid" '{"label": "My other Pattern", "description": "blah blah", "public": true,
-  "workloads": [],
+  "workloads": [
+    {
+      "workloadUrl": "'$workurl'",
+      "workloadOrgid": "'$orgid'",
+      "workloadArch": "'$workarch'",
+      "workloadVersions": [
+        {
+          "version": "'$workversion'",
+          "deployment_overrides": "{\"services\":{\"netspeed\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+          "deployment_overrides_signature": "a",
+          "priority": {
+            "priority_value": 50,
+            "retries": 1,
+            "retry_durations": 3600,
+            "verified_durations": 52
+          },
+          "upgradePolicy": {
+            "lifecycle": "immediate",
+            "time": "01:00AM"
+          }
+        }
+      ],
+      "dataVerification": {
+        "enabled": true,
+        "URL": "",
+        "user": "",
+        "password": "",
+        "interval": 240,
+        "check_rate": 15,
+        "metering": {
+          "tokens": 1,
+          "per_time_unit": "min",
+          "notification_interval": 30
+        }
+      },
+      "nodeHealth": {
+        "missing_heartbeat_interval": 600,
+        "check_agreement_status": 120
+      }
+    }
+  ],
   "agreementProtocols": [{ "name": "Basic" }] }'
 else
     echo "orgs/$orgid2/patterns/$patid exists"

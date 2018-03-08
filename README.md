@@ -89,21 +89,25 @@ services in the exchange.
 
 ## Queued Up For 1.48.0
 
-- changed node search to service
-- changed agbot agreement
+- clean up variables in nodes suite tests
+- add back in a few tests for workloads and microservices in pattern and node search
+- issue #39 (pattern node search api does not validate the workloadUrl)
+- change agbot agreement to service
+- change put node status to service
 
 
 ## Changes in 1.47.0
 
 ### External changes
 
+- change node search to service
 - change node, node agreement, pattern search
 - changed pattern to support service
-- issue #39 (pattern node search api does not validate the workloadUrl)
 
 ### Limitations in This Version
 
 - Agbot agreement resources still refer to workloadOrgid, workloadPattern, workloadUrl (but you can put service info in those fields, because they are not checked)
+- Node status resources still refer to workloads and microservices (but i think you can put service info in those fields, because i don't think they are checked)
 
 
 ## Changes in 1.46.0

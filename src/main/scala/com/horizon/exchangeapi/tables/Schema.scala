@@ -47,8 +47,10 @@ object SchemaTQ {
     /* 3 */ DBIO.seq(ServicesTQ.rows.schema.create),   // v1.45.0
     /* 4 */ DBIO.seq(WorkloadKeysTQ.rows.schema.create, MicroserviceKeysTQ.rows.schema.create, ServiceKeysTQ.rows.schema.create, PatternKeysTQ.rows.schema.create),   // v1.46.0
     /* 5 */ DBIO.seq(sqlu"alter table patterns add column services character varying not null default ''"),   // v1.47.0
+    /* 6 */ DBIO.seq(sqlu"alter table nodes add column regservices character varying not null default ''"),   // v1.47.0
+    /* 7 */ DBIO.seq(sqlu"alter table nodeagreements add column services character varying not null default ''", sqlu"alter table nodeagreements add column agrsvcorgid character varying not null default ''", sqlu"alter table nodeagreements add column agrsvcpattern character varying not null default ''", sqlu"alter table nodeagreements add column agrsvcurl character varying not null default ''"),   // v1.47.0
   )
-  val latestSchemaDescription = "Added services column to patterns tables"
+  val latestSchemaDescription = "Added columns services, agrsvcorgid, agrsvcpattern, agrsvcurl to nodeagreements tables"
 
   val rows = TableQuery[SchemaTable]
 

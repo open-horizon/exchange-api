@@ -1,13 +1,13 @@
 # Updates node 1
-source `dirname $0`/../../functions.sh PUT $*
+source `dirname $0`/../../functions.sh '' '' $*
 
 curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic $EXCHANGE_ORG/$EXCHANGE_USER:$EXCHANGE_PW" -d '{
   "token": "abc123",
   "name": "rpi1",
-  "pattern": "'$EXCHANGE_ORG'/mypat",
-  "registeredMicroservices": [
+  "pattern": "'$EXCHANGE_ORG'/p1",
+  "registeredServices": [
     {
-      "url": "https://bluehorizon.network/documentation/sdr-node-api",
+      "url": "https://bluehorizon.network/services/sdr",
       "numAgreements": 1,
       "policy": "{json policy for rpi1 sdr}",
       "properties": [
@@ -18,33 +18,15 @@ curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/j
           "op": "in"
         },
         {
-          "name": "memory",
-          "value": "300",
-          "propType": "int",
-          "op": ">="
-        },
-        {
           "name": "version",
           "value": "1.0",
           "propType": "version",
           "op": "in"
-        },
-        {
-          "name": "agreementProtocols",
-          "value": "ExchangeManualTest",
-          "propType": "list",
-          "op": "in"
-        },
-        {
-          "name": "dataVerification",
-          "value": "true",
-          "propType": "boolean",
-          "op": "="
         }
       ]
     },
     {
-      "url": "https://bluehorizon.network/documentation/netspeed-node-api",
+      "url": "https://bluehorizon.network/services/netspeed",
       "numAgreements": 1,
       "policy": "{json policy for rpi1 netspeed}",
       "properties": [

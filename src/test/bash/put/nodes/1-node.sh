@@ -1,14 +1,15 @@
 # Update node 1 as node
-source `dirname $0`/../../functions.sh PUT $*
+source `dirname $0`/../../functions.sh PUT '' '' $*
 
 curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic $EXCHANGE_ORG/$EXCHANGE_NODEAUTH" -d '{
   "token": "abc123",
   "name": "rpi1-updated",
-  "registeredMicroservices": [
+  "pattern": "'$EXCHANGE_ORG'/p1",
+  "registeredServices": [
     {
-      "url": "https://bluehorizon.network/documentation/sdr-node-api",
+      "url": "https://bluehorizon.network/services/sdr",
       "numAgreements": 1,
-      "policy": "{json policy for rpi1 sdr}",
+      "policy": "{updated json policy for rpi1 sdr}",
       "properties": [
         {
           "name": "arch",
@@ -17,33 +18,15 @@ curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/j
           "op": "in"
         },
         {
-          "name": "memory",
-          "value": "300",
-          "propType": "int",
-          "op": ">="
-        },
-        {
           "name": "version",
           "value": "1.0",
           "propType": "version",
           "op": "in"
-        },
-        {
-          "name": "agreementProtocols",
-          "value": "ExchangeManualTest",
-          "propType": "list",
-          "op": "in"
-        },
-        {
-          "name": "dataVerification",
-          "value": "true",
-          "propType": "boolean",
-          "op": "="
         }
       ]
     },
     {
-      "url": "https://bluehorizon.network/documentation/netspeed-node-api",
+      "url": "https://bluehorizon.network/services/netspeed",
       "numAgreements": 1,
       "policy": "{json policy for rpi1 netspeed}",
       "properties": [
@@ -63,6 +46,6 @@ curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/j
     }
   ],
   "msgEndPoint": "whisper-id",
-  "softwareVersions": {"horizon": "3.2.1"},
+  "softwareVersions": {"horizon": "1.2.1"},
   "publicKey": "ABC"
 }' $EXCHANGE_URL_ROOT/v1/orgs/$EXCHANGE_ORG/nodes/n1 | $parse

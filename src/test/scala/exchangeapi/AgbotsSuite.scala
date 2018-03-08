@@ -309,7 +309,7 @@ class AgbotsSuite extends FunSuite {
 
       if (ibmAgbotId != "") {
         // Also create a node to make sure they can msg each other
-        val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", orgid + "/" + pattern, List(), "", Map(), "NODEABC")
+        val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", orgid + "/" + pattern, None, None, "", Map(), "NODEABC")
         var response2 = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
         info("code: " + response2.code)
         assert(response2.code === HttpCode.PUT_OK)

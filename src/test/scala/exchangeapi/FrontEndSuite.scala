@@ -186,14 +186,14 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - create node") {
-    val input = PutNodesRequest(nodeToken, nodeId+"-normal", orgpattern,
-      List(
-        RegMicroservice(SDRSPEC,1,"{json policy for "+nodeId+" pws}",List(
+    val input = PutNodesRequest(nodeToken, nodeId+"-normal", orgpattern, None,
+      Some(List(
+        RegService(SDRSPEC,1,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","=")))
-      ),
+      )),
       "whisper-id", Map("horizon"->"3.2.3"), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code)
@@ -201,14 +201,14 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - update node") {
-    val input = PutNodesRequest(nodeToken, nodeId+"-update", orgpattern,
-      List(
-        RegMicroservice(SDRSPEC,1,"{json policy for "+nodeId+" pws}",List(
+    val input = PutNodesRequest(nodeToken, nodeId+"-update", orgpattern, None,
+      Some(List(
+        RegService(SDRSPEC,1,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","=")))
-      ),
+      )),
       "whisper-id", Map("horizon"->"3.2.3"), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code)
@@ -257,7 +257,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+"/search - for "+SDRSPEC) {
-    val input = PostPatternSearchRequest(SDRSPEC, 86400, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 86400, 0, 0)
     val response = Http(URL+"/patterns/"+pattern+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -275,12 +275,12 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes/ - for "+SDRSPEC) {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","2","int",">="),
       Prop("version","*","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
+      Prop("dataVerification","","wildcard","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code)
@@ -292,14 +292,14 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - create node agreement") {
-    val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)), NAWorkload("","",""), "signed")
+    val input = PutNodeAgreementRequest(None, None, Some(List(NAService(orgid,SDRSPEC))), Some(NAgrService("","","")), "signed")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(TYPENODE).headers(IDNODE).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update node agreement") {
-    val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)), NAWorkload("","",""), "finalized")
+    val input = PutNodeAgreementRequest(None, None, Some(List(NAService(orgid,SDRSPEC))), Some(NAgrService("","","")), "finalized")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(TYPENODE).headers(IDNODE).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)

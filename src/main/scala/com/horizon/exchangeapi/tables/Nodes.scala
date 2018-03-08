@@ -6,15 +6,53 @@ import org.json4s.jackson.Serialization.read
 import slick.jdbc.PostgresProfile.api._
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
 
-/** Contains the object representations of the DB tables related to nodes. */
+/** We define this trait because services in the DB and in the search criteria need the same methods, but have slightly different constructor args */
+trait RegServiceTrait {
+  def url: String
+  def properties: List[Prop]
 
-case class NodeRow(id: String, orgid: String, token: String, name: String, owner: String, pattern: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String) {
+  /** Returns an error msg if the user input is invalid. */
+  def validate: Option[String] = {
+    for (p <- properties) {
+      p.validate match {
+        case Some(msg) => return Option[String](url+": "+msg)     // prepend the url so they know which microservice was bad
+        case None => ;      // continue checking
+      }
+    }
+    return None     // this means it is valid
+  }
+
+  /** Returns true if this micro (the search) matches that micro (an entry in the db)
+    * Rules for comparison:
+    * - if both parties do not have the same property names, it is as if wildcard was specified
+    */
+  def matches(that: RegService): Boolean = {
+    if (url != that.url) return false
+    // go thru each of our props, finding and comparing the corresponding prop in that
+    for (thatP <- that.properties) {
+      properties.find(p => thatP.name == p.name) match {
+        case None => ;        // if the node does not specify this property, that is equivalent to it specifying wildcard
+        case Some(p) => if (!p.matches(thatP)) return false
+      }
+    }
+    return true
+  }
+}
+
+/** 1 microservice in the search criteria */
+case class RegServiceSearch(url: String, properties: List[Prop]) extends RegServiceTrait
+
+/** Contains the object representations of the DB tables related to nodes. */
+case class RegService(url: String, numAgreements: Int, policy: String, properties: List[Prop]) extends RegServiceTrait
+
+case class NodeRow(id: String, orgid: String, token: String, name: String, owner: String, pattern: String, regServices: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNode(superUser: Boolean): Node = {
     val tok = if (superUser) token else StrConstants.hiddenPw
     val swv = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
-    new Node(tok, name, owner, pattern, List[RegMicroservice](), msgEndPoint, swv, lastHeartbeat, publicKey)
+    val rsvc = if (regServices != "") read[List[RegService]](regServices) else List[RegService]()
+    new Node(tok, name, owner, pattern, List[RegMicroservice](), rsvc, msgEndPoint, swv, lastHeartbeat, publicKey)
   }
 
   def putInHashMap(superUser: Boolean, nodes: MutableHashMap[String,Node]): Unit = {
@@ -27,15 +65,15 @@ case class NodeRow(id: String, orgid: String, token: String, name: String, owner
   def upsert: DBIO[_] = {
     // Note: this currently does not do the right thing for a blank token
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.pattern, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey)).insertOrUpdate((id, orgid, tok, name, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
-    else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, tok, name, owner, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.pattern, d.regServices, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey)).insertOrUpdate((id, orgid, tok, name, pattern, regServices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, tok, name, owner, pattern, regServices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
   }
 
   def update: DBIO[_] = {
     // Note: this currently does not do the right thing for a blank token
     val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
-    if (owner == "") (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.orgid,d.token,d.name,d.pattern,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey)).update((id, orgid, tok, name, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
-    else (for { d <- NodesTQ.rows if d.id === id } yield d).update(NodeRow(id, orgid, tok, name, owner, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    if (owner == "") (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.orgid,d.token,d.name,d.pattern,d.regServices,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey)).update((id, orgid, tok, name, pattern, regServices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
+    else (for { d <- NodesTQ.rows if d.id === id } yield d).update(NodeRow(id, orgid, tok, name, owner, pattern, regServices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey))
   }
 }
 
@@ -47,12 +85,13 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def name = column[String]("name")
   def owner = column[String]("owner", O.Default(Role.superUser))  // root is the default because during upserts by root, we do not want root to take over the node if it already exists
   def pattern = column[String]("pattern")       // this is orgid/patternname
+  def regServices = column[String]("regservices")
   def msgEndPoint = column[String]("msgendpoint")
   def softwareVersions = column[String]("swversions")
   def publicKey = column[String]("publickey")     // this is last because that is where alter table in upgradedb puts it
   def lastHeartbeat = column[String]("lastheartbeat")
   // this describes what you get back when you return rows from a query
-  def * = (id, orgid, token, name, owner, pattern, msgEndPoint, softwareVersions, lastHeartbeat, publicKey) <> (NodeRow.tupled, NodeRow.unapply)
+  def * = (id, orgid, token, name, owner, pattern, regServices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey) <> (NodeRow.tupled, NodeRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   //def patKey = foreignKey("pattern_fk", pattern, PatternsTQ.rows)(_.pattern, onUpdate=ForeignKeyAction.Cascade)     // <- we can't make this a foreign key because it is optional
@@ -84,6 +123,7 @@ object NodesTQ {
       case "name" => filter.map(_.name)
       case "owner" => filter.map(_.owner)
       case "pattern" => filter.map(_.pattern)
+      case "regServices" => filter.map(_.regServices)
       case "msgEndPoint" => filter.map(_.msgEndPoint)
       case "softwareVersions" => filter.map(_.softwareVersions)
       case "lastHeartbeat" => filter.map(_.lastHeartbeat)
@@ -92,33 +132,20 @@ object NodesTQ {
     }
   }
 
-  /** Returns the actions to delete the node and any micros/props and agreements that reference it
-  def getDeleteActions(id: String): DBIO[_] = DBIO.seq(
-      // now with all the foreign keys set up correctly and onDelete=cascade, the db will automatically delete these associated rows
-      // PropsTQ.rows.filter(_.propId like id+"|%").delete,       // delete the props that reference this node
-      // MicroservicesTQ.rows.filter(_.nodeId === id).delete,       // delete the micros that reference this node
-      // NodeAgreementsTQ.getAgreements(id).delete,            // delete agreements that reference this node
-      rows.filter(_.id === id).delete    // delete the node
-    )
-  */
-
-  /** Separate the join of the nodes, microservices, properties, and swversions tables into their respective scala classes (collapsing duplicates) and return a hash containing it all */
-  // def parseJoin(superUser: Boolean, list: Seq[(NodeRow, Option[MicroserviceRow], Option[PropRow], Option[SoftwareVersionRow])]): Map[String,Node] = {
+  /** Separate the join of the nodes, microservices, properties, and swversions tables into their respective scala classes (collapsing duplicates) and return a hash containing it all.
+    * Note: this can also be used when querying node rows that have services (not microservices), because the services are faithfully preserved in the Node object. */
   def parseJoin(superUser: Boolean, list: Seq[(NodeRow, Option[RegMicroserviceRow], Option[PropRow])] ): Map[String,Node] = {
     // Separate the partially duplicate join rows into maps that only keep unique values
     val nodes = new MutableHashMap[String,Node]    // the key is node id
     val micros = new MutableHashMap[String,MutableHashMap[String,RegMicroservice]]    // 1st key is node id, 2nd key is micro id
     val props = new MutableHashMap[String,MutableHashMap[String,Prop]]    // 1st key is micro id, 2nd key is prop id
-    // var swVersions = new MutableHashMap[String,MutableHashMap[String,String]]    // 1st key is node id, 2nd key is sw name
-    // for ((d, mOption, pOption, sOption) <- list) {
     for ((d, mOption, pOption) <- list) {
       d.putInHashMap(superUser, nodes)
       if (mOption.isDefined) mOption.get.putInHashMap(micros)
       if (pOption.isDefined) pOption.get.putInHashMap(props)
-      // if (!sOption.isEmpty) sOption.get.putInHashMap(swVersions)
     }
 
-    // Now fill in the nodes map, turning the maps we created above for micros, props, and swVersions into lists
+    // Now fill in the nodes map, turning the maps we created above for micros, props into lists
     for ((nodeId, d) <- nodes) {
       if (micros.get(nodeId).isDefined) {
         var microList = ListBuffer[RegMicroservice]()
@@ -128,15 +155,14 @@ object NodesTQ {
         }
         d.registeredMicroservices = microList.toList    // replace the empty micro list we put in there initially
       }
-      // if (!swVersions.get(nodeId).isEmpty) d.softwareVersions = swVersions.get(nodeId).get.toMap
     }
     nodes.toMap
   }
 }
 
 // This is the node table minus the key - used as the data structure to return to the REST clients
-class Node(var token: String, var name: String, var owner: String, var pattern: String, var registeredMicroservices: List[RegMicroservice], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String) {
-  def copy = new Node(token, name, owner, pattern, registeredMicroservices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey)
+class Node(var token: String, var name: String, var owner: String, var pattern: String, var registeredMicroservices: List[RegMicroservice], var registeredServices: List[RegService], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String) {
+  def copy = new Node(token, name, owner, pattern, registeredMicroservices, registeredServices, msgEndPoint, softwareVersions, lastHeartbeat, publicKey)
 }
 
 
@@ -176,17 +202,21 @@ case class NodeStatus(connectivity: Map[String,Boolean], microservices: List[One
 
 
 case class NAMicroservice(orgid: String, url: String)
+case class NAService(orgid: String, url: String)
 case class NAWorkload(orgid: String, pattern: String, url: String)
+case class NAgrService(orgid: String, pattern: String, url: String)
 
-case class NodeAgreementRow(agId: String, nodeId: String, microservices: String, workloadOrgid: String, workloadPattern: String, workloadUrl: String, state: String, lastUpdated: String) {
+case class NodeAgreementRow(agId: String, nodeId: String, microservices: String, workloadOrgid: String, workloadPattern: String, workloadUrl: String, services: String, agrSvcOrgid: String, agrSvcPattern: String, agrSvcUrl: String, state: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   // Translates the MS string into a data structure
   def getMicroservices: List[NAMicroservice] = if (microservices != "") read[List[NAMicroservice]](microservices) else List[NAMicroservice]()
-  def getWorkloads = NAWorkload(workloadOrgid, workloadPattern, workloadUrl)
+  def getServices: List[NAService] = if (services != "") read[List[NAService]](services) else List[NAService]()
+  def getWorkload = NAWorkload(workloadOrgid, workloadPattern, workloadUrl)
+  def getNAgrService = NAgrService(agrSvcOrgid, agrSvcPattern, agrSvcUrl)
 
   def toNodeAgreement = {
-    NodeAgreement(getMicroservices, getWorkloads, state, lastUpdated)
+    NodeAgreement(getMicroservices, getWorkload, getServices, getNAgrService, state, lastUpdated)
   }
 
   def upsert: DBIO[_] = NodeAgreementsTQ.rows.insertOrUpdate(this)
@@ -199,9 +229,13 @@ class NodeAgreements(tag: Tag) extends Table[NodeAgreementRow](tag, "nodeagreeme
   def workloadOrgid = column[String]("workloadorgid")
   def workloadPattern = column[String]("workloadpattern")
   def workloadUrl = column[String]("workloadurl")
+  def services = column[String]("services")
+  def agrSvcOrgid = column[String]("agrsvcorgid")
+  def agrSvcPattern = column[String]("agrsvcpattern")
+  def agrSvcUrl = column[String]("agrsvcurl")
   def state = column[String]("state")
   def lastUpdated = column[String]("lastUpdated")
-  def * = (agId, nodeId, microservices, workloadOrgid, workloadPattern, workloadUrl, state, lastUpdated) <> (NodeAgreementRow.tupled, NodeAgreementRow.unapply)
+  def * = (agId, nodeId, microservices, workloadOrgid, workloadPattern, workloadUrl, services, agrSvcOrgid, agrSvcPattern, agrSvcUrl, state, lastUpdated) <> (NodeAgreementRow.tupled, NodeAgreementRow.unapply)
   def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
@@ -214,29 +248,50 @@ object NodeAgreementsTQ {
   def getAgreementsWithState = rows.filter(_.state =!= "")
 }
 
-case class NodeAgreement(microservices: List[NAMicroservice], workload: NAWorkload, state: String, lastUpdated: String)
+case class NodeAgreement(microservices: List[NAMicroservice], workload: NAWorkload, services: List[NAService], agrService: NAgrService, state: String, lastUpdated: String)
 
 /** Builds a hash of the current number of agreements for each node and microservice in the org, so we can check them quickly */
-class AgreementsHash(dbNodesAgreements: Seq[NodeAgreementRow]) {
+class AgreementsHash(dbNodesAgreements: Seq[NodeAgreementRow], useServices: Boolean = true) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   // The 1st level key of this hash is the node id, the 2nd level key is the microservice url, the leaf value is current number of agreements
   var agHash = new MutableHashMap[String,MutableHashMap[String,Int]]()
 
-  for (a <- dbNodesAgreements) {
-//    val micros = if (a.microservices != "") read[List[String]](a.microservices) else List[String]()
-    val micros = a.getMicroservices
-    agHash.get(a.nodeId) match {
-      case Some(nodeHash) => for (ms <- micros) {
+  if (useServices) {
+    for (a <- dbNodesAgreements) {
+      val micros = a.getServices
+      agHash.get(a.nodeId) match {
+        case Some(nodeHash) => for (ms <- micros) {
+          val numAgs = nodeHash.get(ms.url) // node hash is there so find or create the service hashes within it
+          numAgs match {
+            case Some(numAgs2) => nodeHash.put(ms.url, numAgs2 + 1)
+            case None => nodeHash.put(ms.url, 1)
+          }
+        }
+        case None => val nodeHash = new MutableHashMap[String, Int]() // this node is not in the hash yet, so create it and add the service hashes
+          for (ms <- micros) {
+            nodeHash.put(ms.url, 1)
+          }
+          agHash += ((a.nodeId, nodeHash))
+      }
+    }
+  } else {
+    for (a <- dbNodesAgreements) {
+      val micros = a.getMicroservices
+      agHash.get(a.nodeId) match {
+        case Some(nodeHash) => for (ms <- micros) {
           val numAgs = nodeHash.get(ms.url) // node hash is there so find or create the microservice hashes within it
           numAgs match {
             case Some(numAgs2) => nodeHash.put(ms.url, numAgs2 + 1)
             case None => nodeHash.put(ms.url, 1)
           }
         }
-      case None => val nodeHash = new MutableHashMap[String,Int]()   // this node is not in the hash yet, so create it and add the microservice hashes
-        for (ms <- micros) { nodeHash.put(ms.url, 1) }
-        agHash += ((a.nodeId, nodeHash ))
+        case None => val nodeHash = new MutableHashMap[String, Int]() // this node is not in the hash yet, so create it and add the microservice hashes
+          for (ms <- micros) {
+            nodeHash.put(ms.url, 1)
+          }
+          agHash += ((a.nodeId, nodeHash))
+      }
     }
   }
 }
@@ -339,7 +394,7 @@ object RegMicroservicesTQ {
   val rows = TableQuery[RegMicroservices]
 }
 
-/** We define this trait because microservices in the DB and it the search criteria need the same methods, but have slightly different constructor args */
+/** We define this trait because microservices in the DB and in the search criteria need the same methods, but have slightly different constructor args */
 trait RegMicroserviceTrait {
   def url: String
   def properties: List[Prop]

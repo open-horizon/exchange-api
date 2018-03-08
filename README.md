@@ -74,8 +74,6 @@ services in the exchange.
 
 ### Todos left to be finished in subsequent versions
 
-- change pattern, node, and searches to refer to service
-- issue #39 (pattern node search api does not validate the workloadUrl)
 - Add optional param in POST pattern to automatically add it to agbots
 - consider detect if pattern contains 2 workloads that depend on the same exclusive MS
 - detect if a pattern is updated with ms/wk that has userInput w/o default values, and give warning
@@ -88,6 +86,28 @@ services in the exchange.
 - Change local automated tests in Makefile to be more consistent with travis ci
 - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 - Any other schema changes?
+
+## Queued Up For 1.48.0
+
+- clean up variables in nodes suite tests
+- add back in a few tests for workloads and microservices in pattern and node search
+- issue #39 (pattern node search api does not validate the workloadUrl)
+- change agbot agreement to service
+- change put node status to service
+
+
+## Changes in 1.47.0
+
+### External changes
+
+- change node search to service
+- change node, node agreement, pattern search
+- changed pattern to support service
+
+### Limitations in This Version
+
+- Agbot agreement resources still refer to workloadOrgid, workloadPattern, workloadUrl (but you can put service info in those fields, because they are not checked)
+- Node status resources still refer to workloads and microservices (but i think you can put service info in those fields, because i don't think they are checked)
 
 
 ## Changes in 1.46.0

@@ -61,9 +61,11 @@ class UsersSuite extends FunSuite {
   val msBase = "ms"
   val msUrl = "http://" + msBase
   val microservice = msBase + "_1.0.0_arm"
-  val wkBase = "work"
-  val wkUrl = "http://" + wkBase
-  val workload = wkBase + "_1.0.0_arm"
+  val svcBase = "svc"
+  val svcurl = "http://" + svcBase
+  val svcarch = "arm"
+  val svcversion = "1.0.0"
+  val service = svcBase+"_"+svcversion+"_"+svcarch
   val ptBase = "pat"
   val ptUrl = "http://" + ptBase
   val pattern = ptBase + "_1.0.0_arm"
@@ -536,55 +538,55 @@ class UsersSuite extends FunSuite {
   }
 
 
-  test("POST /orgs/"+orgid+"/workloads - add "+workload+" as not public in 1st org") {
-    val input = PostPutWorkloadRequest(wkBase+" arm", "desc", public = false, wkUrl, "1.0.0", "arm", None, List(), List(), List())
-    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+  test("POST /orgs/"+orgid+"/services - add "+service+" as not public in 1st org") {
+    val input = PostPutServiceRequest(svcBase+" arm", "desc", public = false, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
+    val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
-  test("GET /orgs/"+orgid+"/workloads - as org2 user - should find no public workloads") {
-    val response: HttpResponse[String] = Http(URL + "/workloads").headers(ACCEPT).headers(ORG2USERAUTH).asString
+  test("GET /orgs/"+orgid+"/services - as org2 user - should find no public services") {
+    val response: HttpResponse[String] = Http(URL + "/services").headers(ACCEPT).headers(ORG2USERAUTH).asString
     info("code: " + response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
-  test("GET /orgs/"+orgid+"/workloads/"+workload+" - as org2 user - should fail") {
-    val response: HttpResponse[String] = Http(URL + "/workloads/" + workload).headers(ACCEPT).headers(ORG2USERAUTH).asString
+  test("GET /orgs/"+orgid+"/services/"+service+" - as org2 user - should fail") {
+    val response: HttpResponse[String] = Http(URL + "/services/" + service).headers(ACCEPT).headers(ORG2USERAUTH).asString
     info("code: " + response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
-  test("PATCH /orgs/"+orgid+"/workloads/"+workload+" - to make it public") {
+  test("PATCH /orgs/"+orgid+"/services/"+service+" - to make it public") {
     val jsonInput = """{ "public": true }"""
-    val response = Http(URL+"/workloads/"+workload).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("GET /orgs/"+orgid+"/workloads - as org2 user - this time it should find 1") {
-    val response: HttpResponse[String] = Http(URL + "/workloads").headers(ACCEPT).headers(ORG2USERAUTH).asString
+  test("GET /orgs/"+orgid+"/services - as org2 user - this time it should find 1") {
+    val response: HttpResponse[String] = Http(URL + "/services").headers(ACCEPT).headers(ORG2USERAUTH).asString
     info("code: " + response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
-    val respObj = parse(response.body).extract[GetWorkloadsResponse]
-    assert(respObj.workloads.size === 1)
+    val respObj = parse(response.body).extract[GetServicesResponse]
+    assert(respObj.services.size === 1)
   }
 
-  test("GET /orgs/"+orgid+"/workloads/"+workload+" - as org2 user - this time it should work") {
-    val response: HttpResponse[String] = Http(URL + "/workloads/" + workload).headers(ACCEPT).headers(ORG2USERAUTH).asString
+  test("GET /orgs/"+orgid+"/services/"+service+" - as org2 user - this time it should work") {
+    val response: HttpResponse[String] = Http(URL + "/services/" + service).headers(ACCEPT).headers(ORG2USERAUTH).asString
     info("code: " + response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
-    val respObj = parse(response.body).extract[GetWorkloadsResponse]
-    assert(respObj.workloads.size === 1)
+    val respObj = parse(response.body).extract[GetServicesResponse]
+    assert(respObj.services.size === 1)
   }
 
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as not public in 1st org") {
-    val input = PostPutPatternRequest("Pattern", "desc", public = false, List(), List[Map[String,String]]() )
+    val input = PostPutPatternRequest("Pattern", "desc", public = false, Some(List()), None, List[Map[String,String]]() )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

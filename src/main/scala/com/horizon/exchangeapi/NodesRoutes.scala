@@ -22,8 +22,14 @@ case class GetNodesResponse(nodes: Map[String,Node], lastIndex: Int)
 case class GetNodeAttributeResponse(attribute: String, value: String)
 
 /** Input for pattern-based search for nodes to make agreements with. */
-case class PostPatternSearchRequest(workloadUrl: String, secondsStale: Int, startIndex: Int, numEntries: Int) {
-  def validate() = {}
+case class PostPatternSearchRequest(workloadUrl: Option[String], serviceUrl: Option[String], secondsStale: Int, startIndex: Int, numEntries: Int) {
+  def validate() = {
+    if (workloadUrl.isDefined && serviceUrl.isDefined) {
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "can not specify both the 'workloadUrl' and 'serviceUrl' fields."))
+    } else if (workloadUrl.isEmpty && serviceUrl.isEmpty) {
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either the 'workloadUrl' or 'serviceUrl' field must be specified."))
+    }
+  }
 }
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
@@ -44,10 +50,18 @@ case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
 
 
 /** Input for microservice-based (citizen scientist) search, POST /orgs/"+orgid+"/search/nodes */
-case class PostSearchNodesRequest(desiredMicroservices: List[RegMicroserviceSearch], secondsStale: Int, propertiesToReturn: List[String], startIndex: Int, numEntries: Int) {
+case class PostSearchNodesRequest(desiredMicroservices: Option[List[RegMicroserviceSearch]], desiredServices: Option[List[RegServiceSearch]], secondsStale: Int, propertiesToReturn: List[String], startIndex: Int, numEntries: Int) {
   /** Halts the request with an error msg if the user input is invalid. */
   def validate() = {
-    for (m <- desiredMicroservices) {
+    for (m <- desiredMicroservices.getOrElse(List())) {
+      m.validate match {
+        case Some(s) => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, s))
+        case None => ;
+      }
+    }
+    for (m <- desiredServices.getOrElse(List())) {
+      // now we support more than 1 agreement for a MS
+      // if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
       m.validate match {
         case Some(s) => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, s))
         case None => ;
@@ -55,47 +69,95 @@ case class PostSearchNodesRequest(desiredMicroservices: List[RegMicroserviceSear
     }
   }
 
-  /** Returns the microservices that match all of the search criteria */
+  /** Returns the services that match all of the search criteria */
   def matches(nodes: Map[String,Node], agHash: AgreementsHash)(implicit logger: Logger): PostSearchNodesResponse = {
     // logger.trace(agHash.agHash.toString)
 
-    // Loop thru the existing nodes and microservices in the DB. (Should probably make this more FP style)
+    // Loop thru the existing nodes and services in the DB. (Should probably make this more FP style)
     var nodesResp: List[NodeResponse] = List()
-    // for ((id,d) <- nodes; if !ApiTime.isSecondsStale(d.lastHeartbeat,secondsStale) ) {   <-- the db query now filters out stale nodes
-    for ((id,d) <- nodes) {
-      // Get all microservices for this node that are not max'd out on agreements
-      var availableMicros: List[RegMicroservice] = List()
-      for (m <- d.registeredMicroservices) { breakable {
-        // do not even bother checking this against the search criteria if this micro is already at its agreement limit
-        val agNode = agHash.agHash.get(id)
-        agNode match {
-          case Some(agNode2) => val agNum = agNode2.get(m.url)
-            agNum match {
-              case Some(agNum2) => if (agNum2 >= m.numAgreements) break  // this is really a continue
-              case None => ;      // no agreements for this microservice, nothing to do
+    for ((id,d) <- nodes) {       // the db query now filters out stale nodes
+      if (desiredServices.isDefined) {
+        // Get all services for this node that are not max'd out on agreements
+        var availableServices: List[RegService] = List()
+        for (m <- d.registeredServices) {
+          breakable {
+            // do not even bother checking this against the search criteria if this service is already at its agreement limit
+            val agNode = agHash.agHash.get(id)
+            agNode match {
+              case Some(agNode2) => val agNum = agNode2.get(m.url)
+                agNum match {
+                  case Some(agNum2) => if (agNum2 >= m.numAgreements) break // this is really a continue
+                  case None => ; // no agreements for this service, nothing to do
+                }
+              case None => ; // no agreements for this node, nothing to do
             }
-          case None => ;      // no agreements for this node, nothing to do
-        }
-        availableMicros = availableMicros :+ m
-      } }
-
-      // We now have several microservices for 1 node from the db (that are not max'd out on agreements). See if all of the desired micros are satisfied.
-      var microsResp: List[RegMicroservice] = List()
-      breakable { for (desiredMicro <- desiredMicroservices) {
-        var found: Boolean = false
-        breakable { for (availableMicro <- availableMicros) {
-          if (desiredMicro.matches(availableMicro)) {
-            microsResp = microsResp :+ availableMicro
-            found = true
-            break
+            availableServices = availableServices :+ m
           }
-        } }
-        if (!found) break     // we did not find one of the required micros, so end early
-      } }
+        }
 
-      if (microsResp.length == desiredMicroservices.length) {
-        // all required micros were available in this node, so add this node to the response list
-        nodesResp = nodesResp :+ NodeResponse(id, d.name, microsResp, d.msgEndPoint, d.publicKey)
+        // We now have several services for 1 node from the db (that are not max'd out on agreements). See if all of the desired services are satisfied.
+        var servicesResp: List[RegService] = List()
+        breakable {
+          for (desiredService <- desiredServices.get) {
+            var found: Boolean = false
+            breakable {
+              for (availableService <- availableServices) {
+                if (desiredService.matches(availableService)) {
+                  servicesResp = servicesResp :+ availableService
+                  found = true
+                  break
+                }
+              }
+            }
+            if (!found) break // we did not find one of the required services, so end early
+          }
+        }
+
+        if (servicesResp.length == desiredServices.get.length) {
+          // all required services were available in this node, so add this node to the response list
+          nodesResp = nodesResp :+ NodeResponse(id, d.name, List(), servicesResp, d.msgEndPoint, d.publicKey)
+        }
+      } else {      // still using the old microservices
+        // Get all microservices for this node that are not max'd out on agreements
+        var availableMicros: List[RegMicroservice] = List()
+        for (m <- d.registeredMicroservices) {
+          breakable {
+            // do not even bother checking this against the search criteria if this micro is already at its agreement limit
+            val agNode = agHash.agHash.get(id)
+            agNode match {
+              case Some(agNode2) => val agNum = agNode2.get(m.url)
+                agNum match {
+                  case Some(agNum2) => if (agNum2 >= m.numAgreements) break // this is really a continue
+                  case None => ; // no agreements for this microservice, nothing to do
+                }
+              case None => ; // no agreements for this node, nothing to do
+            }
+            availableMicros = availableMicros :+ m
+          }
+        }
+
+        // We now have several microservices for 1 node from the db (that are not max'd out on agreements). See if all of the desired micros are satisfied.
+        var microsResp: List[RegMicroservice] = List()
+        breakable {
+          for (desiredMicro <- desiredMicroservices.get) {
+            var found: Boolean = false
+            breakable {
+              for (availableMicro <- availableMicros) {
+                if (desiredMicro.matches(availableMicro)) {
+                  microsResp = microsResp :+ availableMicro
+                  found = true
+                  break
+                }
+              }
+            }
+            if (!found) break // we did not find one of the required micros, so end early
+          }
+        }
+
+        if (microsResp.length == desiredMicroservices.get.length) {
+          // all required micros were available in this node, so add this node to the response list
+          nodesResp = nodesResp :+ NodeResponse(id, d.name, microsResp, List(), d.msgEndPoint, d.publicKey)
+        }
       }
     }
     // return the search result to the rest client
@@ -103,19 +165,30 @@ case class PostSearchNodesRequest(desiredMicroservices: List[RegMicroserviceSear
   }
 }
 
-case class NodeResponse(id: String, name: String, microservices: List[RegMicroservice], msgEndPoint: String, publicKey: String)
+case class NodeResponse(id: String, name: String, microservices: List[RegMicroservice], services: List[RegService], msgEndPoint: String, publicKey: String)
 case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
-case class PutNodesRequest(token: String, name: String, pattern: String, registeredMicroservices: List[RegMicroservice], msgEndPoint: String, softwareVersions: Map[String,String], publicKey: String) {
+case class PutNodesRequest(token: String, name: String, pattern: String, registeredMicroservices: Option[List[RegMicroservice]], registeredServices: Option[List[RegService]], msgEndPoint: String, softwareVersions: Map[String,String], publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Halts the request with an error msg if the user input is invalid. */
   def validate() = {
+    if (registeredMicroservices.isDefined && registeredServices.isDefined) {
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "can not specify both the 'registeredMicroservices' and 'registeredServices' fields."))
+    }
     // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
     if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token specified must not be blank"))
     if (pattern != "" && """.*/.*""".r.findFirstIn(pattern).isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the 'pattern' attribute must have the orgid prepended, with a slash separating"))
-    for (m <- registeredMicroservices) {
+    for (m <- registeredMicroservices.getOrElse(List())) {
+      // now we support more than 1 agreement for a MS
+      // if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
+      m.validate match {
+        case Some(s) => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, s))
+        case None => ;
+      }
+    }
+    for (m <- registeredServices.getOrElse(List())) {
       // now we support more than 1 agreement for a MS
       // if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
       m.validate match {
@@ -127,12 +200,13 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
 
   /** Get the db actions to insert or update all parts of the node */
   def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = {
+    //println("getDbUpsert: registeredServices: "+registeredServices)
     // Accumulate the actions in a list, starting with the action to insert/update the node itself
-    val actions = ListBuffer[DBIO[_]](NodeRow(id, orgid, token, name, owner, pattern, msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).upsert)
+    val actions = ListBuffer[DBIO[_]](NodeRow(id, orgid, token, name, owner, pattern, write(registeredServices), msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).upsert)
     val microsUrls = MutableSet[String]()    // the url attribute of the micros we are creating, so we can delete everthing else for this node
     val propsIds = MutableSet[String]()    // the propId attribute of the props we are creating, so we can delete everthing else for this node
     // Now add actions to insert/update the node's micros and props
-    for (m <- registeredMicroservices) {
+    for (m <- registeredMicroservices.getOrElse(List())) {
       actions += m.toRegMicroserviceRow(id).upsert
       microsUrls += m.url
       for (p <- m.properties) {
@@ -150,10 +224,11 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
    * because we can't let a node create new nodes. */
   def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = {
-    val actions = ListBuffer[DBIO[_]](NodeRow(id, orgid, token, name, owner, pattern, msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).update)
+    //println("getDbUpdate: registeredServices: "+registeredServices)
+    val actions = ListBuffer[DBIO[_]](NodeRow(id, orgid, token, name, owner, pattern, write(registeredServices), msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).update)
     val microsUrls = MutableSet[String]()    // the url attribute of the micros we are updating, so we can delete everthing else for this node
     val propsIds = MutableSet[String]()    // the propId attribute of the props we are updating, so we can delete everthing else for this node
-    for (m <- registeredMicroservices) {
+    for (m <- registeredMicroservices.getOrElse(List())) {
       actions += m.toRegMicroserviceRow(id).upsert     // only the node should be update (the rest should be upsert), because that's the only one we know exists
       microsUrls += m.url
       for (p <- m.properties) {
@@ -203,7 +278,7 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   */
 }
 
-case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String]) {
+case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
@@ -220,6 +295,11 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
     softwareVersions match {
       case Some(swv) => val swVersions = if (swv.nonEmpty) write(softwareVersions) else ""
         return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat)).update((id, swVersions, lastHeartbeat)), "softwareVersions")
+      case _ => ;
+    }
+    registeredServices match {
+      case Some(rsvc) => val regSvc = if (rsvc.nonEmpty) write(registeredServices) else ""
+        return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat)).update((id, regSvc, lastHeartbeat)), "registeredServices")
       case _ => ;
     }
     name match { case Some(name2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name2, lastHeartbeat)), "name"); case _ => ; }
@@ -241,10 +321,20 @@ case class PutNodeStatusRequest(connectivity: Map[String,Boolean], microservices
 case class GetNodeAgreementsResponse(agreements: Map[String,NodeAgreement], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/{id}/agreements/<agreement-id> */
-case class PutNodeAgreementRequest(microservices: List[NAMicroservice], workload: NAWorkload, state: String) {
+case class PutNodeAgreementRequest(microservices: Option[List[NAMicroservice]], workload: Option[NAWorkload], services: Option[List[NAService]], agreementService: Option[NAgrService], state: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def toNodeAgreement = NodeAgreement(microservices, workload, state, ApiTime.nowUTC)
-  def toNodeAgreementRow(nodeId: String, agId: String) = NodeAgreementRow(agId, nodeId, write(microservices), workload.orgid, workload.pattern, workload.url, state, ApiTime.nowUTC)
+  def validate() = {
+    if ( (microservices.isDefined || workload.isDefined) && (services.isDefined || agreementService.isDefined) ) {
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "you can not specify the old fields 'microservices' and 'workload' and the new fields 'services' or 'agreementService'."))
+    } else if (microservices.isEmpty && workload.isEmpty && services.isEmpty && agreementService.isEmpty) {
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "you must specify at least 1 of 'microservices', 'workload', 'services', or 'agreementService'."))
+    }
+  }
+  //def toNodeAgreement = NodeAgreement(microservices, workload, state, ApiTime.nowUTC)
+  def toNodeAgreementRow(nodeId: String, agId: String) = {
+    if (agreementService.isDefined) NodeAgreementRow(agId, nodeId, write(microservices), "", "", "", write(services), agreementService.get.orgid, agreementService.get.pattern, agreementService.get.url, state, ApiTime.nowUTC)
+    else NodeAgreementRow(agId, nodeId, write(microservices), workload.get.orgid, workload.get.pattern, workload.get.url, write(services), "", "", "", state, ApiTime.nowUTC)
+  }
 }
 
 
@@ -300,7 +390,6 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     // Note: joinLeft is necessary here so that if no micros exist for a node, we still get the node (and likewise for the micro if no props exist).
     //    This means m and p below are wrapped in Option because they may not always be there
     var q = for {
-      // ((d, m), p) <- NodesTQ.rows joinLeft MicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on ( (dm, p) => { dm._1.id === p.nodeId && dm._2.map(_.url) === p.msUrl } )
       ((d, m), p) <- NodesTQ.getAllNodes(orgid) joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
     } yield (d, m, p)
 
@@ -380,7 +469,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postPatternSearch =
     (apiOperation[PostPatternSearchResponse]("postPatternSearch")
       summary("Returns matching nodes of a particular pattern")
-      description """Returns the matching nodes that are this pattern and do not already have an agreement for the specified workload. Can be run by a user or agbot (but not a node). The **request body** structure:
+      description """Returns the matching nodes that are this pattern and do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node). The **request body** structure:
 
 ```
 {
@@ -395,13 +484,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostPatternSearchResponse],
+        Parameter("body", DataType[PostPatternSearchRequest],
           Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
-  val postPatternSearch2 = (apiOperation[PostPatternSearchResponse]("postPatternSearch2") summary("a") description("a"))
+  val postPatternSearch2 = (apiOperation[PostPatternSearchRequest]("postPatternSearch2") summary("a") description("a"))
 
   /** Normally called by the agbot to search for available nodes. */
   post("/orgs/:orgid/patterns/:pattern/search", operation(postPatternSearch)) ({
@@ -413,18 +502,26 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     searchProps.validate()
     logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+searchProps.toString)
+    val isService = searchProps.serviceUrl.isDefined
+    val ourService = searchProps.serviceUrl.getOrElse(searchProps.workloadUrl.get)
     val resp = response
     /*
-      Narrow down the db query results as much as possible with by joining the Nodes and NodeAgreements tables and filtering.
+      Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
       In english, the join gets: n.id, n.msgEndPoint, n.publicKey, n.lastHeartbeat, a.workloadUrl, a.state
       The filter is: n.pattern==ourpattern && a.state!=""
       Then we have to go thru all of the results and find nodes that do NOT have an agreement for ourworkload.
       Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
     */
     val oldestTime = if (searchProps.secondsStale > 0) ApiTime.pastUTC(searchProps.secondsStale) else ApiTime.beginningUTC
-    val q = for {
-      (n, a) <- NodesTQ.rows.filter(_.orgid === orgid).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-    } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.workloadUrl), a.map(_.state))
+    val q = if (isService) {
+      for {
+        (n, a) <- NodesTQ.rows.filter(_.orgid === orgid).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+      } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+    } else {
+      for {
+        (n, a) <- NodesTQ.rows.filter(_.orgid === orgid).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+      } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.workloadUrl), a.map(_.state))
+    }
 
     db.run(q.result).map({ list =>
       logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result size: "+list.size)
@@ -432,11 +529,11 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       if (list.nonEmpty) {
         // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our workload
         val nodeHash = new MutableHashMap[String,PatternSearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our workload for this node
-        for ( (id, msgEndPoint, publicKey, workloadUrlOption, stateOption) <- list ) {
-          //logger.trace("id: "+id+", workloadUrlOption: "+workloadUrlOption.getOrElse("")+", searchProps.workloadUrl: "+searchProps.workloadUrl+", stateOption: "+stateOption.getOrElse(""))
+        for ( (id, msgEndPoint, publicKey, serviceUrlOption, stateOption) <- list ) {
+          //logger.trace("id: "+id+", serviceUrlOption: "+serviceUrlOption.getOrElse("")+", ourService: "+ourService+", stateOption: "+stateOption.getOrElse(""))
           nodeHash.get(id) match {
-            case Some(_) => if (workloadUrlOption.getOrElse("") == searchProps.workloadUrl && stateOption.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
-            case None => val noAgr = if (workloadUrlOption.getOrElse("") == searchProps.workloadUrl && stateOption.getOrElse("") != "") false else true
+            case Some(_) => if (serviceUrlOption.getOrElse("") == ourService && stateOption.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
+            case None => val noAgr = if (serviceUrlOption.getOrElse("") == ourService && stateOption.getOrElse("") != "") false else true
               nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgr))   // this node id not in the hash yet, and it and start it out true
           }
         }
@@ -493,13 +590,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostNodeHealthResponse],
+        Parameter("body", DataType[PostNodeHealthRequest],
           Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
-  val postPatternNodeHealth2 = (apiOperation[PostNodeHealthResponse]("postPatternNodeHealth2") summary("a") description("a"))
+  val postPatternNodeHealth2 = (apiOperation[PostNodeHealthRequest]("postPatternNodeHealth2") summary("a") description("a"))
 
   /** Called by the agbot to get recent info about nodes with this pattern (and the agreements the node has). */
   post("/orgs/:orgid/patterns/:pattern/nodehealth", operation(postPatternNodeHealth)) ({
@@ -584,32 +681,54 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val searchProps = try { parse(request.body).extract[PostSearchNodesRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     searchProps.validate()
-    logger.debug("POST /orgs/"+orgid+"/search/nodes criteria: "+searchProps.desiredMicroservices.toString)
+    logger.debug("POST /orgs/"+orgid+"/search/nodes criteria: "+searchProps.desiredServices.toString)
     val resp = response
-    // Narrow down the db query results as much as possible with db selects, then searchProps.matchesDbResults will do the rest.
-    var q = for {
-    //TODO: use this commented out line for the special case of IBM agbots being able to search nodes from all orgs
-    //((d, m), p) <- NodesTQ.rows joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
-      ((d, m), p) <- NodesTQ.getNonPatternNodes(orgid).filter(_.publicKey =!= "") joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
-    } yield (d, m, p)
-    // Also filter out nodes that are too stale (have not heartbeated recently)
-    if (searchProps.secondsStale > 0) q = q.filter(_._1.lastHeartbeat >= ApiTime.pastUTC(searchProps.secondsStale))
+    if (searchProps.desiredServices.isDefined) {
+      // Narrow down the db query results as much as possible with db selects, then searchProps.matches will do the rest.
+      var q = NodesTQ.getNonPatternNodes(orgid).filter(_.publicKey =!= "")
+      // Also filter out nodes that are too stale (have not heartbeated recently)
+      if (searchProps.secondsStale > 0) q = q.filter(_.lastHeartbeat >= ApiTime.pastUTC(searchProps.secondsStale))
 
-    var agHash: AgreementsHash = null
-    db.run(NodeAgreementsTQ.getAgreementsWithState.result.flatMap({ agList =>
-      logger.debug("POST /orgs/"+orgid+"/search/nodes aglist result size: "+agList.size)
-      logger.trace("POST /orgs/"+orgid+"/search/nodes aglist result: "+agList.toString)
-      agHash = new AgreementsHash(agList)
-      q.result      // queue up our node/ms/prop query next
-    })).map({ list =>
-      logger.debug("POST /orgs/"+orgid+"/search/nodes result size: "+list.size)
-      // logger.trace("POST /orgs/"+orgid+"/search/nodes result: "+list.toString)
-      // logger.trace("POST /orgs/"+orgid+"/search/nodes agHash: "+agHash.agHash.toString)
-      if (list.nonEmpty) resp.setStatus(HttpCode.POST_OK)   //todo: this check only works if there are no nodes at all
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      val nodes = NodesTQ.parseJoin(superUser = false, list)
-      searchProps.matches(nodes, agHash)
-    })
+      var agHash: AgreementsHash = null
+      db.run(NodeAgreementsTQ.getAgreementsWithState.result.flatMap({ agList =>
+        logger.debug("POST /orgs/" + orgid + "/search/nodes aglist result size: " + agList.size)
+        //logger.trace("POST /orgs/" + orgid + "/search/nodes aglist result: " + agList.toString)
+        agHash = new AgreementsHash(agList, searchProps.desiredServices.isDefined)
+        q.result // queue up our node/ms/prop query next
+      })).map({ list =>
+        logger.debug("POST /orgs/" + orgid + "/search/nodes result size: " + list.size)
+        // logger.trace("POST /orgs/"+orgid+"/search/nodes result: "+list.toString)
+        // logger.trace("POST /orgs/"+orgid+"/search/nodes agHash: "+agHash.agHash.toString)
+        if (list.nonEmpty) resp.setStatus(HttpCode.POST_OK) //todo: this check only catches if there are no nodes at all, not the case in which there are some nodes, but they do not have the right services
+        else resp.setStatus(HttpCode.NOT_FOUND)
+        val nodes = new MutableHashMap[String,Node]    // the key is node id
+        if (list.nonEmpty) for (a <- list) nodes.put(a.id, a.toNode(false))
+        searchProps.matches(nodes.toMap, agHash)
+      })
+    } else {      // old microservices
+      // Narrow down the db query results as much as possible with db selects, then searchProps.matches will do the rest.
+      var q = for {
+        // Note: use this commented out line for the special case of IBM agbots being able to search nodes from all orgs
+        //((d, m), p) <- NodesTQ.rows joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
+        ((d, m), p) <- NodesTQ.getNonPatternNodes(orgid).filter(_.publicKey =!= "") joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
+      } yield (d, m, p)
+      // Also filter out nodes that are too stale (have not heartbeated recently)
+      if (searchProps.secondsStale > 0) q = q.filter(_._1.lastHeartbeat >= ApiTime.pastUTC(searchProps.secondsStale))
+
+      var agHash: AgreementsHash = null
+      db.run(NodeAgreementsTQ.getAgreementsWithState.result.flatMap({ agList =>
+        logger.debug("POST /orgs/" + orgid + "/search/nodes aglist result size: " + agList.size)
+        //logger.trace("POST /orgs/" + orgid + "/search/nodes aglist result: " + agList.toString)
+        agHash = new AgreementsHash(agList, searchProps.desiredServices.isDefined)
+        q.result // queue up our node/ms/prop query next
+      })).map({ list =>
+        logger.debug("POST /orgs/" + orgid + "/search/nodes result size: " + list.size)
+        if (list.nonEmpty) resp.setStatus(HttpCode.POST_OK) //todo: this check only catches if there are no nodes at all, not the case in which there are some nodes, but they do not have the right services
+        else resp.setStatus(HttpCode.NOT_FOUND)
+        val nodes = NodesTQ.parseJoin(superUser = false, list)
+        searchProps.matches(nodes, agHash)
+      })
+    }
   })
 
   // ======== POST /org/{orgid}/search/nodehealth ========================
@@ -627,13 +746,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostNodeHealthResponse],
+        Parameter("body", DataType[PostNodeHealthRequest],
           Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
-  val postSearchNodeHealth2 = (apiOperation[PostNodeHealthResponse]("postSearchNodeHealth2") summary("a") description("a"))
+  val postSearchNodeHealth2 = (apiOperation[PostNodeHealthRequest]("postSearchNodeHealth2") summary("a") description("a"))
 
   /** Called by the agbot to get recent info about nodes with no pattern (and the agreements the node has). */
   post("/orgs/:orgid/search/nodehealth", operation(postSearchNodeHealth)) ({
@@ -681,7 +800,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   "token": "abc",       // node token, set by user when adding this node.
   "name": "rpi3",         // node name that you pick
   "pattern": "myorg/mypattern",      // (optional) points to a pattern resource that defines what workloads should be deployed to this type of node
-  "registeredMicroservices": [    // list of data microservices you want to make available
+  "registeredServices": [    // list of data microservices you want to make available
     {
       "url": "https://bluehorizon.network/documentation/sdr-node-api",
       "numAgreements": 1,       // for now always set this to 1
@@ -721,18 +840,10 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val ident = credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
     val node = try { parse(request.body).extract[PutNodesRequest] }
     catch {
-      case e: Exception => /*if (e.getMessage.contains("No usable value for publicKey")) {    // the specific exception is MappingException
-          // try parsing again with the old structure
-          val nodeOld = try { parse(request.body).extract[PutNodesRequestOld] }
-          catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
-          nodeOld.toPutNodesRequest
-        }
-        else*/ halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e))
+      case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e))
     }
     node.validate()
-    // val owner = if (isAuthenticatedUser(creds)) creds.id else ""
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
-    //val microTmpls = node.getMicroTemplates      // do this before creating/updating the entry in db, in case it can not find the templates
     val resp = response
     val patValidateAction = if (node.pattern != "") PatternsTQ.getPattern(node.pattern).length.result else DBIO.successful(1)
     db.run(patValidateAction.asTry.flatMap({ xs =>
@@ -1143,8 +1254,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val id = OrgAndId(orgid,bareId).toString
     val agId = params("agid")
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val agreement = try { if (""""microservice" *:""".r.findFirstIn(request.body).isDefined) throw new Exception("Instead of old attribute 'microservice', use list attribute 'microservices'") else parse(request.body).extract[PutNodeAgreementRequest] }
+    val agreement = try { parse(request.body).extract[PutNodeAgreementRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    agreement.validate()
     val resp = response
     db.run(NodeAgreementsTQ.getNumOwned(id).result.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" num owned: "+xs)

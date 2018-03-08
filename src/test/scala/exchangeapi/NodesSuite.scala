@@ -38,8 +38,11 @@ class NodesSuite extends FunSuite {
   val orgid = "NodesSuiteTests"
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
+  val orgid2 = "NodesSuiteTests2"
+  val authpref2=orgid2+"/"
+  val URL2 = urlRoot+"/v1/orgs/"+orgid2
   val NOORGURL = urlRoot+"/v1"
-  val user = "9980"
+  val user = "u1"
   val orguser = authpref+user
   val pw = user+"pw"
   val USERAUTH = ("Authorization","Basic "+orguser+":"+pw)
@@ -65,6 +68,10 @@ class NodesSuite extends FunSuite {
   val workurl = "https://bluehorizon.network/workloads/netspeed"
   val workarch = "amd64"
   val workversion = "1.0.0"
+  val svcid = "bluehorizon.network-services-netspeed_1.0.0_amd64"
+  val svcurl = "https://bluehorizon.network/services/netspeed"
+  val svcarch = "amd64"
+  val svcversion = "1.0.0"
   val agreementId = "9950"
   val creds = authpref+nodeId+":"+nodeToken
   val encodedCreds = Base64.getEncoder.encodeToString(creds.getBytes("utf-8"))
@@ -162,7 +169,7 @@ class NodesSuite extends FunSuite {
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - before pattern exists - should fail") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
-      List(),
+      None, None,
       "whisper-id", Map("horizon"->"3.2.3"), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -179,8 +186,8 @@ class NodesSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+" - so nodes can reference it") {
     val input = PostPutPatternRequest(patid, "desc", public = false,
-      List( PWorkloads(workurl, orgid, workarch, List(PWorkloadVersions(workversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
-      List[Map[String,String]]()
+      Some(List( PWorkloads(workurl, orgid, workarch, List(PServiceVersions(workversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) ))),
+      None, List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+patid).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -189,60 +196,58 @@ class NodesSuite extends FunSuite {
   // Note: when we delete the org, this pattern will get deleted
 
   ExchConfig.load()
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - add normal node") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
-      List(
-        RegMicroservice(PWSSPEC,1,"{json policy for "+nodeId+" pws}",List(
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - add normal node as user") {
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid, None,
+      Some(List(
+        RegService(PWSSPEC,1,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","="))),
-        RegMicroservice(NETSPEEDSPEC,1,"{json policy for "+nodeId+" netspeed}",List(
+        RegService(NETSPEEDSPEC,1,"{json policy for "+nodeId+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("cpus","2","int",">="),
           Prop("version","1.0.0","version","in")))
-      ),
+      )),
       "whisper-id", Map("horizon"->"3.2.3"), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  /** Update a normal node as user */
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal - update") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal-user", compositePatid,
-      List(
-        RegMicroservice(PWSSPEC,1,"{json policy for "+nodeId+" pws}",List(
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal - update as user") {
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal-user", compositePatid, None,
+      Some(List(
+        RegService(PWSSPEC,1,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","="))),
-        RegMicroservice(NETSPEEDSPEC,1,"{json policy for "+nodeId+" netspeed}",List(
+        RegService(NETSPEEDSPEC,1,"{json policy for "+nodeId+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("cpus","2","int",">="),
           Prop("version","1.0.0","version","in")))
-      ),
+      )),
       "", Map("horizon"->"3.2.3"), "OLDNODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  /** Update the normal node as the node */
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal - as node") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal", compositePatid,
-      List(
-        RegMicroservice(SDRSPEC,1,"{json policy for "+nodeId+" sdr}",List(
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal update - as node") {
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal", compositePatid, None,
+      Some(List(
+        RegService(SDRSPEC,1,"{json policy for "+nodeId+" sdr}",List(
           Prop("arch","arm","string","in"),
           Prop("memory","300","int",">="),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","="))),
-        RegMicroservice(NETSPEEDSPEC,1,"{json policy for "+nodeId+" netspeed}",List(
+        RegService(NETSPEEDSPEC,1,"{json policy for "+nodeId+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("version","1.0.0","version","in")))
-      ),
+      )),
       "", Map("horizon"->"3.2.1"), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
@@ -251,24 +256,24 @@ class NodesSuite extends FunSuite {
 
   /** Add a node with higher memory and version */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+" - memory 400, version 2.0.0") {
-    val input = PutNodesRequest("mytok", "rpi9901-mem-400-vers-2", compositePatid, List(RegMicroservice(SDRSPEC,1,"{json policy for 9901 sdr}",List(
+    val input = PutNodesRequest("mytok", "rpi9901-mem-400-vers-2", compositePatid, None, Some(List(RegService(SDRSPEC,1,"{json policy for 9901 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","=")))), "whisper-id", Map(), "NODE2ABC")
+      Prop("dataVerification","true","boolean","="))))), "whisper-id", Map(), "NODE2ABC")
     val response = Http(URL+"/nodes/"+nodeId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId3+" - netspeed-amd64, but no publicKey at 1st") {
-    val input = PutNodesRequest("mytok", "rpi9902-netspeed-amd64", compositePatid, List(RegMicroservice(NETSPEEDSPEC,1,"{json policy for 9902 netspeed}",List(
+    val input = PutNodesRequest("mytok", "rpi9902-netspeed-amd64", compositePatid, None, Some(List(RegService(NETSPEEDSPEC,1,"{json policy for 9902 netspeed}",List(
       Prop("arch","amd64","string","in"),
       Prop("memory","300","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","=")))), "whisper-id", Map(), "")
+      Prop("dataVerification","true","boolean","="))))), "whisper-id", Map(), "")
     val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -276,11 +281,11 @@ class NodesSuite extends FunSuite {
 
   /** Try adding a node with invalid integer property */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId4+" - bad integer property") {
-    val input = PutNodesRequest("mytok", "rpi9903-bad-int", compositePatid, List(RegMicroservice(SDRSPEC,1,"{json policy for 9903 sdr}",List(
+    val input = PutNodesRequest("mytok", "rpi9903-bad-int", compositePatid, None, Some(List(RegService(SDRSPEC,1,"{json policy for 9903 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400MB","int",">="),
       Prop("version","2.0.0","version","in"),
-      Prop("dataVerification","true","boolean","=")))), "whisper-id", Map(), "NODE4ABC")
+      Prop("dataVerification","true","boolean","="))))), "whisper-id", Map(), "NODE4ABC")
     val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
@@ -293,7 +298,7 @@ class NodesSuite extends FunSuite {
     val badJsonInput = """{
       "token": "foo",
       "xname": "rpi9903-bad-format",
-      "xregisteredMicroservices": [
+      "xregisteredServices": [
         {
           "url": """"+SDRSPEC+"""",
           "numAgreements": 1,
@@ -318,11 +323,11 @@ class NodesSuite extends FunSuite {
 
   /** Try adding a node with invalid micro url -  */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId4+" - bad micro url - this currently allowed") {
-    val input = PutNodesRequest("mytok", "rpi9903-bad-url", compositePatid, List(RegMicroservice(NOTTHERESPEC,1,"{json policy for 9903 sdr}",List(
+    val input = PutNodesRequest("mytok", "rpi9903-bad-url", compositePatid, None, Some(List(RegService(NOTTHERESPEC,1,"{json policy for 9903 sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
-      Prop("dataVerification","true","boolean","=")))), "whisper-id", Map(), "NODE4ABC")
+      Prop("dataVerification","true","boolean","="))))), "whisper-id", Map(), "NODE4ABC")
     val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -340,7 +345,7 @@ class NodesSuite extends FunSuite {
     // val response: HttpResponse[String] = Http(URL+"/v1/nodes").headers(("Accept","application/json")).param("id","a").param("token","a").asString
     val response: HttpResponse[String] = Http(URL+"/nodes").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
+    //info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === 4)
@@ -348,10 +353,10 @@ class NodesSuite extends FunSuite {
     assert(getDevResp.nodes.contains(orgnodeId))
     var dev = getDevResp.nodes(orgnodeId)
     assert(dev.name === "rpi"+nodeId+"-normal")
-    assert(dev.registeredMicroservices.length === 2)
-    var micro: RegMicroservice = dev.registeredMicroservices.find(m => m.url == SDRSPEC).orNull
+    assert(dev.registeredServices.length === 2)
+    var micro: RegService = dev.registeredServices.find(m => m.url == SDRSPEC).orNull
     assert(micro !== null)
-//    var micro: RegMicroservice = dev.registeredMicroservices.find(m => m.url==SDRSPEC) match {
+//    var micro: RegService = dev.registeredServices.find(m => m.url==SDRSPEC) match {
 //      case Some(m) => m
 //      case None => assert(condition = false); null
 //    }
@@ -365,17 +370,17 @@ class NodesSuite extends FunSuite {
     assert(dev.softwareVersions.size === 1)
     assert(dev.softwareVersions.contains("horizon"))
     assert(dev.softwareVersions("horizon") === "3.2.1")
-    micro = dev.registeredMicroservices.find(m => m.url==NETSPEEDSPEC).orNull
+    micro = dev.registeredServices.find(m => m.url==NETSPEEDSPEC).orNull
     assert(micro !== null)
     assert(micro.properties.find(p => p.name=="cpus") === None)
     assert(micro.properties.find(p => p.name=="agreementProtocols") !== None)
-    assert(dev.registeredMicroservices.find(m => m.url==PWSSPEC) === None)
+    assert(dev.registeredServices.find(m => m.url==PWSSPEC) === None)
 
     assert(getDevResp.nodes.contains(orgnodeId2))
     dev = getDevResp.nodes(orgnodeId2)
     assert(dev.name === "rpi9901-mem-400-vers-2")
-    assert(dev.registeredMicroservices.length === 1)
-    micro = dev.registeredMicroservices.head
+    assert(dev.registeredServices.length === 1)
+    micro = dev.registeredServices.head
     assert(micro.url === SDRSPEC)
     assert(micro.policy === "{json policy for 9901 sdr}")
     memProp = micro.properties.find(p => p.name=="memory").get
@@ -387,8 +392,8 @@ class NodesSuite extends FunSuite {
     assert(getDevResp.nodes.contains(orgnodeId3))
     dev = getDevResp.nodes(orgnodeId3)
     assert(dev.name === "rpi9902-netspeed-amd64")
-    assert(dev.registeredMicroservices.length === 1)
-    micro = dev.registeredMicroservices.head
+    assert(dev.registeredServices.length === 1)
+    micro = dev.registeredServices.head
     assert(micro.url === NETSPEEDSPEC)
     archProp = micro.properties.find(p => p.name=="arch").get
     assert(archProp.value === "amd64")
@@ -465,8 +470,8 @@ class NodesSuite extends FunSuite {
     val lastHb = ZonedDateTime.parse(dev.lastHeartbeat).toEpochSecond
     assert(now - lastHb <= 3)    // should not now be more than 3 seconds from the time the heartbeat was done above
 
-    assert(dev.registeredMicroservices.length === 2)
-    val micro: RegMicroservice = dev.registeredMicroservices.find(m => m.url==SDRSPEC).orNull
+    assert(dev.registeredServices.length === 2)
+    val micro: RegService = dev.registeredServices.find(m => m.url==SDRSPEC).orNull
     assert(micro !== null)
     assert(micro.url === SDRSPEC)
     assert(micro.policy === "{json policy for "+nodeId+" sdr}")
@@ -476,7 +481,7 @@ class NodesSuite extends FunSuite {
     var memProp = micro.properties.find(p => p.name=="memory").orNull
     assert((memProp !== null) && (memProp.value === "300"))
 
-    assert(dev.registeredMicroservices.find(m => m.url==NETSPEEDSPEC) !== None)
+    assert(dev.registeredServices.find(m => m.url==NETSPEEDSPEC) !== None)
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - as node") {
@@ -555,7 +560,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - as agbot - should not find "+nodeId3+" because no publicKey") {
-    val input = PostPatternSearchRequest(SDRSPEC, 86400, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -603,13 +608,13 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - all arm nodes") {
-    patchNodePattern("")      // remove pattern from nodes so we can search for microservices
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    patchNodePattern("")      // remove pattern from nodes so we can search for services
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","2","int",">="),
       Prop("version","*","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
+      Prop("dataVerification","","wildcard","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -620,8 +625,8 @@ class NodesSuite extends FunSuite {
     assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2) === 2)
     val dev = nodes.find(d => d.id == orgnodeId).get // the 2nd get turns the Some(val) into val
     assert(dev.name === "rpi"+nodeId+"-normal")
-    assert(dev.microservices.length === 1)
-    val micro = dev.microservices.head
+    assert(dev.services.length === 1)
+    val micro = dev.services.head
     assert(micro.url === SDRSPEC)
     assert(micro.policy === "{json policy for "+nodeId+" sdr}")
     var archProp = micro.properties.find(p => p.name=="arch").orNull
@@ -630,12 +635,12 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - netspeed arch amd64 - as agbot") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(NETSPEEDSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(NETSPEEDSPEC,List(
       Prop("arch","amd64","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","[1.0.0,2.0.0]","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
+      Prop("dataVerification","","wildcard","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -647,12 +652,12 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - netspeed arch * - as agbot") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(NETSPEEDSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(NETSPEEDSPEC,List(
       Prop("arch","*","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","[1.0.0,2.0.0]","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
+      Prop("dataVerification","","wildcard","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -665,20 +670,20 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - netspeed and sdr - as agbot") {
-    val input = PostSearchNodesRequest(List(
-      RegMicroserviceSearch(NETSPEEDSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(
+      RegServiceSearch(NETSPEEDSPEC,List(
         Prop("arch","*","string","in"),
         Prop("memory","*","int",">="),
         Prop("version","[1.0.0,2.0.0]","version","in"),
         Prop("agreementProtocols",agProto,"list","in"),
         Prop("dataVerification","","wildcard","="))),
-      RegMicroserviceSearch(SDRSPEC,List(
+      RegServiceSearch(SDRSPEC,List(
         Prop("arch","arm","string","in"),
         Prop("memory","2","int",">="),
         Prop("version","*","version","in"),
         Prop("agreementProtocols",agProto,"list","in"),
         Prop("dataVerification","","wildcard","=")))
-    ), 86400, List[String](""), 0, 0)
+    )), 86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
@@ -687,18 +692,18 @@ class NodesSuite extends FunSuite {
     assert(nodes.length === 1)
     assert(nodes.count(d => d.id==orgnodeId) === 1)  // this confirms it did get nodeId (2 MSs) and did not get nodeId2 (only 1 of the MSs)
     val dev = nodes.find(d => d.id == orgnodeId).get // the 2nd get turns the Some(val) into val
-    assert(dev.microservices.length === 2)
-    assert(dev.microservices.count(m => m.url==SDRSPEC) === 1)
-    assert(dev.microservices.count(m => m.url==NETSPEEDSPEC) === 1)
+    assert(dev.services.length === 2)
+    assert(dev.services.count(m => m.url==SDRSPEC) === 1)
+    assert(dev.services.count(m => m.url==NETSPEEDSPEC) === 1)
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - arch list, mem 400, version 2.0.0") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","arm,amd64","list","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0,3.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","=")))),
+      Prop("dataVerification","true","boolean","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -711,12 +716,12 @@ class NodesSuite extends FunSuite {
 
   /** Do not expect any matches on this search */
   test("POST /orgs/"+orgid+"/search/nodes - data verification false") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","","wildcard","in"),
       Prop("memory","","wildcard",">="),
       Prop("version","0","version","in"),     // in osgi version format 0 means lower bound is 0 and upper bound infinity
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","false","boolean","=")))),
+      Prop("dataVerification","false","boolean","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -726,11 +731,11 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - invalid propType") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","","stringx","in"),
       Prop("memory","","int",">="),
       Prop("version","","version","in"),
-      Prop("dataVerification","","boolean","=")))),
+      Prop("dataVerification","","boolean","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -740,11 +745,11 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - invalid op") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","","string","inx"),
       Prop("memory","","int",">="),
       Prop("version","","version","in"),
-      Prop("dataVerification","","boolean","=")))),
+      Prop("dataVerification","","boolean","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -754,11 +759,11 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - invalid version") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","*","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","1.2.3.4","version","in"),
-      Prop("dataVerification","*","boolean","=")))),
+      Prop("dataVerification","*","boolean","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -768,11 +773,11 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - invalid boolean/op combo") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","","string","in"),
       Prop("memory","","int",">="),
       Prop("version","","version","in"),
-      Prop("dataVerification","","boolean","in")))),
+      Prop("dataVerification","","boolean","in"))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -782,11 +787,11 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - invalid string/op combo") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","","string","="),
       Prop("memory","","int",">="),
       Prop("version","","version","in"),
-      Prop("dataVerification","","boolean","=")))),
+      Prop("dataVerification","","boolean","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -796,11 +801,11 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - invalid int/op combo") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","","string","in"),
       Prop("memory","","int","in"),
       Prop("version","","version","in"),
-      Prop("dataVerification","","boolean","=")))),
+      Prop("dataVerification","","boolean","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -810,11 +815,11 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - invalid version/op combo") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","","string","in"),
       Prop("memory","","int",">="),
       Prop("version","","version",">="),
-      Prop("dataVerification","","boolean","=")))),
+      Prop("dataVerification","","boolean","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -877,21 +882,21 @@ class NodesSuite extends FunSuite {
 
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - create agreement, as node") {
-    val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)), NAWorkload(orgid,patid,SDRSPEC), "signed")
+    val input = PutNodeAgreementRequest(None, None, Some(List(NAService(orgid,SDRSPEC))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update agreement as node") {
-    val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)), NAWorkload(orgid,patid,SDRSPEC), "finalized")
+    val input = PutNodeAgreementRequest(None, None, Some(List(NAService(orgid,SDRSPEC))), Some(NAgrService(orgid,patid,SDRSPEC)), "finalized")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update agreement as user") {
-    val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)), NAWorkload(orgid,patid,SDRSPEC), "negotiating")
+    val input = PutNodeAgreementRequest(None, None, Some(List(NAService(orgid,SDRSPEC))), Some(NAgrService(orgid,patid,SDRSPEC)), "negotiating")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -899,7 +904,7 @@ class NodesSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement") {
     patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(SDRSPEC, 86400, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     //info("code: "+response.code)
@@ -925,21 +930,21 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes - netspeed and sdr - now no nodes, since 1 agreement made") {
-    patchNodePattern("")      // remove pattern from nodes so we can search for microservices
-    val input = PostSearchNodesRequest(List(
-      RegMicroserviceSearch(NETSPEEDSPEC,List(
+    patchNodePattern("")      // remove pattern from nodes so we can search for services
+    val input = PostSearchNodesRequest(None, Some(List(
+      RegServiceSearch(NETSPEEDSPEC,List(
         Prop("arch","*","string","in"),
         Prop("memory","*","int",">="),
         Prop("version","[1.0.0,2.0.0]","version","in"),
         Prop("agreementProtocols",agProto,"list","in"),
         Prop("dataVerification","","wildcard","="))),
-      RegMicroserviceSearch(SDRSPEC,List(
+      RegServiceSearch(SDRSPEC,List(
         Prop("arch","arm","string","in"),
         Prop("memory","2","int",">="),
         Prop("version","*","version","in"),
         Prop("agreementProtocols",agProto,"list","in"),
         Prop("dataVerification","","wildcard","=")))
-    ), 86400, List[String](""), 0, 0)
+    )), 86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
@@ -964,7 +969,7 @@ class NodesSuite extends FunSuite {
 
   /** Add a 2nd agreement for node 9900 - as the node */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/9951 - as node") {
-    val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,"pws")), NAWorkload(orgid,patid,"pws"), "signed")
+    val input = PutNodeAgreementRequest(None, None, Some(List(NAService(orgid,"pws"))), Some(NAgrService(orgid,patid,"pws")), "signed")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/9951").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -979,7 +984,7 @@ class NodesSuite extends FunSuite {
 
     assert(getAgResp.agreements.contains(agreementId))
     val ag = getAgResp.agreements(agreementId)
-    assert(ag.microservices === List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)))
+    assert(ag.services === List[NAService](NAService(orgid,SDRSPEC)))
     assert(ag.state === "negotiating")
     assert(getAgResp.agreements.contains("9951"))
   }
@@ -993,7 +998,7 @@ class NodesSuite extends FunSuite {
 
     assert(getAgResp.agreements.contains(agreementId))
     val ag = getAgResp.agreements(agreementId)
-    assert(ag.microservices === List[NAMicroservice](NAMicroservice(orgid,SDRSPEC)))
+    assert(ag.services === List[NAService](NAService(orgid,SDRSPEC)))
     assert(ag.state === "negotiating")
 
     info("GET /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" output verified")
@@ -1012,7 +1017,7 @@ class NodesSuite extends FunSuite {
   /** Should get the same result as before, the 2nd workload in agreement on nodeId doesn't affect nodeId still being omitted */
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement for same reason") {
     patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(SDRSPEC, 86400, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1025,13 +1030,13 @@ class NodesSuite extends FunSuite {
 
   /** Run /search/nodes again and we should get 1 less result, because 9900 is in contract */
   test("POST /orgs/"+orgid+"/search/nodes - all arm nodes, "+nodeId+" in agreement") {
-    patchNodePattern("")      // remove pattern from nodes so we can search for microservices
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    patchNodePattern("")      // remove pattern from nodes so we can search for services
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","","wildcard","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
+      Prop("dataVerification","","wildcard","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1044,12 +1049,12 @@ class NodesSuite extends FunSuite {
 
   /** We should still find the netspeed MS on 9900, even though the sdr MS on 9900 is in agreement */
   test("POST /orgs/"+orgid+"/search/nodes - netspeed arch arm, "+nodeId+" sdr in agreement - as agbot") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(NETSPEEDSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(NETSPEEDSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","[1.0.0,2.0.0]","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
+      Prop("dataVerification","","wildcard","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -1069,7 +1074,7 @@ class NodesSuite extends FunSuite {
 
   /** Add an agreement for node 9900 for netspeed */
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - netspeed") {
-    val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,NETSPEEDSPEC)), NAWorkload(orgid,patid,NETSPEEDSPEC), "signed")
+    val input = PutNodeAgreementRequest(None, None, Some(List(NAService(orgid,NETSPEEDSPEC))), Some(NAgrService(orgid,patid,NETSPEEDSPEC)), "signed")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -1078,7 +1083,7 @@ class NodesSuite extends FunSuite {
   /** Should not find nodeId for a different reason now. */
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+NETSPEEDSPEC+" - with "+nodeId+" in agreement") {
     patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(NETSPEEDSPEC, 86400, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(NETSPEEDSPEC), 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1091,7 +1096,7 @@ class NodesSuite extends FunSuite {
 
   /* But now we should find all nodes when searching for SDRSPEC */
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - should find all nodes again") {
-    val input = PostPatternSearchRequest(SDRSPEC, 86400, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1106,13 +1111,13 @@ class NodesSuite extends FunSuite {
 
   /** Make sure we do not find the netspeed MS on 9900 now */
   test("POST /orgs/"+orgid+"/search/nodes - netspeed arch arm, "+nodeId+" netspeed in agreement - as agbot") {
-    patchNodePattern("")      // remove pattern from nodes so we can search for microservices
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(NETSPEEDSPEC,List(
+    patchNodePattern("")      // remove pattern from nodes so we can search for services
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(NETSPEEDSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","[1.0.0,2.0.0]","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
+      Prop("dataVerification","","wildcard","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -1124,12 +1129,12 @@ class NodesSuite extends FunSuite {
 
   /** We should still find the sdr MS on 9900, even though the netspeed MS on 9900 is in agreement */
   test("POST /orgs/"+orgid+"/search/nodes - sdr arch arm, "+nodeId+" netspeed in agreement - as agbot") {
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","*","int",">="),
       Prop("version","[1.0.0,2.0.0]","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
+      Prop("dataVerification","","wildcard","="))))),
       86400, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     // info("code: "+response.code+", response.body: "+response.body)
@@ -1148,7 +1153,7 @@ class NodesSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - all nodes stale") {
     patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
     Thread.sleep(1100)    // delay 1.1 seconds so all nodes will be stale
-    val input = PostPatternSearchRequest(SDRSPEC, 1, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 1, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1193,7 +1198,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - 1 node not stale") {
-    val input = PostPatternSearchRequest(SDRSPEC, 1, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 1, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1207,14 +1212,14 @@ class NodesSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/search/nodes - all arm nodes, but all stale") {
-    patchNodePattern("")      // remove pattern from nodes so we can search for microservices
+    patchNodePattern("")      // remove pattern from nodes so we can search for services
     Thread.sleep(1100)    // delay 1.1 seconds so all nodes will be stale
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","2","int",">="),
       Prop("version","*","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
+      Prop("dataVerification","","wildcard","="))))),
       1, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1235,12 +1240,12 @@ class NodesSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/search/nodes - all arm nodes, 1 not stale") {
     val secondsNotStale = 1
     info("secondsNotStale: "+secondsNotStale)
-    val input = PostSearchNodesRequest(List(RegMicroserviceSearch(SDRSPEC,List(
+    val input = PostSearchNodesRequest(None, Some(List(RegServiceSearch(SDRSPEC,List(
       Prop("arch","arm","string","in"),
       Prop("memory","2","int",">="),
       Prop("version","*","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
+      Prop("dataVerification","","wildcard","="))))),
       secondsNotStale, List[String](""), 0, 0)
     val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1277,7 +1282,7 @@ class NodesSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
 
       // Now try adding another agreement - expect it to be rejected
-      val input = PutNodeAgreementRequest(List[NAMicroservice](NAMicroservice(orgid,"netspeed")), NAWorkload(orgid,patid,"netspeed"), "signed")
+      val input = PutNodeAgreementRequest(None, None, Some(List(NAService(orgid,"netspeed"))), Some(NAgrService(orgid,patid,"netspeed")), "signed")
       response = Http(URL+"/nodes/"+nodeId+"/agreements/9952").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
@@ -1321,10 +1326,10 @@ class NodesSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
 
       // Now try adding another node - expect it to be rejected
-      val input = PutNodesRequest("mytok", "rpi9904-netspeed", compositePatid, List(RegMicroservice(NETSPEEDSPEC,1,"{json policy for 9904 netspeed}",List(
+      val input = PutNodesRequest("mytok", "rpi9904-netspeed", compositePatid, None, Some(List(RegService(NETSPEEDSPEC,1,"{json policy for 9904 netspeed}",List(
         Prop("arch","arm","string","in"),
         Prop("version","1.0.0","version","in"),
-        Prop("agreementProtocols",agProto,"list","in")))), "whisper-id", Map(), "NODE4ABC")
+        Prop("agreementProtocols",agProto,"list","in"))))), "whisper-id", Map(), "NODE4ABC")
       response = Http(URL+"/nodes/9904").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)

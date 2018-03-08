@@ -38,14 +38,14 @@ userauth="$EXCHANGE_ORG/$user:$pw"
 email=$EXCHANGE_EMAIL
 userauthorg2="$orgid2/$user:$pw"
 
-nodeid=$(echo "$EXCHANGE_NODEAUTH" | cut -d: -f 1)
-nodetoken=$(echo "$EXCHANGE_NODEAUTH" | cut -d: -f 2)
+nodeid="${EXCHANGE_NODEAUTH%%:*}"
+nodetoken="${EXCHANGE_NODEAUTH#*:}"
 nodeauth="$EXCHANGE_ORG/$nodeid:$nodetoken"
 nodeid2="n2"
 nodeauth2="$EXCHANGE_ORG/$nodeid2:$nodetoken"
 
-agbotid=$(echo "$EXCHANGE_AGBOTAUTH" | cut -d: -f 1)
-agbottoken=$(echo "$EXCHANGE_AGBOTAUTH" | cut -d: -f 2)
+agbotid="${$EXCHANGE_AGBOTAUTH%%:*}"
+agbottoken="${$EXCHANGE_AGBOTAUTH#*:}"
 agbotauth="$EXCHANGE_ORG/$agbotid:$agbottoken"
 
 agreementbase="${namebase}agreement"
@@ -346,15 +346,15 @@ rc=$(curlfind $userauth "orgs/$orgid/patterns/$patid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/patterns/$patid" '{"label": "My Pattern", "description": "blah blah", "public": true,
-  "workloads": [
+  "services": [
     {
-      "workloadUrl": "'$workurl'",
-      "workloadOrgid": "'$orgid'",
-      "workloadArch": "'$workarch'",
-      "workloadVersions": [
+      "serviceUrl": "'$svc2url'",
+      "serviceOrgid": "'$orgid'",
+      "serviceArch": "'$svc2arch'",
+      "serviceVersions": [
         {
-          "version": "'$workversion'",
-          "deployment_overrides": "{\"services\":{\"netspeed\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+          "version": "'$svc2version'",
+          "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
           "deployment_overrides_signature": "a",
           "priority": {
             "priority_value": 50,
@@ -404,7 +404,47 @@ rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid" '{"label": "My other Pattern", "description": "blah blah", "public": true,
-  "workloads": [],
+  "workloads": [
+    {
+      "workloadUrl": "'$workurl'",
+      "workloadOrgid": "'$orgid'",
+      "workloadArch": "'$workarch'",
+      "workloadVersions": [
+        {
+          "version": "'$workversion'",
+          "deployment_overrides": "{\"services\":{\"netspeed\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+          "deployment_overrides_signature": "a",
+          "priority": {
+            "priority_value": 50,
+            "retries": 1,
+            "retry_durations": 3600,
+            "verified_durations": 52
+          },
+          "upgradePolicy": {
+            "lifecycle": "immediate",
+            "time": "01:00AM"
+          }
+        }
+      ],
+      "dataVerification": {
+        "enabled": true,
+        "URL": "",
+        "user": "",
+        "password": "",
+        "interval": 240,
+        "check_rate": 15,
+        "metering": {
+          "tokens": 1,
+          "per_time_unit": "min",
+          "notification_interval": 30
+        }
+      },
+      "nodeHealth": {
+        "missing_heartbeat_interval": 600,
+        "check_agreement_status": 120
+      }
+    }
+  ],
   "agreementProtocols": [{ "name": "Basic" }] }'
 else
     echo "orgs/$orgid2/patterns/$patid exists"
@@ -414,9 +454,9 @@ rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'",
-  "registeredMicroservices": [
+  "registeredServices": [
     {
-      "url": "'$microurl'",
+      "url": "'$svcurl'",
       "numAgreements": 1,
       "policy": "{json policy for rpi1 netspeed}",
       "properties": [
@@ -433,7 +473,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredMicroservices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
 else
     echo "orgs/$orgid/nodes/$nodeid2 exists"
 fi
@@ -481,7 +521,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1" '{"microservices": [], "workload": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$workurl'"}, "state": "negotiating"}'
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$svc2url'"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1 exists"
 fi
@@ -489,7 +529,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b" '{"microservices": [], "workload": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$workurl2'"}, "state": "negotiating"}'
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$svc2url'"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b exists"
 fi
@@ -497,7 +537,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"microservices": [], "workload": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$workurl2'"}, "state": "negotiating"}'
+    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"microservices": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$svc2url'"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2 exists"
 fi

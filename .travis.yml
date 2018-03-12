@@ -5,7 +5,7 @@ jdk: openjdk8
 scala: 2.12.1
 notifications:
   slack:
-    secure: THJgpgr1+UgkWvM1ZHzRBeWyWATk0DThSBfdlCAK9waD+9cxfB7e7G6YX7J8FUl9RaLt1301MdIVq2eSplzJ9/rmozVCbVKOh9WRzV0anw70wip93XBAwJ7+DSQ8ShVgklIRBvfWJe6h5mHdLxZRqeAq0TJGnj3JL7gDoUlHvhnISpcsuZ9Y/E94sqW7HQaWlQ24mT8I/r47C+hVm2Qhi1ICOQyBjLW3FGjrCUpIgihB1lJiy0eXqiB5Xtk+NDBZ1FgmhAiEcsT9v8vzg6M3lowFW1uJnT2OT3zfH2riBx3tyKGwy7rHYnXc7hEIyV0KCwlywiXeL7LipMSwFvMW2enkksDnAmKSjSpvjYinNpXm9AnTckXZ8s8v9tPtbmPSq9PwSV0B4oLhm3275Z6TT+/QGzUmOirOVzpdyecMWNqmLbEDBGs4UxTi1ZLjCLIt79o0o4SCCMCK/z+KV0eZMoPPLAIYpMTcaBIVh/JVNSRGCemBNzBHaAF1EOASOlS2IHmXQgPv6jtisgPL4Y3B5oI0v4RxJF3ryG/uNeYjwCvLssiI8IpPdS/na8U+piEU5YVS43oYE0W/T3eJR8pPZuqzhvOhkRb2dx0G8D1pXk7rc3CRB7JBiD9SB0b1EbTsAflxSYI3FNdRC2Y52mCd4l4rtcRcsTcd5AE6a6ADgew=
+    secure: vSzVllY4Vmt6Nf6Yl+5QDMKTEQ4jIbP/bC/LSzZFmQNlYWlDEzG1gQcPb4prh7/efjUFt+vM2lTFP7jLEkib+XiR8n4LShCl+IeRyBpiONXII4KN7O9IPTMMOpGvN/FhZFgyzRFwEvkCSuSBpOYoRGGij/wzo/mPzfJYEyGxpaRmQKEmD7xmtxXMAVWpK2L5fL6XbglEPKD7pMYUvM/WyzAMJg4JgDxOGeX7QLGdSQrTOOkUtJjiEs8WtB/fR9Gev+vwX22KrnMwZpmT9KPPi+kzwFYnfzKxHdjdsmydmBBlBS4XM8rvJL1eMyrQB2LOOW8xWUeOF03t5PfKAC6cY2h01Jdl/rx3L6Pc99ABItS3OvYcwL0HY20bz+hNI0seRMVftz7eRzMHGdQsfYXfU6hOxkovGutRoyVkS7f+m66nBaOfRh6DAlOt/H6us4WEq1zJb8SyP+S7Xm38grh+xEDIMaz8AeavhDRWyH6RQfrpxvcGbcWhURXiY7clJLgjmauGJw9H/jxkuuoIINIFjkrziRHDGj9ZxNp3JbtJfprrramMCLtHl5Ziz5Pjmcf46iZxFzNlRlW/aC5ZqQbHm5EgcNuHXHMHvzTQcnkFDrQBGaXI3sLXfaYt+1LeRwfQXGOsWSgc8lmgfcGn1Fvbj/8ykq/q1ReQFAbCvT62ZR8=
 before_install:
 - sudo apt-get update
 - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
@@ -37,4 +37,7 @@ before_script:
 script:
 - sudo ./sbt test
 after_success:
-- "{ test $TRAVIS_PULL_REQUEST = 'false' && test $TRAVIS_BRANCH = 'master' && [[ ! \"$TRAVIS_COMMIT_MESSAGE\" =~ \"--skip-push\" ]]  && docker login -u=\"$SUMMIT_USER\" -p=\"$SUMMIT_PASS\" $DOCKER_REGISTRY && make docker-push-only; } || echo 'Skipping the push'"
+- '{ test $TRAVIS_PULL_REQUEST = ''false'' && test $TRAVIS_BRANCH = ''master'' &&
+  [[ ! "$TRAVIS_COMMIT_MESSAGE" =~ "--skip-push" ]]  && docker login -u="$SUMMIT_USER"
+  -p="$SUMMIT_PASS" $DOCKER_REGISTRY && make docker-push-only; } || echo ''Skipping
+  the push'''

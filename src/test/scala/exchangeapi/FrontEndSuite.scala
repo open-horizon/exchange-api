@@ -54,8 +54,8 @@ class FrontEndSuite extends FunSuite {
   val msUrl = "http://" + msBase
   val microservice = msBase + "_1.0.0_arm"
   val orgmicroservice = authpref+microservice
-  val svcid = "bluehorizon.network-services-netspeed_1.0.0_amd64"
-  val svcurl = "https://bluehorizon.network/services/netspeed"
+  val svcid = "bluehorizon.network-services-sdr_1.0.0_amd64"
+  val svcurl = "https://bluehorizon.network/services/sdr"
   val svcarch = "amd64"
   val svcversion = "1.0.0"
   val orgservice = authpref+svcid
@@ -259,7 +259,7 @@ class FrontEndSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+pattern+"/search - for "+SDRSPEC) {
     val input = PostPatternSearchRequest(None, Some(SDRSPEC), 86400, 0, 0)
     val response = Http(URL+"/patterns/"+pattern+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
-    //info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]

@@ -285,7 +285,7 @@ class BlockchainsSuite extends FunSuite {
     // Verify the lastHeartbeat from the POST heartbeat above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
     val now: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
     val lastUp = ZonedDateTime.parse(bt.lastUpdated).toEpochSecond
-    assert(now - lastUp <= 3)    // should not now be more than 3 seconds from the time the heartbeat was done above
+    assert(now - lastUp <= 5)    // should not now be more than 3 seconds from the time the heartbeat was done above
   }
 
   test("GET /orgs/"+orgid+"/bctypes/"+bctype+" - as node") {       // will do agbot soon
@@ -492,7 +492,7 @@ class BlockchainsSuite extends FunSuite {
     // Verify the lastHeartbeat from the POST heartbeat above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
     val now: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
     val lastUp = ZonedDateTime.parse(bc.lastUpdated).toEpochSecond
-    assert(now - lastUp <= 3)    // should not now be more than 3 seconds from the time the heartbeat was done above
+    assert(now - lastUp <= 5)    // should not now be more than 3 seconds from the time the heartbeat was done above
   }
 
   test("GET /orgs/"+orgid+"/bctypes/"+bctype+"/blockchains/"+bcname+" - as node") {

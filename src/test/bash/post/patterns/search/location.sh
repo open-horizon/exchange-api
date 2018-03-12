@@ -1,8 +1,8 @@
 # Adds a workload
-source `dirname $0`/../../../functions.sh POST $*
+source `dirname $0`/../../../functions.sh '' '' $*
 
 curl $copts -X POST -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic $EXCHANGE_ORG/$EXCHANGE_AGBOTAUTH" -d '{
-  "workloadUrl": "https://bluehorizon.network/workloads/netspeed",
+  "serviceUrl": "https://bluehorizon.network/services/location",
   "secondsStale": 0,
   "startIndex": 0,
   "numEntries": 0

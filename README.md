@@ -74,6 +74,7 @@ services in the exchange.
 
 ### Todos left to be finished in subsequent versions
 
+* investigate: WARN  slick.util.AsyncExecutor - Having maxConnection > maxThreads can result in deadlocks if transactions or database locks are used.
 - Add api for wiotp to get number of nodes and agreements
 - Add ability to change owner of node
 - Add patch capability for node registered services
@@ -91,9 +92,11 @@ services in the exchange.
 
 - clean up variables in nodes suite tests
 - add back in a few tests for workloads and microservices in pattern and node search
-* issue #39 (pattern node search api does not validate the serviceUrl)
-* change agbot agreement to service
-* change put node status to service
+- pattern node search api now validates the serviceUrl
+- change agbot agreement to service
+- change put node status to service
+- change name of service package field to imageStore
+- test built image with compose db and verify exchange version output
 
 
 ## Changes in 1.47.0

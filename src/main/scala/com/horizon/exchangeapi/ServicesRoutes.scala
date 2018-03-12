@@ -29,7 +29,7 @@ object SharableVals extends Enumeration {
 }
 
 /** Input format for POST /orgs/{orgid}/services or PUT /orgs/{orgid}/services/<service-id> */
-case class PostPutServiceRequest(label: String, description: String, public: Boolean, url: String, version: String, arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: String, deploymentSignature: String, pkg: Option[Map[String,Any]]) {
+case class PostPutServiceRequest(label: String, description: String, public: Boolean, url: String, version: String, arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: String, deploymentSignature: String, imageStore: Option[Map[String,Any]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(orgid: String, serviceId: String) = {
     // Currently we do not want to force that the url is a valid URL
@@ -67,10 +67,10 @@ case class PostPutServiceRequest(label: String, description: String, public: Boo
 
   def formId(orgid: String) = ServicesTQ.formId(orgid, url, version, arch)
 
-  def toServiceRow(service: String, orgid: String, owner: String) = ServiceRow(service, orgid, owner, label, description, public, url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment, deploymentSignature, write(pkg), ApiTime.nowUTC)
+  def toServiceRow(service: String, orgid: String, owner: String) = ServiceRow(service, orgid, owner, label, description, public, url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment, deploymentSignature, write(imageStore), ApiTime.nowUTC)
 }
 
-case class PatchServiceRequest(label: Option[String], description: Option[String], public: Option[Boolean], url: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], pkg: Option[Map[String,Any]]) {
+case class PatchServiceRequest(label: Option[String], description: Option[String], public: Option[Boolean], url: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the service, and the attribute name being updated. */
@@ -89,7 +89,7 @@ case class PatchServiceRequest(label: Option[String], description: Option[String
     userInput match { case Some(ui) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.userInput,d.lastUpdated)).update((service, write(ui), lastUpdated)), "userInput"); case _ => ; }
     deployment match { case Some(dep) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.deployment,d.lastUpdated)).update((service, dep, lastUpdated)), "deployment"); case _ => ; }
     deploymentSignature match { case Some(depsig) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.deploymentSignature,d.lastUpdated)).update((service, depsig, lastUpdated)), "deploymentSignature"); case _ => ; }
-    pkg match { case Some(p) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.pkg,d.lastUpdated)).update((service, write(p), lastUpdated)), "pkg"); case _ => ; }
+    imageStore match { case Some(p) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.imageStore,d.lastUpdated)).update((service, write(p), lastUpdated)), "imageStore"); case _ => ; }
     return (null, null)
   }
 }
@@ -246,7 +246,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   // Information about how to deploy the docker images for this service
   "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
   "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
-  "pkg": {
+  "imageStore": {
     // There could be several different package reference schemes so the schema will be left open. However, the storeType must be set for all cases to discriminate the type of storage being used.
     "storeType": "dockerRegistry" // imageServer and dockerRegistry are the only supported values right now
   }

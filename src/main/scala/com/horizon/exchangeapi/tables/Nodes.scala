@@ -169,15 +169,17 @@ class Node(var token: String, var name: String, var owner: String, var pattern: 
 case class ContainerStatus(name: String, image: String, created: Int, state: String)
 case class OneMicroservice(specRef: String, orgid: String, version: String, arch: String, containerStatus: List[ContainerStatus])
 case class OneWorkload(agreementId: String, workloadUrl: String, orgid: String, version: String, arch: String, containerStatus: List[ContainerStatus])
+case class OneService(agreementId: String, serviceUrl: String, orgid: String, version: String, arch: String, containerStatus: List[ContainerStatus])
 
-case class NodeStatusRow(nodeId: String, connectivity: String, microservices: String, workloads: String, lastUpdated: String) {
+case class NodeStatusRow(nodeId: String, connectivity: String, microservices: String, workloads: String, services: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNodeStatus: NodeStatus = {
     val con = if (connectivity != "") read[Map[String,Boolean]](connectivity) else Map[String,Boolean]()
     val ms = if (microservices != "") read[List[OneMicroservice]](microservices) else List[OneMicroservice]()
     val wrk = if (workloads != "") read[List[OneWorkload]](workloads) else List[OneWorkload]()
-    return NodeStatus(con, ms, wrk, lastUpdated)
+    val svc = if (services != "") read[List[OneService]](services) else List[OneService]()
+    return NodeStatus(con, ms, wrk, svc, lastUpdated)
   }
 
   def upsert: DBIO[_] = NodeStatusTQ.rows.insertOrUpdate(this)
@@ -188,8 +190,9 @@ class NodeStatuses(tag: Tag) extends Table[NodeStatusRow](tag, "nodestatus") {
   def connectivity = column[String]("connectivity")
   def microservices = column[String]("microservice")
   def workloads = column[String]("workloads")
+  def services = column[String]("services")
   def lastUpdated = column[String]("lastUpdated")
-  def * = (nodeId, connectivity, microservices, workloads, lastUpdated) <> (NodeStatusRow.tupled, NodeStatusRow.unapply)
+  def * = (nodeId, connectivity, microservices, workloads, services, lastUpdated) <> (NodeStatusRow.tupled, NodeStatusRow.unapply)
   def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
 }
 
@@ -198,7 +201,7 @@ object NodeStatusTQ {
   def getNodeStatus(nodeId: String) = rows.filter(_.nodeId === nodeId)
 }
 
-case class NodeStatus(connectivity: Map[String,Boolean], microservices: List[OneMicroservice], workloads: List[OneWorkload], lastUpdated: String)
+case class NodeStatus(connectivity: Map[String,Boolean], microservices: List[OneMicroservice], workloads: List[OneWorkload], services: List[OneService], lastUpdated: String)
 
 
 case class NAMicroservice(orgid: String, url: String)

@@ -34,7 +34,7 @@
 		"root": {
 			"password": "",			// set this in your own version of this config file
 			"email": "",
-			"frontEndHeader": ""     // Warning: on set this to a non-blank value when you have a front end (e.g. haproxy, data power, etc.) protecting the exchange that authenticates and authorizes all clients. If this is the case, set this value to a header field name the front end will set. This will give root privilege to the operation.
+			"frontEndHeader": ""     // Warning: only set this to a non-blank value when you have a front end (e.g. haproxy, data power, etc.) protecting the exchange that authenticates and authorizes all clients. If this is the case, set this value to a header field name the front end will set (but not let the client set and pass thru). This will give root privilege to the operation.
 		},
 		"acls": {
 			"ANONYMOUS": ["CREATE_USER", "RESET_USER_PW"],

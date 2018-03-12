@@ -61,6 +61,7 @@ class Patterns(tag: Tag) extends Table[PatternRow](tag, "patterns") {
 
 // Instance to access the patterns table
 object PatternsTQ {
+  protected implicit val jsonFormats: Formats = DefaultFormats
   val rows = TableQuery[Patterns]
 
   // Build a list of db actions to verify that the referenced services exist
@@ -101,6 +102,7 @@ object PatternsTQ {
   def getPublic(pattern: String) = rows.filter(_.pattern === pattern).map(_.public)
   def getWorkloads(pattern: String) = rows.filter(_.pattern === pattern).map(_.workloads)
   def getServices(pattern: String) = rows.filter(_.pattern === pattern).map(_.services)
+  def getServicesFromString(services: String) = if (services == "") List[PServices]() else read[List[PServices]](services)
   def getAgreementProtocols(pattern: String) = rows.filter(_.pattern === pattern).map(_.agreementProtocols)
   def getLastUpdated(pattern: String) = rows.filter(_.pattern === pattern).map(_.lastUpdated)
 

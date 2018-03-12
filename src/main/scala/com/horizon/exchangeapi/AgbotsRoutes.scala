@@ -80,9 +80,20 @@ case class PutAgbotPatternRequest(patternOrgid: String, pattern: String) {
 case class GetAgbotAgreementsResponse(agreements: Map[String,AgbotAgreement], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/agbots/{id}/agreements/<agreement-id> */
-case class PutAgbotAgreementRequest(workload: AAWorkload, state: String) {
-  def toAgbotAgreement = AgbotAgreement(workload, state, ApiTime.nowUTC, "")
-  def toAgbotAgreementRow(agbotId: String, agrId: String) = AgbotAgreementRow(agrId, agbotId, workload.orgid, workload.pattern, workload.url, state, ApiTime.nowUTC, "")
+case class PutAgbotAgreementRequest(workload: Option[AAWorkload], service: Option[AAService], state: String) {
+  def validate() = {
+    if ( service.isDefined && workload.isDefined ) {
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "you can not specify both the 'service' and 'workload' fields."))
+    } else if (service.isEmpty && workload.isEmpty) {
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "you must specify either the 'service' or 'workload' field."))
+    }
+  }
+
+  //def toAgbotAgreement = AgbotAgreement(workload, state, ApiTime.nowUTC, "")
+  def toAgbotAgreementRow(agbotId: String, agrId: String) = {
+    if (service.isDefined) AgbotAgreementRow(agrId, agbotId, "", "", "", service.get.orgid, service.get.pattern, service.get.url, state, ApiTime.nowUTC, "")
+    else AgbotAgreementRow(agrId, agbotId, workload.get.orgid, workload.get.pattern, workload.get.url, "", "", "", state, ApiTime.nowUTC, "")
+  }
 }
 
 case class PostAgbotsIsRecentDataRequest(secondsStale: Int, agreementIds: List[String])     // the strings in the list are agreement ids
@@ -639,6 +650,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val agreement = try { parse(request.body).extract[PutAgbotAgreementRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    agreement.validate()
     val resp = response
     db.run(AgbotAgreementsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" num owned: "+xs)

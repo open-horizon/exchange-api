@@ -311,9 +311,17 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
 }
 
 
-case class PutNodeStatusRequest(connectivity: Map[String,Boolean], microservices: List[OneMicroservice], workloads: List[OneWorkload]) {
+case class PutNodeStatusRequest(connectivity: Map[String,Boolean], microservices: Option[List[OneMicroservice]], workloads: Option[List[OneWorkload]], services: Option[List[OneService]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def toNodeStatusRow(nodeId: String) = NodeStatusRow(nodeId, write(connectivity), write(microservices), write(workloads), ApiTime.nowUTC)
+  def validate() = {
+    if ( (microservices.isDefined || workloads.isDefined) && services.isDefined ) {
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "you can not specify both the 'services' and either 'microservices' or 'workloads' fields."))
+    } else if (microservices.isEmpty && workloads.isEmpty && services.isEmpty) {
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "you must specify at least 1 of the 'services', 'microservices', or 'workloads' fields."))
+    }
+  }
+
+  def toNodeStatusRow(nodeId: String) = NodeStatusRow(nodeId, write(connectivity), write(microservices), write(workloads), write(services), ApiTime.nowUTC)
 }
 
 
@@ -330,6 +338,7 @@ case class PutNodeAgreementRequest(microservices: Option[List[NAMicroservice]], 
       halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "you must specify at least 1 of 'microservices', 'workload', 'services', or 'agreementService'."))
     }
   }
+
   //def toNodeAgreement = NodeAgreement(microservices, workload, state, ApiTime.nowUTC)
   def toNodeAgreementRow(nodeId: String, agId: String) = {
     if (agreementService.isDefined) NodeAgreementRow(agId, nodeId, write(microservices), "", "", "", write(services), agreementService.get.orgid, agreementService.get.pattern, agreementService.get.url, state, ApiTime.nowUTC)
@@ -523,31 +532,51 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.workloadUrl), a.map(_.state))
     }
 
-    db.run(q.result).map({ list =>
-      logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result size: "+list.size)
-      logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result: "+list.toString)
-      if (list.nonEmpty) {
-        // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our workload
-        val nodeHash = new MutableHashMap[String,PatternSearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our workload for this node
-        for ( (id, msgEndPoint, publicKey, serviceUrlOption, stateOption) <- list ) {
-          //logger.trace("id: "+id+", serviceUrlOption: "+serviceUrlOption.getOrElse("")+", ourService: "+ourService+", stateOption: "+stateOption.getOrElse(""))
-          nodeHash.get(id) match {
-            case Some(_) => if (serviceUrlOption.getOrElse("") == ourService && stateOption.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
-            case None => val noAgr = if (serviceUrlOption.getOrElse("") == ourService && stateOption.getOrElse("") != "") false else true
-              nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgr))   // this node id not in the hash yet, and it and start it out true
+    db.run(PatternsTQ.getServices(compositePat).result.flatMap({ list =>
+      logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search getServices size: "+list.size)
+      logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search: looking for '"+ourService+"', searching getServices: "+list.toString())
+      if (!isService) q.result.asTry      // we do not check the workloadUrl because that is going away
+      else if (list.nonEmpty) {
+        val services = PatternsTQ.getServicesFromString(list.head)    // there should only be 1 in the sequence
+        var found = false
+        breakable { for ( svc <- services) {
+          if (svc.serviceUrl == ourService) {
+            found = true
+            break
           }
-        }
-        // Convert our hash to the list response of the rest api
-        //val respList = list.map( x => PatternNodeResponse(x._1, x._2, x._3)).toList
-        val respList = new ListBuffer[PatternNodeResponse]
-        for ( (k, v) <- nodeHash) if (v.noAgreementYet) respList += PatternNodeResponse(k, v.msgEndPoint, v.publicKey)
-        if (respList.nonEmpty) resp.setStatus(HttpCode.POST_OK)
-        else resp.setStatus(HttpCode.NOT_FOUND)
-        PostPatternSearchResponse(respList.toList, 0)
+        } }
+        if (found) q.result.asTry
+        else DBIO.failed(new Throwable("serviceUrl '"+ourService+"' specified in search body, but does not exist in pattern '"+compositePat+"'")).asTry
       }
-      else {
-        resp.setStatus(HttpCode.NOT_FOUND)
-        PostPatternSearchResponse(List[PatternNodeResponse](), 0)
+      else DBIO.failed(new Throwable("serviceUrl '"+ourService+"' specified in search body, but does not exist in pattern '"+compositePat+"'")).asTry
+    })).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result size: "+xs.getOrElse(Vector()).size)
+      logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result: "+xs.toString)
+      xs match {
+        case Success(list) => if (list.nonEmpty) {
+          // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our workload
+          val nodeHash = new MutableHashMap[String,PatternSearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our workload for this node
+          for ( (id, msgEndPoint, publicKey, serviceUrlOption, stateOption) <- list ) {
+            //logger.trace("id: "+id+", serviceUrlOption: "+serviceUrlOption.getOrElse("")+", ourService: "+ourService+", stateOption: "+stateOption.getOrElse(""))
+            nodeHash.get(id) match {
+              case Some(_) => if (serviceUrlOption.getOrElse("") == ourService && stateOption.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
+              case None => val noAgr = if (serviceUrlOption.getOrElse("") == ourService && stateOption.getOrElse("") != "") false else true
+                nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgr))   // this node id not in the hash yet, and it and start it out true
+            }
+          }
+          // Convert our hash to the list response of the rest api
+          //val respList = list.map( x => PatternNodeResponse(x._1, x._2, x._3)).toList
+          val respList = new ListBuffer[PatternNodeResponse]
+          for ( (k, v) <- nodeHash) if (v.noAgreementYet) respList += PatternNodeResponse(k, v.msgEndPoint, v.publicKey)
+          if (respList.nonEmpty) resp.setStatus(HttpCode.POST_OK)
+          else resp.setStatus(HttpCode.NOT_FOUND)
+          PostPatternSearchResponse(respList.toList, 0)
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          PostPatternSearchResponse(List[PatternNodeResponse](), 0)
+        }
+        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "invalid input: "+t.getMessage)
       }
     })
   })
@@ -1104,6 +1133,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
     val status = try { parse(request.body).extract[PutNodeStatusRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    status.validate()
     val resp = response
     db.run(status.toNodeStatusRow(id).upsert.asTry).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)

@@ -48,9 +48,21 @@ object SchemaTQ {
     /* 4 */ DBIO.seq(WorkloadKeysTQ.rows.schema.create, MicroserviceKeysTQ.rows.schema.create, ServiceKeysTQ.rows.schema.create, PatternKeysTQ.rows.schema.create),   // v1.46.0
     /* 5 */ DBIO.seq(sqlu"alter table patterns add column services character varying not null default ''"),   // v1.47.0
     /* 6 */ DBIO.seq(sqlu"alter table nodes add column regservices character varying not null default ''"),   // v1.47.0
-    /* 7 */ DBIO.seq(sqlu"alter table nodeagreements add column services character varying not null default ''", sqlu"alter table nodeagreements add column agrsvcorgid character varying not null default ''", sqlu"alter table nodeagreements add column agrsvcpattern character varying not null default ''", sqlu"alter table nodeagreements add column agrsvcurl character varying not null default ''"),   // v1.47.0
+    /* 7 */ DBIO.seq(
+      sqlu"alter table nodeagreements add column services character varying not null default ''",
+      sqlu"alter table nodeagreements add column agrsvcorgid character varying not null default ''",
+      sqlu"alter table nodeagreements add column agrsvcpattern character varying not null default ''",
+      sqlu"alter table nodeagreements add column agrsvcurl character varying not null default ''"
+    ),   // v1.47.0
+    /* 8 */ DBIO.seq(
+      sqlu"alter table agbotagreements add column serviceOrgid character varying not null default ''",
+      sqlu"alter table agbotagreements add column servicePattern character varying not null default ''",
+      sqlu"alter table agbotagreements add column serviceUrl character varying not null default ''",
+      sqlu"alter table nodestatus add column services character varying not null default ''",
+      sqlu"alter table services rename column pkg to imagestore",
+    ),   // v1.48.0
   )
-  val latestSchemaDescription = "Added columns services, agrsvcorgid, agrsvcpattern, agrsvcurl to nodeagreements tables"
+  val latestSchemaDescription = "Added columns agbotagreements and nodestatus tables, and changed column pkg to imagestore in services table"
 
   val rows = TableQuery[SchemaTable]
 

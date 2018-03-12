@@ -74,26 +74,29 @@ services in the exchange.
 
 ### Todos left to be finished in subsequent versions
 
-- Add optional param in POST pattern to automatically add it to agbots
-- consider detect if pattern contains 2 workloads that depend on the same exclusive MS
-- detect if a pattern is updated with ms/wk that has userInput w/o default values, and give warning
-- If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
+* investigate: WARN  slick.util.AsyncExecutor - Having maxConnection > maxThreads can result in deadlocks if transactions or database locks are used.
 - Add api for wiotp to get number of nodes and agreements
-- Allow random PW creation for user creation
 - Add ability to change owner of node
-- Add patch capability for node registered microservices?
+- Add patch capability for node registered services
 - Add an unauthenticated admin status rest api
 - Change local automated tests in Makefile to be more consistent with travis ci
-- Consider changing all creates to POST, and update (via put/patch) return codes to 200
-- Any other schema changes?
+- Consider:
+    - Add optional param in POST pattern to automatically add it to agbots
+    - detect if pattern contains 2 workloads that depend on the same exclusive MS
+    - detect if a pattern is updated with ms/wk that has userInput w/o default values, and give warning
+    - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
+    - Allow random PW creation for user creation
+    - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
-## Queued Up For 1.48.0
+## Changes in 1.48.0
 
 - clean up variables in nodes suite tests
 - add back in a few tests for workloads and microservices in pattern and node search
-- issue #39 (pattern node search api does not validate the workloadUrl)
+- pattern node search api now validates the serviceUrl
 - change agbot agreement to service
 - change put node status to service
+- change name of service package field to imageStore
+- test built image with compose db and verify exchange version output
 
 
 ## Changes in 1.47.0

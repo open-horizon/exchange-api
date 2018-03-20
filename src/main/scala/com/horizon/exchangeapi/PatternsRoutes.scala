@@ -144,7 +144,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     db.run(q.result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/patterns result size: "+list.size)
       val patterns = new MutableHashMap[String,Pattern]
-      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public) patterns.put(a.pattern, a.toPattern)
+      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public || ident.isSuperUser || ident.isMultiTenantAgbot) patterns.put(a.pattern, a.toPattern)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetPatternsResponse(patterns.toMap, 0)
     })

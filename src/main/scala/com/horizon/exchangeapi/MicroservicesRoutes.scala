@@ -114,7 +114,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
     db.run(q.result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/microservices result size: "+list.size)
       val microservices = new MutableHashMap[String,Microservice]
-      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public) microservices.put(a.microservice, a.toMicroservice)
+      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public || ident.isSuperUser || ident.isMultiTenantAgbot) microservices.put(a.microservice, a.toMicroservice)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetMicroservicesResponse(microservices.toMap, 0)
     })

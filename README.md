@@ -88,6 +88,10 @@ services in the exchange.
     - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.49.0
+
+- allow IBM agbots to access private ms/wl/svc/pat via get /workloads etc.
+
 ## Changes in 1.48.0
 
 - clean up variables in nodes suite tests

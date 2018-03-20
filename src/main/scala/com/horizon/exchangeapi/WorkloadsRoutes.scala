@@ -136,7 +136,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     db.run(q.result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/workloads result size: "+list.size)
       val workloads = new MutableHashMap[String,Workload]
-      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public) workloads.put(a.workload, a.toWorkload)
+      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public || ident.isSuperUser || ident.isMultiTenantAgbot) workloads.put(a.workload, a.toWorkload)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetWorkloadsResponse(workloads.toMap, 0)
     })

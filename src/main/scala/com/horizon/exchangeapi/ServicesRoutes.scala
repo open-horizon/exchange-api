@@ -155,7 +155,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("GET /orgs/"+orgid+"/services result size: "+list.size)
       logger.trace("GET /orgs/"+orgid+"/services result: "+list.toString())
       val services = new MutableHashMap[String,Service]
-      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public) services.put(a.service, a.toService)
+      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public || ident.isSuperUser || ident.isMultiTenantAgbot) services.put(a.service, a.toService)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetServicesResponse(services.toMap, 0)
     })

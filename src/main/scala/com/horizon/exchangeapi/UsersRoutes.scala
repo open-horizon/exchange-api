@@ -83,6 +83,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           val pw = if (superUser) e.password else StrConstants.hiddenPw
           users.put(e.username, User(pw, e.admin, e.email, e.lastUpdated))
         }
+      if (users.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetUsersResponse(users.toMap, 0)
     })
@@ -115,6 +116,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         val pw = if (superUser) xs.head.password else StrConstants.hiddenPw
         val user = User(pw, xs.head.admin, xs.head.email, xs.head.lastUpdated)
         val users = HashMap[String,User](xs.head.username -> user)
+        resp.setStatus(HttpCode.OK)
         GetUsersResponse(users, 0)
       } else {      // not found
         // throw new IllegalArgumentException(username+" not found")    // do this if using onFailure

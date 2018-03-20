@@ -137,7 +137,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   get("/admin/dropdb/token", operation(getDropdbToken)) ({
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
-    //status_=(HttpCode.POST_OK)
+    response.setStatus(HttpCode.OK)
     AdminDropdbTokenResponse(createToken(Role.superUser))
   })
 
@@ -417,6 +417,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val versionSource = Source.fromResource("version.txt")      // returns BufferedSource
     val versionText : String = versionSource.getLines.next()
     versionSource.close()
+    response.setStatus(HttpCode.OK)
     versionText + "\n"
   })
 
@@ -435,6 +436,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   get("/admin/status", operation(getAdminStatus)) ({
     credsAndLog().authenticate().authorizeTo(TAction(),Access.STATUS)
+    val resp = response
     val statusResp = new AdminStatus()
     //TODO: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
     db.run(UsersTQ.rows.length.result.asTry.flatMap({ xs =>
@@ -491,7 +493,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(v) => statusResp.dbSchemaVersion = v.head
           statusResp.msg = "Exchange server operating normally"
+          resp.setStatus(HttpCode.OK)
         case Failure(t) => statusResp.msg = t.getMessage
+          resp.setStatus(HttpCode.INTERNAL_ERROR)
       }
       statusResp.toGetAdminStatusResponse
     })

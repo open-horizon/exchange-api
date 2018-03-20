@@ -146,6 +146,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.debug("GET /orgs/"+orgid+"/agbots result size: "+list.size)
       val agbots = new MutableHashMap[String,Agbot]
       if (list.nonEmpty) for (a <- list) agbots.put(a.id, a.toAgbot(superUser))
+      if (agbots.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetAgbotsResponse(agbots.toMap, 0)
     })
@@ -179,6 +180,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         db.run(q.result).map({ list =>
           logger.trace("GET /orgs/"+orgid+"/agbots/"+id+" attribute result: "+list.toString)
           if (list.nonEmpty) {
+            resp.setStatus(HttpCode.OK)
             GetAgbotAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
@@ -191,6 +193,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           logger.debug("GET /orgs/"+orgid+"/agbots/"+id+" result: "+list.toString)
           val agbots = new MutableHashMap[String,Agbot]
           if (list.nonEmpty) for (a <- list) agbots.put(a.id, a.toAgbot(superUser))
+          if (agbots.nonEmpty) resp.setStatus(HttpCode.OK)
           else resp.setStatus(HttpCode.NOT_FOUND)
           GetAgbotsResponse(agbots.toMap, 0)
         })
@@ -405,6 +408,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/patterns result: "+list.toString)
       val patterns = new MutableHashMap[String, AgbotPattern]
       if (list.nonEmpty) for (e <- list) { patterns.put(e.patId, e.toAgbotPattern) }
+      if (patterns.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetAgbotPatternsResponse(patterns.toMap)
     })
@@ -435,6 +439,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/patterns/"+patId+" result: "+list.toString)
       val patterns = new MutableHashMap[String, AgbotPattern]
       if (list.nonEmpty) for (e <- list) { patterns.put(e.patId, e.toAgbotPattern) }
+      if (patterns.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetAgbotPatternsResponse(patterns.toMap)
     })
@@ -589,6 +594,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/agreements result: "+list.toString)
       val agreements = new MutableHashMap[String, AgbotAgreement]
       if (list.nonEmpty) for (e <- list) { agreements.put(e.agrId, e.toAgbotAgreement) }
+      if (agreements.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetAgbotAgreementsResponse(agreements.toMap, 0)
     })
@@ -619,6 +625,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" result: "+list.toString)
       val agreements = new MutableHashMap[String, AgbotAgreement]
       if (list.nonEmpty) for (e <- list) { agreements.put(e.agrId, e.toAgbotAgreement) }
+      if (agreements.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetAgbotAgreementsResponse(agreements.toMap, 0)
     })
@@ -1009,6 +1016,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       val listSorted = list.sortWith(_.msgId < _.msgId)
       val msgs = new ListBuffer[AgbotMsg]
       if (listSorted.nonEmpty) for (m <- listSorted) { msgs += m.toAgbotMsg }
+      if (msgs.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetAgbotMsgsResponse(msgs.toList, 0)
     })

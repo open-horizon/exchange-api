@@ -301,12 +301,31 @@ class AgbotsSuite extends FunSuite {
     val ibmAgbotId = """^[^:]+""".r.findFirstIn(ibmAgbotAuth).getOrElse("")     // get the id before the :
     info("ibmAgbotAuth="+ibmAgbotAuth+", ibmAgbotId="+ibmAgbotId+".")
     if (ibmAgbotAuth != "") {
+      // Make sure the IBM agbot has special privilege to get private patterns and services in other orgs
       val IBMAGBOTAUTH = ("Authorization", "Basic IBM/" + ibmAgbotAuth)
-      val response: HttpResponse[String] = Http(URL + "/patterns/" + pattern).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
+      var response: HttpResponse[String] = Http(URL + "/patterns").headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info("code: " + response.code)
       assert(response.code === HttpCode.OK)
-      val respObj = parse(response.body).extract[GetPatternsResponse]
+      var respObj = parse(response.body).extract[GetPatternsResponse]
       assert(respObj.patterns.size === 1)
+
+      response = Http(URL + "/patterns/" + pattern).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
+      info("code: " + response.code)
+      assert(response.code === HttpCode.OK)
+      respObj = parse(response.body).extract[GetPatternsResponse]
+      assert(respObj.patterns.size === 1)
+
+      response = Http(URL+"/services").headers(ACCEPT).headers(IBMAGBOTAUTH).asString
+      info("code: "+response.code)
+      assert(response.code === HttpCode.OK)
+      var respObj2 = parse(response.body).extract[GetServicesResponse]
+      assert(respObj2.services.size === 1)
+
+      response = Http(URL+"/services/"+svcid).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
+      info("code: "+response.code)
+      assert(response.code === HttpCode.OK)
+      respObj2 = parse(response.body).extract[GetServicesResponse]
+      assert(respObj2.services.size === 1)
 
       if (ibmAgbotId != "") {
         // Also create a node to make sure they can msg each other

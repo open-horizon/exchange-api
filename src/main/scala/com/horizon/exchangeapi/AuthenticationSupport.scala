@@ -524,6 +524,7 @@ trait AuthenticationSupport extends ScalatraBase {
     def identityString = creds.id     // for error msgs
     def accessDeniedMsg(access: Access) = "Access denied: '"+identityString+"' does not have authorization: "+access
     var hasFrontEndAuthority = false   // true if this identity was already vetted by the front end
+    def isMultiTenantAgbot: Boolean = return false
 
     def authenticate(hint: String = ""): Identity = {
       if (hasFrontEndAuthority) return this       // it is already a specific subclass
@@ -862,7 +863,7 @@ trait AuthenticationSupport extends ScalatraBase {
       if (Role.hasAuthorization(Role.AGBOT, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
     }
 
-    def isMultiTenantAgbot: Boolean = return getOrg == "IBM"    //todo: implement instance-level ACLs instead of hardcoding this
+    override def isMultiTenantAgbot: Boolean = return getOrg == "IBM"    //todo: implement instance-level ACLs instead of hardcoding this
   }
 
   case class IApiKey(creds: Creds) extends Identity {

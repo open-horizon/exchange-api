@@ -114,7 +114,8 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
     db.run(q.result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/microservices result size: "+list.size)
       val microservices = new MutableHashMap[String,Microservice]
-      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public) microservices.put(a.microservice, a.toMicroservice)
+      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public || ident.isSuperUser || ident.isMultiTenantAgbot) microservices.put(a.microservice, a.toMicroservice)
+      if (microservices.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetMicroservicesResponse(microservices.toMap, 0)
     })
@@ -148,6 +149,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
         db.run(q.result).map({ list =>
           logger.trace("GET /orgs/"+orgid+"/microservices/"+bareMicro+" attribute result: "+list.toString)
           if (list.nonEmpty) {
+            resp.setStatus(HttpCode.OK)
             GetMicroserviceAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
@@ -160,6 +162,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
           logger.debug("GET /orgs/"+orgid+"/microservices/"+bareMicro+" result: "+list.toString)
           val microservices = new MutableHashMap[String,Microservice]
           if (list.nonEmpty) for (a <- list) microservices.put(a.microservice, a.toMicroservice)
+          if (microservices.nonEmpty) resp.setStatus(HttpCode.OK)
           else resp.setStatus(HttpCode.NOT_FOUND)
           GetMicroservicesResponse(microservices.toMap, 0)
         })
@@ -415,7 +418,8 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
     db.run(MicroserviceKeysTQ.getKeys(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/microservices/"+microservice+"/keys result size: "+list.size)
       //logger.trace("GET /orgs/"+orgid+"/microservices/"+id+"/keys result: "+list.toString)
-      if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
+      if (list.nonEmpty) resp.setStatus(HttpCode.OK)
+      else resp.setStatus(HttpCode.NOT_FOUND)
       list.map(_.keyId)
     })
   })
@@ -447,6 +451,7 @@ trait MicroserviceRoutes extends ScalatraBase with FutureSupport with SwaggerSup
       logger.debug("GET /orgs/"+orgid+"/microservices/"+microservice+"/keys/"+keyId+" result: "+list.size)
       if (list.nonEmpty) {
         // Return the raw key, not json
+        resp.setStatus(HttpCode.OK)
         resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
         resp.setHeader("Content-Type", "text/plain")
         resp.setHeader("Content-Length", list.head.key.length.toString)

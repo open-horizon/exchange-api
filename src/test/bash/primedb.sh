@@ -44,8 +44,8 @@ nodeauth="$EXCHANGE_ORG/$nodeid:$nodetoken"
 nodeid2="n2"
 nodeauth2="$EXCHANGE_ORG/$nodeid2:$nodetoken"
 
-agbotid="${$EXCHANGE_AGBOTAUTH%%:*}"
-agbottoken="${$EXCHANGE_AGBOTAUTH#*:}"
+agbotid="${EXCHANGE_AGBOTAUTH%%:*}"
+agbottoken="${EXCHANGE_AGBOTAUTH#*:}"
 agbotauth="$EXCHANGE_ORG/$agbotid:$agbottoken"
 
 agreementbase="${namebase}agreement"
@@ -278,6 +278,17 @@ else
     echo "orgs/$orgid/services/$svc2id exists"
 fi
 
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/services/$svcid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauthorg2 "orgs/$orgid2/services" '{"label": "GPS for amd64", "description": "blah blah", "public": false, "url": "'$svcurl'",
+  "version": "'$svcversion'", "arch": "'$svcarch'", "sharable": "single",
+  "deployment": "",
+  "deploymentSignature": "" }'
+else
+    echo "orgs/$orgid2/services/$svcid exists"
+fi
+
 rc=$(curlfind $userauth "orgs/$orgid/microservices/$microid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
@@ -310,6 +321,18 @@ else
     echo "orgs/$orgid/microservices/$microid2 exists"
 fi
 
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/microservices/$microid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauthorg2 "orgs/$orgid2/microservices" '{"label": "Network x86_64", "description": "blah blah", "public": false, "specRef": "'$microurl'",
+  "version": "'$microversion'", "arch": "'$microarch'", "sharable": "single", "downloadUrl": "",
+  "matchHardware": {},
+  "userInput": [],
+  "workloads": [] }'
+else
+    echo "orgs/$orgid2/microservices/$microid exists"
+fi
+
 rc=$(curlfind $userauth "orgs/$orgid/workloads/$workid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
@@ -340,6 +363,18 @@ if [[ $rc != 200 ]]; then
   "workloads": [] }'
 else
     echo "orgs/$orgid/workloads/$workid2 exists"
+fi
+
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/workloads/$workid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauthorg2 "orgs/$orgid2/workloads" '{"label": "Netspeed x86_64", "description": "blah blah", "public": false, "workloadUrl": "'$workurl'",
+  "version": "'$workversion'", "arch": "'$workarch'", "downloadUrl": "",
+  "apiSpec": [{ "specRef": "'$microurl'", "org": "'$orgid2'", "version": "'$microversion'", "arch": "'$microarch'" }],
+  "userInput": [],
+  "workloads": [] }'
+else
+    echo "orgs/$orgid2/workloads/$workid exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/patterns/$patid")
@@ -403,7 +438,7 @@ fi
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid" '{"label": "My other Pattern", "description": "blah blah", "public": true,
+    curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid" '{"label": "My other Pattern", "description": "blah blah", "public": false,
   "workloads": [
     {
       "workloadUrl": "'$workurl'",

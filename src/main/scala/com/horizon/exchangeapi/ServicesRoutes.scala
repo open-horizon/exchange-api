@@ -132,7 +132,6 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       )
 
   get("/orgs/:orgid/services", operation(getServices)) ({
-  //get("/orgs/:orgid/services") ({
     val orgid = params("orgid")
     val ident = credsAndLog().authenticate().authorizeTo(TService(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
@@ -156,6 +155,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.trace("GET /orgs/"+orgid+"/services result: "+list.toString())
       val services = new MutableHashMap[String,Service]
       if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public || ident.isSuperUser || ident.isMultiTenantAgbot) services.put(a.service, a.toService)
+      if (services.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetServicesResponse(services.toMap, 0)
     })
@@ -177,7 +177,6 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       )
 
   get("/orgs/:orgid/services/:service", operation(getOneService)) ({
-  //get("/orgs/:orgid/services/:service") ({
     val orgid = params("orgid")
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
@@ -190,6 +189,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         db.run(q.result).map({ list =>
           logger.trace("GET /orgs/"+orgid+"/services/"+bareService+" attribute result: "+list.toString)
           if (list.nonEmpty) {
+            resp.setStatus(HttpCode.OK)
             GetServiceAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
@@ -202,6 +202,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           logger.debug("GET /orgs/"+orgid+"/services/"+bareService+" result: "+list.toString)
           val services = new MutableHashMap[String,Service]
           if (list.nonEmpty) for (a <- list) services.put(a.service, a.toService)
+          if (services.nonEmpty) resp.setStatus(HttpCode.OK)
           else resp.setStatus(HttpCode.NOT_FOUND)
           GetServicesResponse(services.toMap, 0)
         })
@@ -532,7 +533,8 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     db.run(ServiceKeysTQ.getKeys(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/keys result size: "+list.size)
       //logger.trace("GET /orgs/"+orgid+"/services/"+id+"/keys result: "+list.toString)
-      if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
+      if (list.nonEmpty) resp.setStatus(HttpCode.OK)
+      else resp.setStatus(HttpCode.NOT_FOUND)
       list.map(_.keyId)
     })
   })
@@ -564,6 +566,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" result: "+list.size)
       if (list.nonEmpty) {
         // Return the raw key, not json
+        resp.setStatus(HttpCode.OK)
         resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
         resp.setHeader("Content-Type", "text/plain")
         resp.setHeader("Content-Length", list.head.key.length.toString)

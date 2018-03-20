@@ -410,7 +410,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(q.result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/nodes result size: "+list.size)
       val nodes = NodesTQ.parseJoin(superUser, list)
-      if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
+      if (nodes.nonEmpty) resp.setStatus(HttpCode.OK)
+      else resp.setStatus(HttpCode.NOT_FOUND)
       GetNodesResponse(nodes, 0)
     })
     // } catch { case e: Exception => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "Oops! Somthing unexpected happened: "+e)) }
@@ -444,6 +445,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         db.run(q.result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+" attribute result: "+list.size)
           if (list.nonEmpty) {
+            resp.setStatus(HttpCode.OK)
             GetNodeAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
@@ -465,6 +467,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+" result: "+list.size)
           if (list.nonEmpty) {
             val nodes = NodesTQ.parseJoin(superUser, list)
+            resp.setStatus(HttpCode.OK)
             GetNodesResponse(nodes, 0)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
@@ -1061,7 +1064,10 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val resp = response
       db.run(NodeStatusTQ.getNodeStatus(id).result).map({ list =>
         logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/status result size: "+list.size)
-        if (list.nonEmpty) list.head.toNodeStatus
+        if (list.nonEmpty) {
+          resp.setStatus(HttpCode.OK)
+          list.head.toNodeStatus
+        }
         else resp.setStatus(HttpCode.NOT_FOUND)
       })
   })
@@ -1209,6 +1215,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/agreements result size: "+list.size)
       val agreements = new MutableHashMap[String, NodeAgreement]
       if (list.nonEmpty) for (e <- list) { agreements.put(e.agId, e.toNodeAgreement) }
+      if (agreements.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetNodeAgreementsResponse(agreements.toMap, 0)
     })
@@ -1239,6 +1246,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+list.toString)
       val agreements = new MutableHashMap[String, NodeAgreement]
       if (list.nonEmpty) for (e <- list) { agreements.put(e.agId, e.toNodeAgreement) }
+      if (agreements.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetNodeAgreementsResponse(agreements.toMap, 0)
     })
@@ -1485,6 +1493,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       val listSorted = list.sortWith(_.msgId < _.msgId)
       val msgs = new ListBuffer[NodeMsg]
       if (listSorted.nonEmpty) for (m <- listSorted) { msgs += m.toNodeMsg }
+      if (msgs.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetNodeMsgsResponse(msgs.toList, 0)
     })

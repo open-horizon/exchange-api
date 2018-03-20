@@ -91,6 +91,7 @@ services in the exchange.
 ## Changes in 1.49.0
 
 - allow IBM agbots to access private ms/wl/svc/pat via get /workloads etc.
+- explicitly set http response code of 200 for successful GETs to avoid occasional 404's
 
 ## Changes in 1.48.0
 

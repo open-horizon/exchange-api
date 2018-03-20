@@ -117,6 +117,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
       logger.debug("GET /orgs/"+orgid+"/bctypes result size: "+list.size)
       val bctypes = new MutableHashMap[String,Bctype]
       if (list.nonEmpty) for (a <- list) bctypes.put(a.bctype, a.toBctype)
+      if (bctypes.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetBctypesResponse(bctypes.toMap, 0)
     })
@@ -150,6 +151,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
         db.run(q.result).map({ list =>
           logger.trace("GET /orgs/"+orgid+"/bctypes/"+bareBctype+" attribute result: "+list.toString)
           if (list.nonEmpty) {
+            resp.setStatus(HttpCode.OK)
             GetBctypeAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
@@ -162,6 +164,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
           logger.debug("GET /orgs/"+orgid+"/bctypes/"+bareBctype+" result: "+list.toString)
           val bctypes = new MutableHashMap[String,Bctype]
           if (list.nonEmpty) for (a <- list) bctypes.put(a.bctype, a.toBctype)
+          if (bctypes.nonEmpty) resp.setStatus(HttpCode.OK)
           else resp.setStatus(HttpCode.NOT_FOUND)
           GetBctypesResponse(bctypes.toMap, 0)
         })
@@ -334,6 +337,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
       logger.trace("GET /orgs/"+orgid+"/bctypes/"+bareBctype+"/blockchains result: "+list.toString)
       val blockchains = new MutableHashMap[String, Blockchain]
       if (list.nonEmpty) for (e <- list) { if (ident.getOrg == e.orgid || e.public) blockchains.put(e.name, e.toBlockchain) }
+      if (blockchains.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetBlockchainsResponse(blockchains.toMap, 0)
     })
@@ -371,6 +375,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
         db.run(q.result).map({ list =>
           logger.trace("GET /orgs/"+orgid+"/bctypes/"+bareBctype+"/blockchains/"+name+" attribute result: "+list.toString)
           if (list.nonEmpty) {
+            resp.setStatus(HttpCode.OK)
             GetBlockchainAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
@@ -383,6 +388,7 @@ trait BlockchainsRoutes extends ScalatraBase with FutureSupport with SwaggerSupp
           logger.debug("GET /orgs/"+orgid+"/bctypes/"+bareBctype+"/blockchains/"+name+" result: "+list.toString)
           val blockchains = new MutableHashMap[String, Blockchain]
           if (list.nonEmpty) for (e <- list) { blockchains.put(e.name, e.toBlockchain) }
+          if (blockchains.nonEmpty) resp.setStatus(HttpCode.OK)
           else resp.setStatus(HttpCode.NOT_FOUND)
           GetBlockchainsResponse(blockchains.toMap, 0)
         })

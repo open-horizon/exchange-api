@@ -74,6 +74,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
       logger.debug("GET /orgs result size: "+list.size)
       val orgs = new MutableHashMap[String,Org]
       if (list.nonEmpty) for (a <- list) orgs.put(a.orgId, a.toOrg)
+      if (orgs.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetOrgsResponse(orgs.toMap, 0)
     })
@@ -104,6 +105,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
         db.run(q.result).map({ list =>
           logger.trace("GET /orgs/"+orgId+" attribute result: "+list.toString)
           if (list.nonEmpty) {
+            resp.setStatus(HttpCode.OK)
             GetOrgAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
@@ -116,6 +118,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
           logger.debug("GET /orgs/"+orgId+" result: "+list.toString)
           val orgs = new MutableHashMap[String,Org]
           if (list.nonEmpty) for (a <- list) orgs.put(a.orgId, a.toOrg)
+          if (orgs.nonEmpty) resp.setStatus(HttpCode.OK)
           else resp.setStatus(HttpCode.NOT_FOUND)
           GetOrgsResponse(orgs.toMap, 0)
         })

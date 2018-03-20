@@ -137,6 +137,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       logger.debug("GET /orgs/"+orgid+"/workloads result size: "+list.size)
       val workloads = new MutableHashMap[String,Workload]
       if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public || ident.isSuperUser || ident.isMultiTenantAgbot) workloads.put(a.workload, a.toWorkload)
+      if (workloads.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetWorkloadsResponse(workloads.toMap, 0)
     })
@@ -170,6 +171,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         db.run(q.result).map({ list =>
           logger.trace("GET /orgs/"+orgid+"/workloads/"+bareWorkload+" attribute result: "+list.toString)
           if (list.nonEmpty) {
+            resp.setStatus(HttpCode.OK)
             GetWorkloadAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
@@ -182,6 +184,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           logger.debug("GET /orgs/"+orgid+"/workloads/"+bareWorkload+" result: "+list.toString)
           val workloads = new MutableHashMap[String,Workload]
           if (list.nonEmpty) for (a <- list) workloads.put(a.workload, a.toWorkload)
+          if (workloads.nonEmpty) resp.setStatus(HttpCode.OK)
           else resp.setStatus(HttpCode.NOT_FOUND)
           GetWorkloadsResponse(workloads.toMap, 0)
         })
@@ -503,7 +506,8 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     db.run(WorkloadKeysTQ.getKeys(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/workloads/"+workload+"/keys result size: "+list.size)
       //logger.trace("GET /orgs/"+orgid+"/workloads/"+id+"/keys result: "+list.toString)
-      if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
+      if (list.nonEmpty) resp.setStatus(HttpCode.OK)
+      else resp.setStatus(HttpCode.NOT_FOUND)
       list.map(_.keyId)
     })
   })
@@ -535,6 +539,7 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       logger.debug("GET /orgs/"+orgid+"/workloads/"+workload+"/keys/"+keyId+" result: "+list.size)
       if (list.nonEmpty) {
         // Return the raw key, not json
+        resp.setStatus(HttpCode.OK)
         resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
         resp.setHeader("Content-Type", "text/plain")
         resp.setHeader("Content-Length", list.head.key.length.toString)

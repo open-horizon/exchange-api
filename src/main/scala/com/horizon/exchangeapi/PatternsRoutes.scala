@@ -145,6 +145,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("GET /orgs/"+orgid+"/patterns result size: "+list.size)
       val patterns = new MutableHashMap[String,Pattern]
       if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public || ident.isSuperUser || ident.isMultiTenantAgbot) patterns.put(a.pattern, a.toPattern)
+      if (patterns.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetPatternsResponse(patterns.toMap, 0)
     })
@@ -178,6 +179,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         db.run(q.result).map({ list =>
           logger.trace("GET /orgs/"+orgid+"/patterns/"+barePattern+" attribute result: "+list.toString)
           if (list.nonEmpty) {
+            resp.setStatus(HttpCode.OK)
             GetPatternAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
@@ -190,6 +192,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           logger.debug("GET /orgs/"+orgid+"/patterns/"+barePattern+" result: "+list.size)
           val patterns = new MutableHashMap[String,Pattern]
           if (list.nonEmpty) for (a <- list) patterns.put(a.pattern, a.toPattern)
+          if (patterns.nonEmpty) resp.setStatus(HttpCode.OK)
           else resp.setStatus(HttpCode.NOT_FOUND)
           GetPatternsResponse(patterns.toMap, 0)
         })
@@ -527,7 +530,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     db.run(PatternKeysTQ.getKeys(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys result size: "+list.size)
       //logger.trace("GET /orgs/"+orgid+"/patterns/"+id+"/keys result: "+list.toString)
-      if (list.isEmpty) resp.setStatus(HttpCode.NOT_FOUND)
+      if (list.nonEmpty) resp.setStatus(HttpCode.OK)
+      else resp.setStatus(HttpCode.NOT_FOUND)
       list.map(_.keyId)
     })
   })
@@ -559,6 +563,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" result: "+list.size)
       if (list.nonEmpty) {
         // Return the raw key, not json
+        resp.setStatus(HttpCode.OK)
         resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
         resp.setHeader("Content-Type", "text/plain")
         resp.setHeader("Content-Length", list.head.key.length.toString)

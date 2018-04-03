@@ -88,6 +88,10 @@ services in the exchange.
     - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.50.0
+
+- Fix build error in Schema.scala in wiotp enviroment
+
 ## Changes in 1.49.0
 
 - allow IBM agbots to access private ms/wl/svc/pat via get /workloads etc.

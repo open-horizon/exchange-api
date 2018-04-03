@@ -59,8 +59,8 @@ object SchemaTQ {
       sqlu"alter table agbotagreements add column servicePattern character varying not null default ''",
       sqlu"alter table agbotagreements add column serviceUrl character varying not null default ''",
       sqlu"alter table nodestatus add column services character varying not null default ''",
-      sqlu"alter table services rename column pkg to imagestore",
-    ),   // v1.48.0
+      sqlu"alter table services rename column pkg to imagestore"
+    )   // v1.48.0
   )
   val latestSchemaDescription = "Added columns agbotagreements and nodestatus tables, and changed column pkg to imagestore in services table"
 

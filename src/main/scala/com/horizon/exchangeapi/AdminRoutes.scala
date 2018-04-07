@@ -167,7 +167,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "db deleted successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db not completely deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db not deleted: "+t.toString)
       }
     })
   })

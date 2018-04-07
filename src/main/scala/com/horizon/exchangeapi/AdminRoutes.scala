@@ -167,7 +167,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "db deleted successfully")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db not completely deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db not deleted: "+t.toString)
       }
     })
   })
@@ -220,25 +220,32 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   post("/admin/upgradedb", operation(postAdminUpgradeDb)) ({
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
+    val upgradeNotNeededMsg = "DB schema does not need upgrading, it is already at the latest schema version: "
 
     // Assemble the list of db actions to alter schema of existing tables and create tables that are new in each of the schema versions we have to catch up on
     db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
       logger.debug("POST /admin/upgradedb current schema result: "+xs.toString)
       xs match {
         case Success(v) => if (v.nonEmpty) {
-          val schemaRow = v.head
-          SchemaTQ.getUpgradeActionsFrom(schemaRow.schemaVersion).transactionally.asTry
-        }
-        else DBIO.failed(new Throwable("DB upgrade error: did not find a row in the schemas table")).asTry
+            val schemaRow = v.head
+            if (SchemaTQ.isLatestSchemaVersion(schemaRow.schemaVersion)) DBIO.failed(new Throwable(upgradeNotNeededMsg + schemaRow.schemaVersion)).asTry    // I do not think there is a way to pass a msg thru the Success path
+            else SchemaTQ.getUpgradeActionsFrom(schemaRow.schemaVersion).transactionally.asTry
+          }
+          else DBIO.failed(new Throwable("DB upgrade error: did not find a row in the schemas table")).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }
     })).map({ xs =>
       logger.debug("POST /admin/upgradedb result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "db table schemas upgraded successfully")
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db table schemas not upgraded: "+t.toString)
+          ApiResponse(ApiResponseType.OK, "DB table schema upgraded to the latest successfully")
+        case Failure(t) => if (t.getMessage.contains(upgradeNotNeededMsg)) {
+            resp.setStatus(HttpCode.POST_OK)
+            ApiResponse(ApiResponseType.OK, t.getMessage)
+          } else {
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, "DB table schema not upgraded: " + t.toString)
+          }
       }
     })
   })

@@ -19,7 +19,7 @@ object ExchangeApiTables {
       ++ NodesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ NodeAgreementsTQ.rows.schema ++ NodeStatusTQ.rows.schema
       ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ AgbotPatternsTQ.rows.schema
       ++ NodeMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema
-      ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ ServicesTQ.rows.schema ++ ServiceKeysTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ MicroserviceKeysTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ WorkloadKeysTQ.rows.schema ++ PatternsTQ.rows.schema ++ PatternKeysTQ.rows.schema
+      ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ ServicesTQ.rows.schema ++ ServiceKeysTQ.rows.schema ++ ServiceDockAuthsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ MicroserviceKeysTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ WorkloadKeysTQ.rows.schema ++ PatternsTQ.rows.schema ++ PatternKeysTQ.rows.schema
     ).create
 
   // Alter the schema of existing tables - used to be used in /admin/upgradedb
@@ -34,7 +34,7 @@ object ExchangeApiTables {
   // Note: doing this with raw sql stmts because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints (only adding), we should be ok with the drops below?
   //val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
   val delete = DBIO.seq(
-    sqlu"drop table if exists patternkeys", sqlu"drop table if exists patterns", sqlu"drop table if exists servicekeys", sqlu"drop table if exists services", sqlu"drop table if exists workloadkeys", sqlu"drop table if exists workloads", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes",  // no table depends on these
+    sqlu"drop table if exists patternkeys", sqlu"drop table if exists patterns", sqlu"drop table if exists servicedockauths", sqlu"drop table if exists servicekeys", sqlu"drop table if exists services", sqlu"drop table if exists workloadkeys", sqlu"drop table if exists workloads", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes",  // no table depends on these
     sqlu"drop table if exists mmicroservices",       // from older schema
     sqlu"drop table if exists devmsgs",   // from older schema
     sqlu"drop table if exists nodemsgs", sqlu"drop table if exists agbotmsgs",     // these depend on both nodes and agbots
@@ -124,6 +124,11 @@ object ExchangeApiTables {
       val filename = dumpDir+"/servicekeys"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[ServiceKeyRow](filename).dump(xs)
+      ServiceDockAuthsTQ.rows.result
+    }).flatMap({ xs =>
+      val filename = dumpDir+"/servicedockauths"+dumpSuffix
+      logger.info("dumping "+xs.size+" rows to "+filename)
+      new TableIo[ServiceDockAuthRow](filename).dump(xs)
       MicroservicesTQ.rows.result
     }).flatMap({ xs =>
       val filename = dumpDir+"/microservices"+dumpSuffix
@@ -236,6 +241,9 @@ object ExchangeApiTables {
 
     val servicekeys = new TableIo[ServiceKeyRow](dumpDir+"/servicekeys"+dumpSuffix).load
     if (servicekeys.nonEmpty) actions += (ServiceKeysTQ.rows ++= servicekeys)
+
+    val servicedockauths = new TableIo[ServiceDockAuthRow](dumpDir+"/servicedockauths"+dumpSuffix).load
+    if (servicedockauths.nonEmpty) actions += (ServiceDockAuthsTQ.rows ++= servicedockauths)
 
     val microservices = new TableIo[MicroserviceRow](dumpDir+"/microservices"+dumpSuffix).load
     if (microservices.nonEmpty) actions += (MicroservicesTQ.rows ++= microservices)

@@ -72,6 +72,10 @@ svc2url="https://bluehorizon.network/services/location"
 svc2arch="amd64"
 svc2version="4.5.6"
 
+svcDockAuthId='1'
+svcDockAuthRegistry='registry.ng.bluemix.net'
+svcDockAuthToken='abcdefghijk'
+
 microid="bluehorizon.network-microservices-network_1.0.0_amd64"
 microurl="https://bluehorizon.network/microservices/network"
 microarch="amd64"
@@ -244,6 +248,14 @@ if [[ $rc != 200 ]]; then
     curlcreate "PUT" $userauth "orgs/$orgid/services/$svcid/keys/$svcKeyId" "$svcKey" "$contenttext"
 else
     echo "orgs/$orgid/services/$svcid/keys/$svcKeyId exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/services/$svcid/dockauths/$svcDockAuthId")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauth "orgs/$orgid/services/$svcid/dockauths" '{"registry": "'$svcDockAuthRegistry'", "token": "'$svcDockAuthToken'"}'
+else
+    echo "orgs/$orgid/services/$svcid/dockauths/$svcDockAuthId exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/services/$svc2id")

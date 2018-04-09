@@ -105,6 +105,17 @@ case class PutServiceKeyRequest(key: String) {
 }
 
 
+/** Response for GET /orgs/{orgid}/agbots/{id}/msgs */
+case class GetServiceDockAuthResponse(dockauths: List[ServiceDockAuth], lastIndex: Int)
+
+/** Input format for POST /orgs/{orgid}/services/{service}/dockauths or PUT /orgs/{orgid}/services/{service}/dockauths/{dockauthid} */
+case class PostPutServiceDockAuthRequest(registry: String, token: String) {
+  //def toServiceDockAuth(dockAuthId: Int) = ServiceDockAuth(dockAuthId, registry, token, ApiTime.nowUTC)
+  def toServiceDockAuthRow(serviceId: String, dockAuthId: Int) = ServiceDockAuthRow(dockAuthId, serviceId, registry, token, ApiTime.nowUTC)
+  def validate(dockAuthId: Int) = { }
+}
+
+
 
 /** Implementation for all of the /orgs/{orgid}/services routes */
 trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
@@ -516,7 +527,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       description """Returns all the signing public keys/certs for this service. Can be run by any credentials able to view the service."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("microservice", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
         Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -546,7 +557,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       description """Returns the signing public key/cert with the specified keyid for this service. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the service."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("microservice", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
         Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -586,7 +597,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       description """Adds a new signing public key/cert, or updates an existing key/cert, for this service. This can only be run by the service owning user. Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("microservice", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
         Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
@@ -632,7 +643,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       description "Deletes all of the current keys/certs for this service. This can only be run by the service owning user."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("microservice", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
@@ -668,7 +679,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       description "Deletes a key/cert for this service. This can only be run by the service owning user."
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("microservice", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+        Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
         Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -695,6 +706,243 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "key '"+keyId+"' for service '"+compositeId+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  /* ====== GET /orgs/{orgid}/services/{service}/dockauths ================================ */
+  val getServiceDockAuths =
+    (apiOperation[GetServiceDockAuthResponse]("getServiceDockAuths")
+      summary "Returns all docker image tokens for this service"
+      description """Returns all the docker image authentication tokens for this service. Can be run by any credentials able to view the service."""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+      Parameter("dockauthid", DataType.String, Option[String]("ID of the dockauth."), paramType = ParamType.Path),
+      Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  get("/orgs/:orgid/services/:service/dockauths", operation(getServiceDockAuths)) ({
+    val orgid = params("orgid")
+    val service = params("service")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,service).toString
+    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.READ)
+    val resp = response
+    db.run(ServiceDockAuthsTQ.getDockAuths(compositeId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/services/"+service+"/dockauths result size: "+list.size)
+      //logger.trace("GET /orgs/"+orgid+"/services/"+id+"/dockauths result: "+list.toString)
+      val listSorted = list.sortWith(_.dockAuthId < _.dockAuthId)
+      val dockAuths = new ListBuffer[ServiceDockAuth]
+      if (listSorted.nonEmpty) for (m <- listSorted) { dockAuths += m.toServiceDockAuth }
+      if (dockAuths.nonEmpty) resp.setStatus(HttpCode.OK)
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      GetServiceDockAuthResponse(dockAuths.toList, 0)
+    })
+  })
+
+  /* ====== GET /orgs/{orgid}/services/{service}/dockauths/{dockauthid} ================================ */
+  val getOneServiceDockAuth =
+    (apiOperation[GetServiceDockAuthResponse]("getOneServiceDockAuth")
+      summary "Returns a docker image token for this service"
+      description """Returns the docker image authentication token with the specified dockauthid for this service. Can be run by any credentials able to view the service."""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+      Parameter("dockauthid", DataType.String, Option[String]("ID of the dockauth."), paramType = ParamType.Path),
+      Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      produces "text/plain"
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  get("/orgs/:orgid/services/:service/dockauths/:dockauthid", operation(getOneServiceDockAuth)) ({
+    val orgid = params("orgid")
+    val service = params("service")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,service).toString
+    val dockAuthId = try { params("dockauthid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "dockauthid must be an integer: "+e)) }    // the specific exception is NumberFormatException
+    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.READ)
+    val resp = response
+    db.run(ServiceDockAuthsTQ.getDockAuth(compositeId, dockAuthId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" result: "+list.size)
+      val dockAuths = new ListBuffer[ServiceDockAuth]
+      if (list.nonEmpty) for (m <- list) { dockAuths += m.toServiceDockAuth }
+      if (dockAuths.nonEmpty) resp.setStatus(HttpCode.OK)
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      GetServiceDockAuthResponse(dockAuths.toList, 0)
+    })
+  })
+
+  // =========== POST /orgs/{orgid}/services/{service}/dockauths ===============================
+  val postServiceDockAuth =
+    (apiOperation[ApiResponse]("postServiceDockAuth")
+      summary "Adds a docker image token for the service"
+      description """Adds a new docker image authentication token for this service. This can only be run by the service owning user."""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+      Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PostPutServiceDockAuthRequest],
+        Option[String]("DockAuth object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+  val postServiceDockAuth2 = (apiOperation[PostPutServiceDockAuthRequest]("postDockAuth2") summary("a") description("a"))  // for some bizarre reason, the PostDockAuthsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  post("/orgs/:orgid/services/:service/dockauths", operation(postServiceDockAuth)) ({
+    val orgid = params("orgid")
+    val service = params("service")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,service).toString
+    val dockAuthId = 0      // the db will choose a new id on insert
+    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    val dockAuthIdReq = try { parse(request.body).extract[PostPutServiceDockAuthRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    dockAuthIdReq.validate(dockAuthId)
+    val resp = response
+    db.run(dockAuthIdReq.toServiceDockAuthRow(compositeId, dockAuthId).insert.asTry).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/services/"+service+"/dockauths result: "+xs.toString)
+      xs match {
+        case Success(v) => resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, "dockauth "+v+" added")
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "dockAuthId '"+dockAuthId+"' for service '"+compositeId+"' not inserted: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "dockAuthId '"+dockAuthId+"' for service '"+compositeId+"' not inserted: "+t.getMessage)
+        }
+      }
+    })
+  })
+
+  // =========== PUT /orgs/{orgid}/services/{service}/dockauths/{dockauthid} ===============================
+  val putServiceDockAuth =
+    (apiOperation[ApiResponse]("putServiceDockAuth")
+      summary "Updates a docker image token for the service"
+      description """Updates an existing docker image authentication token for this service. This can only be run by the service owning user."""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+      Parameter("dockauthid", DataType.String, Option[String]("ID of the docker token."), paramType = ParamType.Path),
+      Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PostPutServiceDockAuthRequest],
+        Option[String]("DockAuth object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+  val putServiceDockAuth2 = (apiOperation[PostPutServiceDockAuthRequest]("putDockAuth2") summary("a") description("a"))  // for some bizarre reason, the PutDockAuthsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  put("/orgs/:orgid/services/:service/dockauths/:dockauthid", operation(putServiceDockAuth)) ({
+    val orgid = params("orgid")
+    val service = params("service")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,service).toString
+    val dockAuthId = try { params("dockauthid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "dockauthid must be an integer: "+e)) }    // the specific exception is NumberFormatException
+    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    val dockAuthIdReq = try { parse(request.body).extract[PostPutServiceDockAuthRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    dockAuthIdReq.validate(dockAuthId)
+    val resp = response
+    db.run(dockAuthIdReq.toServiceDockAuthRow(compositeId, dockAuthId).update.asTry).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" result: "+xs.toString)
+      xs match {
+        case Success(n) => val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
+          if (numUpdated > 0) {
+            resp.setStatus(HttpCode.PUT_OK)
+            ApiResponse(ApiResponseType.OK, "dockauth "+dockAuthId+" updated")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.OK, "dockauth "+dockAuthId+" not found")
+          }
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "dockAuthId '"+dockAuthId+"' for service '"+compositeId+"' not updated: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "dockAuthId '"+dockAuthId+"' for service '"+compositeId+"' not updated: "+t.getMessage)
+        }
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/services/{service}/dockauths ===============================
+  val deleteServiceAllDockAuth =
+    (apiOperation[ApiResponse]("deleteServiceAllDockAuth")
+      summary "Deletes all docker image auth tokens of a service"
+      description "Deletes all of the current docker image auth tokens for this service. This can only be run by the service owning user."
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+      Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  delete("/orgs/:orgid/services/:service/dockauths", operation(deleteServiceAllDockAuth)) ({
+    val orgid = params("orgid")
+    val service = params("service")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,service).toString
+    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    val resp = response
+    db.run(ServiceDockAuthsTQ.getDockAuths(compositeId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /services/"+service+"/dockauths result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "service dockauths deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "no dockauths for service '"+compositeId+"' found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "dockauths for service '"+compositeId+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/services/{service}/dockauths/{dockauthid} ===============================
+  val deleteServiceDockAuth =
+    (apiOperation[ApiResponse]("deleteServiceDockAuth")
+      summary "Deletes a docker image auth token of a service"
+      description "Deletes a docker image auth token for this service. This can only be run by the service owning user."
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
+      Parameter("dockauthid", DataType.String, Option[String]("ID of the dockauths."), paramType = ParamType.Path),
+      Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  delete("/orgs/:orgid/services/:service/dockauths/:dockauthid", operation(deleteServiceDockAuth)) ({
+    val orgid = params("orgid")
+    val service = params("service")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,service).toString
+    val dockAuthId = try { params("dockauthid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "dockauthid must be an integer: "+e)) }    // the specific exception is NumberFormatException
+    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    val resp = response
+    db.run(ServiceDockAuthsTQ.getDockAuth(compositeId,dockAuthId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /services/"+service+"/dockauths/"+dockAuthId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "service dockauths deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "dockauths '"+dockAuthId+"' for service '"+compositeId+"' not found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "dockauths '"+dockAuthId+"' for service '"+compositeId+"' not deleted: "+t.toString)
       }
     })
   })

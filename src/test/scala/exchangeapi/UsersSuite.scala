@@ -1,10 +1,10 @@
 package exchangeapi
 
 //import com.horizon.exchangeapi.tables.APattern
+import com.horizon.exchangeapi.tables.PWorkloads
 import org.scalatest.FunSuite
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-
 import scalaj.http._
 import org.json4s._
 //import org.json4s.JsonDSL._
@@ -586,7 +586,7 @@ class UsersSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as not public in 1st org") {
-    val input = PostPutPatternRequest("Pattern", "desc", public = false, Some(List()), None, List[Map[String,String]]() )
+    val input = PostPutPatternRequest("Pattern", "desc", public = false, Some(List(PWorkloads("a", "a", "a", List(), None, None))), None, List[Map[String,String]]() )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

@@ -26,8 +26,8 @@ case class GetPatternAttributeResponse(attribute: String, value: String)
 case class PostPutPatternRequest(label: String, description: String, public: Boolean, workloads: Option[List[PWorkloads]], services: Option[List[PServices]], agreementProtocols: List[Map[String,String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(): Unit = {
-    if (services.isDefined) {
-      if (workloads.isDefined) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "can not specify both the 'services' and 'workloads' fields."))
+    if (services.isDefined && services.get.nonEmpty) {
+      if (workloads.isDefined && workloads.get.nonEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "can not specify both the 'services' and 'workloads' fields."))
       // Check that it is signed and check the version syntax
       for (s <- services.get) {
         for (sv <- s.serviceVersions) {
@@ -37,8 +37,8 @@ case class PostPutPatternRequest(label: String, description: String, public: Boo
           }
         }
       }
-    } else if (workloads.isDefined) {
-      if (services.isDefined) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "can not specify both the 'services' and 'workloads' fields."))
+    } else if (workloads.isDefined && workloads.get.nonEmpty) {
+      if (services.isDefined && services.get.nonEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "can not specify both the 'services' and 'workloads' fields."))
       // Check that it is signed and check the version syntax
       for (w <- workloads.get) {
         for (wv <- w.workloadVersions) {
@@ -55,9 +55,9 @@ case class PostPutPatternRequest(label: String, description: String, public: Boo
 
   // Build a list of db actions to verify that the referenced workloads exist
   def validateServiceIds: DBIO[Vector[Int]] = {
-    if (services.isDefined) PatternsTQ.validateServiceIds(services.get)
-    else if (workloads.isDefined) PatternsTQ.validateWorkloadIds(workloads.get)
-    else halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either the 'services' or 'workloads' field must be specified."))
+    if (services.isDefined && services.get.nonEmpty) PatternsTQ.validateServiceIds(services.get)
+    else if (workloads.isDefined && workloads.get.nonEmpty) PatternsTQ.validateWorkloadIds(workloads.get)
+    else halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either the 'services' or 'workloads' field must be specified and not empty."))
   }
 
   // Note: write() handles correctly the case where the optional fields are None.

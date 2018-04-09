@@ -854,8 +854,14 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     db.run(dockAuthIdReq.toServiceDockAuthRow(compositeId, dockAuthId).update.asTry).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" result: "+xs.toString)
       xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "dockauth updated")
+        case Success(n) => val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
+          if (numUpdated > 0) {
+            resp.setStatus(HttpCode.PUT_OK)
+            ApiResponse(ApiResponseType.OK, "dockauth "+dockAuthId+" updated")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.OK, "dockauth "+dockAuthId+" not found")
+          }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
           ApiResponse(ApiResponseType.ACCESS_DENIED, "dockAuthId '"+dockAuthId+"' for service '"+compositeId+"' not updated: "+t.getMessage)

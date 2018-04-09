@@ -141,3 +141,33 @@ object ServiceKeysTQ {
 }
 
 case class ServiceKey(key: String, lastUpdated: String)
+
+
+// DockAuth is a sub-resource of service
+case class ServiceDockAuthRow(dockAuthId: Int, serviceId: String, registry: String, token: String, lastUpdated: String) {
+  def toServiceDockAuth = ServiceDockAuth(dockAuthId, registry, token, lastUpdated)
+
+  // The returning operator is necessary on insert to have it return the id auto-generated, instead of the number of rows inserted
+  def insert: DBIO[_] = (ServiceDockAuthsTQ.rows returning ServiceDockAuthsTQ.rows.map(_.dockAuthId)) += this
+  def update: DBIO[_] = ServiceDockAuthsTQ.getDockAuth(serviceId, dockAuthId).update(this)
+}
+
+class ServiceDockAuths(tag: Tag) extends Table[ServiceDockAuthRow](tag, "servicedockauths") {
+  def dockAuthId = column[Int]("dockauthid", O.PrimaryKey, O.AutoInc)     // dockAuth - the generated id for this resource
+  def serviceId = column[String]("serviceid")               // additional key - the composite orgid/serviceid
+  def registry = column[String]("registry")                   // the docker registry this token is for
+  def token = column[String]("token")                   // the actual token content
+  def lastUpdated = column[String]("lastupdated")
+  def * = (dockAuthId, serviceId, registry, token, lastUpdated) <> (ServiceDockAuthRow.tupled, ServiceDockAuthRow.unapply)
+  //def primKey = primaryKey("pk_svck", (dockAuthId, serviceId))    // <- the auto-created id is already unique
+  def service = foreignKey("service_fk", serviceId, ServicesTQ.rows)(_.service, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object ServiceDockAuthsTQ {
+  val rows = TableQuery[ServiceDockAuths]
+
+  def getDockAuths(serviceId: String) = rows.filter(_.serviceId === serviceId)
+  def getDockAuth(serviceId: String, dockAuthId: Int) = rows.filter( r => {r.serviceId === serviceId && r.dockAuthId === dockAuthId} )
+}
+
+case class ServiceDockAuth(dockAuthId: Int, registry: String, token: String, lastUpdated: String)

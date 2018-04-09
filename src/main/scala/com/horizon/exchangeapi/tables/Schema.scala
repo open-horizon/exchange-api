@@ -37,6 +37,7 @@ class SchemaTable(tag: Tag) extends Table[SchemaRow](tag, "schema") {
 
 // Instance to access the schemas table
 object SchemaTQ {
+  // This commented out section will be deleted, just want to make sure the alternate upgrade method works in production first...
   // Each index in this vector contains the db schema upgrade actions to get from (index-1) version to (index) version
 //  val upgradeSchemaVector = Vector(
 //    /* 0 */ DBIO.seq(),       // v1.35.0 - no changes needed to get to time zero
@@ -86,11 +87,12 @@ object SchemaTQ {
         // If in this current level of code we started upgrading from 2 or less, that means we created the services table with the correct schema, so no need to modify it
         if (fromSchemaVersion >= 3) actions += sqlu"alter table services rename column pkg to imagestore"
         DBIO.seq(actions: _*)      // convert the list of actions to a DBIO seq
+      case 9 => DBIO.seq(ServiceDockAuthsTQ.rows.schema.create)   // v1.52.0
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 8     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
-  val latestSchemaDescription = "Added columns agbotagreements and nodestatus tables, and changed column pkg to imagestore in services table"
+  val latestSchemaVersion = 9     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
+  val latestSchemaDescription = "Added new table servicedockauths"
 
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

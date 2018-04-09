@@ -88,6 +88,10 @@ services in the exchange.
     - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.52.0
+
+- Add services sub-resource called dockerauths
+
 ## Changes in 1.51.0
 
 - Fixed error upgrading db schema from earlier than db schema 3

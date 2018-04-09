@@ -90,7 +90,7 @@ services in the exchange.
 
 ## Changes in 1.52.0
 
-- Add services sub-resource called dockerauths
+- Add services sub-resource called dockerauths for docker image auth tokens
 
 ## Changes in 1.51.0
 

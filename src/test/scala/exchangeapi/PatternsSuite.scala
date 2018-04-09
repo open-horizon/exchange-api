@@ -195,7 +195,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as same user, w/o dataVerification or nodeHealth fields") {
-    val input = PostPutPatternRequest(ptBase+" amd64", "desc", public = false, None,
+    val input = PostPutPatternRequest(ptBase+" amd64", "desc", public = false, Some(List()),   // <- specify empty workloads field to make sure it is allowed
       Some(List( PServices(svcurl, orgid, svcarch, List(PServiceVersions(svcversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), None, None ))),
       List[Map[String,String]]()
     )
@@ -246,7 +246,7 @@ class PatternsSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as 2nd user") {
     val input = PostPutPatternRequest(ptBase2+" amd64", "desc", public = true,
       Some(List( PWorkloads(workurl, orgid, workarch, List(PServiceVersions(workversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) ))),
-      None, List[Map[String,String]]()
+      Some(List()), List[Map[String,String]]()
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

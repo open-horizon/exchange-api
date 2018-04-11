@@ -38,6 +38,6 @@ script:
 - sudo ./sbt test
 after_success:
 - '{ test $TRAVIS_PULL_REQUEST = ''false'' && test $TRAVIS_BRANCH = ''master'' &&
-  [[ ! "$TRAVIS_COMMIT_MESSAGE" =~ "--skip-push" ]]  && docker login -u="$DOCKER_HUB_USER"
-  -p="$DOCKER_HUB_PASS" && make docker-push-only; } || echo ''Skipping
-  the push'''
+  [[ ! "$TRAVIS_COMMIT_MESSAGE" =~ "--skip-push" ]]  && echo "$DOCKER_HUB_PASS" |
+  docker login -u="$DOCKER_HUB_USER" --password-stdin && make docker-push-only; } ||
+  echo ''Skipping the push'''

@@ -106,13 +106,14 @@ case class PutServiceKeyRequest(key: String) {
 
 
 /** Response for GET /orgs/{orgid}/agbots/{id}/msgs */
-case class GetServiceDockAuthResponse(dockauths: List[ServiceDockAuth], lastIndex: Int)
+//case class GetServiceDockAuthResponse(dockauths: List[ServiceDockAuth], lastIndex: Int)
 
 /** Input format for POST /orgs/{orgid}/services/{service}/dockauths or PUT /orgs/{orgid}/services/{service}/dockauths/{dockauthid} */
 case class PostPutServiceDockAuthRequest(registry: String, token: String) {
   //def toServiceDockAuth(dockAuthId: Int) = ServiceDockAuth(dockAuthId, registry, token, ApiTime.nowUTC)
   def toServiceDockAuthRow(serviceId: String, dockAuthId: Int) = ServiceDockAuthRow(dockAuthId, serviceId, registry, token, ApiTime.nowUTC)
   def validate(dockAuthId: Int) = { }
+  def getDupDockAuth(serviceId: String) = ServiceDockAuthsTQ.getDupDockAuth(serviceId, registry, token)
 }
 
 
@@ -163,7 +164,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
     db.run(q.result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/services result size: "+list.size)
-      logger.trace("GET /orgs/"+orgid+"/services result: "+list.toString())
+      //logger.trace("GET /orgs/"+orgid+"/services result: "+list.toString())
       val services = new MutableHashMap[String,Service]
       if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public || ident.isSuperUser || ident.isMultiTenantAgbot) services.put(a.service, a.toService)
       if (services.nonEmpty) resp.setStatus(HttpCode.OK)
@@ -601,13 +602,13 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PutServiceKeyRequest],
+        Parameter("body", DataType[String],
           Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
-  val putServiceKey2 = (apiOperation[PutServiceKeyRequest]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putServiceKey2 = (apiOperation[String]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/services/:service/keys/:keyid", operation(putServiceKey)) ({
     val orgid = params("orgid")
@@ -714,7 +715,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /* ====== GET /orgs/{orgid}/services/{service}/dockauths ================================ */
   val getServiceDockAuths =
-    (apiOperation[GetServiceDockAuthResponse]("getServiceDockAuths")
+    (apiOperation[List[ServiceDockAuth]]("getServiceDockAuths")
       summary "Returns all docker image tokens for this service"
       description """Returns all the docker image authentication tokens for this service. Can be run by any credentials able to view the service."""
       parameters(
@@ -737,17 +738,22 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/dockauths result size: "+list.size)
       //logger.trace("GET /orgs/"+orgid+"/services/"+id+"/dockauths result: "+list.toString)
       val listSorted = list.sortWith(_.dockAuthId < _.dockAuthId)
+      /*
       val dockAuths = new ListBuffer[ServiceDockAuth]
       if (listSorted.nonEmpty) for (m <- listSorted) { dockAuths += m.toServiceDockAuth }
       if (dockAuths.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetServiceDockAuthResponse(dockAuths.toList, 0)
+      */
+      if (listSorted.nonEmpty) resp.setStatus(HttpCode.OK)
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      listSorted.map(_.toServiceDockAuth)
     })
   })
 
   /* ====== GET /orgs/{orgid}/services/{service}/dockauths/{dockauthid} ================================ */
   val getOneServiceDockAuth =
-    (apiOperation[GetServiceDockAuthResponse]("getOneServiceDockAuth")
+    (apiOperation[ServiceDockAuth]("getOneServiceDockAuth")
       summary "Returns a docker image token for this service"
       description """Returns the docker image authentication token with the specified dockauthid for this service. Can be run by any credentials able to view the service."""
       parameters(
@@ -770,11 +776,21 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val resp = response
     db.run(ServiceDockAuthsTQ.getDockAuth(compositeId, dockAuthId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" result: "+list.size)
+      /*
       val dockAuths = new ListBuffer[ServiceDockAuth]
       if (list.nonEmpty) for (m <- list) { dockAuths += m.toServiceDockAuth }
       if (dockAuths.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetServiceDockAuthResponse(dockAuths.toList, 0)
+      */
+      if (list.nonEmpty) {
+        resp.setStatus(HttpCode.OK)
+        list.head.toServiceDockAuth
+      }
+      else {
+        resp.setStatus(HttpCode.NOT_FOUND)
+        list
+      }
     })
   })
 
@@ -782,7 +798,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val postServiceDockAuth =
     (apiOperation[ApiResponse]("postServiceDockAuth")
       summary "Adds a docker image token for the service"
-      description """Adds a new docker image authentication token for this service. This can only be run by the service owning user."""
+      description """Adds a new docker image authentication token for this service. As an optimization, if a dockauth resource already exists with the same service, registry, and token, this method will just update that lastupdated field. This can only be run by the service owning user."""
       parameters(
       Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
       Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
@@ -806,11 +822,23 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     dockAuthIdReq.validate(dockAuthId)
     val resp = response
-    db.run(dockAuthIdReq.toServiceDockAuthRow(compositeId, dockAuthId).insert.asTry).map({ xs =>
+    db.run(dockAuthIdReq.getDupDockAuth(compositeId).result.asTry.flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/services"+service+"/dockauths find duplicate: "+xs.toString)
+      xs match {
+        case Success(v) => if (v.nonEmpty) ServiceDockAuthsTQ.getLastUpdatedAction(compositeId, v.head.dockAuthId).asTry    // there was a duplicate entry, so just update its lastUpdated field
+          else dockAuthIdReq.toServiceDockAuthRow(compositeId, dockAuthId).insert.asTry     // no duplicate entry so add the one they gave us
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/services/"+service+"/dockauths result: "+xs.toString)
       xs match {
-        case Success(v) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "dockauth "+v+" added")
+        case Success(n) => val num = n.toString.toInt     // num is either the id that was added, or (in the dup case) the number of rows that were updated (0 or 1)
+          resp.setStatus(HttpCode.POST_OK)
+          num match {
+            case 0 => ApiResponse(ApiResponseType.OK, "duplicate dockauth resource already exists")    // we don't expect this, but it is possible, but only means that the lastUpdated field didn't get updated
+            case 1 => ApiResponse(ApiResponseType.OK, "dockauth resource updated")    //todo: this can be 2 cases i dont know how to distinguish between: A) the 1st time anyone added a dockauth, or B) a dup was found and we updated it
+            case _ => ApiResponse(ApiResponseType.OK, "dockauth "+num+" added")    // we did not find a dup, so this is the dockauth id that was added
+          }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
           ApiResponse(ApiResponseType.ACCESS_DENIED, "dockAuthId '"+dockAuthId+"' for service '"+compositeId+"' not inserted: "+t.getMessage)
@@ -854,7 +882,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     db.run(dockAuthIdReq.toServiceDockAuthRow(compositeId, dockAuthId).update.asTry).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" result: "+xs.toString)
       xs match {
-        case Success(n) => val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
+        case Success(n) => val numUpdated = n.toString.toInt     // n is an AnyRef so we have to do this to get it to an int
           if (numUpdated > 0) {
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, "dockauth "+dockAuthId+" updated")

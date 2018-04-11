@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.tables
 
-import com.horizon.exchangeapi.OrgAndId
+import com.horizon.exchangeapi.{ApiTime, OrgAndId}
 import org.json4s._
 import org.json4s.jackson.Serialization.read
 import slick.jdbc.PostgresProfile.api._
@@ -168,6 +168,8 @@ object ServiceDockAuthsTQ {
 
   def getDockAuths(serviceId: String) = rows.filter(_.serviceId === serviceId)
   def getDockAuth(serviceId: String, dockAuthId: Int) = rows.filter( r => {r.serviceId === serviceId && r.dockAuthId === dockAuthId} )
+  def getDupDockAuth(serviceId: String, registry: String, token: String) = rows.filter( r => {r.serviceId === serviceId && r.registry === registry && r.token === token} )
+  def getLastUpdatedAction(serviceId: String, dockAuthId: Int) = rows.filter( r => {r.serviceId === serviceId && r.dockAuthId === dockAuthId} ).map(_.lastUpdated).update(ApiTime.nowUTC)
 }
 
 case class ServiceDockAuth(dockAuthId: Int, registry: String, token: String, lastUpdated: String)

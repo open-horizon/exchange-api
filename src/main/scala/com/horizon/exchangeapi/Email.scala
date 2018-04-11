@@ -65,7 +65,7 @@ object Email {
     }
     catch {
       //TODO: determine which exceptions mean we should retry
-      case e: com.sun.mail.util.MailConnectException => return Failure(e)     // this usually means that host is not running a smtp relay svr
+      //case e: com.sun.mail.util.MailConnectException => return Failure(e)     // this usually means that host is not running a smtp relay svr
       case e: Exception => return Failure(e)
     }
     // println("email sent to "+toAddress)

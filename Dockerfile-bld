@@ -3,9 +3,6 @@ FROM ubuntu:latest
 MAINTAINER bruce potter <bp@us.ibm.com>
 
 ARG SCALA_VERSION
-# ARG SCALA_VERSION_SHORT
-# ARG EXCHANGE_API_WAR_VERSION
-# ARG EXCHANGE_API_DIR
 
 # install build tools: curl, java
 RUN apt-get update && apt-get install -y curl openjdk-8-jdk

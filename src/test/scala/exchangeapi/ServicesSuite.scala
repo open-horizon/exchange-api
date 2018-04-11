@@ -535,8 +535,8 @@ class ServicesSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/dockauths").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND)
-    val resp = parse(response.body).extract[GetServiceDockAuthResponse]
-    assert(resp.dockauths.size === 0)
+    val resp = parse(response.body).extract[List[ServiceDockAuth]]
+    assert(resp.size === 0)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+"/dockauths/1 - try to update before any exist - should fail") {
@@ -560,20 +560,26 @@ class ServicesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
   }
 
+  test("POST /orgs/"+orgid+"/services/"+service+"/dockauths - add a duplicate, it should just update the existing") {
+    val input = PostPutServiceDockAuthRequest(dockAuthRegistry2, dockAuthToken2)
+    val response = Http(URL+"/services/"+service+"/dockauths").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
   test("GET all the dockauths, PUT one, GET one, DELETE one, and verify") {
     // We have to do this all together and get the id's from the GETs, because they are auto-generated
     info("GET /orgs/"+orgid+"/services/"+service+"/dockauths - as node, should be 2 now")
     var response: HttpResponse[String] = Http(URL+"/services/"+service+"/dockauths").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
-    var resp = parse(response.body).extract[GetServiceDockAuthResponse]
-    var dockAuths = resp.dockauths
-    assert(dockAuths.size === 2)
-    var dockAuth = dockAuths.find(d => d.registry == dockAuthRegistry).orNull
+    val resp = parse(response.body).extract[List[ServiceDockAuth]]
+    assert(resp.size === 2)
+    var dockAuth = resp.find(d => d.registry == dockAuthRegistry).orNull
     assert(dockAuth != null)
     val dockAuthId = dockAuth.dockAuthId
     assert(dockAuth.token === dockAuthToken)
-    dockAuth = dockAuths.find(d => d.registry == dockAuthRegistry2).orNull
+    dockAuth = resp.find(d => d.registry == dockAuthRegistry2).orNull
     assert(dockAuth != null)
     //val dockAuthId2 = dockAuth.dockAuthId  // do not need this
     assert(dockAuth.token === dockAuthToken2)
@@ -588,10 +594,7 @@ class ServicesSuite extends FunSuite {
     response = Http(URL+"/services/"+service+"/dockauths/"+dockAuthId).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
-    resp = parse(response.body).extract[GetServiceDockAuthResponse]
-    dockAuths = resp.dockauths
-    assert(dockAuths.size === 1)
-    dockAuth = dockAuths.head
+    dockAuth = parse(response.body).extract[ServiceDockAuth]
     assert(dockAuth.dockAuthId === dockAuthId)
     assert(dockAuth.registry === dockAuthRegistry+"-updated")
     assert(dockAuth.token === dockAuthToken+"-updated")
@@ -622,8 +625,8 @@ class ServicesSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/dockauths").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND)
-    val resp = parse(response.body).extract[GetServiceDockAuthResponse]
-    assert(resp.dockauths.size === 0)
+    val resp = parse(response.body).extract[List[ServiceDockAuth]]
+    assert(resp.size === 0)
   }
 
 

@@ -3,13 +3,14 @@
 # DOCKER_REGISTRY - hostname of the docker registry to push newly built containers to
 
 SHELL = /bin/bash -e
-ARCH ?= x86
+DOCKER_REGISTRY ?= openhorizon
+ARCH ?= amd64
 DOCKER_NAME ?= exchange-api
 VERSION = $(shell cat src/main/resources/version.txt)
 DOCKER_TAG ?= $(VERSION)
 DOCKER_OPTS ?= --no-cache
 COMPILE_CLEAN ?= clean
-image-string = $(DOCKER_REGISTRY)/$(ARCH)/exchange-api
+image-string = $(DOCKER_REGISTRY)/$(ARCH)_exchange-api
 
 # Some of these vars are also used by the Dockerfiles
 JETTY_VERSION ?= 9.4
@@ -25,7 +26,7 @@ EXCHANGE_CONFIG_DIR ?= /etc/horizon/exchange
 OS := $(shell uname)
 ifeq ($(OS),Darwin)
   # Mac OS X
-  EXCHANGE_HOST_CONFIG_DIR ?= /private$(EXCHANGE_CONFIG_DIR)
+  EXCHANGE_HOST_CONFIG_DIR ?= /private$(EXCHANGE_CONFIG_DIR)/docker
 else
   # Assume Linux (could test by test if OS is Linux)
   EXCHANGE_HOST_CONFIG_DIR ?= $(EXCHANGE_CONFIG_DIR)
@@ -113,7 +114,7 @@ sync-swagger-ui:
 	#sed -i '' 's/\(new SwaggerUi({\) *$$/\1 validatorUrl: null,/' src/main/webapp/swagger-index.html   # this is the only way to set validatorUrl to null in swagger
 
 testmake:
-	echo $(EXCHANGE_EMAIL)
+	echo $(DOCKER_REGISTRY)
 
 version:
 	@echo $(VERSION)

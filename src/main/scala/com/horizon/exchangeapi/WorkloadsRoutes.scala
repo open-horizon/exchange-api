@@ -563,13 +563,13 @@ trait WorkloadRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PutWorkloadKeyRequest],
+        Parameter("body", DataType[String],
           Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
-  val putWorkloadKey2 = (apiOperation[PutWorkloadKeyRequest]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  val putWorkloadKey2 = (apiOperation[String]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/workloads/:workload/keys/:keyid", operation(putWorkloadKey)) ({
     val orgid = params("orgid")

@@ -37,8 +37,8 @@ lazy val root = (project in file(".")).
       "com.typesafe" % "config" % "latest.release",
       "org.mindrot" % "jbcrypt" % "latest.release",
       "com.pauldijou" %% "jwt-core" % "latest.release",
-      "javax.mail" % "javax.mail-api" % "latest.release",
-      "com.sun.mail" % "javax.mail" % "latest.integration"
+      "javax.mail" % "javax.mail-api" % "latest.release"
+      //"com.sun.mail" % "javax.mail" % "latest.release"
     ),
     scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
   ).

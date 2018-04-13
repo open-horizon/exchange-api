@@ -217,6 +217,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       "serviceUrl": "https://bluehorizon.network/services/weather",
       "serviceOrgid": "myorg",
       "serviceArch": "amd64",
+      "agreementLess": false,  // only set to true if the same svc is both top level and required by another svc
       // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
       "serviceVersions": [
         {

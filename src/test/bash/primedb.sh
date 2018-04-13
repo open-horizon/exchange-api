@@ -398,6 +398,7 @@ if [[ $rc != 200 ]]; then
       "serviceUrl": "'$svc2url'",
       "serviceOrgid": "'$orgid'",
       "serviceArch": "'$svc2arch'",
+      "agreementLess": false,
       "serviceVersions": [
         {
           "version": "'$svc2version'",

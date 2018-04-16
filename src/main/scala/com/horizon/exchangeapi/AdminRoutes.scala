@@ -158,7 +158,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     credsAndLog().authenticate("token").authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     // ApiResponse(ApiResponseType.OK, "would delete db")
-    db.run(ExchangeApiTables.delete.transactionally.asTry).map({ xs =>
+    db.run(ExchangeApiTables.dropDB.transactionally.asTry).map({ xs =>
       logger.debug("POST /admin/dropdb result: "+xs.toString)
       xs match {
         case Success(_) => AuthCache.nodes.removeAll()     // i think we could just let the cache catch up over time, but seems better to clear it out now
@@ -176,7 +176,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminInitDb =
     (apiOperation[ApiResponse]("postAdminInitDb")
       summary "Creates the table schema in the DB"
-      description "Creates the tables with the necessary schema in the Exchange DB. Can only be run by the root user."
+      description "Creates the tables with the necessary schema in the Exchange DB. This is now called at exchange startup, if necessary. Can only be run by the root user."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
@@ -187,14 +187,8 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   post("/admin/initdb", operation(postAdminInitDb)) ({
     credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
-    db.run(ExchangeApiTables.create.transactionally.asTry.flatMap({ xs =>
+    db.run(ExchangeApiTables.initDB.transactionally.asTry).map({ xs =>
       logger.debug("POST /admin/initdb init table schemas result: "+xs.toString)
-      xs match {
-        case Success(_) => SchemaTQ.getSetVersionAction.asTry
-        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
-      }
-    })).map({ xs =>
-      logger.debug("POST /admin/initdb set schema version result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
           ExchConfig.createRoot(db)         // initialize the users table with the root user from config.json
@@ -209,7 +203,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminUpgradeDb =
     (apiOperation[ApiResponse]("postAdminUpgradeDb")
       summary "Upgrades the DB schema"
-      description "Updates (alters) the schemas of the DB tables as necessary (w/o losing any data) to get to the latest DB schema. Can only be run by the root user."
+      description "Updates (alters) the schemas of the DB tables as necessary (w/o losing any data) to get to the latest DB schema. This is now called at exchange startup, if necessary. Can only be run by the root user."
       parameters(
         Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)

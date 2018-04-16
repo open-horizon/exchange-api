@@ -6,21 +6,27 @@ import org.json4s._
 import org.json4s.jackson.Serialization.{read, write}
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
+
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
+
+import scala.concurrent.Await
+import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 /** The umbrella class for the DB tables. The specific table classes are in the tables subdir. */
 object ExchangeApiTables {
 
   // Create all of the current version's tables - used in /admin/initdb
-  val create = (
+  val initDB = DBIO.seq((
     SchemaTQ.rows.schema ++ OrgsTQ.rows.schema ++ UsersTQ.rows.schema
       ++ NodesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ NodeAgreementsTQ.rows.schema ++ NodeStatusTQ.rows.schema
       ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ AgbotPatternsTQ.rows.schema
       ++ NodeMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema
       ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ ServicesTQ.rows.schema ++ ServiceKeysTQ.rows.schema ++ ServiceDockAuthsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ MicroserviceKeysTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ WorkloadKeysTQ.rows.schema ++ PatternsTQ.rows.schema ++ PatternKeysTQ.rows.schema
-    ).create
+    ).create,
+    SchemaTQ.getSetVersionAction)
 
   // Alter the schema of existing tables - used to be used in /admin/upgradedb
   // Note: the compose/bluemix version of postgresql does not support the 'if not exists' option
@@ -33,7 +39,7 @@ object ExchangeApiTables {
   // Delete all of the current tables - the tables that are depended on need to be last in this list - used in /admin/dropdb
   // Note: doing this with raw sql stmts because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints (only adding), we should be ok with the drops below?
   //val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
-  val delete = DBIO.seq(
+  val dropDB = DBIO.seq(
     sqlu"drop table if exists patternkeys", sqlu"drop table if exists patterns", sqlu"drop table if exists servicedockauths", sqlu"drop table if exists servicekeys", sqlu"drop table if exists services", sqlu"drop table if exists workloadkeys", sqlu"drop table if exists workloads", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes",  // no table depends on these
     sqlu"drop table if exists mmicroservices",       // from older schema
     sqlu"drop table if exists devmsgs",   // from older schema
@@ -55,7 +61,47 @@ object ExchangeApiTables {
   // val unAlterTables = DBIO.seq(sqlu"alter table nodes add column publickey character varying not null default ''", sqlu"alter table agbots add column publickey character varying not null default ''")
 
   // Used to delete just the new tables in this version (so we can recreate) - used by /admin/downgradedb
-  val deleteNewTables = DBIO.seq(sqlu"drop table if exists workloadkeys", sqlu"drop table if exists microservicekeys", sqlu"drop table if exists servicekeys")
+  val deleteNewTables = DBIO.seq(sqlu"drop table if exists servicedockauths")
+
+  /** Upgrades the db schema, or inits the db if necessary. Called every start up. */
+  def upgradeDb(db: Database): Unit = {
+    val logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
+
+    // Run this and wait for it, because we don't want any other initialization occurring until the db is right
+    val upgradeNotNeededMsg = "DB schema does not need upgrading, it is already at the latest schema version: "
+
+    val upgradeResult = Await.result(db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
+      logger.debug("ExchangeApiTables.upgradeDb current schema result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v.nonEmpty) {
+            val schemaRow = v.head
+            if (SchemaTQ.isLatestSchemaVersion(schemaRow.schemaVersion)) DBIO.failed(new Throwable(upgradeNotNeededMsg + schemaRow.schemaVersion)).asTry    // db already at latest schema. I do not think there is a way to pass a msg thru the Success path
+            else {
+              logger.info("DB exists, but not at the current schema version. Upgrading the DB schema...")
+              SchemaTQ.getUpgradeActionsFrom(schemaRow.schemaVersion)(logger).transactionally.asTry
+            }
+          }
+          else {
+            logger.trace("ExchangeApiTables.upgradeDb: success v was empty")
+            DBIO.failed(new Throwable("DB upgrade error: did not find a row in the schemas table")).asTry
+          }
+        case Failure(t) => if (t.getMessage.contains("""relation "schema" does not exist""")) {
+              logger.info("Schema table does not exist, initializing the DB...")
+              initDB.transactionally.asTry
+            }     // init the db
+          else DBIO.failed(t).asTry       // rethrow the error to the next step
+      }
+    })).map({ xs =>
+      logger.debug("ExchangeApiTables.upgradeDb: processing upgrade or init db result")   // dont want to display xs.toString because it will have a scary looking error in it in the case of the db already being at the latest schema
+      xs match {
+        case Success(_) => ApiResponse(ApiResponseType.OK, "DB table schema initialized or upgraded successfully")  // cant tell the diff between these 2, they both return Success(())
+        case Failure(t) => if (t.getMessage.contains(upgradeNotNeededMsg)) ApiResponse(ApiResponseType.OK, t.getMessage)  // db already at latest schema
+          else ApiResponse(ApiResponseType.INTERNAL_ERROR, "DB table schema not upgraded: " + t.toString)     // we hit some problem
+      }
+    }), Duration(60000, MILLISECONDS))     // this is the rest of Await.result(), wait 1 minute for db init/upgrade to complete
+    if (upgradeResult.code == ApiResponseType.OK) logger.info(upgradeResult.msg)
+    else logger.error("ERROR: failure to init or upgrade db: "+upgradeResult.msg)
+  }
 
   /** Returns a db action that queries each table and dumps it to a file in json format - used in /admin/dumptables and /admin/migratedb */
   def dump(dumpDir: String, dumpSuffix: String)(implicit logger: Logger): DBIO[_] = {

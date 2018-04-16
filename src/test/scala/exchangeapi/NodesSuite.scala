@@ -203,8 +203,8 @@ class NodesSuite extends FunSuite {
     val input = PostPutPatternRequest(patid, "desc", public = false, None,
       Some(List(
         // Reference both services in the pattern so we can search on both later on
-        PServices(svcurl, orgid, svcarch, List(PServiceVersions(svcversion, "", "", Map(), Map())), None, None ),
-        PServices(svcurl2, orgid, svcarch2, List(PServiceVersions(svcversion2, "", "", Map(), Map())), None, None )
+        PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, "", "", Map(), Map())), None, None ),
+        PServices(svcurl2, orgid, svcarch2, Some(true), List(PServiceVersions(svcversion2, "", "", Map(), Map())), None, None )
       )),
       List[Map[String,String]]()
     )

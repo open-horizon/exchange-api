@@ -88,6 +88,10 @@ services in the exchange.
     - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.54.0
+
+- Added `agreementLess` attribute to `services` section of pattern
+
 ## Changes in 1.53.0
 
 - If POST /services/{svcid}/dockerauths is a dup, just update the current one

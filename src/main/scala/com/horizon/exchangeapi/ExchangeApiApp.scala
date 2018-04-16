@@ -57,6 +57,7 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
   protected implicit def executor = scala.concurrent.ExecutionContext.Implicits.global
 
   // Initialize authentication cache from objects in the db
+  ExchangeApiTables.upgradeDb(db)
   ExchConfig.createRoot(db)
   AuthCache.users.init(db)
   AuthCache.nodes.init(db)

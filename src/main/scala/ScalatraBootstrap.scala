@@ -34,9 +34,9 @@ class ScalatraBootstrap extends LifeCycle {
     // val db = if (cpds != null) Database.forDataSource(cpds) else null
     val maxConns = ExchConfig.getInt("api.db.maxPoolSize")
     val db =
-      if (connPool != null) {
+      if (cpds != null) {
         Database.forDataSource(
-          connPool,
+          cpds,
           Some(maxConns),
           AsyncExecutor("ExchangeExecutor", maxConns, maxConns, 1000, maxConns)
         )

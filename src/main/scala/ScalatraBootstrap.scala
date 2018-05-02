@@ -32,7 +32,15 @@ class ScalatraBootstrap extends LifeCycle {
    */
   override def init(context: ServletContext) {
     // val db = if (cpds != null) Database.forDataSource(cpds) else null
-    val db = if (cpds != null) Database.forDataSource(cpds, Option(50)) else null
+    val maxConns = ExchConfig.getInt("api.db.maxPoolSize")
+    val db =
+      if (connPool != null) {
+        Database.forDataSource(
+          connPool,
+          Some(maxConns),
+          AsyncExecutor("ExchangeExecutor", maxConns, maxConns, 1000, maxConns)
+        )
+      } else null
 
     // Disable scalatra's builtin CorsSupport because for some inexplicable reason it doesn't set Access-Control-Allow-Origin which is critical
     context.setInitParameter("org.scalatra.cors.enable", "false")

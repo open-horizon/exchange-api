@@ -6,6 +6,9 @@ scala: 2.12.4
 notifications:
   slack:
     secure: vSzVllY4Vmt6Nf6Yl+5QDMKTEQ4jIbP/bC/LSzZFmQNlYWlDEzG1gQcPb4prh7/efjUFt+vM2lTFP7jLEkib+XiR8n4LShCl+IeRyBpiONXII4KN7O9IPTMMOpGvN/FhZFgyzRFwEvkCSuSBpOYoRGGij/wzo/mPzfJYEyGxpaRmQKEmD7xmtxXMAVWpK2L5fL6XbglEPKD7pMYUvM/WyzAMJg4JgDxOGeX7QLGdSQrTOOkUtJjiEs8WtB/fR9Gev+vwX22KrnMwZpmT9KPPi+kzwFYnfzKxHdjdsmydmBBlBS4XM8rvJL1eMyrQB2LOOW8xWUeOF03t5PfKAC6cY2h01Jdl/rx3L6Pc99ABItS3OvYcwL0HY20bz+hNI0seRMVftz7eRzMHGdQsfYXfU6hOxkovGutRoyVkS7f+m66nBaOfRh6DAlOt/H6us4WEq1zJb8SyP+S7Xm38grh+xEDIMaz8AeavhDRWyH6RQfrpxvcGbcWhURXiY7clJLgjmauGJw9H/jxkuuoIINIFjkrziRHDGj9ZxNp3JbtJfprrramMCLtHl5Ziz5Pjmcf46iZxFzNlRlW/aC5ZqQbHm5EgcNuHXHMHvzTQcnkFDrQBGaXI3sLXfaYt+1LeRwfQXGOsWSgc8lmgfcGn1Fvbj/8ykq/q1ReQFAbCvT62ZR8=
+branches:
+  only:
+  - master
 before_install:
 - sudo apt-get update
 - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
@@ -30,14 +33,11 @@ before_script:
   \"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" } } }'' > /etc/horizon/exchange/config.json"'
 - cat /etc/horizon/exchange/config.json
 - unset SBT_OPTS
-- travis_wait make
-- sleep 20
-- curl -X POST -u root/root:$EXCHANGE_ROOTPW -s -w %{http_code} http://localhost:8080/v1/admin/initdb
+- make
 - docker logs exchange-api
 script:
 - sudo ./sbt test
 after_success:
-- '{ test $TRAVIS_PULL_REQUEST = ''false'' && test $TRAVIS_BRANCH = ''master'' &&
-  [[ ! "$TRAVIS_COMMIT_MESSAGE" =~ "--skip-push" ]]  && echo "$DOCKER_HUB_PASS" |
-  docker login -u="$DOCKER_HUB_USER" --password-stdin && make docker-push-only; } ||
+- '{ test $TRAVIS_PULL_REQUEST = ''false'' && [[ ! "$TRAVIS_COMMIT_MESSAGE" =~ "--skip-push" ]]  &&
+  echo "$DOCKER_HUB_PASS" | docker login -u="$DOCKER_HUB_USER" --password-stdin && make docker-push-only; } ||
   echo ''Skipping the push'''

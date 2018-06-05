@@ -89,6 +89,8 @@ docker-push-only:
 	docker push $(image-string):$(DOCKER_TAG)
 	docker tag $(image-string):$(DOCKER_TAG) $(image-string):volcanostaging
 	docker push $(image-string):volcanostaging
+	docker tag $(image-string):$(DOCKER_TAG) $(image-string):latest
+	docker push $(image-string):latest
 
 # Push the image with the explicit version tag (so someone else can test it), but do not push the volcanostaging tag so it does not get deployed to stg yet
 docker-push-version-only:
@@ -100,6 +102,8 @@ docker-push: docker docker-push-only
 docker-push-to-prod:
 	docker tag $(image-string):$(DOCKER_TAG) $(image-string):volcano
 	docker push $(image-string):volcano
+	docker tag $(image-string):$(DOCKER_TAG) $(image-string):stable
+	docker push $(image-string):stable
 
 # Get the latest version of the swagger ui from github and copy the dist dir into our repo
 sync-swagger-ui:

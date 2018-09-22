@@ -75,7 +75,6 @@ services in the exchange.
 ### Todos left to be finished in subsequent versions
 
 * investigate: WARN  slick.util.AsyncExecutor - Having maxConnection > maxThreads can result in deadlocks if transactions or database locks are used.
-- Add api for wiotp to get number of nodes and agreements
 - Add ability to change owner of node
 - Add patch capability for node registered services
 - Add an unauthenticated admin status rest api
@@ -87,6 +86,11 @@ services in the exchange.
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
     - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 1.56.0
+
+- PUT /orgs/{orgid}/agbots/{id}/patterns/{patid}: add nodeOrgid to the body
+- POST /orgs/{orgid}/patterns/{pattern}/search: add a list of nodeOrgid to the body
 
 ## Changes in 1.55.0
 

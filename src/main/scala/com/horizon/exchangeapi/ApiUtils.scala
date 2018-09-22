@@ -138,7 +138,7 @@ object StrConstants {
   val hiddenPw = "********"
 }
 
-/** HTTP codes, taken from https://en.wikipedia.org/wiki/List_of_HTTP_status_codes */
+/** HTTP codes, taken from https://en.wikipedia.org/wiki/List_of_HTTP_status_codes and https://www.restapitutorial.com/httpstatuscodes.html */
 object HttpCode {
   val OK = 200
   val PUT_OK = 201
@@ -148,6 +148,7 @@ object HttpCode {
   val BADCREDS = 401    // user/pw or id/token is wrong (they call it unauthorized, but it is really unauthenticated)
   val ACCESS_DENIED = 403   // do not have authorization to access this resource
   val ALREADY_EXISTS = 403   // trying to create a resource that already exists. For now using 403 (forbidden), but could also use 409 (conflict)
+  val ALREADY_EXISTS2 = 409   // trying to create a resource that already exists (409 means conflict)
   val NOT_FOUND = 404   // resource not found
   val INTERNAL_ERROR = 500
   val NOT_IMPLEMENTED = 501

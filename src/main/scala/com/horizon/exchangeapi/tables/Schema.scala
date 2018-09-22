@@ -37,30 +37,6 @@ class SchemaTable(tag: Tag) extends Table[SchemaRow](tag, "schema") {
 
 // Instance to access the schemas table
 object SchemaTQ {
-  // This commented out section will be deleted, just want to make sure the alternate upgrade method works in production first...
-  // Each index in this vector contains the db schema upgrade actions to get from (index-1) version to (index) version
-//  val upgradeSchemaVector = Vector(
-//    /* 0 */ DBIO.seq(),       // v1.35.0 - no changes needed to get to time zero
-//    /* 1 */ DBIO.seq(NodeStatusTQ.rows.schema.create),    // v1.37.0
-//    /* 2 */ DBIO.seq(sqlu"alter table agbots drop column patterns", AgbotPatternsTQ.rows.schema.create),   // v1.38.0
-//    /* 3 */ DBIO.seq(ServicesTQ.rows.schema.create),   // v1.45.0
-//    /* 4 */ DBIO.seq(WorkloadKeysTQ.rows.schema.create, MicroserviceKeysTQ.rows.schema.create, ServiceKeysTQ.rows.schema.create, PatternKeysTQ.rows.schema.create),   // v1.46.0
-//    /* 5 */ DBIO.seq(sqlu"alter table patterns add column services character varying not null default ''"),   // v1.47.0
-//    /* 6 */ DBIO.seq(sqlu"alter table nodes add column regservices character varying not null default ''"),   // v1.47.0
-//    /* 7 */ DBIO.seq(
-//      sqlu"alter table nodeagreements add column services character varying not null default ''",
-//      sqlu"alter table nodeagreements add column agrsvcorgid character varying not null default ''",
-//      sqlu"alter table nodeagreements add column agrsvcpattern character varying not null default ''",
-//      sqlu"alter table nodeagreements add column agrsvcurl character varying not null default ''"
-//    ),   // v1.47.0
-//    /* 8 */ DBIO.seq(
-//      sqlu"alter table agbotagreements add column serviceOrgid character varying not null default ''",
-//      sqlu"alter table agbotagreements add column servicePattern character varying not null default ''",
-//      sqlu"alter table agbotagreements add column serviceUrl character varying not null default ''",
-//      sqlu"alter table nodestatus add column services character varying not null default ''",
-//      sqlu"alter table services rename column pkg to imagestore"
-//    )   // v1.48.0
-//  )
 
   // Returns the db actions necessary to get the schema from step-1 to step. The fromSchemaVersion arg is there because sometimes where you
   // originally came from affects how to get to the next step.
@@ -88,11 +64,14 @@ object SchemaTQ {
         if (fromSchemaVersion >= 3) actions += sqlu"alter table services rename column pkg to imagestore"
         DBIO.seq(actions: _*)      // convert the list of actions to a DBIO seq
       case 9 => DBIO.seq(ServiceDockAuthsTQ.rows.schema.create)   // v1.52.0
+      case 10 => DBIO.seq(   // v1.56.0
+          sqlu"alter table agbotpatterns add column nodeorgid character varying not null default ''"
+        )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 9     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
-  val latestSchemaDescription = "Added new table servicedockauths"
+  val latestSchemaVersion = 10     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
+  val latestSchemaDescription = "Added nodeorgid to table agbotpatterns"
 
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

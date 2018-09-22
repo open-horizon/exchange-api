@@ -65,10 +65,18 @@ case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEn
 /** Output format for GET /orgs/{orgid}/agbots/{id}/patterns */
 case class GetAgbotPatternsResponse(patterns: Map[String,AgbotPattern])
 
-/** Input format for PUT /orgs/{orgid}/agbots/{id}/patterns/<pattern-id> */
+/** Input format for POST /orgs/{orgid}/agbots/{id}/patterns */
+case class PostAgbotPatternRequest(patternOrgid: String, pattern: String, nodeOrgid: Option[String]) {
+  def toAgbotPattern = AgbotPattern(patternOrgid, pattern, nodeOrgid.getOrElse(patternOrgid), ApiTime.nowUTC)
+  def toAgbotPatternRow(agbotId: String, patId: String) = AgbotPatternRow(patId, agbotId, patternOrgid, pattern, nodeOrgid.getOrElse(patternOrgid), ApiTime.nowUTC)
+  def formId = patternOrgid + "_" + pattern + "_" + nodeOrgid.getOrElse(patternOrgid)
+  def validate() = {}
+}
+
+/** Deprecated!! Input format for PUT /orgs/{orgid}/agbots/{id}/patterns/<pattern-id> */
 case class PutAgbotPatternRequest(patternOrgid: String, pattern: String) {
-  def toAgbotPattern = AgbotPattern(patternOrgid, pattern, ApiTime.nowUTC)
-  def toAgbotPatternRow(agbotId: String, patId: String) = AgbotPatternRow(patId, agbotId, patternOrgid, pattern, ApiTime.nowUTC)
+  def toAgbotPattern = AgbotPattern(patternOrgid, pattern, "", ApiTime.nowUTC)
+  def toAgbotPatternRow(agbotId: String, patId: String) = AgbotPatternRow(patId, agbotId, patternOrgid, pattern, "", ApiTime.nowUTC)
   def formId = patternOrgid + "_" + pattern
   def validate(patId: String) = {
     if (patId != formId) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the pattern id should be in the form patternOrgid_pattern"))
@@ -445,20 +453,73 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     })
   })
 
-  // =========== PUT /orgs/{orgid}/agbots/{id}/patterns/{patid} ===============================
+  // =========== POST /orgs/{orgid}/agbots/{id}/patterns ===============================
+  val postAgbotPattern =
+    (apiOperation[ApiResponse]("postAgbotPattern")
+      summary "Adds a pattern that the agbot should serve"
+      description """Adds a new pattern and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the pattern."""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add this pattern."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PostAgbotPatternRequest],
+        Option[String]("Pattern object that needs to be added to the exchange."),
+        paramType = ParamType.Body)
+    )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+  val postAgbotPattern2 = (apiOperation[PostAgbotPatternRequest]("postPattern2") summary("a") description("a"))  // for some bizarre reason, the class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  post("/orgs/:orgid/agbots/:id/patterns", operation(postAgbotPattern)) ({
+    val orgid = params("orgid")
+    val id = params("id")
+    val compositeId = OrgAndId(orgid,id).toString
+    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    val pattern = try { parse(request.body).extract[PostAgbotPatternRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    pattern.validate()
+    val patId = pattern.formId
+    val resp = response
+    db.run(PatternsTQ.getPattern(OrgAndId(pattern.patternOrgid,pattern.pattern).toString).length.result.asTry.flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/patterns pattern validation: "+xs.toString)
+      xs match {
+        case Success(num) => if (num > 0) pattern.toAgbotPatternRow(compositeId, patId).insert.asTry
+        else DBIO.failed(new Throwable("the referenced pattern does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/patterns result: "+xs.toString)
+      xs match {
+        case Success(_) => resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, "pattern "+patId+" added")
+        case Failure(t) => if (t.getMessage.contains("duplicate key")) {
+          resp.setStatus(HttpCode.ALREADY_EXISTS2)
+          ApiResponse(ApiResponseType.ALREADY_EXISTS, "pattern '"+patId+"' for agbot '"+compositeId+"' already exists")
+        } else if (t.getMessage.startsWith("Access Denied:")) {
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted: "+t.getMessage)
+        }
+      }
+    })
+  })
+
+  // =========== Deprecated!! PUT /orgs/{orgid}/agbots/{id}/patterns/{patid} ===============================
   val putAgbotPattern =
     (apiOperation[ApiResponse]("putAgbotPattern")
-      summary "Adds/updates a pattern that the agbot should serve"
+      summary "Deprecated!! Adds/updates a pattern that the agbot should serve"
       description """Adds a new pattern, or updates an existing pattern, that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the pattern."""
       parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add/update this pattern."), paramType = ParamType.Path),
-        Parameter("patid", DataType.String, Option[String]("ID of the pattern to be added/updated."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PutAgbotPatternRequest],
-          Option[String]("Pattern object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add/update this pattern."), paramType = ParamType.Path),
+      Parameter("patid", DataType.String, Option[String]("ID of the pattern to be added/updated."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PutAgbotPatternRequest],
+        Option[String]("Pattern object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putAgbotPattern2 = (apiOperation[PutAgbotPatternRequest]("putPattern2") summary("a") description("a"))  // for some bizarre reason, the PutPatternsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
@@ -477,7 +538,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/patterns"+patId+" pattern validation: "+xs.toString)
       xs match {
         case Success(num) => if (num > 0) pattern.toAgbotPatternRow(compositeId, patId).upsert.asTry
-          else DBIO.failed(new Throwable("the referenced pattern does not exist in the exchange")).asTry
+        else DBIO.failed(new Throwable("the referenced pattern does not exist in the exchange")).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
@@ -486,12 +547,12 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, "pattern added or updated")
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-            resp.setStatus(HttpCode.ACCESS_DENIED)
-            ApiResponse(ApiResponseType.ACCESS_DENIED, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.getMessage)
-          } else {
-            resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.getMessage)
-          }
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.getMessage)
+        }
       }
     })
   })

@@ -481,10 +481,11 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postPatternSearch =
     (apiOperation[PostPatternSearchResponse]("postPatternSearch")
       summary("Returns matching nodes of a particular pattern")
-      description """Returns the matching nodes that are this pattern and do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node). The **request body** structure:
+      description """Returns the matching nodes that are using this pattern and do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node). The **request body** structure:
 
 ```
 {
+  "serviceUrl": "https://bluehorizon.network/services/sdr",   // only specify this or workloadUrl, not both
   "workloadUrl": "https://bluehorizon.network/workloads/sdr",
   "secondsStale": 60,     // max number of seconds since the exchange has heard from the node, 0 if you do not care
   "startIndex": 0,    // for pagination, ignored right now

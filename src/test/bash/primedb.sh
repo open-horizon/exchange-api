@@ -113,6 +113,7 @@ workid2="bluehorizon.network-workloads-weather_1.0.0_amd64"
 workurl2="https://bluehorizon.network/workloads/weather"
 
 patid="p1"
+patid2="p2"
 
 ptKeyId="mykey4.pem"
 ptKey='-----BEGIN CERTIFICATE-----
@@ -448,10 +449,10 @@ else
     echo "orgs/$orgid/patterns/$patid/keys/$ptKeyId exists"
 fi
 
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid")
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid" '{"label": "My other Pattern", "description": "blah blah", "public": false,
+    curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid2" '{"label": "My other Pattern", "description": "blah blah", "public": false,
   "workloads": [
     {
       "workloadUrl": "'$workurl'",
@@ -495,7 +496,7 @@ if [[ $rc != 200 ]]; then
   ],
   "agreementProtocols": [{ "name": "Basic" }] }'
 else
-    echo "orgs/$orgid2/patterns/$patid exists"
+    echo "orgs/$orgid2/patterns/$patid2 exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid")
@@ -529,7 +530,7 @@ fi
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid2'/'$patid'", "registeredMicroservices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid2'/'$patid2'", "registeredMicroservices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
 else
     echo "orgs/$orgid2/nodes/$nodeid exists"
 fi
@@ -566,12 +567,12 @@ else
     echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_${patid}_${orgid} exists"
 fi
 
-rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_${patid}_${orgid2}")
+rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid2}_${patid2}_${orgid}")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauth "orgs/$orgid/agbots/$agbotid/patterns" '{ "patternOrgid": "'$orgid'", "pattern": "'$patid'", "nodeOrgid": "'$orgid2'" }'
+    curlcreate "POST" $userauth "orgs/$orgid/agbots/$agbotid/patterns" '{ "patternOrgid": "'$orgid2'", "pattern": "'$patid2'", "nodeOrgid": "'$orgid'" }'
 else
-    echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_${patid}_${orgid2} exists"
+    echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid2}_${patid2}_${orgid} exists"
 fi
 
 # Deprecated...

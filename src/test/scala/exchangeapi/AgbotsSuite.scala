@@ -35,9 +35,13 @@ class AgbotsSuite extends FunSuite {
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
   val NOORGURL = urlRoot+"/v1"
+  val orgid2 = "AgbotsSuiteTests2"
+  val authpref2=orgid2+"/"
+  val URL2 = urlRoot+"/v1/orgs/"+orgid2
   val user = "9990"
   val pw = user+"pw"
   val USERAUTH = ("Authorization","Basic "+authpref+user+":"+pw)
+  val USERAUTH2 = ("Authorization","Basic "+authpref2+user+":"+pw)
   val BADAUTH = ("Authorization","Basic "+authpref+user+":"+pw+"x")
   val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
@@ -56,11 +60,11 @@ class AgbotsSuite extends FunSuite {
   val AGBOT3AUTH = ("Authorization","Basic "+orgagbot3Id+":"+agbot3Token)
   val agreementId = "9950"
   val pattern = "mypattern"
-  val patId = orgid + "_" + pattern
+  val patId = orgid + "_" + pattern + "_" + orgid
   val pattern2 = "mypattern2"
-  val patId2 = orgid + "_" + pattern2
+  val patId2 = orgid2 + "_" + pattern2 + "_" + orgid
   val pattern3 = "mypattern3"
-  val patId3 = orgid + "_" + pattern3
+  val patId3 = orgid + "_" + pattern3 + "_" + orgid
   val svcid = "bluehorizon.network-services-netspeed_1.0.0_amd64"
   val svcurl = "https://bluehorizon.network/services/netspeed"
   val svcarch = "amd64"
@@ -99,7 +103,7 @@ class AgbotsSuite extends FunSuite {
     }
   }
 
-  /** Create an org to use for this test */
+  /** Create orgs to use for this test */
   test("POST /orgs/"+orgid+" - create org") {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
@@ -108,6 +112,18 @@ class AgbotsSuite extends FunSuite {
 
     val input = PostPutOrgRequest("My Org", "desc")
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/"+orgid2+" - create org2") {
+    // Try deleting it 1st, in case it is left over from previous test
+    var response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+
+    val input = PostPutOrgRequest("My Org2", "desc")
+    response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
@@ -123,6 +139,13 @@ class AgbotsSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/users/"+user+" - normal") {
     val input = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/"+orgid2+"/users/"+user+" - normal") {
+    val input = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
+    val response = Http(URL2+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
@@ -347,12 +370,12 @@ class AgbotsSuite extends FunSuite {
     }
   }
 
-  test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2) {
+  test("POST /orgs/"+orgid2+"/patterns/"+pattern2+" - add "+pattern2) {
     val input = PostPutPatternRequest(pattern2, "desc", public = false, None,
       Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) ))),
       List[Map[String,String]]()
     )
-    val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL2+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
@@ -374,23 +397,30 @@ class AgbotsSuite extends FunSuite {
 
 
   // Test the pattern sub-resources
-  test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/patterns/"+patId+" - as user") {
-    val input = PutAgbotPatternRequest(orgid, pattern)
-    val response = Http(URL+"/agbots/"+agbotId+"/patterns/"+patId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - as user") {
+    val input = PostAgbotPatternRequest(orgid, pattern, None)
+    val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/patterns/"+patId2+" - as agbot") {
-    val input = PutAgbotPatternRequest(orgid, pattern2)
-    val response = Http(URL+"/agbots/"+agbotId+"/patterns/"+patId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - already exists, should get 409") {
+    val input = PostAgbotPatternRequest(orgid, pattern, None)
+    val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ALREADY_EXISTS2)
+  }
+
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - as agbot and referencing pattern in other org") {
+    val input = PostAgbotPatternRequest(orgid2, pattern2, Some(orgid))
+    val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/patterns/"+patId3+" - add pattern that does not exist - should fail") {
-    val input = PutAgbotPatternRequest(orgid, pattern3)
-    val response = Http(URL+"/agbots/"+agbotId+"/patterns/"+patId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - add pattern that does not exist - should fail") {
+    val input = PostAgbotPatternRequest(orgid, pattern3, None)
+    val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
@@ -704,6 +734,13 @@ class AgbotsSuite extends FunSuite {
   test("POST /orgs/"+orgid+" - delete org") {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("POST /orgs/"+orgid2+" - delete org2") {
+    // Try deleting it 1st, in case it is left over from previous test
+    val response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }

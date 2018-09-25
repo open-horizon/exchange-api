@@ -55,21 +55,20 @@ services in the exchange.
 
 ## Building and Running the Container
 
-- Update the `DOCKER_TAG` variable to the appropriate version in the Makefile
-- To build the build container, compile your local code, build the exchange container, and run it: `make` . Or you can do the individual steps:
+- Update the version in `src/main/resources.version.txt`
+- To build the build container, compile your local code, build the exchange container, and run it, run: `make` . Or you can do the individual steps:
     - Build the build container: `make .docker-bld`
     - Build the code from your local exchange repo in the build container: `make docker-compile`
     - Build the exchange api container and run it locally: `make .docker-exec-run`
-- Manually test container locally: `curl -# -X GET -H "Accept: application/json" -H "Authorization:Basic bp:mypw" http://localhost:8080/v1/orgs/IBM/nodes | jq .`
-    - Note: the container can not access a postgres db running locally on the docker host if the db is only listening for unix domain sockets.
+- Manually test container locally: `curl -sS -w %{http_code} http://localhost:8080/v1/admin/version`
+    - Note: the container can not access a postgres db running locally on the docker host if the db is only listening for unix domain sockets or 127.0.0.1.
 - Run the automated tests: `./sbt test`
-- Export environment variable `DOCKER_REGISTRY` with a value of the hostname of the docker registry to push newly built containers to (for the make target in the next step)
 - Push container to our docker registry: `make docker-push-only`
 - Deploy the new container to a docker host
     - Ensure that no changes are needed to the /etc/horizon/exchange/config.json file
-- Test the new container : `curl -# -X GET -H "Accept: application/json" -H "Authorization:Basic myuser:mypw" https://<exchange-host>/v1/orgs/IBM/nodes | jq .` (or may be https, depending on your deployment)
+- Test the new container : `curl -sS -w %{http_code} https://<exchange-host>/v1/admin/version`
 - To see the swagger info from the container: `https://<exchange-host>/api`
-- Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or it also goes to `/var/log/syslog` on the exchange docker host
+- Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or might also go to `/var/log/syslog` depending on the docker and syslog configuration.
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
 ### Todos left to be finished in subsequent versions

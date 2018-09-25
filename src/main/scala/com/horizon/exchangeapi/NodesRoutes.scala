@@ -22,7 +22,7 @@ case class GetNodesResponse(nodes: Map[String,Node], lastIndex: Int)
 case class GetNodeAttributeResponse(attribute: String, value: String)
 
 /** Input for pattern-based search for nodes to make agreements with. */
-case class PostPatternSearchRequest(workloadUrl: Option[String], serviceUrl: Option[String], secondsStale: Int, startIndex: Int, numEntries: Int) {
+case class PostPatternSearchRequest(workloadUrl: Option[String], serviceUrl: Option[String], nodeOrgids: Option[List[String]], secondsStale: Int, startIndex: Int, numEntries: Int) {
   def validate() = {
     if (workloadUrl.isDefined && serviceUrl.isDefined) {
       halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "can not specify both the 'workloadUrl' and 'serviceUrl' fields."))
@@ -485,8 +485,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
 ```
 {
-  "serviceUrl": "https://bluehorizon.network/services/sdr",   // only specify this or workloadUrl, not both
+  "serviceUrl": "https://bluehorizon.network/services/sdr",   // The service the node does not have an agreement with yet. Only specify this or workloadUrl, not both
   "workloadUrl": "https://bluehorizon.network/workloads/sdr",
+  "nodeOrgids": [ "org1", "org2", "..." ],   // if not specified, defaults to the same org the pattern is in
   "secondsStale": 60,     // max number of seconds since the exchange has heard from the node, 0 if you do not care
   "startIndex": 0,    // for pagination, ignored right now
   "numEntries": 0    // ignored right now
@@ -514,25 +515,26 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val searchProps = try { parse(request.body).extract[PostPatternSearchRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     searchProps.validate()
+    val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
     logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+searchProps.toString)
     val isService = searchProps.serviceUrl.isDefined
     val ourService = searchProps.serviceUrl.getOrElse(searchProps.workloadUrl.get)
     val resp = response
     /*
       Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
-      In english, the join gets: n.id, n.msgEndPoint, n.publicKey, n.lastHeartbeat, a.workloadUrl, a.state
-      The filter is: n.pattern==ourpattern && a.state!=""
+      In english, the join gets: n.id, n.msgEndPoint, n.publicKey, n.lastHeartbeat, a.serviceUrl, a.state
+      The filter is: n.pattern==ourpattern (the filter a.state=="" is applied later in our code below)
       Then we have to go thru all of the results and find nodes that do NOT have an agreement for ourworkload.
       Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
     */
     val oldestTime = if (searchProps.secondsStale > 0) ApiTime.pastUTC(searchProps.secondsStale) else ApiTime.beginningUTC
     val q = if (isService) {
       for {
-        (n, a) <- NodesTQ.rows.filter(_.orgid === orgid).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+        (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
       } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
     } else {
       for {
-        (n, a) <- NodesTQ.rows.filter(_.orgid === orgid).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+        (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
       } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.workloadUrl), a.map(_.state))
     }
 
@@ -541,7 +543,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search: looking for '"+ourService+"', searching getServices: "+list.toString())
       if (!isService) q.result.asTry      // we do not check the workloadUrl because that is going away
       else if (list.nonEmpty) {
-        val services = PatternsTQ.getServicesFromString(list.head)    // there should only be 1 in the sequence
+        val services = PatternsTQ.getServicesFromString(list.head)    // we should have found only 1 pattern services string, now parse it to get service list
         var found = false
         breakable { for ( svc <- services) {
           if (svc.serviceUrl == ourService) {
@@ -550,35 +552,35 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           }
         } }
         if (found) q.result.asTry
-        else DBIO.failed(new Throwable("serviceUrl '"+ourService+"' specified in search body, but does not exist in pattern '"+compositePat+"'")).asTry
+        else DBIO.failed(new Throwable("the serviceUrl '"+ourService+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
       }
-      else DBIO.failed(new Throwable("serviceUrl '"+ourService+"' specified in search body, but does not exist in pattern '"+compositePat+"'")).asTry
+      else DBIO.failed(new Throwable("the serviceUrl '"+ourService+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result size: "+xs.getOrElse(Vector()).size)
       logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result: "+xs.toString)
       xs match {
         case Success(list) => if (list.nonEmpty) {
-          // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our workload
-          val nodeHash = new MutableHashMap[String,PatternSearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our workload for this node
-          for ( (id, msgEndPoint, publicKey, serviceUrlOption, stateOption) <- list ) {
-            //logger.trace("id: "+id+", serviceUrlOption: "+serviceUrlOption.getOrElse("")+", ourService: "+ourService+", stateOption: "+stateOption.getOrElse(""))
-            nodeHash.get(id) match {
-              case Some(_) => if (serviceUrlOption.getOrElse("") == ourService && stateOption.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
-              case None => val noAgr = if (serviceUrlOption.getOrElse("") == ourService && stateOption.getOrElse("") != "") false else true
-                nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgr))   // this node id not in the hash yet, and it and start it out true
+            // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
+            val nodeHash = new MutableHashMap[String,PatternSearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our workload for this node
+            for ( (id, msgEndPoint, publicKey, serviceUrlOption, stateOption) <- list ) {
+              //logger.trace("id: "+id+", serviceUrlOption: "+serviceUrlOption.getOrElse("")+", ourService: "+ourService+", stateOption: "+stateOption.getOrElse(""))
+              nodeHash.get(id) match {
+                case Some(_) => if (serviceUrlOption.getOrElse("") == ourService && stateOption.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
+                case None => val noAgr = if (serviceUrlOption.getOrElse("") == ourService && stateOption.getOrElse("") != "") false else true
+                  nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgr))   // this node id not in the hash yet, add it
+              }
             }
+            // Convert our hash to the list response of the rest api
+            //val respList = list.map( x => PatternNodeResponse(x._1, x._2, x._3)).toList
+            val respList = new ListBuffer[PatternNodeResponse]
+            for ( (k, v) <- nodeHash) if (v.noAgreementYet) respList += PatternNodeResponse(k, v.msgEndPoint, v.publicKey)
+            if (respList.nonEmpty) resp.setStatus(HttpCode.POST_OK)
+            else resp.setStatus(HttpCode.NOT_FOUND)
+            PostPatternSearchResponse(respList.toList, 0)
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            PostPatternSearchResponse(List[PatternNodeResponse](), 0)
           }
-          // Convert our hash to the list response of the rest api
-          //val respList = list.map( x => PatternNodeResponse(x._1, x._2, x._3)).toList
-          val respList = new ListBuffer[PatternNodeResponse]
-          for ( (k, v) <- nodeHash) if (v.noAgreementYet) respList += PatternNodeResponse(k, v.msgEndPoint, v.publicKey)
-          if (respList.nonEmpty) resp.setStatus(HttpCode.POST_OK)
-          else resp.setStatus(HttpCode.NOT_FOUND)
-          PostPatternSearchResponse(respList.toList, 0)
-        } else {
-          resp.setStatus(HttpCode.NOT_FOUND)
-          PostPatternSearchResponse(List[PatternNodeResponse](), 0)
-        }
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
           ApiResponse(ApiResponseType.BAD_INPUT, "invalid input: "+t.getMessage)
       }

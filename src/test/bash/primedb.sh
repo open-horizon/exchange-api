@@ -15,7 +15,8 @@ namebase=""
 
 # Test configuration. You can override these before invoking the script, if you want.
 EXCHANGE_URL_ROOT="${EXCHANGE_URL_ROOT:-http://localhost:8080}"
-EXCHANGE_ORG="${EXCHANGE_ORG:-myorg}"
+#EXCHANGE_ORG="${EXCHANGE_ORG:-myorg}"
+EXCHANGE_ORG=IBM    # fix it to a known value
 EXCHANGE_USER="${EXCHANGE_USER:-me}"
 EXCHANGE_PW="${EXCHANGE_PW:-mypw}"
 EXCHANGE_EMAIL="${EXCHANGE_EMAIL:-me@email.com}"
@@ -41,6 +42,7 @@ userauthorg2="$orgid2/$user:$pw"
 nodeid="${EXCHANGE_NODEAUTH%%:*}"
 nodetoken="${EXCHANGE_NODEAUTH#*:}"
 nodeauth="$EXCHANGE_ORG/$nodeid:$nodetoken"
+nodeauthorg2="$orgid2/$nodeid:$nodetoken"
 nodeid2="n2"
 nodeauth2="$EXCHANGE_ORG/$nodeid2:$nodetoken"
 
@@ -50,8 +52,8 @@ agbotauth="$EXCHANGE_ORG/$agbotid:$agbottoken"
 
 agreementbase="${namebase}agreement"
 agreementid1="${agreementbase}1"
-agreementid1b="${agreementbase}1b"
 agreementid2="${agreementbase}2"
+agreementid3="${agreementbase}3"
 
 svcid="bluehorizon.network-services-gps_1.2.3_amd64"
 svcurl="https://bluehorizon.network/services/gps"
@@ -453,14 +455,15 @@ rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid2" '{"label": "My other Pattern", "description": "blah blah", "public": false,
-  "workloads": [
+  "services": [
     {
-      "workloadUrl": "'$workurl'",
-      "workloadOrgid": "'$orgid'",
-      "workloadArch": "'$workarch'",
-      "workloadVersions": [
+      "serviceUrl": "'$svcurl'",
+      "serviceOrgid": "'$orgid'",
+      "serviceArch": "'$svcarch'",
+      "agreementLess": false,
+      "serviceVersions": [
         {
-          "version": "'$workversion'",
+          "version": "'$svcversion'",
           "deployment_overrides": "{\"services\":{\"netspeed\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
           "deployment_overrides_signature": "a",
           "priority": {
@@ -522,7 +525,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid2'/'$patid2'", "registeredServices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
 else
     echo "orgs/$orgid/nodes/$nodeid2 exists"
 fi
@@ -530,7 +533,7 @@ fi
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid2'/'$patid2'", "registeredMicroservices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredMicroservices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
 else
     echo "orgs/$orgid2/nodes/$nodeid exists"
 fi
@@ -592,20 +595,20 @@ else
     echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1 exists"
 fi
 
-rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$svc2url'"}, "state": "negotiating"}'
-else
-    echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1b exists"
-fi
-
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"microservices": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$svc2url'"}, "state": "negotiating"}'
+    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"services": [], "agreementService": {"orgid": "'$orgid2'", "pattern": "'$patid2'", "url": "'$svcurl'"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2 exists"
+fi
+
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $nodeauthorg2 "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$svc2url'"}, "state": "negotiating"}'
+else
+    echo "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3 exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid1")

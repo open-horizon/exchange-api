@@ -46,14 +46,17 @@ class NodesSuite extends FunSuite {
   val NOORGURL = urlRoot+"/v1"
   val user = "u1"
   val orguser = authpref+user
+  val org2user = authpref2+user
   val pw = user+"pw"
   val USERAUTH = ("Authorization","Basic "+orguser+":"+pw)
+  val USERAUTH2 = ("Authorization","Basic "+org2user+":"+pw)
   val BADAUTH = ("Authorization","Basic "+orguser+":"+pw+"x")
   val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val nodeId = "n1"     // the 1st node created, that i will use to run some rest methods
   val orgnodeId = authpref+nodeId
+  val org2nodeId = authpref2+nodeId
   val nodeToken = "mytok"
   val NODEAUTH = ("Authorization","Basic "+orgnodeId+":"+nodeToken)
   val nodeId2 = "n2"
@@ -85,6 +88,7 @@ class NodesSuite extends FunSuite {
   val svcarch2 = "amd64"
   val svcversion2 = "1.0.0"
   val agreementId = "agr1"
+  val agreementId2 = "agr2"   // for the node in the 2nd org
   val creds = authpref+nodeId+":"+nodeToken
   val encodedCreds = Base64.getEncoder.encodeToString(creds.getBytes("utf-8"))
   val ENCODEDAUTH = ("Authorization","Basic "+encodedCreds)
@@ -162,6 +166,18 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
   }
 
+  test("POST /orgs/"+orgid2+" - create 2nd org to use for this test suite") {
+    // Try deleting it 1st, in case it is left over from previous test
+    var response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+
+    val input = PostPutOrgRequest("My 2nd Org", "desc")
+    response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
   // Delete all the test users, in case they exist from a previous run. Do not need to delete the nodes, agbots, and agreements, because they are deleted when the user is deleted.
   test("Begin - DELETE all test users") {
     if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
@@ -171,6 +187,13 @@ class NodesSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/users/"+user+" - normal") {
     val input = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/"+orgid2+"/users/"+user+" - normal") {
+    val input = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
+    val response = Http(URL2+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
@@ -232,6 +255,13 @@ class NodesSuite extends FunSuite {
       )),
       "whisper-id", Map("horizon"->"3.2.3"), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+" - add node in 2nd org") {
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid, None, None, "whisper-id", Map("horizon"->"3.2.3"), "NODEABCORG2")
+    val response = Http(URL2+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
@@ -573,21 +603,21 @@ class NodesSuite extends FunSuite {
   //~~~~~ Pattern search and nodehealth ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - as agbot - should not find "+nodeId3+" because no publicKey") {
-    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 86400, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), Some(List(orgid,orgid2)), 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3)
-    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId4) === 3)
+    assert(nodes.length === 4)
+    assert(nodes.count(d => d.id==orgnodeId || d.id==org2nodeId || d.id==orgnodeId2 || d.id==orgnodeId4) === 4)
     val dev = nodes.find(d => d.id == orgnodeId).get // the 2nd get turns the Some(val) into val
     assert(dev.publicKey === "NODEABC")
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+PWSSPEC+" which is not in the pattern, so should fail") {
-    val input = PostPatternSearchRequest(None, Some(PWSSPEC), 86400, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(PWSSPEC), None, 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     //info("code: "+response.code)
@@ -926,7 +956,27 @@ class NodesSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement") {
     patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 86400, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), Some(List(orgid,orgid2)), 86400, 0, 0)
+    val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    //info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
+    val nodes = postSearchDevResp.nodes
+    assert(nodes.length === 4)
+    assert(nodes.count(d => d.id==org2nodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
+  }
+
+  test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+"/agreements/"+agreementId2+" - create agreement for node in 2nd org") {
+    val input = PutNodeAgreementRequest(None, None, Some(List(NAService(orgid,SDRSPEC))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
+    val response = Http(URL2+"/nodes/"+nodeId+"/agreements/"+agreementId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+org2nodeId+" in agreement") {
+    //patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), Some(List(orgid,orgid2)), 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     //info("code: "+response.code)
@@ -1037,7 +1087,7 @@ class NodesSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement, should get same result as before") {
     patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 86400, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), None, 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1098,7 +1148,7 @@ class NodesSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+NETSPEEDSPEC+" - with "+nodeId+" in agreement") {
     patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(None, Some(NETSPEEDSPEC), 86400, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(NETSPEEDSPEC), None, 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1110,7 +1160,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - should find all nodes again") {
-    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 86400, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), None, 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1165,7 +1215,7 @@ class NodesSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - all nodes stale") {
     patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
     Thread.sleep(1100)    // delay 1.1 seconds so all nodes will be stale
-    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 1, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), None, 1, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1210,7 +1260,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - 1 node not stale") {
-    val input = PostPatternSearchRequest(None, Some(SDRSPEC), 1, 0, 0)
+    val input = PostPatternSearchRequest(None, Some(SDRSPEC), None, 1, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1691,7 +1741,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid2+"/search - for "+OLDSDRSPEC+" in old style node") {
-    val input = PostPatternSearchRequest(Some(OLDSDRSPEC), None, 86400, 0, 0)
+    val input = PostPatternSearchRequest(Some(OLDSDRSPEC), None, None, 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid2+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)

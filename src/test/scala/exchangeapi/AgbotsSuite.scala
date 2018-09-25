@@ -418,6 +418,13 @@ class AgbotsSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - add pattern of '*' in other org") {
+    val input = PostAgbotPatternRequest(orgid2, "*", Some(orgid))
+    val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - add pattern that does not exist - should fail") {
     val input = PostAgbotPatternRequest(orgid, pattern3, None)
     val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -431,10 +438,11 @@ class AgbotsSuite extends FunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val getAgbotResp = parse(response.body).extract[GetAgbotPatternsResponse]
-    assert(getAgbotResp.patterns.size === 2)
-
+    assert(getAgbotResp.patterns.size === 3)
     assert(getAgbotResp.patterns.contains(patId))
-    val pat = getAgbotResp.patterns(patId) // the 2nd get turns the Some(val) into val
+    assert(getAgbotResp.patterns.contains(orgid2+"_*_"+orgid))
+    assert(getAgbotResp.patterns.contains(orgid2+"_"+pattern2+"_"+orgid))
+    val pat = getAgbotResp.patterns(patId)
     assert(pat.pattern === pattern)
   }
 
@@ -453,6 +461,12 @@ class AgbotsSuite extends FunSuite {
 
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/patterns/"+patId+" - as user") {
     val response = Http(URL+"/agbots/"+agbotId+"/patterns/"+patId).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/patterns/"+orgid2+"_*_"+orgid+" - delete wildcard pattern") {
+    val response = Http(URL+"/agbots/"+agbotId+"/patterns/"+orgid2+"_*_"+orgid).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }

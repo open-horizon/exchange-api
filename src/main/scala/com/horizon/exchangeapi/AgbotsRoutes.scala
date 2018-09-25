@@ -483,7 +483,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     db.run(PatternsTQ.getPattern(OrgAndId(pattern.patternOrgid,pattern.pattern).toString).length.result.asTry.flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/patterns pattern validation: "+xs.toString)
       xs match {
-        case Success(num) => if (num > 0) pattern.toAgbotPatternRow(compositeId, patId).insert.asTry
+        case Success(num) => if (num > 0 || pattern.pattern == "*") pattern.toAgbotPatternRow(compositeId, patId).insert.asTry
         else DBIO.failed(new Throwable("the referenced pattern does not exist in the exchange")).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }

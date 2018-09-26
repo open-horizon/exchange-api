@@ -83,10 +83,11 @@ class Agbot(var token: String, var name: String, var owner: String, /*var patter
 }
 
 
-case class AgbotPatternRow(patId: String, agbotId: String, patternOrgid: String, pattern: String, lastUpdated: String) {
-  def toAgbotPattern = AgbotPattern(patternOrgid, pattern, lastUpdated)
+case class AgbotPatternRow(patId: String, agbotId: String, patternOrgid: String, pattern: String, nodeOrgid: String, lastUpdated: String) {
+  def toAgbotPattern = AgbotPattern(patternOrgid, pattern, nodeOrgid, lastUpdated)
 
   def upsert: DBIO[_] = AgbotPatternsTQ.rows.insertOrUpdate(this)
+  def insert: DBIO[_] = AgbotPatternsTQ.rows += this
 }
 
 class AgbotPatterns(tag: Tag) extends Table[AgbotPatternRow](tag, "agbotpatterns") {
@@ -94,8 +95,9 @@ class AgbotPatterns(tag: Tag) extends Table[AgbotPatternRow](tag, "agbotpatterns
   def agbotId = column[String]("agbotid")               // additional key - the composite orgid/agbotid
   def patternOrgid = column[String]("patternorgid")
   def pattern = column[String]("pattern")
+  def nodeOrgid = column[String]("nodeorgid")
   def lastUpdated = column[String]("lastupdated")
-  def * = (patId, agbotId, patternOrgid, pattern, lastUpdated) <> (AgbotPatternRow.tupled, AgbotPatternRow.unapply)
+  def * = (patId, agbotId, patternOrgid, pattern, nodeOrgid, lastUpdated) <> (AgbotPatternRow.tupled, AgbotPatternRow.unapply)
   def primKey = primaryKey("pk_agp", (patId, agbotId))
   def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -107,7 +109,7 @@ object AgbotPatternsTQ {
   def getPattern(agbotId: String, patId: String) = rows.filter( r => {r.agbotId === agbotId && r.patId === patId} )
 }
 
-case class AgbotPattern(patternOrgid: String, pattern: String, lastUpdated: String)
+case class AgbotPattern(patternOrgid: String, pattern: String, nodeOrgid: String, lastUpdated: String)
 
 
 case class AAWorkload(orgid: String, pattern: String, url: String)

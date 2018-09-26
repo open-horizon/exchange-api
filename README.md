@@ -86,10 +86,14 @@ services in the exchange.
     - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.57.0
+
+- Support wildcard pattern in `POST /orgs/{orgid}/agbots/{id}/patterns` body
+
 ## Changes in 1.56.0
 
-- PUT /orgs/{orgid}/agbots/{id}/patterns/{patid}: add nodeOrgid to the body
-- POST /orgs/{orgid}/patterns/{pattern}/search: add a list of nodeOrgid to the body
+- `PUT /orgs/{orgid}/agbots/{id}/patterns/{patid}`: add nodeOrgid to the body
+- `POST /orgs/{orgid}/patterns/{pattern}/search`: add a list of nodeOrgid to the body
 
 ## Changes in 1.55.0
 

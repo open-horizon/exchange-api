@@ -36,7 +36,7 @@ before_script:
 - make
 - docker logs exchange-api
 script:
-- sudo ./sbt test
+- make docker-test
 after_success:
 - '{ test $TRAVIS_PULL_REQUEST = ''false'' && [[ ! "$TRAVIS_COMMIT_MESSAGE" =~ "--skip-push" ]]  &&
   echo "$DOCKER_HUB_PASS" | docker login -u="$DOCKER_HUB_USER" --password-stdin && make docker-push-only; } ||

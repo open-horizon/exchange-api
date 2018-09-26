@@ -80,9 +80,9 @@ docker: .docker-exec
 	@touch $@
 
 # Run the automated tests in the bld container against the exchange svr running in the exec container
-#TODO: set up a docker network (docker network create <name>) for the test, then run both container instances attached to that net (with --net <name>) and the 0.0.0.0 listening port on the exec container will be reachable by your bld container. Then have it docker network remove <name>
-# docker-test:
-# 	docker exec -t $(DOCKER_NAME)_bld /bin/bash -c "cd $(EXCHANGE_API_DIR) && ./sbt test"
+docker-test: .docker-bld
+	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
+	docker exec -t -e EXCHANGE_URL_ROOT=http://host.docker.internal:8080 -e "EXCHANGE_ROOTPW=$$EXCHANGE_ROOTPW" $(DOCKER_NAME)_bld /bin/bash -c 'cd $(EXCHANGE_API_DIR) && ./sbt test'
 
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:
@@ -125,4 +125,4 @@ version:
 
 .SECONDARY:
 
-.PHONY: default clean clean-exec-image clean-all docker docker-push-only docker-push sync-swagger-ui testmake
+.PHONY: default clean clean-exec-image clean-all docker docker-test docker-push-only docker-push sync-swagger-ui testmake

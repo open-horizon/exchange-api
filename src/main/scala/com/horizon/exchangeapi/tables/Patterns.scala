@@ -94,7 +94,7 @@ object PatternsTQ {
   }
 
   def getAllPatterns(orgid: String) = rows.filter(_.orgid === orgid)
-  def getPattern(pattern: String) = rows.filter(_.pattern === pattern)
+  def getPattern(pattern: String) = if (pattern.contains("%")) rows.filter(_.pattern like pattern) else rows.filter(_.pattern === pattern)
   def getOwner(pattern: String) = rows.filter(_.pattern === pattern).map(_.owner)
   def getNumOwned(owner: String) = rows.filter(_.owner === owner).length
   def getLabel(pattern: String) = rows.filter(_.pattern === pattern).map(_.label)

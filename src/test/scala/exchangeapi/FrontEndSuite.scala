@@ -147,7 +147,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/services - create "+svcid) {
-    val input = PostPutServiceRequest("test-service", "desc", public = false, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -165,9 +165,9 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - create "+pattern) {
-    val input = PostPutPatternRequest(ptBase, "desc", public = false, None,
-      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, "", "", Map("priority_value" -> 50), Map("lifecycle" -> "immediate"))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) ))),
-      List[Map[String,String]]()
+    val input = PostPutPatternRequest(ptBase, None, None, None,
+      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) ))),
+      None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)

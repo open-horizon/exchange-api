@@ -23,7 +23,7 @@ case class GetPatternsResponse(patterns: Map[String,Pattern], lastIndex: Int)
 case class GetPatternAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
-case class PostPutPatternRequest(label: String, description: Option[String], public: Boolean, workloads: Option[List[PWorkloads]], services: Option[List[PServices]], agreementProtocols: Option[List[Map[String,String]]]) {
+case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], workloads: Option[List[PWorkloads]], services: Option[List[PServices]], agreementProtocols: Option[List[Map[String,String]]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(): Unit = {
     if (services.isDefined && services.get.nonEmpty) {
@@ -63,7 +63,6 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
   // Note: write() handles correctly the case where the optional fields are None.
   //def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(workloads), write(services), write(agreementProtocols), ApiTime.nowUTC)
   def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
-    val description2 = description.getOrElse(label)
     // The nodeHealth field is optional, so fill in a default in each element of services if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
     val services2 = if (services.nonEmpty) {
       services.get.map({ s =>
@@ -74,7 +73,7 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
       services
     }
     val agreementProtocols2 = agreementProtocols.orElse(Some(List(Map("name" -> "Basic"))))
-    PatternRow(pattern, orgid, owner, label, description2, public, write(workloads), write(services2), write(agreementProtocols2), ApiTime.nowUTC)
+    PatternRow(pattern, orgid, owner, label, description.getOrElse(label), public.getOrElse(false), write(workloads), write(services2), write(agreementProtocols2), ApiTime.nowUTC)
   }
 }
 
@@ -327,7 +326,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("POST /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
         case Success(_) => if (owner != "") AuthCache.patterns.putOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
-          AuthCache.patterns.putIsPublic(pattern, patternReq.public)
+          AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "pattern '"+pattern+"' created")
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -393,7 +392,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
             if (numUpdated > 0) {
               if (owner != "") AuthCache.patterns.putOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
-              AuthCache.patterns.putIsPublic(pattern, patternReq.public)
+              AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, "pattern updated")
             } else {

@@ -208,14 +208,14 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", "desc", public = false, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid2+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", "desc", public = false, svcurl2, svcversion2, svcarch2, "multiple", None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, svcurl2, svcversion2, svcarch2, "multiple", None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -223,13 +223,13 @@ class NodesSuite extends FunSuite {
   // Note: when we delete the org, this workload will get deleted
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+" - so nodes can reference it") {
-    val input = PostPutPatternRequest(patid, "desc", public = false, None,
+    val input = PostPutPatternRequest(patid, None, None, None,
       Some(List(
         // Reference both services in the pattern so we can search on both later on
-        PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, "", "", Map(), Map())), None, None ),
-        PServices(svcurl2, orgid, svcarch2, Some(true), List(PServiceVersions(svcversion2, "", "", Map(), Map())), None, None )
+        PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ),
+        PServices(svcurl2, orgid, svcarch2, Some(true), List(PServiceVersions(svcversion2, None, None, None, None)), None, None )
       )),
-      List[Map[String,String]]()
+      None
     )
     val response = Http(URL+"/patterns/"+patid).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1688,9 +1688,9 @@ class NodesSuite extends FunSuite {
   // Note: when we delete the org, this workload will get deleted
 
   test("POST /orgs/"+orgid+"/patterns/"+patid2+" - so nodes can reference it") {
-    val input = PostPutPatternRequest(patid2, "desc", public = false,
-      Some(List( PWorkloads(workurl, orgid, workarch, List(PServiceVersions(workversion, "", "", Map(), Map())), None, None ))),
-      None, List[Map[String,String]]()
+    val input = PostPutPatternRequest(patid2, None, None,
+      Some(List( PWorkloads(workurl, orgid, workarch, List(PServiceVersions(workversion, None, None, None, None)), None, None ))),
+      None, None
     )
     val response = Http(URL+"/patterns/"+patid2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

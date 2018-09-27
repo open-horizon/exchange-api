@@ -264,9 +264,8 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/services/$svc2id")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauth "orgs/$orgid/services" '{"label": "Location for amd64", "description": "blah blah", "public": true, "url": "'$svc2url'",
+    curlcreate "POST" $userauth "orgs/$orgid/services" '{"label": "Location for amd64", "public": true, "url": "'$svc2url'",
   "version": "'$svc2version'", "arch": "'$svc2arch'", "sharable": "single",
-  "matchHardware": {},
   "requiredServices": [
     {
       "url": "https://bluehorizon.network/services/gps",
@@ -454,7 +453,7 @@ fi
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid2" '{"label": "My other Pattern", "public": false,
+    curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid2" '{"label": "My other Pattern",
   "services": [
     {
       "serviceUrl": "'$svcurl'",

@@ -289,7 +289,7 @@ class AgbotsSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/services - add "+svcid+" and check that agbot can read it") {
-    val input = PostPutServiceRequest("test-service", "desc", public = false, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -303,9 +303,9 @@ class AgbotsSuite extends FunSuite {
   // Note: when we delete the org, this service will get deleted
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" and check that agbot can read it") {
-    val input = PostPutPatternRequest(pattern, "desc", public = false, None,
-      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) ))),
-      List[Map[String,String]]()
+    val input = PostPutPatternRequest(pattern, None, None, None,
+      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ))),
+      None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -371,9 +371,9 @@ class AgbotsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid2+"/patterns/"+pattern2+" - add "+pattern2) {
-    val input = PostPutPatternRequest(pattern2, "desc", public = false, None,
-      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, "", "", Map(), Map())), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) ))),
-      List[Map[String,String]]()
+    val input = PostPutPatternRequest(pattern2, None, None, None,
+      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ))),
+      None
     )
     val response = Http(URL2+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)

@@ -23,7 +23,7 @@ case class GetPatternsResponse(patterns: Map[String,Pattern], lastIndex: Int)
 case class GetPatternAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
-case class PostPutPatternRequest(label: String, description: String, public: Boolean, workloads: Option[List[PWorkloads]], services: Option[List[PServices]], agreementProtocols: List[Map[String,String]]) {
+case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], workloads: Option[List[PWorkloads]], services: Option[List[PServices]], agreementProtocols: Option[List[Map[String,String]]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(): Unit = {
     if (services.isDefined && services.get.nonEmpty) {
@@ -32,7 +32,7 @@ case class PostPutPatternRequest(label: String, description: String, public: Boo
       for (s <- services.get) {
         for (sv <- s.serviceVersions) {
           if (!Version(sv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '" + sv.version + "' is not valid version format."))
-          if (sv.deployment_overrides != "" && sv.deployment_overrides_signature == "") {
+          if (sv.deployment_overrides.getOrElse("") != "" && sv.deployment_overrides_signature.getOrElse("") == "") {
             halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this pattern definition does not appear to be signed."))
           }
         }
@@ -43,7 +43,7 @@ case class PostPutPatternRequest(label: String, description: String, public: Boo
       for (w <- workloads.get) {
         for (wv <- w.workloadVersions) {
           if (!Version(wv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '" + wv.version + "' is not valid version format."))
-          if (wv.deployment_overrides != "" && wv.deployment_overrides_signature == "") {
+          if (wv.deployment_overrides.getOrElse("") != "" && wv.deployment_overrides_signature.getOrElse("") == "") {
             halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this pattern definition does not appear to be signed."))
           }
         }
@@ -61,17 +61,20 @@ case class PostPutPatternRequest(label: String, description: String, public: Boo
   }
 
   // Note: write() handles correctly the case where the optional fields are None.
-  def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(workloads), write(services), write(agreementProtocols), ApiTime.nowUTC)
-  /* This is what to do if we want to fill in a default value for nodeHealth when it is not specified...
+  //def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(workloads), write(services), write(agreementProtocols), ApiTime.nowUTC)
   def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
-    // The nodeHealth field is optional, so fill in a default in each element of workloads if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
-    val workloads2 = workloads.map({ w =>
-      val nodeHealth2 = if (w.nodeHealth.nonEmpty) w.nodeHealth else Some(Map[String,Int]())
-      PWorkloads(w.workloadUrl, w.workloadOrgid, w.workloadArch, w.workloadVersions, w.dataVerification, nodeHealth2)
-    })
-    PatternRow(pattern, orgid, owner, label, description, public, write(workloads2), write(agreementProtocols), ApiTime.nowUTC)
+    // The nodeHealth field is optional, so fill in a default in each element of services if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
+    val services2 = if (services.nonEmpty) {
+      services.get.map({ s =>
+        val nodeHealth2 = s.nodeHealth.orElse(Some(Map("missing_heartbeat_interval" -> 600, "check_agreement_status" -> 120)))
+        PServices(s.serviceUrl, s.serviceOrgid, s.serviceArch, s.agreementLess, s.serviceVersions, s.dataVerification, nodeHealth2)
+      })
+    } else {
+      services
+    }
+    val agreementProtocols2 = agreementProtocols.orElse(Some(List(Map("name" -> "Basic"))))
+    PatternRow(pattern, orgid, owner, label, description.getOrElse(label), public.getOrElse(false), write(workloads), write(services2), write(agreementProtocols2), ApiTime.nowUTC)
   }
-  */
 }
 
 case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], workloads: Option[List[PWorkloads]], services: Option[List[PServices]], agreementProtocols: Option[List[Map[String,String]]]) {
@@ -323,7 +326,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("POST /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
         case Success(_) => if (owner != "") AuthCache.patterns.putOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
-          AuthCache.patterns.putIsPublic(pattern, patternReq.public)
+          AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "pattern '"+pattern+"' created")
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -389,7 +392,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
             if (numUpdated > 0) {
               if (owner != "") AuthCache.patterns.putOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
-              AuthCache.patterns.putIsPublic(pattern, patternReq.public)
+              AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, "pattern updated")
             } else {

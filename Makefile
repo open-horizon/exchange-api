@@ -40,7 +40,7 @@ clean: clean-exec-image
 
 clean-exec-image:
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
-	- docker rmi $(image-string):{$(DOCKER_TAG),volcanostaging} 2> /dev/null || :
+	- docker rmi $(image-string):{$(DOCKER_TAG),latest} 2> /dev/null || :
 	rm -f .docker-exec .docker-exec-run
 
 # Also remove the bld image/container
@@ -87,21 +87,17 @@ docker-test: .docker-bld
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:
 	docker push $(image-string):$(DOCKER_TAG)
-	docker tag $(image-string):$(DOCKER_TAG) $(image-string):volcanostaging
-	docker push $(image-string):volcanostaging
 	docker tag $(image-string):$(DOCKER_TAG) $(image-string):latest
 	docker push $(image-string):latest
 
-# Push the image with the explicit version tag (so someone else can test it), but do not push the volcanostaging tag so it does not get deployed to stg yet
+# Push the image with the explicit version tag (so someone else can test it), but do not push the 'latest' tag so it does not get deployed to stg yet
 docker-push-version-only:
 	docker push $(image-string):$(DOCKER_TAG)
 
 docker-push: docker docker-push-only
 
-# Promote to prod by retagging to volcano and pushing to the docker registry (salt deploys the volcano-tagged image)
+# Promote to prod by retagging to stable and pushing to the docker registry
 docker-push-to-prod:
-	docker tag $(image-string):$(DOCKER_TAG) $(image-string):volcano
-	docker push $(image-string):volcano
 	docker tag $(image-string):$(DOCKER_TAG) $(image-string):stable
 	docker push $(image-string):stable
 

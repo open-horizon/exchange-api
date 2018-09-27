@@ -454,50 +454,19 @@ fi
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid2" '{"label": "My other Pattern", "description": "blah blah", "public": false,
+    curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid2" '{"label": "My other Pattern", "public": false,
   "services": [
     {
       "serviceUrl": "'$svcurl'",
       "serviceOrgid": "'$orgid'",
       "serviceArch": "'$svcarch'",
-      "agreementLess": false,
       "serviceVersions": [
         {
-          "version": "'$svcversion'",
-          "deployment_overrides": "{\"services\":{\"netspeed\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "a",
-          "priority": {
-            "priority_value": 50,
-            "retries": 1,
-            "retry_durations": 3600,
-            "verified_durations": 52
-          },
-          "upgradePolicy": {
-            "lifecycle": "immediate",
-            "time": "01:00AM"
-          }
+          "version": "'$svcversion'"
         }
-      ],
-      "dataVerification": {
-        "enabled": true,
-        "URL": "",
-        "user": "",
-        "password": "",
-        "interval": 240,
-        "check_rate": 15,
-        "metering": {
-          "tokens": 1,
-          "per_time_unit": "min",
-          "notification_interval": 30
-        }
-      },
-      "nodeHealth": {
-        "missing_heartbeat_interval": 600,
-        "check_agreement_status": 120
-      }
+      ]
     }
-  ],
-  "agreementProtocols": [{ "name": "Basic" }] }'
+  ] }'
 else
     echo "orgs/$orgid2/patterns/$patid2 exists"
 fi

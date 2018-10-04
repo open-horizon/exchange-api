@@ -156,7 +156,12 @@ case class Creds(id: String, token: String) {     // id and token are generic na
 }
 
 case class OrgAndId(org: String, id: String) {
-  override def toString = if (org == "" || id.startsWith(org + "/")) id else org + "/" + id
+  override def toString = if (org == "" || id.startsWith(org + "/") || id.startsWith(Role.superUser)) id else org + "/" + id
+}
+
+// This class is separate from the one above, because when the id is for a cred, we want automatically add the org only when a different org is not there
+case class OrgAndIdCred(org: String, id: String) {
+  override def toString = if (org == "" || id.contains("/") || id.startsWith(Role.superUser)) id else org + "/" + id    // we only check for slash, because they could already have on a different org
 }
 
 case class CompositeId(compositeId: String) {
@@ -1039,7 +1044,7 @@ trait AuthenticationSupport extends ScalatraBase {
     val orgid = request.getHeader("orgid")
     val id = request.getHeader("id")
     if (idType == null || id == null || orgid == null) halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "front end header "+frontEndHeader+" set, but not the rest of the required headers"))
-    val creds = Creds(OrgAndId(orgid,id).toString, "")    // we don't have a pw/token, so leave it blank
+    val creds = Creds(OrgAndIdCred(orgid,id).toString, "")    // we don't have a pw/token, so leave it blank
     val identity: Identity = idType match {
       case "person" => IUser(creds)
       case "app" => IApiKey(creds)
@@ -1077,10 +1082,12 @@ trait AuthenticationSupport extends ScalatraBase {
         }
       // Not in the header, look in the url query string. Parameters() gives you the params after "?". Params() gives you the routes variables (if they have same name)
       case None => (params.get("orgid"), request.parameters.get("id").orElse(params.get("id")), request.parameters.get("token")) match {
-        case (Some(org), Some(id), Some(tok)) => Creds(OrgAndId(org,id).toString,tok)
+        case (Some(org), Some(id), Some(tok)) => Creds(OrgAndIdCred(org,id).toString,tok)
+        case (None, Some(id), Some(tok)) => Creds(OrgAndIdCred("",id).toString,tok)   // this is when they are querying /orgs so there is not org
         // Did not find id/token, so look for username/password
-        case _ => (params.get("orgid").getOrElse(""), request.parameters.get("username").orElse(params.get("username")), request.parameters.get("password").orElse(request.parameters.get("token"))) match {
-          case (org, Some(user), Some(pw)) => Creds(OrgAndId(org,user).toString,pw)
+        case _ => (params.get("orgid"), request.parameters.get("username").orElse(params.get("username")), request.parameters.get("password").orElse(request.parameters.get("token"))) match {
+          case (Some(org), Some(user), Some(pw)) => Creds(OrgAndIdCred(org,user).toString,pw)
+          case (None, Some(user), Some(pw)) => Creds(OrgAndIdCred("",user).toString,pw)   // this is when they are querying /orgs so there is not org
           case _ => if (anonymousOk) Creds("","")
             else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "no credentials given"))
         }

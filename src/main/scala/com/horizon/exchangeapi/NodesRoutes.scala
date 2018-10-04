@@ -40,7 +40,7 @@ case class PatternNodeResponse(id: String, msgEndPoint: String, publicKey: Strin
 case class PostPatternSearchResponse(nodes: List[PatternNodeResponse], lastIndex: Int)
 
 
-case class PostNodeHealthRequest(lastTime: String) {
+case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List[String]]) {
   def validate() = {}
 }
 
@@ -617,7 +617,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
 ```
 {
-  "lastTime": "2017-09-28T13:51:36.629Z[UTC]"   // only return nodes that have changed since this time, empty string returns all
+  "lastTime": "2017-09-28T13:51:36.629Z[UTC]",   // only return nodes that have changed since this time, empty string returns all
+  "nodeOrgids": [ "org1", "org2", "..." ]   // if not specified, defaults to the same org the pattern is in
 }
 ```"""
       parameters(
@@ -642,6 +643,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val searchProps = try { parse(request.body).extract[PostNodeHealthRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     searchProps.validate()
+    val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
     logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth criteria: "+searchProps.toString)
     val resp = response
     /*
@@ -651,7 +653,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     */
     val lastTime = if (searchProps.lastTime != "") searchProps.lastTime else ApiTime.beginningUTC
     val q = for {
-      (n, a) <- NodesTQ.rows.filter(_.orgid === orgid).filter(_.pattern === compositePat).filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+      (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
     } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
 
     db.run(q.result).map({ list =>

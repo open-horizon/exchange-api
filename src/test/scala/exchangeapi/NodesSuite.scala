@@ -369,7 +369,7 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)     // for now this is what is returned when the json-to-scala conversion fails
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId4+" - bad svc url - this is currently allowed") {
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId4+" - bad svc url, but this is currently allowed") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId4+"-bad-url", compositePatid, None, Some(List(RegService(NOTTHERESPEC,1,"{json policy for "+nodeId4+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
@@ -624,15 +624,15 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
-  test("POST /orgs/"+orgid+"/patterns/"+patid+"/nodehealth - as agbot, with blank time - should find all nodes") {
-    val input = PostNodeHealthRequest("")
+  test("POST /orgs/"+orgid+"/patterns/"+patid+"/nodehealth - as agbot, with blank time, and both orgs - should find all nodes") {
+    val input = PostNodeHealthRequest("", Some(List(orgid,orgid2)))
     val response = Http(URL+"/patterns/"+patid+"/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
     val postResp = parse(response.body).extract[PostNodeHealthResponse]
     val nodes = postResp.nodes
-    assert(nodes.size === 4)
+    assert(nodes.size === 5)
     assert(nodes.contains(orgnodeId) && nodes.contains(orgnodeId2) && nodes.contains(orgnodeId3) && nodes.contains(orgnodeId4))
   }
 
@@ -640,7 +640,7 @@ class NodesSuite extends FunSuite {
     //Thread.sleep(500)    // delay 0.5 seconds so no agreements will be current
     val currentTime = ApiTime.futureUTC(100000)   // sometimes there is a mismatch between the exch svr time and this client's time
     info("currentTime: "+currentTime)
-    val input = PostNodeHealthRequest(currentTime)
+    val input = PostNodeHealthRequest(currentTime, None)
     val response = Http(URL+"/patterns/"+patid+"/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     //info("code: "+response.code)
@@ -879,7 +879,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodehealth - as agbot, with blank time - should find all nodes") {
-    val input = PostNodeHealthRequest("")
+    val input = PostNodeHealthRequest("", None)
     val response = Http(URL+"/search/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -892,7 +892,7 @@ class NodesSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/search/nodehealth - as agbot, with current time - should get no nodes") {
     //Thread.sleep(500)    // delay 0.5 seconds so no agreements will be current
-    val input = PostNodeHealthRequest(ApiTime.futureUTC(100000))
+    val input = PostNodeHealthRequest(ApiTime.futureUTC(100000), None)
     val response = Http(URL+"/search/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -987,8 +987,24 @@ class NodesSuite extends FunSuite {
     assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
   }
 
-  test("POST /orgs/"+orgid+"/patterns/"+patid+"/nodehealth - as agbot, with blank time - should find all nodes and 1 agreement for "+nodeId) {
-    val input = PostNodeHealthRequest("")
+  test("POST /orgs/"+orgid+"/patterns/"+patid+"/nodehealth - as agbot, with blank time - should find all nodes in both orgs and 1 agreement for "+nodeId+" in each org") {
+    val input = PostNodeHealthRequest("", Some(List(orgid,orgid2)))
+    val response = Http(URL+"/patterns/"+patid+"/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    //info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    val postResp = parse(response.body).extract[PostNodeHealthResponse]
+    val nodes = postResp.nodes
+    assert(nodes.size === 5)
+    assert(nodes.contains(orgnodeId) && nodes.contains(org2nodeId) && nodes.contains(orgnodeId2) && nodes.contains(orgnodeId3) && nodes.contains(orgnodeId4))
+    var dev = nodes(orgnodeId)
+    assert(dev.agreements.contains(agreementId))
+    dev = nodes(org2nodeId)
+    assert(dev.agreements.contains(agreementId2))
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/"+patid+"/nodehealth - as agbot, with blank time - should find all nodes in the 1st orgs and 1 agreement for "+nodeId) {
+    val input = PostNodeHealthRequest("", None)
     val response = Http(URL+"/patterns/"+patid+"/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1026,7 +1042,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodehealth - as agbot, with blank time - should find all nodes and 1 agreement for "+nodeId) {
-    val input = PostNodeHealthRequest("")
+    val input = PostNodeHealthRequest("", None)
     val response = Http(URL+"/search/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1246,7 +1262,7 @@ class NodesSuite extends FunSuite {
     val node = getDevResp.nodes(orgnodeId)
     val nodeHealthLastTime = node.lastHeartbeat
 
-    val input = PostNodeHealthRequest(nodeHealthLastTime)
+    val input = PostNodeHealthRequest(nodeHealthLastTime, None)
     response = Http(URL+"/patterns/"+patid+"/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)

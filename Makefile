@@ -48,6 +48,7 @@ clean-exec-image:
 clean-all: clean
 	- docker rm -f $(DOCKER_NAME)_bld 2> /dev/null || :
 	- docker rmi $(image-string):bld 2> /dev/null || :
+	- docker network remove $(DOCKER_NETWORK) 2> /dev/null || :
 	rm -f .docker-bld
 
 # rem-docker-bld:

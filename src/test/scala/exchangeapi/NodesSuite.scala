@@ -106,7 +106,16 @@ class NodesSuite extends FunSuite {
 
   // Operators: test, ignore, pending
 
-  /** Delete all the test users */
+  /** Delete all the test orgs */
+  def deleteAllOrgs() = {
+    for (u <- List(URL, URL2)) {
+      val response = Http(u).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("DELETE "+u+", code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+    }
+  }
+
+  /*
   def deleteAllUsers() = {
     for (i <- List(user)) {
       val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
@@ -115,7 +124,6 @@ class NodesSuite extends FunSuite {
     }
   }
 
-  /** Delete all the test nodes - this is not longer used because deleting the user deletes these too */
   def deleteAllNodes() = {
     for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
       val response = Http(URL+"/nodes/"+i).method("delete").headers(ACCEPT).headers(USERAUTH).asString
@@ -124,7 +132,6 @@ class NodesSuite extends FunSuite {
     }
   }
 
-  /** Delete all the test agreements - this is no longer used because deleting the user deletes these too */
   def deleteAllAgreements() = {
     for (i <- List(agreementId)) {
       val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+i).method("delete").headers(ACCEPT).headers(USERAUTH).asString
@@ -133,7 +140,6 @@ class NodesSuite extends FunSuite {
     }
   }
 
-  /** Delete all the test agbots - this is not longer used because deleting the user deletes these too */
   def deleteAllAgbots() = {
     for (i <- List(agbotId)) {
       val response = Http(URL+"/agbots/"+i).method("delete").headers(ACCEPT).headers(USERAUTH).asString
@@ -141,6 +147,7 @@ class NodesSuite extends FunSuite {
       assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
   }
+  */
 
   /** Patches all of the nodes to have a pattern or blank out the pattern (for node and node health searches) */
   def patchNodePattern(pattern: String): Unit = {
@@ -154,34 +161,24 @@ class NodesSuite extends FunSuite {
 
   //~~~~~ Create org, user, workload, pattern ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  test("POST /orgs/"+orgid+" - create org to use for this test suite") {
-    // Try deleting it 1st, in case it is left over from previous test
-    var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+  // Delete all the test orgs (and everything under them), in case they exist from a previous run.
+  test("Begin - DELETE all test orgs") {
+    if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
+    deleteAllOrgs()
+  }
 
+  test("POST /orgs/"+orgid+" - create org to use for this test suite") {
     val input = PostPutOrgRequest("My Org", "desc")
-    response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
   test("POST /orgs/"+orgid2+" - create 2nd org to use for this test suite") {
-    // Try deleting it 1st, in case it is left over from previous test
-    var response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
-
     val input = PostPutOrgRequest("My 2nd Org", "desc")
-    response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
-  }
-
-  // Delete all the test users, in case they exist from a previous run. Do not need to delete the nodes, agbots, and agreements, because they are deleted when the user is deleted.
-  test("Begin - DELETE all test users") {
-    if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
-    deleteAllUsers()
   }
 
   test("POST /orgs/"+orgid+"/users/"+user+" - normal") {
@@ -1806,13 +1803,6 @@ class NodesSuite extends FunSuite {
   //~~~~~ Break down ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("Cleanup - DELETE everything and confirm they are gone") {
-    deleteAllUsers()
-  }
-
-  test("POST /orgs/"+orgid+" - delete org and everything under it") {
-    // Try deleting it 1st, in case it is left over from previous test
-    val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    deleteAllOrgs()
   }
 }

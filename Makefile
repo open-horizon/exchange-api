@@ -7,6 +7,7 @@ DOCKER_REGISTRY ?= openhorizon
 ARCH ?= amd64
 DOCKER_NAME ?= exchange-api
 VERSION = $(shell cat src/main/resources/version.txt)
+DOCKER_NETWORK=exchange-api-network
 DOCKER_TAG ?= $(VERSION)
 DOCKER_OPTS ?= --no-cache
 COMPILE_CLEAN ?= clean
@@ -47,6 +48,7 @@ clean-exec-image:
 clean-all: clean
 	- docker rm -f $(DOCKER_NAME)_bld 2> /dev/null || :
 	- docker rmi $(image-string):bld 2> /dev/null || :
+	- docker network remove $(DOCKER_NETWORK) 2> /dev/null || :
 	rm -f .docker-bld
 
 # rem-docker-bld:
@@ -54,11 +56,14 @@ clean-all: clean
 
 docker: .docker-exec
 
+docker-network:
+	docker network create $(DOCKER_NETWORK)
+
 # Using dot files to hold the modification time the docker image and container were built
-.docker-bld:
+.docker-bld: docker-network
 	docker build -t $(image-string):bld $(DOCKER_OPTS) -f Dockerfile-bld --build-arg SCALA_VERSION=$(SCALA_VERSION) .
 	- docker rm -f $(DOCKER_NAME)_bld 2> /dev/null || :
-	docker run --name $(DOCKER_NAME)_bld -d -t -v $(CURDIR):$(EXCHANGE_API_DIR) $(image-string):bld /bin/bash
+	docker run --name $(DOCKER_NAME)_bld --network $(DOCKER_NETWORK) -d -t -v $(CURDIR):$(EXCHANGE_API_DIR) $(image-string):bld /bin/bash
 	@touch $@
 
 .docker-compile: $(wildcard src/main/scala/com/horizon/exchangeapi/*) $(wildcard src/main/resources/*) .docker-bld
@@ -76,13 +81,14 @@ docker: .docker-exec
 
 .docker-exec-run: .docker-exec
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
-	docker run --name $(DOCKER_NAME) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -v $(EXCHANGE_HOST_CONFIG_DIR):$(EXCHANGE_CONFIG_DIR) $(image-string):$(DOCKER_TAG)
+	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -v $(EXCHANGE_HOST_CONFIG_DIR):$(EXCHANGE_CONFIG_DIR) $(image-string):$(DOCKER_TAG)
 	@touch $@
 
 # Run the automated tests in the bld container against the exchange svr running in the exec container
+test:
 docker-test: .docker-bld
 	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
-	docker exec -t -e EXCHANGE_URL_ROOT=http://host.docker.internal:8080 -e "EXCHANGE_ROOTPW=$$EXCHANGE_ROOTPW" $(DOCKER_NAME)_bld /bin/bash -c 'cd $(EXCHANGE_API_DIR) && ./sbt test'
+	docker exec -t -e EXCHANGE_URL_ROOT=http://$(DOCKER_NAME):8080 -e "EXCHANGE_ROOTPW=$$EXCHANGE_ROOTPW" $(DOCKER_NAME)_bld /bin/bash -c 'cd $(EXCHANGE_API_DIR) && ./sbt test'
 
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:
@@ -121,4 +127,4 @@ version:
 
 .SECONDARY:
 
-.PHONY: default clean clean-exec-image clean-all docker docker-test docker-push-only docker-push sync-swagger-ui testmake
+.PHONY: default clean clean-exec-image clean-all docker docker-network docker-test docker-push-only docker-push sync-swagger-ui testmake

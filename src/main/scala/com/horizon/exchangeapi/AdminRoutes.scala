@@ -1,14 +1,15 @@
 /** Services routes for all of the /admin api methods. */
 package com.horizon.exchangeapi
 
-import org.scalatra._
-import slick.jdbc.PostgresProfile.api._
+import java.util.Properties
+
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
-import java.util.Properties
+import slick.jdbc.PostgresProfile.api._
 
 import scala.io.Source
 //import scala.collection.immutable._
@@ -62,7 +63,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   post("/admin/reload", operation(postAdminReload)) ({
     // validateUser(BaseAccess.ADMIN, "")
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
     ExchConfig.reload()
     logger.debug("POST /admin/reload completed successfully.")
     status_=(HttpCode.POST_OK)
@@ -87,7 +88,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   post("/admin/hashpw", operation(postAdminHashPw)) ({
     // validateUser(BaseAccess.ADMIN, "")
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
     val req = try { parse(request.body).extract[AdminHashpwRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     status_=(HttpCode.POST_OK)
@@ -112,7 +113,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   post("/admin/loglevel", operation(putAdminLogLevel)) ({
     // validateUser(BaseAccess.ADMIN, "")
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
     val req = try { parse(request.body).extract[AdminLogLevelRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     ExchConfig.levels.get(req.loggingLevel.toUpperCase) match {
@@ -136,7 +137,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   get("/admin/dropdb/token", operation(getDropdbToken)) ({
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
     response.setStatus(HttpCode.OK)
     AdminDropdbTokenResponse(createToken(Role.superUser))
   })
@@ -155,7 +156,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   post("/admin/dropdb", operation(postAdminDropDb)) ({
     // validateToken(BaseAccess.ADMIN, "")     // the token was generated for root, so will only work for root
-    credsAndLog().authenticate("token").authorizeTo(TAction(),Access.ADMIN)
+    authenticate(hint = "token").authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     // ApiResponse(ApiResponseType.OK, "would delete db")
     db.run(ExchangeApiTables.dropDB.transactionally.asTry).map({ xs =>
@@ -185,7 +186,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   post("/admin/initdb", operation(postAdminInitDb)) ({
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     db.run(ExchangeApiTables.initDB.transactionally.asTry).map({ xs =>
       logger.debug("POST /admin/initdb init table schemas result: "+xs.toString)
@@ -212,7 +213,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   post("/admin/upgradedb", operation(postAdminUpgradeDb)) ({
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     val upgradeNotNeededMsg = "DB schema does not need upgrading, it is already at the latest schema version: "
 
@@ -306,7 +307,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   */
 
   post("/admin/downgradedb" /*, operation(postAdminDowngradeDb)*/) ({
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
 
     // Get the list of db actions to: delete tables that are new in this version, and unalter schema changes made to existing tables
@@ -357,7 +358,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   post("/admin/dumptables" /*, operation(postAdminDumpTables)*/ ) ({
     // validateUser(BaseAccess.ADMIN, "")
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     val dbAction = ExchangeApiTables.dump(dumpDir, dumpSuffix)    // this action queries all the tables and writes them to files
     db.run(dbAction.asTry).map({ xs =>
@@ -387,7 +388,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   post("/admin/loadtables" /*, operation(postAdminLoadTables) */) ({
     // validateUser(BaseAccess.ADMIN, "")
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     val dbActions = try { ExchangeApiTables.load(dumpDir, dumpSuffix) }   // read/parse all the json files and create actions to put the contents in the tables
     catch { case e: Exception => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "Error parsing json table file: "+e)) }  // to catch the json parsing exception from TableIo.load()
@@ -436,7 +437,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   get("/admin/status", operation(getAdminStatus)) ({
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.STATUS)
+    authenticate().authorizeTo(TAction(),Access.STATUS)
     val resp = response
     val statusResp = new AdminStatus()
     //TODO: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
@@ -505,7 +506,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   /** set 1 or more variables in the in-memory config (so it does not do the right thing in multi-node mode).
    * Intentionally not put swagger, because only used by automated tests. */
   put("/admin/config") ({
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     val mod = try { parse(request.body).extract[AdminConfigRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
@@ -520,7 +521,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   /** Dev testing of db access */
   post("/admin/test") ({
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
     //val resp = response
 
     ApiResponse(ApiResponseType.OK, "done")

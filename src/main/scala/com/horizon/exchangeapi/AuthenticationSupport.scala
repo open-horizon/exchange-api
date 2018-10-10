@@ -2,13 +2,18 @@ package com.horizon.exchangeapi
 
 import java.util.Base64
 
+import com.horizon.exchangeapi.auth.ExchCallbackHandler
 import com.horizon.exchangeapi.tables._
+import javax.security.auth.login.LoginContext
+import javax.servlet.http.HttpServletRequest
 import org.mindrot.jbcrypt.BCrypt
-import org.scalatra.ScalatraBase
+import org.scalatra.servlet.ServletApiImplicits
+import org.scalatra.{Control, Params, ScalatraBase}
 import org.slf4j.{Logger, LoggerFactory}
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim}
 import slick.jdbc.PostgresProfile.api._
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable.{HashMap => MutableHashMap, Set => MutableSet}
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -436,17 +441,112 @@ object AuthCache {
   val patterns = new Cache("patterns")
 }
 
-/** Authenticates the client credentials and then checks the ACLs for authorization. */
-trait AuthenticationSupport extends ScalatraBase {
-  // We could add a before action with befor() {}, but sometimes they need to pass in user/pw, and sometimes id/token
-  // I tried using code from http://www.scalatra.org/2.4/guides/http/authentication.html, but it throws an exception.
+case class RequestInfo(
+  request: HttpServletRequest,
+  params: Params,
+  dbMigration: Boolean,
+  anonymousOk: Boolean,
+  hint: String,
+)
 
-  def db: Database      // get access to the db object in ExchangeApiApp
-  implicit def logger: Logger    // get access to the logger object in ExchangeApiApp
+trait AuthSupport extends Control with ServletApiImplicits {
+  implicit def logger: Logger
 
-  var migratingDb = false     // used to lock everyone out during db migration
-  def isDbMigration = migratingDb
-  // def setDbMigration(dbMigration: Boolean): Unit = { migratingDb = dbMigration }
+  /** Returns true if the token is correct for this user and not expired */
+  def isTokenValid(token: String, username: String): Boolean = {
+    // Get their current pw to use as the secret
+    // Use the users hashed pw because that is consistently there, whereas the clear pw is not
+    AuthCache.users.get(username) match {
+      // case Some(userTok) => if (userTok.unhashed != "") Token.isValid(token, userTok.unhashed) else Token.isValid(token, userTok.hashed)
+      case Some(userTok) => Token.isValid(token, userTok.hashed)
+      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+    }
+  }
+
+  // TODO: replace the one usage of the old credsAndLog that doesn't use authenticate with this
+  def credsAndLog(info: RequestInfo): Identity = {
+    val request = info.request
+    val clientIp = request.header("X-Forwarded-For").orElse(Option(request.getRemoteAddr)).get      // haproxy inserts the real client ip into the header for us
+
+    val feIdentity = frontEndCreds(info)
+    if (feIdentity != null) {
+      logger.info("User or id "+feIdentity.creds.id+" from "+clientIp+" (via front end) running "+request.getMethod+" "+request.getPathInfo)
+      return feIdentity
+    }
+    // else, fall thru to the next section
+
+    // Get the creds from the header or params
+    val creds = credentials(info)
+    val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
+    logger.info("User or id "+userOrId+" from "+clientIp+" running "+request.getMethod+" "+request.getPathInfo)
+    if (info.dbMigration && !Role.isSuperUser(creds.id)) halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied - in the process of DB migration"))
+    return IIdentity(creds)
+  }
+  // def credentialsAndLog(anonymousOk: Boolean = false): Creds = credsAndLog(anonymousOk).creds
+
+  def frontEndCreds(info: RequestInfo): Identity = {
+    val request = info.request
+    val frontEndHeader = ExchConfig.config.getString("api.root.frontEndHeader")
+    if (frontEndHeader == "" || request.getHeader(frontEndHeader) == null) return null
+    logger.trace("request.headers: "+request.headers.toString())
+    //todo: For now the only front end we support is data power doing the authentication and authorization. Create a plugin architecture.
+    // Data power calls us similar to: curl -u '{username}:{password}' 'https://{serviceURL}' -H 'type:{subjectType}' -H 'id:{username}' -H 'orgid:{org}' -H 'issuer:IBM_ID' -H 'Content-Type: application/json'
+    // type: person (user logged into the dashboard), app (API Key), or dev (device/gateway)
+    val idType = request.getHeader("type")
+    val orgid = request.getHeader("orgid")
+    val id = request.getHeader("id")
+    if (idType == null || id == null || orgid == null) halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "front end header "+frontEndHeader+" set, but not the rest of the required headers"))
+    val creds = Creds(OrgAndIdCred(orgid,id).toString, "")    // we don't have a pw/token, so leave it blank
+    val identity: Identity = idType match {
+      case "person" => IUser(creds)
+      case "app" => IApiKey(creds)
+      case "dev" => INode(creds)
+      case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected identity type "+idType+" from front end"))
+    }
+    identity.hasFrontEndAuthority = true
+    return identity
+  }
+
+  /** Looks in the http header and url params for credentials and returns them. Supported:
+    * Basic auth in header in clear text: Authorization:Basic <user-or-id>:<pw-or-token>
+    * Basic auth in header base64 encoded: Authorization:Basic <base64-encoded-of-above>
+    * URL params: username=<user>&password=<pw>
+    * URL params: id=<id>&token=<token>
+    * param anonymousOk True means this method will not halt with error msg if no credentials are found
+    */
+  def credentials(info: RequestInfo): Creds = {
+    val RequestInfo(request, params, _, anonymousOk, _) = info
+    val auth = Option(request.getHeader("Authorization"))
+    auth match {
+      case Some(authStr) => val R1 = "^Basic *(.*)$".r
+        authStr match {
+          case R1(basicAuthStr) => var basicAuthStr2 = ""
+            if (basicAuthStr.contains(":")) basicAuthStr2 = basicAuthStr
+            else {
+              try { basicAuthStr2 = new String(Base64.getDecoder.decode(basicAuthStr), "utf-8") }
+              catch { case _: IllegalArgumentException => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "Basic auth header is missing ':' or is bad encoded format")) }
+            }
+            val R2 = """^\s*(\S*):(\S*)\s*$""".r      // decode() seems to add a newline at the end
+            basicAuthStr2 match {
+              case R2(id,tok) => /*logger.trace("id="+id+",tok="+tok+".");*/ Creds(id,tok)
+              case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials format, either it is missing ':' or is bad encoded format: "+basicAuthStr))
+            }
+          case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "if the Authorization field in the header is specified, only Basic auth is currently supported"))
+        }
+      // Not in the header, look in the url query string. Parameters() gives you the params after "?". Params() gives you the routes variables (if they have same name)
+      case None => (params.get("orgid"), request.parameters.get("id").orElse(params.get("id")), request.parameters.get("token")) match {
+        case (Some(org), Some(id), Some(tok)) => Creds(OrgAndIdCred(org,id).toString,tok)
+        case (None, Some(id), Some(tok)) => Creds(OrgAndIdCred("",id).toString,tok)   // this is when they are querying /orgs so there is not org
+        // Did not find id/token, so look for username/password
+        case _ => (params.get("orgid"), request.parameters.get("username").orElse(params.get("username")), request.parameters.get("password").orElse(request.parameters.get("token"))) match {
+          case (Some(org), Some(user), Some(pw)) => Creds(OrgAndIdCred(org,user).toString,pw)
+          case (None, Some(user), Some(pw)) => Creds(OrgAndIdCred("",user).toString,pw)   // this is when they are querying /orgs so there is not org
+          case _ => if (anonymousOk) Creds("","")
+          else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "no credentials given"))
+        }
+      }
+    }
+  }
 
   /** This class and its subclasses represent the identity that is used as credentials to run rest api methods */
   abstract class Identity {
@@ -833,7 +933,36 @@ trait AuthenticationSupport extends ScalatraBase {
     override def isPublic: Boolean = if (all) return true else return AuthCache.patterns.getIsPublic(id).getOrElse(false)
   }
   case class TAction(id: String = "") extends Target    // for post rest api methods that do not target any specific resource (e.g. admin operations)
+}
 
+/** Authenticates the client credentials and then checks the ACLs for authorization. */
+trait AuthenticationSupport extends ScalatraBase with AuthSupport {
+  // We could add a before action with befor() {}, but sometimes they need to pass in user/pw, and sometimes id/token
+  // I tried using code from http://www.scalatra.org/2.4/guides/http/authentication.html, but it throws an exception.
+
+  def db: Database      // get access to the db object in ExchangeApiApp
+  implicit def logger: Logger    // get access to the logger object in ExchangeApiApp
+
+  var migratingDb = false     // used to lock everyone out during db migration
+  def isDbMigration = migratingDb
+  // def setDbMigration(dbMigration: Boolean): Unit = { migratingDb = dbMigration }
+
+  /* This is the main function that will be used in the routes, i.e., it
+   * replaces the usage of credsAndLog().authenticate(). It follows the
+   * previous behavior of returning an authenticated Identity, which can
+   * be used for authorization, or halting the request due to invalid
+   * credentials.
+   */
+  def authenticate(anonymousOk: Boolean = false, hint: String = ""): Identity = {
+    val loginCtx = new LoginContext(
+      "ExchangeApiLogin",
+      new ExchCallbackHandler(RequestInfo(request, params, isDbMigration, anonymousOk, hint))
+    )
+    for (failure <- Try(loginCtx.login()).failed) {
+      halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+    }
+    loginCtx.getSubject.getPrivateCredentials(classOf[Identity]).asScala.head
+  }
 
   def credsAndLog(anonymousOk: Boolean = false): Identity = {
     val clientIp = request.header("X-Forwarded-For").orElse(Option(request.getRemoteAddr)).get      // haproxy inserts the real client ip into the header for us
@@ -941,18 +1070,6 @@ trait AuthenticationSupport extends ScalatraBase {
       case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "username not found"))
     }
   }
-
-  /** Returns true if the token is correct for this user and not expired */
-  def isTokenValid(token: String, username: String): Boolean = {
-    // Get their current pw to use as the secret
-    // Use the users hashed pw because that is consistently there, whereas the clear pw is not
-    AuthCache.users.get(username) match {
-      // case Some(userTok) => if (userTok.unhashed != "") Token.isValid(token, userTok.unhashed) else Token.isValid(token, userTok.hashed)
-      case Some(userTok) => Token.isValid(token, userTok.hashed)
-      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
-    }
-  }
-
 }
 
 /** Hash a password or token, and compare a pw/token to its hashed value */

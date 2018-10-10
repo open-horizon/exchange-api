@@ -1,6 +1,7 @@
 /** Services routes for all of the /orgs/{orgid}/services api methods. */
 package com.horizon.exchangeapi
 
+import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
@@ -8,7 +9,6 @@ import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
-import com.horizon.exchangeapi.tables._
 
 import scala.collection.immutable._
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
@@ -144,7 +144,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   get("/orgs/:orgid/services", operation(getServices)) ({
     val orgid = params("orgid")
-    val ident = credsAndLog().authenticate().authorizeTo(TService(OrgAndId(orgid,"*").toString),Access.READ)
+    val ident = authenticate().authorizeTo(TService(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
     var q = ServicesTQ.getAllServices(orgid)
     // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
@@ -191,7 +191,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
-    credsAndLog().authenticate().authorizeTo(TService(service),Access.READ)
+    authenticate().authorizeTo(TService(service),Access.READ)
     val resp = response
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the service
@@ -279,7 +279,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   post("/orgs/:orgid/services", operation(postServices)) ({
   //post("/orgs/:orgid/services") ({
     val orgid = params("orgid")
-    val ident = credsAndLog().authenticate().authorizeTo(TService(OrgAndId(orgid,"").toString),Access.CREATE)
+    val ident = authenticate().authorizeTo(TService(OrgAndId(orgid,"").toString),Access.CREATE)
     val serviceReq = try { parse(request.body).extract[PostPutServiceRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     serviceReq.validate(orgid, null)
@@ -369,7 +369,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TService(service),Access.WRITE)
+    val ident = authenticate().authorizeTo(TService(service),Access.WRITE)
     val serviceReq = try { parse(request.body).extract[PostPutServiceRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     serviceReq.validate(orgid, service)
@@ -447,7 +447,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
-    credsAndLog().authenticate().authorizeTo(TService(service),Access.WRITE)
+    authenticate().authorizeTo(TService(service),Access.WRITE)
     val serviceReq = try { parse(request.body).extract[PatchServiceRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.trace("PATCH /orgs/"+orgid+"/services/"+bareService+" input: "+serviceReq.toString)
@@ -497,7 +497,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
-    credsAndLog().authenticate().authorizeTo(TService(service),Access.WRITE)
+    authenticate().authorizeTo(TService(service),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
     db.run(ServicesTQ.getService(service).delete.transactionally.asTry).map({ xs =>
@@ -539,7 +539,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
-    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.READ)
+    authenticate().authorizeTo(TService(compositeId),Access.READ)
     val resp = response
     db.run(ServiceKeysTQ.getKeys(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/keys result size: "+list.size)
@@ -571,7 +571,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
     val keyId = params("keyid")
-    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.READ)
+    authenticate().authorizeTo(TService(compositeId),Access.READ)
     val resp = response
     db.run(ServiceKeysTQ.getKey(compositeId, keyId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" result: "+list.size)
@@ -614,7 +614,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
     val keyId = params("keyid")
-    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val keyReq = PutServiceKeyRequest(request.body)
     //val keyReq = try { parse(request.body).extract[PutServiceKeyRequest] }
     //catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
@@ -654,7 +654,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
-    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val resp = response
     db.run(ServiceKeysTQ.getKeys(compositeId).delete.asTry).map({ xs =>
       logger.debug("DELETE /services/"+service+"/keys result: "+xs.toString)
@@ -692,7 +692,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
     val keyId = params("keyid")
-    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val resp = response
     db.run(ServiceKeysTQ.getKey(compositeId,keyId).delete.asTry).map({ xs =>
       logger.debug("DELETE /services/"+service+"/keys/"+keyId+" result: "+xs.toString)
@@ -731,7 +731,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
-    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.READ)
+    authenticate().authorizeTo(TService(compositeId),Access.READ)
     val resp = response
     db.run(ServiceDockAuthsTQ.getDockAuths(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/dockauths result size: "+list.size)
@@ -764,7 +764,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
     val dockAuthId = try { params("dockauthid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "dockauthid must be an integer: "+e)) }    // the specific exception is NumberFormatException
-    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.READ)
+    authenticate().authorizeTo(TService(compositeId),Access.READ)
     val resp = response
     db.run(ServiceDockAuthsTQ.getDockAuth(compositeId, dockAuthId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" result: "+list.size)
@@ -802,7 +802,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
     val dockAuthId = 0      // the db will choose a new id on insert
-    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val dockAuthIdReq = try { parse(request.body).extract[PostPutServiceDockAuthRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     dockAuthIdReq.validate(dockAuthId)
@@ -859,7 +859,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
     val dockAuthId = try { params("dockauthid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "dockauthid must be an integer: "+e)) }    // the specific exception is NumberFormatException
-    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val dockAuthIdReq = try { parse(request.body).extract[PostPutServiceDockAuthRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     dockAuthIdReq.validate(dockAuthId)
@@ -904,7 +904,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
-    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val resp = response
     db.run(ServiceDockAuthsTQ.getDockAuths(compositeId).delete.asTry).map({ xs =>
       logger.debug("DELETE /services/"+service+"/dockauths result: "+xs.toString)
@@ -942,7 +942,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
     val dockAuthId = try { params("dockauthid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "dockauthid must be an integer: "+e)) }    // the specific exception is NumberFormatException
-    credsAndLog().authenticate().authorizeTo(TService(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val resp = response
     db.run(ServiceDockAuthsTQ.getDockAuth(compositeId,dockAuthId).delete.asTry).map({ xs =>
       logger.debug("DELETE /services/"+service+"/dockauths/"+dockAuthId+" result: "+xs.toString)

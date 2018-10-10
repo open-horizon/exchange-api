@@ -4,11 +4,12 @@ package com.horizon.exchangeapi
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 //import org.json4s.jackson.Serialization.write
+import com.horizon.exchangeapi.tables._
 import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
-import com.horizon.exchangeapi.tables._
+
 import scala.collection.immutable._
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.util._
@@ -64,7 +65,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
       )
 
   get("/orgs", operation(getOrgs)) ({
-    credsAndLog().authenticate().authorizeTo(TOrg("*"),Access.READ)
+    authenticate().authorizeTo(TOrg("*"),Access.READ)
     val resp = response
     var q = OrgsTQ.rows.subquery
     // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
@@ -96,7 +97,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
   get("/orgs/:orgid", operation(getOneOrg)) ({
     val orgId = params("orgid")
-    credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.READ)
+    authenticate().authorizeTo(TOrg(orgId),Access.READ)
     val resp = response
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the org
@@ -144,7 +145,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
   post("/orgs/:orgid", operation(postOrgs)) ({
     val orgId = params("orgid")
-    credsAndLog().authenticate().authorizeTo(TOrg(""),Access.CREATE)
+    authenticate().authorizeTo(TOrg(""),Access.CREATE)
     val orgReq = try { parse(request.body).extract[PostPutOrgRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     orgReq.validate()
@@ -187,7 +188,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
   put("/orgs/:orgid", operation(putOrgs)) ({
     val orgId = params("orgid")
-    credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
+    authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
     val orgReq = try { parse(request.body).extract[PostPutOrgRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     orgReq.validate()
@@ -230,7 +231,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
   patch("/orgs/:orgid", operation(patchOrgs)) ({
     val orgId = params("orgid")
-    credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
+    authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
     val orgReq = try { parse(request.body).extract[PatchOrgRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.trace("PATCH /orgs/"+orgId+" input: "+orgReq.toString)
@@ -271,7 +272,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
   delete("/orgs/:orgid", operation(deleteOrgs)) ({
     val orgId = params("orgid")
-    credsAndLog().authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
+    authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
     db.run(OrgsTQ.getOrgid(orgId).delete.transactionally.asTry).map({ xs =>

@@ -49,18 +49,23 @@ clean-all: clean
 	- docker rm -f $(DOCKER_NAME)_bld 2> /dev/null || :
 	- docker rmi $(image-string):bld 2> /dev/null || :
 	- docker network remove $(DOCKER_NETWORK) 2> /dev/null || :
-	rm -f .docker-bld
+	rm -f .docker-bld .docker-network
 
 # rem-docker-bld:
 # 	- docker rm -f $(DOCKER_NAME)_bld 2> /dev/null || :
 
 docker: .docker-exec
 
-docker-network:
-	docker network create $(DOCKER_NETWORK)
+# Both of these cmds can fail for legitimate reasons:
+#  - the remove because the network is not there or the bld container is currently running and using it
+#  - the create because the network already exists because of the build step
+.docker-network:
+	-docker network remove $(DOCKER_NETWORK) 2> /dev/null
+	-docker network create $(DOCKER_NETWORK)
+	@touch $@
 
 # Using dot files to hold the modification time the docker image and container were built
-.docker-bld: docker-network
+.docker-bld: .docker-network
 	docker build -t $(image-string):bld $(DOCKER_OPTS) -f Dockerfile-bld --build-arg SCALA_VERSION=$(SCALA_VERSION) .
 	- docker rm -f $(DOCKER_NAME)_bld 2> /dev/null || :
 	docker run --name $(DOCKER_NAME)_bld --network $(DOCKER_NETWORK) -d -t -v $(CURDIR):$(EXCHANGE_API_DIR) $(image-string):bld /bin/bash
@@ -127,4 +132,4 @@ version:
 
 .SECONDARY:
 
-.PHONY: default clean clean-exec-image clean-all docker docker-network docker-test docker-push-only docker-push sync-swagger-ui testmake
+.PHONY: default clean clean-exec-image clean-all docker docker-test docker-push-only docker-push sync-swagger-ui testmake

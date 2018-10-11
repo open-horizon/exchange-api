@@ -60,7 +60,7 @@ docker: .docker-exec
 #  - the remove because the network is not there or the bld container is currently running and using it
 #  - the create because the network already exists because of the build step
 .docker-network:
-	-docker network remove $(DOCKER_NETWORK) 2> /dev/null
+	-docker network remove $(DOCKER_NETWORK) 2> /dev/null || :
 	-docker network create $(DOCKER_NETWORK)
 	@touch $@
 

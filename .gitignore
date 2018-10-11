@@ -4,10 +4,7 @@ target/
 .lib/
 
 # Create by Makefile to hold build timestamps
-.docker-bld
-.docker-compile
-.docker-exec
-.docker-exec-run
+.docker-*
 
 # IntelliJ IDEA
 .idea/

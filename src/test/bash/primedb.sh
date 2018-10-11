@@ -76,6 +76,7 @@ svc2version="4.5.6"
 
 svcDockAuthId='1'
 svcDockAuthRegistry='registry.ng.bluemix.net'
+svcDockAuthUsername='iamapikey'
 svcDockAuthToken='abcdefghijk'
 
 microid="bluehorizon.network-microservices-network_1.0.0_amd64"
@@ -256,7 +257,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/services/$svcid/dockauths/$svcDockAuthId")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauth "orgs/$orgid/services/$svcid/dockauths" '{"registry": "'$svcDockAuthRegistry'", "token": "'$svcDockAuthToken'"}'
+    curlcreate "POST" $userauth "orgs/$orgid/services/$svcid/dockauths" '{"registry": "'$svcDockAuthRegistry'", "username": "'$svcDockAuthUsername'", "token": "'$svcDockAuthToken'"}'
 else
     echo "orgs/$orgid/services/$svcid/dockauths/$svcDockAuthId exists"
 fi

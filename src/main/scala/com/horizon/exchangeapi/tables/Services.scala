@@ -144,8 +144,8 @@ case class ServiceKey(key: String, lastUpdated: String)
 
 
 // DockAuth is a sub-resource of service
-case class ServiceDockAuthRow(dockAuthId: Int, serviceId: String, registry: String, token: String, lastUpdated: String) {
-  def toServiceDockAuth = ServiceDockAuth(dockAuthId, registry, token, lastUpdated)
+case class ServiceDockAuthRow(dockAuthId: Int, serviceId: String, registry: String, username: String, token: String, lastUpdated: String) {
+  def toServiceDockAuth = ServiceDockAuth(dockAuthId, registry, username, token, lastUpdated)
 
   // The returning operator is necessary on insert to have it return the id auto-generated, instead of the number of rows inserted
   def insert: DBIO[_] = (ServiceDockAuthsTQ.rows returning ServiceDockAuthsTQ.rows.map(_.dockAuthId)) += this
@@ -156,9 +156,10 @@ class ServiceDockAuths(tag: Tag) extends Table[ServiceDockAuthRow](tag, "service
   def dockAuthId = column[Int]("dockauthid", O.PrimaryKey, O.AutoInc)     // dockAuth - the generated id for this resource
   def serviceId = column[String]("serviceid")               // additional key - the composite orgid/serviceid
   def registry = column[String]("registry")                   // the docker registry this token is for
+  def username = column[String]("username")                   // the type of token, usually 'token' or 'iamapikey'
   def token = column[String]("token")                   // the actual token content
   def lastUpdated = column[String]("lastupdated")
-  def * = (dockAuthId, serviceId, registry, token, lastUpdated) <> (ServiceDockAuthRow.tupled, ServiceDockAuthRow.unapply)
+  def * = (dockAuthId, serviceId, registry, username, token, lastUpdated) <> (ServiceDockAuthRow.tupled, ServiceDockAuthRow.unapply)
   //def primKey = primaryKey("pk_svck", (dockAuthId, serviceId))    // <- the auto-created id is already unique
   def service = foreignKey("service_fk", serviceId, ServicesTQ.rows)(_.service, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -168,8 +169,8 @@ object ServiceDockAuthsTQ {
 
   def getDockAuths(serviceId: String) = rows.filter(_.serviceId === serviceId)
   def getDockAuth(serviceId: String, dockAuthId: Int) = rows.filter( r => {r.serviceId === serviceId && r.dockAuthId === dockAuthId} )
-  def getDupDockAuth(serviceId: String, registry: String, token: String) = rows.filter( r => {r.serviceId === serviceId && r.registry === registry && r.token === token} )
+  def getDupDockAuth(serviceId: String, registry: String, username: String, token: String) = rows.filter( r => {r.serviceId === serviceId && r.registry === registry && r.username === username && r.token === token} )
   def getLastUpdatedAction(serviceId: String, dockAuthId: Int) = rows.filter( r => {r.serviceId === serviceId && r.dockAuthId === dockAuthId} ).map(_.lastUpdated).update(ApiTime.nowUTC)
 }
 
-case class ServiceDockAuth(dockAuthId: Int, registry: String, token: String, lastUpdated: String)
+case class ServiceDockAuth(dockAuthId: Int, registry: String, username: String, token: String, lastUpdated: String)

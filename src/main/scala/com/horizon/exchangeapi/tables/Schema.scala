@@ -65,13 +65,16 @@ object SchemaTQ {
         DBIO.seq(actions: _*)      // convert the list of actions to a DBIO seq
       case 9 => DBIO.seq(ServiceDockAuthsTQ.rows.schema.create)   // v1.52.0
       case 10 => DBIO.seq(   // v1.56.0
-          sqlu"alter table agbotpatterns add column nodeorgid character varying not null default ''"
-        )
+        sqlu"alter table agbotpatterns add column nodeorgid character varying not null default ''"
+      )
+      case 11 => DBIO.seq(   // v1.56.0
+        sqlu"alter table servicedockauths add column username character varying not null default ''"
+      )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 10     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
-  val latestSchemaDescription = "Added nodeorgid to table agbotpatterns"
+  val latestSchemaVersion = 11     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
+  val latestSchemaDescription = "Added username to table servicedockauths"
 
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

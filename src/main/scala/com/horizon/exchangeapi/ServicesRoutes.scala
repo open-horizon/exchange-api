@@ -109,11 +109,10 @@ case class PutServiceKeyRequest(key: String) {
 //case class GetServiceDockAuthResponse(dockauths: List[ServiceDockAuth], lastIndex: Int)
 
 /** Input format for POST /orgs/{orgid}/services/{service}/dockauths or PUT /orgs/{orgid}/services/{service}/dockauths/{dockauthid} */
-case class PostPutServiceDockAuthRequest(registry: String, token: String) {
-  //def toServiceDockAuth(dockAuthId: Int) = ServiceDockAuth(dockAuthId, registry, token, ApiTime.nowUTC)
-  def toServiceDockAuthRow(serviceId: String, dockAuthId: Int) = ServiceDockAuthRow(dockAuthId, serviceId, registry, token, ApiTime.nowUTC)
+case class PostPutServiceDockAuthRequest(registry: String, username: Option[String], token: String) {
+  def toServiceDockAuthRow(serviceId: String, dockAuthId: Int) = ServiceDockAuthRow(dockAuthId, serviceId, registry, username.getOrElse("token"), token, ApiTime.nowUTC)
   def validate(dockAuthId: Int) = { }
-  def getDupDockAuth(serviceId: String) = ServiceDockAuthsTQ.getDupDockAuth(serviceId, registry, token)
+  def getDupDockAuth(serviceId: String) = ServiceDockAuthsTQ.getDupDockAuth(serviceId, registry, username.getOrElse("token"), token)
 }
 
 
@@ -738,13 +737,6 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/dockauths result size: "+list.size)
       //logger.trace("GET /orgs/"+orgid+"/services/"+id+"/dockauths result: "+list.toString)
       val listSorted = list.sortWith(_.dockAuthId < _.dockAuthId)
-      /*
-      val dockAuths = new ListBuffer[ServiceDockAuth]
-      if (listSorted.nonEmpty) for (m <- listSorted) { dockAuths += m.toServiceDockAuth }
-      if (dockAuths.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetServiceDockAuthResponse(dockAuths.toList, 0)
-      */
       if (listSorted.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
       listSorted.map(_.toServiceDockAuth)
@@ -776,13 +768,6 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val resp = response
     db.run(ServiceDockAuthsTQ.getDockAuth(compositeId, dockAuthId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" result: "+list.size)
-      /*
-      val dockAuths = new ListBuffer[ServiceDockAuth]
-      if (list.nonEmpty) for (m <- list) { dockAuths += m.toServiceDockAuth }
-      if (dockAuths.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetServiceDockAuthResponse(dockAuths.toList, 0)
-      */
       if (list.nonEmpty) {
         resp.setStatus(HttpCode.OK)
         list.head.toServiceDockAuth
@@ -798,14 +783,14 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val postServiceDockAuth =
     (apiOperation[ApiResponse]("postServiceDockAuth")
       summary "Adds a docker image token for the service"
-      description """Adds a new docker image authentication token for this service. As an optimization, if a dockauth resource already exists with the same service, registry, and token, this method will just update that lastupdated field. This can only be run by the service owning user."""
+      description """Adds a new docker image authentication token for this service. As an optimization, if a dockauth resource already exists with the same service, registry, username, and token, this method will just update that lastupdated field. This can only be run by the service owning user."""
       parameters(
       Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
       Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
       Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
       Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
       Parameter("body", DataType[PostPutServiceDockAuthRequest],
-        Option[String]("DockAuth object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+        Option[String]("DockAuth object that needs to be added or updated in the exchange. Current supported values for 'username' are: 'token' (default) or 'iamapikey'."),
         paramType = ParamType.Body)
     )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -862,7 +847,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
       Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
       Parameter("body", DataType[PostPutServiceDockAuthRequest],
-        Option[String]("DockAuth object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
+        Option[String]("DockAuth object that needs to be added to, or updated in, the exchange. Current supported values for 'username' are: 'token' (default) or 'iamapikey'."),
         paramType = ParamType.Body)
     )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))

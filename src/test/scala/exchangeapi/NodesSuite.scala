@@ -33,8 +33,6 @@ class NodesSuite extends FunSuite {
   val CONTENT = ("Content-Type","application/json")
   val SDRSPEC = "https://bluehorizon.network/services/sdr"
   val NETSPEEDSPEC = "https://bluehorizon.network/services/netspeed/"     // test the trailing / for this one
-  val OLDSDRSPEC = "https://bluehorizon.network/workloads/sdr"
-  val OLDNETSPEEDSPEC = "https://bluehorizon.network/workloads/netspeed"
   val PWSSPEC = "https://bluehorizon.network/services/pws"
   val NOTTHERESPEC = "https://bluehorizon.network/services/notthere"
   val orgid = "NodesSuiteTests"
@@ -69,16 +67,8 @@ class NodesSuite extends FunSuite {
   val orgnodeId4 = authpref+nodeId4
   val nodeId5 = "n5"      // not ever successfully created
   val orgnodeId5 = authpref+nodeId5
-  val oldNodeId = "oldn1"      // with registered microservices, instead of services
-  val orgOldNodeId = authpref+oldNodeId
   val patid = "p1"
   val compositePatid = orgid+"/"+patid
-  val patid2 = "p2"       // used by the old style node
-  val compositePatid2 = orgid+"/"+patid2
-  val workid = "bluehorizon.network-workloads-sdr_1.0.0_arm"
-  val workurl = OLDSDRSPEC
-  val workarch = "arm"
-  val workversion = "1.0.0"
   val svcid = "bluehorizon.network-services-sdr_1.0.0_amd64"
   val svcurl = SDRSPEC
   val svcarch = "amd64"
@@ -159,7 +149,7 @@ class NodesSuite extends FunSuite {
     }
   }
 
-  //~~~~~ Create org, user, workload, pattern ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  //~~~~~ Create org, user, service, pattern ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   // Delete all the test orgs (and everything under them), in case they exist from a previous run.
   test("Begin - DELETE all test orgs") {
@@ -217,7 +207,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
-  // Note: when we delete the org, this workload will get deleted
+  // Note: when we delete the org, this service will get deleted
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+" - so nodes can reference it") {
     val input = PostPutPatternRequest(patid, None, None, None,
@@ -1688,116 +1678,6 @@ class NodesSuite extends FunSuite {
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
     }
-  }
-
-  //~~~~~ Old style node ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-  test("POST /orgs/"+orgid+"/workloads - add "+workid+" so pattern can reference it") {
-    val input = PostPutWorkloadRequest("test-workload", "desc", public = false, workurl, workversion, workarch, None, List(), List(Map()), List())
-    val response = Http(URL+"/workloads").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-  }
-  // Note: when we delete the org, this workload will get deleted
-
-  test("POST /orgs/"+orgid+"/patterns/"+patid2+" - so nodes can reference it") {
-    val input = PostPutPatternRequest(patid2, None, None,
-      Some(List( PWorkloads(workurl, orgid, workarch, List(PServiceVersions(workversion, None, None, None, None)), None, None ))),
-      None, None
-    )
-    val response = Http(URL+"/patterns/"+patid2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-  }
-
-  test("PUT /orgs/"+orgid+"/nodes/"+oldNodeId+" - add old style node") {
-    val input = PutNodesRequest(nodeToken, "rpi"+oldNodeId+"-old", compositePatid2,
-      Some(List(
-        RegMicroservice(OLDSDRSPEC,1,"{json policy for "+oldNodeId+" sdr}",List(
-          Prop("arch","arm","string","in"),
-          Prop("version","1.0.0","version","in"),
-          Prop("agreementProtocols",agProto,"list","in"),
-          Prop("dataVerification","true","boolean","="))),
-        RegMicroservice(OLDNETSPEEDSPEC,1,"{json policy for "+oldNodeId+" netspeed}",List(
-          Prop("arch","arm","string","in"),
-          Prop("cpus","2","int",">="),
-          Prop("version","1.0.0","version","in")))
-      )), None,
-      "whisper-id", Map("horizon"->"3.2.3"), "OLDNODEABC")
-    val response = Http(URL+"/nodes/"+oldNodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.PUT_OK)
-  }
-
-  test("GET /orgs/"+orgid+"/nodes/"+oldNodeId+" - get old style node") {
-    val response: HttpResponse[String] = Http(URL+"/nodes/"+oldNodeId).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
-    val getDevResp = parse(response.body).extract[GetNodesResponse]
-    assert(getDevResp.nodes.size === 1)
-
-    assert(getDevResp.nodes.contains(orgOldNodeId))
-    val dev = getDevResp.nodes(orgOldNodeId)
-    assert(dev.name === "rpi"+oldNodeId+"-old")
-
-    assert(dev.registeredMicroservices.length === 2)
-    val svc: RegMicroservice = dev.registeredMicroservices.find(m => m.url==OLDSDRSPEC).orNull
-    assert(svc !== null)
-    assert(svc.url === OLDSDRSPEC)
-    assert(svc.policy === "{json policy for "+oldNodeId+" sdr}")
-    var archProp = svc.properties.find(p => p.name=="arch").orNull
-    assert((archProp !== null) && (archProp.name === "arch"))
-    assert(archProp.value === "arm")
-
-    assert(dev.registeredMicroservices.find(m => m.url==OLDNETSPEEDSPEC) !== None)
-  }
-
-  test("POST /orgs/"+orgid+"/patterns/"+patid2+"/search - for "+OLDSDRSPEC+" in old style node") {
-    val input = PostPatternSearchRequest(Some(OLDSDRSPEC), None, None, 86400, 0, 0)
-    val response = Http(URL+"/patterns/"+patid2+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    //info("code: "+response.code+", response.body: "+response.body)
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 1)
-    assert(nodes.count(d => d.id==orgOldNodeId) === 1)
-    val dev = nodes.find(d => d.id == orgOldNodeId).get // the 2nd get turns the Some(val) into val
-    assert(dev.publicKey === "OLDNODEABC")
-  }
-
-  test("POST /orgs/"+orgid+"/search/nodes - all arm old style nodes") {
-    // First patch node to remove pattern
-    val jsonInput = """{ "pattern": "" }"""
-    var response = Http(URL + "/nodes/" + oldNodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("PATCH "+oldNodeId+", code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
-
-    val input = PostSearchNodesRequest(Some(List(RegMicroserviceSearch(OLDSDRSPEC,List(
-      Prop("arch","arm","string","in"),
-      Prop("memory","2","int",">="),
-      Prop("version","*","version","in"),
-      Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","="))))), None,
-      86400, List[String](""), 0, 0)
-    response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    //info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 1)
-    assert(nodes.count(d => d.id==orgOldNodeId) === 1)
-    val dev = nodes.find(d => d.id == orgOldNodeId).get // the 2nd get turns the Some(val) into val
-    assert(dev.name === "rpi"+oldNodeId+"-old")
-    assert(dev.microservices.length === 1)
-    val svc = dev.microservices.head
-    assert(svc.url === OLDSDRSPEC)
-    assert(svc.policy === "{json policy for "+oldNodeId+" sdr}")
-    var archProp = svc.properties.find(p => p.name=="arch").orNull
-    assert((archProp !== null) && (archProp.name === "arch"))
-    assert(archProp.value === "arm")
   }
 
   //~~~~~ Break down ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

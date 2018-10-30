@@ -86,6 +86,10 @@ services in the exchange.
     - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.62.0
+
+- Remove microservice and workload support (leaving just service support)
+
 ## Changes in 1.61.0
 
 - Support IAM API keys for bx cr access by adding `username` field to service dockauths (issue anax 651)

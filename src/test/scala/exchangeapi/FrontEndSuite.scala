@@ -52,8 +52,6 @@ class FrontEndSuite extends FunSuite {
   val agProto = "ExchangeAutomatedTest"
   val msBase = "ms1"
   val msUrl = "http://" + msBase
-  val microservice = msBase + "_1.0.0_arm"
-  val orgmicroservice = authpref+microservice
   val svcid = "bluehorizon.network-services-sdr_1.0.0_amd64"
   val svcurl = "https://bluehorizon.network/services/sdr"
   val svcarch = "amd64"
@@ -125,25 +123,6 @@ class FrontEndSuite extends FunSuite {
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
-  }
-
-  test("POST /orgs/"+orgid+"/microservices - create "+microservice) {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", public = false, msUrl, "1.0.0", "arm", "single", None, None, List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","")))
-    val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-    val respObj = parse(response.body).extract[ApiResponse]
-    assert(respObj.msg.contains("microservice '"+orgmicroservice+"' created"))
-  }
-
-  test("GET /orgs/"+orgid+"/microservices") {
-    val response: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(TYPEAPIKEY).headers(IDAPIKEY).headers(ORGHEAD).headers(ISSUERHEAD).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
-    val respObj = parse(response.body).extract[GetMicroservicesResponse]
-    assert(respObj.microservices.size === 1)
-    assert(respObj.microservices.contains(orgmicroservice))
   }
 
   test("POST /orgs/"+orgid+"/services - create "+svcid) {
@@ -268,7 +247,7 @@ class FrontEndSuite extends FunSuite {
     assert(nodes.count(d => d.id==orgnodeId) === 1)
   }
 
-  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - remove pattern from node so we can search for microservices") {
+  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - remove pattern from node so we can search for services") {
     val jsonInput = """{ "pattern": "" }"""
     val response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     assert(response.code === HttpCode.PUT_OK)

@@ -145,7 +145,7 @@ class ServicesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/services - add service so services can reference it") {
-    val input = PostPutServiceRequest("testMicro", Some("desc"), public = false, reqsvcurl, reqsvcversion, reqsvcarch, "single", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest("testSvc", Some("desc"), public = false, reqsvcurl, reqsvcversion, reqsvcarch, "single", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -225,7 +225,7 @@ class ServicesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/services - add 2nd service so services can reference both") {
-    val input = PostPutServiceRequest("testMicro", None, public = false, reqsvcurl2, reqsvcversion2, reqsvcarch2, "single", None, None, None, "", "", None)
+    val input = PostPutServiceRequest("testSvc", None, public = false, reqsvcurl2, reqsvcversion2, reqsvcarch2, "single", None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -303,7 +303,7 @@ class ServicesSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
 
       // Now try adding another service - expect it to be rejected
-      val input = PostPutServiceRequest(wkBase3+" arm", "desc", wkUrl3, "1.0.0", "arm", "", List(WServices(microurl,orgid,microversion,microarch)), Some(List(Map("name" -> "foo"))), List(MDockerImages("{\"services\":{}}","a","a")))
+      val input = PostPutServiceRequest(wkBase3+" arm", "desc", wkUrl3, "1.0.0", "arm", "", List(WServices(svcurl,orgid,svcversion,svcarch)), Some(List(Map("name" -> "foo"))), List(MDockerImages("{\"services\":{}}","a","a")))
       response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)

@@ -69,7 +69,6 @@ class AgbotsSuite extends FunSuite {
   val svcurl = "https://bluehorizon.network/services/netspeed"
   val svcarch = "amd64"
   val svcversion = "1.0.0"
-  val micro = "mymicro"
   val nodeId = "mynode"
   val nodeToken = nodeId+"tok"
   val NODEAUTH = ("Authorization","Basic "+authpref+nodeId+":"+nodeToken)
@@ -378,20 +377,6 @@ class AgbotsSuite extends FunSuite {
     val response = Http(URL2+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
-  }
-  // Note: when we delete the org, this pattern will get deleted
-
-  test("POST /orgs/"+orgid+"/microservices - add "+micro+" and check that agbot can read it") {
-    val input = PostPutMicroserviceRequest(micro+" arm", "desc", public = false, "https://msurl", "1.0.0", "arm", "single", None, None, List(Map()), List())
-    val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-
-    val response2: HttpResponse[String] = Http(URL+"/microservices").headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response2.code)
-    assert(response2.code === HttpCode.OK)
-    val respObj = parse(response2.body).extract[GetMicroservicesResponse]
-    assert(respObj.microservices.size === 1)
   }
   // Note: when we delete the org, this pattern will get deleted
 

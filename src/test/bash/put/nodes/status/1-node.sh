@@ -6,26 +6,10 @@ curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/j
      "firmware.bluehorizon.network": true,
       "images.bluehorizon.network": true
    },
-  "microservices": [
-    {
-      "specRef": "https://bluehorizon.network/microservices/gps",
-      "orgid": "mycompany",
-      "version": "2.0.4",
-      "arch": "amd64",
-      "contanerStatus": [
-        {
-            "name": "/bluehorizon.network-microservices-gps_2.0.4_78a98f1f-2eed-467c-aea2-278fb8161595-gps",
-            "image": "summit.hovitos.engineering/x86/gps:2.0.4",
-            "created": 1505939808,
-            "state": "running"
-        }
-      ]
-    }
-  ],
-  "workloads": [
+  "services": [
     {
       "agreementId": "78d7912aafb6c11b7a776f77d958519a6dc718b9bd3da36a1442ebb18fe9da30",
-      "workloadUrl":"https://bluehorizon.network/workloads/location",
+      "serviceUrl":"https://bluehorizon.network/workloads/location",
       "orgid":"ling.com",
       "version":"1.2",
       "arch":"amd64",

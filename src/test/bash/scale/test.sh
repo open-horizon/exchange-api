@@ -205,26 +205,6 @@ bigstart=`date +%s`
 # Get rid of anything left over from a previous run
 curldelete $EX_NUM_USERS $rootauth "users/$userbase" "NOT_FOUND_OK"
 
-# testings when adding new rest methods...
-#curlcreate "POST" 1 "" "users/$userbase" '{"password": "pw", "email": "foo@gmail.com"}'
-#curlcreate "PUT" 1 $userauth "node/$nodebase" '{"token": "'$nodetoken'", "name": "pi", "registeredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-node-api", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "arm", "propType": "string", "op": "in"},{"name": "version", "value": "1.0", "propType": "version", "op": "in"}]}], "msgEndPoint": "whisper-id", "softwareVersions": {"horizon": "3.2.1"}, "publicKey": "ABC"}'
-#curlcreate "PUT" 1 $userauth "agbots/$agbotbase" '{"token": "'$agbottoken'", "name": "agbot", "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
-#curlputpost "POST" 2 $agbotauth "node/$nodeid/msgs" '{"message": "hey there", "ttl": 300}'
-#curlget 1 $nodeauth "node/$nodeid/msgs"
-#deletemsgs $nodeauth "node/$nodeid/msgs"
-#curlputpost "POST" 2 $nodeauth "agbots/$agbotid/msgs" '{"message": "hey there", "ttl": 300}'
-#curlget 1 $agbotauth "agbots/$agbotid/msgs"
-#deletemsgs $agbotauth "agbots/$agbotid/msgs"
-#curlcreate "PUT" 1 $userauth "bctypes/$bctypebase" '{"description": "abc", "details": "escaped json"}'
-#curlputpost "PUT" 1 $userauth "bctypes/$bctypeid" '{"description": "abc", "details": "escaped json"}'
-#curlget 1 $nodeauth bctypes
-#curlget 1 $nodeauth bctypes/$bctypeid
-#curlcreate "PUT" 1 $userauth "bctypes/$bctypeid/blockchains/$blockchainbase" '{"description": "abc", "details": "escaped json"}'
-#curlputpost "PUT" 1 $userauth "bctypes/$bctypeid/blockchains/$blockchainid" '{"description": "abc", "details": "escaped json"}'
-#curlget 1 $nodeauth "bctypes/$bctypeid/blockchains"
-#curlget 1 $nodeauth "bctypes/$bctypeid/blockchains/$blockchainid"
-#exit
-
 # Users =================================================
 
 # Put (create) users u*
@@ -245,10 +225,10 @@ curlputpost "POST" $EX_PERF_REPEAT $userauth users/$user/confirm
 # node =================================================
 
 # Put (create) node d*
-curlcreate "PUT" $EX_NUM_node $userauth "node/$nodebase" '{"token": "'$nodetoken'", "name": "pi", "registeredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-node-api", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "arm", "propType": "string", "op": "in"},{"name": "version", "value": "1.0", "propType": "version", "op": "in"}]}], "msgEndPoint": "whisper-id", "softwareVersions": {"horizon": "3.2.1"}, "publicKey": "ABC"}'
+curlcreate "PUT" $EX_NUM_node $userauth "node/$nodebase" '{"token": "'$nodetoken'", "name": "pi", "registeredServices": [{"url": "https://bluehorizon.network/documentation/sdr-node-api", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "arm", "propType": "string", "op": "in"},{"name": "version", "value": "1.0", "propType": "version", "op": "in"}]}], "msgEndPoint": "whisper-id", "softwareVersions": {"horizon": "3.2.1"}, "publicKey": "ABC"}'
 
 # Put (update) node/d1
-curlputpost "PUT" $EX_PERF_REPEAT $nodeauth "node/$nodeid" '{"token": "'$nodetoken'", "name": "pi", "registeredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-node-api", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "arm", "propType": "string", "op": "in"},{"name": "version", "value": "1.0", "propType": "version", "op": "in"}]}], "msgEndPoint": "whisper-id", "softwareVersions": {"horizon": "3.2.1"}, "publicKey": "ABC"}'
+curlputpost "PUT" $EX_PERF_REPEAT $nodeauth "node/$nodeid" '{"token": "'$nodetoken'", "name": "pi", "registeredServices": [{"url": "https://bluehorizon.network/documentation/sdr-node-api", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "arm", "propType": "string", "op": "in"},{"name": "version", "value": "1.0", "propType": "version", "op": "in"}]}], "msgEndPoint": "whisper-id", "softwareVersions": {"horizon": "3.2.1"}, "publicKey": "ABC"}'
 
 # Get all node
 curlget $EX_PERF_REPEAT $userauth node
@@ -277,15 +257,15 @@ curlget $EX_PERF_REPEAT $agbotauth agbots/$agbotid
 curlputpost "POST" $EX_PERF_REPEAT $agbotauth agbots/$agbotid/heartbeat
 
 # Post search/node
-curlputpost "POST" $EX_PERF_REPEAT $agbotauth search/node '{"desiredMicroservices": [{"url": "https://bluehorizon.network/documentation/sdr-node-api", "properties": [{"name": "arch", "value": "arm", "propType": "wildcard", "op": "in"}, {"name": "version", "value": "*", "propType": "version", "op": "in"}]}], "secondsStale": 0, "propertiesToReturn": ["string"], "startIndex": 0, "numEntries": 0}'
+curlputpost "POST" $EX_PERF_REPEAT $agbotauth search/node '{"registeredServices": [{"url": "https://bluehorizon.network/documentation/sdr-node-api", "properties": [{"name": "arch", "value": "arm", "propType": "wildcard", "op": "in"}, {"name": "version", "value": "*", "propType": "version", "op": "in"}]}], "secondsStale": 0, "propertiesToReturn": ["string"], "startIndex": 0, "numEntries": 0}'
 
 # Agreements =================================================
 
 # Put (create) node d1 agreements agr*
-curlcreate "PUT" $EX_NUM_AGREEMENTS $nodeauth "node/$nodeid/agreements/$agreementbase" '{"microservice": "sdr", "state": "negotiating"}'
+curlcreate "PUT" $EX_NUM_AGREEMENTS $nodeauth "node/$nodeid/agreements/$agreementbase" '{"service": "sdr", "state": "negotiating"}'
 
 # Put (update) node d1 agreement agr1
-curlputpost "PUT" $EX_PERF_REPEAT $nodeauth "node/$nodeid/agreements/$agreementid" '{"microservice": "sdr", "state": "negotiating"}'
+curlputpost "PUT" $EX_PERF_REPEAT $nodeauth "node/$nodeid/agreements/$agreementid" '{"service": "sdr", "state": "negotiating"}'
 
 # Get all node d1 agreements
 curlget $EX_PERF_REPEAT $nodeauth "node/$nodeid/agreements"
@@ -294,10 +274,10 @@ curlget $EX_PERF_REPEAT $nodeauth "node/$nodeid/agreements"
 curlget $EX_PERF_REPEAT $nodeauth "node/$nodeid/agreements/$agreementid"
 
 # Put (create) agbot a1 agreements agr*
-curlcreate "PUT" $EX_NUM_AGREEMENTS $agbotauth "agbots/$agbotid/agreements/$agreementbase" '{"workload": "sdr-arm.json", "state": "negotiating"}'
+curlcreate "PUT" $EX_NUM_AGREEMENTS $agbotauth "agbots/$agbotid/agreements/$agreementbase" '{"service": "sdr-arm.json", "state": "negotiating"}'
 
 # Put (update) agbot a1 agreement agr1
-curlputpost "PUT" $EX_PERF_REPEAT $agbotauth "agbots/$agbotid/agreements/$agreementid" '{"workload": "sdr-arm.json", "state": "negotiating"}'
+curlputpost "PUT" $EX_PERF_REPEAT $agbotauth "agbots/$agbotid/agreements/$agreementid" '{"service": "sdr-arm.json", "state": "negotiating"}'
 
 # Get all agbot a1 agreements
 curlget $EX_PERF_REPEAT $agbotauth "agbots/$agbotid/agreements"

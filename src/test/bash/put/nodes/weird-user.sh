@@ -5,7 +5,7 @@ curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/j
   "token": "abc123",
   "name": "rpi1",
   "pattern": "'$EXCHANGE_ORG'/mypat",
-  "registeredMicroservices": [],
+  "desiredServices": [],
   "msgEndPoint": "whisper-id",
   "softwareVersions": {},
   "publicKey": "ABC"

@@ -2,7 +2,7 @@
 source `dirname $0`/../../../functions.sh POST $*
 
 curl $copts -X POST -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic $EXCHANGE_USER:badpw" -d '{
-  "desiredMicroservices": [
+  "desiredServices": [
     {
       "url": "https://bluehorizon.network/documentation/sdr-node-api",
       "properties": [

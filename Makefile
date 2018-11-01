@@ -90,8 +90,7 @@ docker: .docker-exec
 	@touch $@
 
 # Run the automated tests in the bld container against the exchange svr running in the exec container
-test:
-docker-test: .docker-bld
+test: .docker-bld
 	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
 	docker exec -t -e EXCHANGE_URL_ROOT=http://$(DOCKER_NAME):8080 -e "EXCHANGE_ROOTPW=$$EXCHANGE_ROOTPW" $(DOCKER_NAME)_bld /bin/bash -c 'cd $(EXCHANGE_API_DIR) && sbt test'
 

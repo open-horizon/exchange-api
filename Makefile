@@ -131,4 +131,4 @@ version:
 
 .SECONDARY:
 
-.PHONY: default clean clean-exec-image clean-all docker docker-test docker-push-only docker-push sync-swagger-ui testmake
+.PHONY: default clean clean-exec-image clean-all docker test docker-push-only docker-push-version-only docker-push docker-push-to-prod sync-swagger-ui testmake version

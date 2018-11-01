@@ -9,6 +9,7 @@ services in the exchange.
 ## Preconditions
 
 - [Install scala](http://www.scala-lang.org/download/install.html)
+- [Install sbt](https://www.scala-sbt.org/1.x/docs/Setup.html)
 - (optional) Install conscript and giter8 if you want to get example code from scalatra.org
 - Install postgresql locally (unless you have a remote instance you are using). Instructions for installing on Mac OS X:
     - `brew install postgresql`
@@ -44,13 +45,13 @@ services in the exchange.
 
 ## Building in Local Sandbox
 
-- `./sbt`
+- `sbt`
 - `jetty:start`
 - Or to have the server restart automatically when code changes: `~;jetty:stop;jetty:start`
 - Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/nodes?id=a&token=b](http://localhost:8080/v1/orgs/IBM/nodes?id=a&token=b)
 - To see the swagger output, browse: [http://localhost:8080/api](http://localhost:8080/api)
-- Run the automated tests (with the exchange server still running): `./sbt test`
-- Run just 1 of the the automated test suites (with the exchange server still running): `./sbt "test-only exchangeapi.AgbotsSuite"`
+- Run the automated tests (with the exchange server still running): `sbt test`
+- Run just 1 of the the automated test suites (with the exchange server still running): `sbt "testOnly exchangeapi.AgbotsSuite"`
 - Run the performance tests: `src/test/bash/scale/test.sh` or `src/test/bash/scale/wrapper.sh 8`
 
 ## Building and Running the Container
@@ -62,7 +63,7 @@ services in the exchange.
     - Build the exchange api container and run it locally: `make .docker-exec-run`
 - Manually test container locally: `curl -sS -w %{http_code} http://localhost:8080/v1/admin/version`
     - Note: the container can not access a postgres db running locally on the docker host if the db is only listening for unix domain sockets or 127.0.0.1.
-- Run the automated tests: `./sbt test`
+- Run the automated tests: `sbt test`
 - Push container to our docker registry: `make docker-push-only`
 - Deploy the new container to a docker host
     - Ensure that no changes are needed to the /etc/horizon/exchange/config.json file

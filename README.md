@@ -88,7 +88,8 @@ services in the exchange.
 
 ## Changes in 1.62.0
 
-- Remove microservice and workload support (leaving just service support)
+- Remove microservice, workload, and blockchain support (leaving just service support)
+- Remove deprecated `PUT /orgs/{orgid}/agbots/{id}/patterns/{patid}` method (use POST instead)
 
 ## Changes in 1.61.0
 

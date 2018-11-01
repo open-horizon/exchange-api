@@ -46,7 +46,7 @@ object SchemaTQ {
       case 1 => DBIO.seq(NodeStatusTQ.rows.schema.create)    // v1.37.0
       case 2 => DBIO.seq(sqlu"alter table agbots drop column patterns", AgbotPatternsTQ.rows.schema.create)   // v1.38.0
       case 3 => DBIO.seq(ServicesTQ.rows.schema.create)   // v1.45.0
-      case 4 => DBIO.seq(WorkloadKeysTQ.rows.schema.create, MicroserviceKeysTQ.rows.schema.create, ServiceKeysTQ.rows.schema.create, PatternKeysTQ.rows.schema.create)   // v1.46.0
+      case 4 => DBIO.seq(/*WorkloadKeysTQ.rows.schema.create, MicroserviceKeysTQ.rows.schema.create, ServiceKeysTQ.rows.schema.create,*/ PatternKeysTQ.rows.schema.create)   // v1.46.0
       case 5 => DBIO.seq(sqlu"alter table patterns add column services character varying not null default ''")   // v1.47.0
       case 6 => DBIO.seq(sqlu"alter table nodes add column regservices character varying not null default ''")   // v1.47.0
       case 7 => DBIO.seq(   // v1.47.0
@@ -70,11 +70,27 @@ object SchemaTQ {
       case 11 => DBIO.seq(   // v1.56.0
         sqlu"alter table servicedockauths add column username character varying not null default ''"
       )
+      case 12 => DBIO.seq(   // v1.62.0
+        sqlu"alter table patterns drop column workloads",
+        sqlu"alter table agbotagreements drop column workloadorgid",
+        sqlu"alter table agbotagreements drop column workloadpattern",
+        sqlu"alter table agbotagreements drop column workloadurl",
+        sqlu"alter table nodestatus drop column microservice",
+        sqlu"alter table nodestatus drop column workloads",
+        sqlu"alter table nodeagreements drop column microservice",
+        sqlu"alter table nodeagreements drop column workloadorgid",
+        sqlu"alter table nodeagreements drop column workloadpattern",
+        sqlu"alter table nodeagreements drop column workloadurl",
+        sqlu"drop table if exists properties", sqlu"drop table if exists nodemicros",
+        sqlu"drop table if exists microservicekeys", sqlu"drop table if exists microservices",
+        sqlu"drop table if exists workloadkeys", sqlu"drop table if exists workloads",
+        sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes"
+    )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 11     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
-  val latestSchemaDescription = "Added username to table servicedockauths"
+  val latestSchemaVersion = 12     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
+  val latestSchemaDescription = "Removed microservice, workload, and blockchain tables and columns"
 
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

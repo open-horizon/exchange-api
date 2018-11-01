@@ -302,8 +302,8 @@ class AgbotsSuite extends FunSuite {
   // Note: when we delete the org, this service will get deleted
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" and check that agbot can read it") {
-    val input = PostPutPatternRequest(pattern, None, None, None,
-      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ))),
+    val input = PostPutPatternRequest(pattern, None, None,
+      List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -351,7 +351,7 @@ class AgbotsSuite extends FunSuite {
 
       if (ibmAgbotId != "") {
         // Also create a node to make sure they can msg each other
-        val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", orgid + "/" + pattern, None, None, "", Map(), "NODEABC")
+        val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", orgid + "/" + pattern, None, "", Map(), "NODEABC")
         var response2 = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
         info("code: " + response2.code)
         assert(response2.code === HttpCode.PUT_OK)
@@ -370,8 +370,8 @@ class AgbotsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid2+"/patterns/"+pattern2+" - add "+pattern2) {
-    val input = PostPutPatternRequest(pattern2, None, None, None,
-      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ))),
+    val input = PostPutPatternRequest(pattern2, None, None,
+      List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       None
     )
     val response = Http(URL2+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
@@ -522,7 +522,7 @@ class AgbotsSuite extends FunSuite {
 
   /** Add an agreement for agbot 9930 - as the agbot */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" - as agbot") {
-    val input = PutAgbotAgreementRequest(None, Some(AAService(orgid, pattern, "sdr")), "signed")
+    val input = PutAgbotAgreementRequest(AAService(orgid, pattern, "sdr"), "signed")
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -530,7 +530,7 @@ class AgbotsSuite extends FunSuite {
 
   /** Update an agreement for agbot 9930 - as the agbot */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" - update as agbot") {
-    val input = PutAgbotAgreementRequest(None, Some(AAService(orgid, pattern, "sdr")), "finalized")
+    val input = PutAgbotAgreementRequest(AAService(orgid, pattern, "sdr"), "finalized")
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -538,7 +538,7 @@ class AgbotsSuite extends FunSuite {
 
   /** Update the agreement for agbot 9930 - as user */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" - as user") {
-    val input = PutAgbotAgreementRequest(None, Some(AAService(orgid, pattern, "sdr")), "negotiating")
+    val input = PutAgbotAgreementRequest(AAService(orgid, pattern, "sdr"), "negotiating")
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -546,7 +546,7 @@ class AgbotsSuite extends FunSuite {
 
   /** Add a 2nd agreement for agbot 9930 - as the agbot */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/9951 - 2nd agreement as agbot") {
-    val input = PutAgbotAgreementRequest(None, Some(AAService(orgid, pattern, "netspeed")), "signed")
+    val input = PutAgbotAgreementRequest(AAService(orgid, pattern, "netspeed"), "signed")
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/9951").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -566,7 +566,7 @@ class AgbotsSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
 
       // Now try adding another agreement - expect it to be rejected
-      val input = PutAgbotAgreementRequest(None, Some(AAService(orgid, pattern, "netspeed")), "signed")
+      val input = PutAgbotAgreementRequest(AAService(orgid, pattern, "netspeed"), "signed")
       response = Http(URL+"/agbots/"+agbotId+"/agreements/9952").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)

@@ -536,7 +536,7 @@ class UsersSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as not public in 1st org") {
-    val input = PostPutPatternRequest("Pattern", None, None, None, Some(List(PServices("a", "a", "a", None, List(), None, None))), None )
+    val input = PostPutPatternRequest("Pattern", None, None, List(PServices("a", "a", "a", None, List(), None, None)), None )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

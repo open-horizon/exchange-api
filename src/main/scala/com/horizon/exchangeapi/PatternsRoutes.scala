@@ -23,49 +23,28 @@ case class GetPatternsResponse(patterns: Map[String,Pattern], lastIndex: Int)
 case class GetPatternAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
-case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], workloads: Option[List[PWorkloads]], services: Option[List[PServices]], agreementProtocols: Option[List[Map[String,String]]]) {
+case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], services: List[PServices], agreementProtocols: Option[List[Map[String,String]]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(): Unit = {
-    if (services.isDefined && services.get.nonEmpty) {
-      if (workloads.isDefined && workloads.get.nonEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "can not specify both the 'services' and 'workloads' fields."))
-      // Check that it is signed and check the version syntax
-      for (s <- services.get) {
-        for (sv <- s.serviceVersions) {
-          if (!Version(sv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '" + sv.version + "' is not valid version format."))
-          if (sv.deployment_overrides.getOrElse("") != "" && sv.deployment_overrides_signature.getOrElse("") == "") {
-            halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this pattern definition does not appear to be signed."))
-          }
+    // Check that it is signed and check the version syntax
+    for (s <- services) {
+      for (sv <- s.serviceVersions) {
+        if (!Version(sv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '" + sv.version + "' is not valid version format."))
+        if (sv.deployment_overrides.getOrElse("") != "" && sv.deployment_overrides_signature.getOrElse("") == "") {
+          halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this pattern definition does not appear to be signed."))
         }
       }
-    } else if (workloads.isDefined && workloads.get.nonEmpty) {
-      if (services.isDefined && services.get.nonEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "can not specify both the 'services' and 'workloads' fields."))
-      // Check that it is signed and check the version syntax
-      for (w <- workloads.get) {
-        for (wv <- w.workloadVersions) {
-          if (!Version(wv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '" + wv.version + "' is not valid version format."))
-          if (wv.deployment_overrides.getOrElse("") != "" && wv.deployment_overrides_signature.getOrElse("") == "") {
-            halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this pattern definition does not appear to be signed."))
-          }
-        }
-      }
-    } else {
-      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either the 'services' or 'workloads' field must be specified."))
     }
   }
 
-  // Build a list of db actions to verify that the referenced workloads exist
-  def validateServiceIds: DBIO[Vector[Int]] = {
-    if (services.isDefined && services.get.nonEmpty) PatternsTQ.validateServiceIds(services.get)
-    else if (workloads.isDefined && workloads.get.nonEmpty) PatternsTQ.validateWorkloadIds(workloads.get)
-    else halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either the 'services' or 'workloads' field must be specified and not empty."))
-  }
+  // Build a list of db actions to verify that the referenced services exist
+  def validateServiceIds: DBIO[Vector[Int]] = { PatternsTQ.validateServiceIds(services) }
 
   // Note: write() handles correctly the case where the optional fields are None.
-  //def toPatternRow(pattern: String, orgid: String, owner: String) = PatternRow(pattern, orgid, owner, label, description, public, write(workloads), write(services), write(agreementProtocols), ApiTime.nowUTC)
   def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
     // The nodeHealth field is optional, so fill in a default in each element of services if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
     val services2 = if (services.nonEmpty) {
-      services.get.map({ s =>
+      services.map({ s =>
         val nodeHealth2 = s.nodeHealth.orElse(Some(Map("missing_heartbeat_interval" -> 600, "check_agreement_status" -> 120)))
         PServices(s.serviceUrl, s.serviceOrgid, s.serviceArch, s.agreementLess, s.serviceVersions, s.dataVerification, nodeHealth2)
       })
@@ -73,11 +52,11 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
       services
     }
     val agreementProtocols2 = agreementProtocols.orElse(Some(List(Map("name" -> "Basic"))))
-    PatternRow(pattern, orgid, owner, label, description.getOrElse(label), public.getOrElse(false), write(workloads), write(services2), write(agreementProtocols2), ApiTime.nowUTC)
+    PatternRow(pattern, orgid, owner, label, description.getOrElse(label), public.getOrElse(false), write(services2), write(agreementProtocols2), ApiTime.nowUTC)
   }
 }
 
-case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], workloads: Option[List[PWorkloads]], services: Option[List[PServices]], agreementProtocols: Option[List[Map[String,String]]]) {
+case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], services: Option[List[PServices]], agreementProtocols: Option[List[Map[String,String]]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the pattern, and the attribute name being updated. */
@@ -88,7 +67,6 @@ case class PatchPatternRequest(label: Option[String], description: Option[String
     label match { case Some(lab) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.label,d.lastUpdated)).update((pattern, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.description,d.lastUpdated)).update((pattern, desc, lastUpdated)), "description"); case _ => ; }
     public match { case Some(pub) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.public,d.lastUpdated)).update((pattern, pub, lastUpdated)), "public"); case _ => ; }
-    workloads match { case Some(wk) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.workloads,d.lastUpdated)).update((pattern, write(wk), lastUpdated)), "workloads"); case _ => ; }
     services match { case Some(svc) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.services,d.lastUpdated)).update((pattern, write(svc), lastUpdated)), "services"); case _ => ; }
     agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "agreementProtocols"); case _ => ; }
     return (null, null)
@@ -206,7 +184,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val postPatterns =
     (apiOperation[ApiResponse]("postPatterns")
       summary "Adds a pattern"
-      description """Creates a pattern resource. A pattern resource specifies all of the services that should be deployed for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. Patterns are not typically intended to be shared across organizations because they also specify deployment policy. This can only be called by a user. The **request body** structure:
+      description """Creates a pattern resource. A pattern resource specifies all of the services that should be deployed for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. This can only be called by a user. The **request body** structure:
 
 ```
 // (remove all of the comments like this before using)
@@ -262,7 +240,6 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       }
     }
   ],
-  "workloads": [],     // same as services except with s/service/workload/
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [
     {
@@ -296,7 +273,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     // Get optional agbots that should be updated with this new pattern
     //val agbotParams = multiParams("updateagbot")
     val resp = response
-    // validateServiceIds() checks either the services or workloads, whichever is defined
+    // validateServiceIds() checks that the services referenced exist
     db.run(patternReq.validateServiceIds.asTry.flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" service validation: "+xs.toString)
       xs match {
@@ -435,7 +412,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val resp = response
     val (action, attrName) = patternReq.getDbUpdate(pattern, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid pattern attribute specified"))
-    val patValidateAction = if (attrName == "workloads") PatternsTQ.validateWorkloadIds(patternReq.workloads.get) else if (attrName == "services") PatternsTQ.validateServiceIds(patternReq.services.get) else DBIO.successful(Vector())
+    val patValidateAction = if (attrName == "services") PatternsTQ.validateServiceIds(patternReq.services.get) else DBIO.successful(Vector())
     db.run(patValidateAction.asTry.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" service validation: "+xs.toString)
       xs match {

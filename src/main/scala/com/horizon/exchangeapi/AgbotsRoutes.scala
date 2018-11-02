@@ -456,7 +456,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val pattern = try { parse(request.body).extract[PostAgbotPatternRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     pattern.validate()

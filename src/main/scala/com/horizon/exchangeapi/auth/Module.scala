@@ -1,12 +1,14 @@
 package com.horizon.exchangeapi.auth
 
+import java.security._
+
 import com.horizon.exchangeapi._
 import javax.security.auth._
 import javax.security.auth.callback._
 import javax.security.auth.spi.LoginModule
 import org.slf4j.{Logger, LoggerFactory}
 
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 class Module extends LoginModule with AuthSupport {
   private var subject: Subject = _
@@ -62,6 +64,7 @@ class Module extends LoginModule with AuthSupport {
 
   override def commit(): Boolean = {
     subject.getPrivateCredentials().add(identity)
+    subject.getPrincipals().add(ExchangeRole(identity.role))
     true
   }
 }
@@ -87,5 +90,48 @@ class RequestCallback extends Callback {
   }
 
   def request: Option[RequestInfo] = req
+}
+
+case class ExchangeRole(role: String) extends Principal {
+  override def getName() = role
+}
+
+case class AccessPermission(name: String) extends BasicPermission(name)
+
+case class PermissionCheck(permission: String) extends PrivilegedAction[Unit] {
+  import Access._
+
+  private val adminNotAllowed = Set(
+    CREATE_ORGS.toString,
+    READ_OTHER_ORGS.toString,
+    WRITE_OTHER_ORGS.toString,
+    CREATE_IN_OTHER_ORGS.toString,
+    ADMIN.toString
+  )
+
+  private def isAdminAllowed(permission: String) = {
+    if (adminNotAllowed.contains(permission)) {
+      Failure(new Exception(s"Admins are not given the permission $permission"))
+    } else {
+      Success(())
+    }
+  }
+
+  override def run() = {
+    val literalCheck = Try(AccessController.checkPermission(AccessPermission(permission)))
+    lazy val adminCheck =  for {
+      allowed <- isAdminAllowed(permission)
+      ok <- Try(AccessController.checkPermission(AccessPermission("ALL_IN_ORG")))
+    } yield ok
+    lazy val superCheck = Try(AccessController.checkPermission(AccessPermission("ALL")))
+
+    for {
+      literalFailure <- literalCheck.failed
+      _ <- adminCheck.failed
+      _ <- superCheck.failed
+    } {
+      throw literalFailure
+    }
+  }
 }
 

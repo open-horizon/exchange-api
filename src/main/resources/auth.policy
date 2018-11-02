@@ -1,0 +1,61 @@
+grant principal com.horizon.exchangeapi.auth.ExchangeRole "SuperUser" {
+  permission com.horizon.exchangeapi.auth.AccessPermission "ALL";
+};
+
+grant principal com.horizon.exchangeapi.auth.ExchangeRole "AdminUser" {
+  permission com.horizon.exchangeapi.auth.AccessPermission "ALL_IN_ORG";
+};
+
+grant principal com.horizon.exchangeapi.auth.ExchangeRole "User" {
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MYSELF";
+  permission com.horizon.exchangeapi.auth.AccessPermission "WRITE_MYSELF";
+  permission com.horizon.exchangeapi.auth.AccessPermission "RESET_USER_PW";
+  permission com.horizon.exchangeapi.auth.AccessPermission "CREATE_NODE";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_NODES";
+  permission com.horizon.exchangeapi.auth.AccessPermission "WRITE_MY_NODES";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_NODES";
+  permission com.horizon.exchangeapi.auth.AccessPermission "CREATE_AGBOTS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_AGBOTS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "WRITE_MY_AGBOTS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "DATA_HEARTBEAT_MY_AGBOTS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_AGBOTS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "STATUS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_SERVICES";
+  permission com.horizon.exchangeapi.auth.AccessPermission "WRITE_MY_SERVICES";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_SERVICES";
+  permission com.horizon.exchangeapi.auth.AccessPermission "CREATE_SERVICES";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_PATTERNS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_PATTERNS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "WRITE_MY_PATTERNS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "CREATE_PATTERNS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_ORG";
+};
+
+grant principal com.horizon.exchangeapi.auth.ExchangeRole "Node" {
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MYSELF";
+  permission com.horizon.exchangeapi.auth.AccessPermission "WRITE_MYSELF";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_NODES";
+  permission com.horizon.exchangeapi.auth.AccessPermission "SEND_MSG_TO_AGBOT";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_AGBOTS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_SERVICES";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_PATTERNS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_ORG";
+};
+
+grant principal com.horizon.exchangeapi.auth.ExchangeRole "Agbot" {
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MYSELF";
+  permission com.horizon.exchangeapi.auth.AccessPermission "WRITE_MYSELF";
+  permission com.horizon.exchangeapi.auth.AccessPermission "DATA_HEARTBEAT_MY_AGBOTS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_AGBOTS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_AGBOTS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_NODES";
+  permission com.horizon.exchangeapi.auth.AccessPermission "SEND_MSG_TO_NODE";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_SERVICES";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_PATTERNS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_ORG";
+};
+
+grant principal com.horizon.exchangeapi.auth.ExchangeRole "Anonymous" {
+  permission com.horizon.exchangeapi.auth.AccessPermission "CREATE_USER";
+  permission com.horizon.exchangeapi.auth.AccessPermission "RESET_USER_PW";
+};

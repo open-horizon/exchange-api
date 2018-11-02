@@ -2,8 +2,9 @@ package com.horizon.exchangeapi
 
 import java.util.Base64
 
-import com.horizon.exchangeapi.auth.ExchCallbackHandler
+import com.horizon.exchangeapi.auth.{ExchCallbackHandler, PermissionCheck}
 import com.horizon.exchangeapi.tables._
+import javax.security.auth.Subject
 import javax.security.auth.login.LoginContext
 import javax.servlet.http.HttpServletRequest
 import org.mindrot.jbcrypt.BCrypt
@@ -73,6 +74,29 @@ object Access extends Enumeration {
   val NONE = Value("NONE")        // should not be put in any role below
 }
 import com.horizon.exchangeapi.Access._
+
+object AuthRoles {
+  val SuperUser = "SuperUser"
+  val AdminUser = "AdminUser"
+  val User = "User"
+  val Node = "Node"
+  val Agbot = "Agbot"
+  val Anonymous = "Anonymous"
+}
+
+sealed trait Authorization {
+  def as(subject: Subject): Unit
+}
+
+case object FrontendAuth extends Authorization {
+  override def as(subject: Subject): Unit = {}
+}
+
+case class RequiresAccess(access: Access) extends Authorization {
+  override def as(subject: Subject): Unit = {
+    Subject.doAsPrivileged(subject, PermissionCheck(access.toString), null)
+  }
+}
 
 /** Who is allowed to do what. */
 object Role {
@@ -548,9 +572,24 @@ trait AuthSupport extends Control with ServletApiImplicits {
     }
   }
 
+  case class AuthenticatedIdentity(identity: Identity, subject: Subject) {
+    def authorizeTo(target: Target, access: Access): Identity = {
+      try {
+        identity.authorizeTo(target, access).as(subject)
+        identity
+      } catch {
+        case _: Exception => halt(
+          HttpCode.ACCESS_DENIED,
+          ApiResponse(ApiResponseType.ACCESS_DENIED, identity.accessDeniedMsg(access))
+        )
+      }
+    }
+  }
+
   /** This class and its subclasses represent the identity that is used as credentials to run rest api methods */
   abstract class Identity {
     def creds: Creds
+    def role: String = ""
     def toIUser = IUser(creds)
     def toINode = INode(creds)
     def toIAgbot = IAgbot(creds)
@@ -577,7 +616,7 @@ trait AuthSupport extends Control with ServletApiImplicits {
       halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
     }
 
-    def authorizeTo(target: Target, access: Access): Identity
+    def authorizeTo(target: Target, access: Access): Authorization
 
     def getOrg: String = {
       val reg = """^(\S+?)/.*""".r
@@ -602,7 +641,10 @@ trait AuthSupport extends Control with ServletApiImplicits {
 
   /** A generic identity before we have run authenticate to figure out what type of credentials this is */
   case class IIdentity(creds: Creds) extends Identity {
-    def authorizeTo(target: Target, access: Access): Identity = this      // should never be called because authenticate() will return a real resource
+    def authorizeTo(target: Target, access: Access): Authorization = {
+      // should never be called because authenticate() will return a real resource
+      throw new Exception("Not Implemented")
+    }
   }
 
   case class IFrontEnd(creds: Creds) extends Identity {
@@ -610,8 +652,8 @@ trait AuthSupport extends Control with ServletApiImplicits {
       if (ExchConfig.config.getString("api.root.frontEndHeader") == creds.id) this    // let everything thru
       else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
     }
-    def authorizeTo(target: Target, access: Access): Identity = {
-      if (ExchConfig.config.getString("api.root.frontEndHeader") == creds.id) this    // let everything thru
+    def authorizeTo(target: Target, access: Access): Authorization = {
+      if (ExchConfig.config.getString("api.root.frontEndHeader") == creds.id) FrontendAuth    // let everything thru
       else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "Access denied: an exchange front end is not authorized in the config.json"))
     }
   }
@@ -619,61 +661,65 @@ trait AuthSupport extends Control with ServletApiImplicits {
   case class IUser(creds: Creds) extends Identity {
     override def isSuperUser = Role.isSuperUser(creds.id)
 
-    def authorizeTo(target: Target, access: Access): Identity = {
-      if (hasFrontEndAuthority) return this     // allow whatever it wants to do
-      val role = if (isSuperUser) Role.SUPERUSER else if (isAdmin) Role.ADMINUSER else Role.USER
-      // Transform any generic access into specific access
-      var access2: Access = null
-      if (!isMyOrg(target) && !target.isPublic) {
-        access2 = access match {
-          case Access.READ => Access.READ_OTHER_ORGS
-          case Access.WRITE => Access.WRITE_OTHER_ORGS
-          case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
-          case _ => access
+    override lazy val role =
+      if (isSuperUser) AuthRoles.SuperUser
+      else if (isAdmin) AuthRoles.AdminUser
+      else AuthRoles.User
+
+    override def authorizeTo(target: Target, access: Access): Authorization = {
+      if (hasFrontEndAuthority) return FrontendAuth // allow whatever it wants to do
+      val requiredAccess =
+        // Transform any generic access into specific access
+        if (!isMyOrg(target) && !target.isPublic) {
+          access match {
+            case Access.READ => Access.READ_OTHER_ORGS
+            case Access.WRITE => Access.WRITE_OTHER_ORGS
+            case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
+            case _ => access
+          }
+        } else {      // the target is in the same org as the identity
+          target match {
+            case TUser(id) => access match { // a user accessing a user
+              case Access.READ => if (id == creds.id) Access.READ_MYSELF else Access.READ_ALL_USERS
+              case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else Access.WRITE_ALL_USERS
+              case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
+              case _ => access
+            }
+            case TNode(_) => access match { // a user accessing a node
+              case Access.READ => if (iOwnTarget(target)) Access.READ_MY_NODES else Access.READ_ALL_NODES
+              case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_NODES else Access.WRITE_ALL_NODES
+              case Access.CREATE => Access.CREATE_NODE // not used, because WRITE is used for create also
+              case _ => access
+            }
+            case TAgbot(_) => access match { // a user accessing a agbot
+              case Access.READ => if (iOwnTarget(target)) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
+              case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
+              case Access.CREATE => Access.CREATE_AGBOT
+              case _ => access
+            }
+            case TService(_) => access match { // a user accessing a service
+              case Access.READ => if (iOwnTarget(target)) Access.READ_MY_SERVICES else Access.READ_ALL_SERVICES
+              case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_SERVICES else Access.WRITE_ALL_SERVICES
+              case Access.CREATE => Access.CREATE_SERVICES
+              case _ => access
+            }
+            case TPattern(_) => access match { // a user accessing a pattern
+              case Access.READ => if (iOwnTarget(target)) Access.READ_MY_PATTERNS else Access.READ_ALL_PATTERNS
+              case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_PATTERNS else Access.WRITE_ALL_PATTERNS
+              case Access.CREATE => Access.CREATE_PATTERNS
+              case _ => access
+            }
+            case TOrg(_) => access match {    // a user accessing his org resource
+              case Access.READ => Access.READ_MY_ORG
+              case Access.WRITE => Access.WRITE_MY_ORG
+              case Access.CREATE => Access.CREATE_ORGS
+              case _ => access
+            }
+            case TAction(_) => access // a user running an action
+          }
         }
-      } else {      // the target is in the same org as the identity
-        access2 = target match {
-          case TUser(id) => access match { // a user accessing a user
-            case Access.READ => if (id == creds.id) Access.READ_MYSELF else Access.READ_ALL_USERS
-            case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else Access.WRITE_ALL_USERS
-            case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
-            case _ => access
-          }
-          case TNode(_) => access match { // a user accessing a node
-            case Access.READ => if (iOwnTarget(target)) Access.READ_MY_NODES else Access.READ_ALL_NODES
-            case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_NODES else Access.WRITE_ALL_NODES
-            case Access.CREATE => Access.CREATE_NODE // not used, because WRITE is used for create also
-            case _ => access
-          }
-          case TAgbot(_) => access match { // a user accessing a agbot
-            case Access.READ => if (iOwnTarget(target)) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
-            case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
-            case Access.CREATE => Access.CREATE_AGBOT
-            case _ => access
-          }
-          case TService(_) => access match { // a user accessing a service
-            case Access.READ => if (iOwnTarget(target)) Access.READ_MY_SERVICES else Access.READ_ALL_SERVICES
-            case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_SERVICES else Access.WRITE_ALL_SERVICES
-            case Access.CREATE => Access.CREATE_SERVICES
-            case _ => access
-          }
-          case TPattern(_) => access match { // a user accessing a pattern
-            case Access.READ => if (iOwnTarget(target)) Access.READ_MY_PATTERNS else Access.READ_ALL_PATTERNS
-            case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_PATTERNS else Access.WRITE_ALL_PATTERNS
-            case Access.CREATE => Access.CREATE_PATTERNS
-            case _ => access
-          }
-          case TOrg(_) => access match {    // a user accessing his org resource
-            case Access.READ => Access.READ_MY_ORG
-            case Access.WRITE => Access.WRITE_MY_ORG
-            case Access.CREATE => Access.CREATE_ORGS
-            case _ => access
-          }
-          case TAction(_) => access // a user running an action
-        }
-      }
-      //logger.trace("IUser.authorizeTo() access2: "+access2)
-      if (Role.hasAuthorization(role, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
+      //logger.trace("IUser.authorizeTo() requiredAccess: "+requiredAccess)
+      RequiresAccess(requiredAccess)
     }
 
     override def isAdmin: Boolean = {
@@ -708,59 +754,61 @@ trait AuthSupport extends Control with ServletApiImplicits {
   }
 
   case class INode(creds: Creds) extends Identity {
-    def authorizeTo(target: Target, access: Access): Identity = {
-      if (hasFrontEndAuthority) return this     // allow whatever it wants to do
+    override lazy val role = AuthRoles.Node
+
+    def authorizeTo(target: Target, access: Access): Authorization = {
+      if (hasFrontEndAuthority) return FrontendAuth     // allow whatever it wants to do
       // Transform any generic access into specific access
-      var access2: Access = null
-      if (!isMyOrg(target) && !target.isPublic && !isMsgToMultiTenantAgbot(target,access)) {
-        access2 = access match {
-          case Access.READ => Access.READ_OTHER_ORGS
-          case Access.WRITE => Access.WRITE_OTHER_ORGS
-          case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
-          case _ => access
+      var requiredAccess =
+        if (!isMyOrg(target) && !target.isPublic && !isMsgToMultiTenantAgbot(target,access)) {
+          access match {
+            case Access.READ => Access.READ_OTHER_ORGS
+            case Access.WRITE => Access.WRITE_OTHER_ORGS
+            case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
+            case _ => access
+          }
+        } else { // the target is in the same org as the identity
+          target match {
+            case TUser(id) => access match { // a node accessing a user
+              case Access.READ => Access.READ_ALL_USERS
+              case Access.WRITE => Access.WRITE_ALL_USERS
+              case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
+              case _ => access
+            }
+            case TNode(id) => access match { // a node accessing a node
+              case Access.READ => if (id == creds.id) Access.READ_MYSELF else if (target.mine) Access.READ_MY_NODES else Access.READ_ALL_NODES
+              case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (target.mine) Access.WRITE_MY_NODES else Access.WRITE_ALL_NODES
+              case Access.CREATE => Access.CREATE_NODE
+              case _ => access
+            }
+            case TAgbot(_) => access match { // a node accessing a agbot
+              case Access.READ => Access.READ_ALL_AGBOTS
+              case Access.WRITE => Access.WRITE_ALL_AGBOTS
+              case Access.CREATE => Access.CREATE_AGBOT
+              case _ => access
+            }
+            case TService(_) => access match { // a node accessing a service
+              case Access.READ => Access.READ_ALL_SERVICES
+              case Access.WRITE => Access.WRITE_ALL_SERVICES
+              case Access.CREATE => Access.CREATE_SERVICES
+              case _ => access
+            }
+            case TPattern(_) => access match { // a user accessing a pattern
+              case Access.READ => Access.READ_ALL_PATTERNS
+              case Access.WRITE => Access.WRITE_ALL_PATTERNS
+              case Access.CREATE => Access.CREATE_PATTERNS
+              case _ => access
+            }
+            case TOrg(_) => access match { // a node accessing his org resource
+              case Access.READ => Access.READ_MY_ORG
+              case Access.WRITE => Access.WRITE_MY_ORG
+              case Access.CREATE => Access.CREATE_ORGS
+              case _ => access
+            }
+            case TAction(_) => access // a node running an action
+          }
         }
-      } else { // the target is in the same org as the identity
-        access2 = target match {
-          case TUser(id) => access match { // a node accessing a user
-            case Access.READ => Access.READ_ALL_USERS
-            case Access.WRITE => Access.WRITE_ALL_USERS
-            case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
-            case _ => access
-          }
-          case TNode(id) => access match { // a node accessing a node
-            case Access.READ => if (id == creds.id) Access.READ_MYSELF else if (target.mine) Access.READ_MY_NODES else Access.READ_ALL_NODES
-            case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (target.mine) Access.WRITE_MY_NODES else Access.WRITE_ALL_NODES
-            case Access.CREATE => Access.CREATE_NODE
-            case _ => access
-          }
-          case TAgbot(_) => access match { // a node accessing a agbot
-            case Access.READ => Access.READ_ALL_AGBOTS
-            case Access.WRITE => Access.WRITE_ALL_AGBOTS
-            case Access.CREATE => Access.CREATE_AGBOT
-            case _ => access
-          }
-          case TService(_) => access match { // a node accessing a service
-            case Access.READ => Access.READ_ALL_SERVICES
-            case Access.WRITE => Access.WRITE_ALL_SERVICES
-            case Access.CREATE => Access.CREATE_SERVICES
-            case _ => access
-          }
-          case TPattern(_) => access match { // a user accessing a pattern
-            case Access.READ => Access.READ_ALL_PATTERNS
-            case Access.WRITE => Access.WRITE_ALL_PATTERNS
-            case Access.CREATE => Access.CREATE_PATTERNS
-            case _ => access
-          }
-          case TOrg(_) => access match { // a node accessing his org resource
-            case Access.READ => Access.READ_MY_ORG
-            case Access.WRITE => Access.WRITE_MY_ORG
-            case Access.CREATE => Access.CREATE_ORGS
-            case _ => access
-          }
-          case TAction(_) => access // a node running an action
-        }
-      }
-      if (Role.hasAuthorization(Role.NODE, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
+      RequiresAccess(requiredAccess)
     }
 
     def isMsgToMultiTenantAgbot(target: Target, access: Access): Boolean = {
@@ -769,127 +817,131 @@ trait AuthSupport extends Control with ServletApiImplicits {
   }
 
   case class IAgbot(creds: Creds) extends Identity {
-    def authorizeTo(target: Target, access: Access): Identity = {
-      if (hasFrontEndAuthority) return this     // allow whatever it wants to do
+    override lazy val role = AuthRoles.Agbot
+
+    def authorizeTo(target: Target, access: Access): Authorization = {
+      if (hasFrontEndAuthority) return FrontendAuth     // allow whatever it wants to do
       // Transform any generic access into specific access
-      var access2: Access = null
-      if (!isMyOrg(target) && !target.isPublic && !isMultiTenantAgbot) {
-        access2 = access match {
-          case Access.READ => Access.READ_OTHER_ORGS
-          case Access.WRITE => Access.WRITE_OTHER_ORGS
-          case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
-          case _ => access
+      var requiredAccess =
+        if (!isMyOrg(target) && !target.isPublic && !isMultiTenantAgbot) {
+          access match {
+            case Access.READ => Access.READ_OTHER_ORGS
+            case Access.WRITE => Access.WRITE_OTHER_ORGS
+            case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
+            case _ => access
+          }
+        } else { // the target is in the same org as the identity
+          target match {
+            case TUser(id) => access match { // a agbot accessing a user
+              case Access.READ => Access.READ_ALL_USERS
+              case Access.WRITE => Access.WRITE_ALL_USERS
+              case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
+              case _ => access
+            }
+            case TNode(_) => access match { // a agbot accessing a node
+              case Access.READ => Access.READ_ALL_NODES
+              case Access.WRITE => Access.WRITE_ALL_NODES
+              case Access.CREATE => Access.CREATE_NODE
+              case _ => access
+            }
+            case TAgbot(id) => access match { // a agbot accessing a agbot
+              case Access.READ => if (id == creds.id) Access.READ_MYSELF else if (target.mine) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
+              case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (target.mine) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
+              case Access.CREATE => Access.CREATE_AGBOT
+              case _ => access
+            }
+            case TService(_) => access match { // a agbot accessing a service
+              case Access.READ => Access.READ_ALL_SERVICES
+              case Access.WRITE => Access.WRITE_ALL_SERVICES
+              case Access.CREATE => Access.CREATE_SERVICES
+              case _ => access
+            }
+            case TPattern(_) => access match { // a user accessing a pattern
+              case Access.READ => Access.READ_ALL_PATTERNS
+              case Access.WRITE => Access.WRITE_ALL_PATTERNS
+              case Access.CREATE => Access.CREATE_PATTERNS
+              case _ => access
+            }
+            case TOrg(_) => access match { // a agbot accessing his org resource
+              case Access.READ => Access.READ_MY_ORG
+              case Access.WRITE => Access.WRITE_MY_ORG
+              case Access.CREATE => Access.CREATE_ORGS
+              case _ => access
+            }
+            case TAction(_) => access // a agbot running an action
+          }
         }
-      } else { // the target is in the same org as the identity
-        access2 = target match {
-          case TUser(id) => access match { // a agbot accessing a user
-            case Access.READ => Access.READ_ALL_USERS
-            case Access.WRITE => Access.WRITE_ALL_USERS
-            case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
-            case _ => access
-          }
-          case TNode(_) => access match { // a agbot accessing a node
-            case Access.READ => Access.READ_ALL_NODES
-            case Access.WRITE => Access.WRITE_ALL_NODES
-            case Access.CREATE => Access.CREATE_NODE
-            case _ => access
-          }
-          case TAgbot(id) => access match { // a agbot accessing a agbot
-            case Access.READ => if (id == creds.id) Access.READ_MYSELF else if (target.mine) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
-            case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (target.mine) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
-            case Access.CREATE => Access.CREATE_AGBOT
-            case _ => access
-          }
-          case TService(_) => access match { // a agbot accessing a service
-            case Access.READ => Access.READ_ALL_SERVICES
-            case Access.WRITE => Access.WRITE_ALL_SERVICES
-            case Access.CREATE => Access.CREATE_SERVICES
-            case _ => access
-          }
-          case TPattern(_) => access match { // a user accessing a pattern
-            case Access.READ => Access.READ_ALL_PATTERNS
-            case Access.WRITE => Access.WRITE_ALL_PATTERNS
-            case Access.CREATE => Access.CREATE_PATTERNS
-            case _ => access
-          }
-          case TOrg(_) => access match { // a agbot accessing his org resource
-            case Access.READ => Access.READ_MY_ORG
-            case Access.WRITE => Access.WRITE_MY_ORG
-            case Access.CREATE => Access.CREATE_ORGS
-            case _ => access
-          }
-          case TAction(_) => access // a agbot running an action
-        }
-      }
-      if (Role.hasAuthorization(Role.AGBOT, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
+      RequiresAccess(requiredAccess)
     }
 
     override def isMultiTenantAgbot: Boolean = return getOrg == "IBM"    //todo: implement instance-level ACLs instead of hardcoding this
   }
 
   case class IApiKey(creds: Creds) extends Identity {
-    def authorizeTo(target: Target, access: Access): Identity = {
-      if (hasFrontEndAuthority) return this // allow whatever it wants to do
+    def authorizeTo(target: Target, access: Access): Authorization = {
+      if (hasFrontEndAuthority) return FrontendAuth // allow whatever it wants to do
       halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access))) // should not ever get here
     }
   }
 
   case class IAnonymous(creds: Creds) extends Identity {
+    override lazy val role = AuthRoles.Anonymous
+
     override def getOrg = Role.publicOrg
 
-    def authorizeTo(target: Target, access: Access): Identity = {
+    def authorizeTo(target: Target, access: Access): Authorization = {
       // Transform any generic access into specific access
-      var access2: Access = null
-      //todo: This makes anonymous never work, which might be what we want. Decide what to do about it.
-      if (!isMyOrg(target) && !target.isPublic) {
-        access2 = access match {
-          case Access.READ => Access.READ_OTHER_ORGS
-          case Access.WRITE => Access.WRITE_OTHER_ORGS
-          case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
-          case _ => access
+      var requiredAccess =
+        //todo: This makes anonymous never work, which might be what we want. Decide what to do about it.
+        if (!isMyOrg(target) && !target.isPublic) {
+          access match {
+            case Access.READ => Access.READ_OTHER_ORGS
+            case Access.WRITE => Access.WRITE_OTHER_ORGS
+            case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
+            case _ => access
+          }
+        } else { // the target is in the same org as the identity
+          target match {
+            case TUser(id) => access match { // a anonymous accessing a user
+              case Access.READ => Access.READ_ALL_USERS
+              case Access.WRITE => Access.WRITE_ALL_USERS
+              case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
+              case _ => access
+            }
+            case TNode(_) => access match { // a anonymous accessing a node
+              case Access.READ => Access.READ_ALL_NODES
+              case Access.WRITE => Access.WRITE_ALL_NODES
+              case Access.CREATE => Access.CREATE_NODE
+              case _ => access
+            }
+            case TAgbot(_) => access match { // a anonymous accessing a agbot
+              case Access.READ => Access.READ_ALL_AGBOTS
+              case Access.WRITE => Access.WRITE_ALL_AGBOTS
+              case Access.CREATE => Access.CREATE_AGBOT
+              case _ => access
+            }
+            case TService(_) => access match { // a anonymous accessing a service
+              case Access.READ => Access.READ_ALL_SERVICES
+              case Access.WRITE => Access.WRITE_ALL_SERVICES
+              case Access.CREATE => Access.CREATE_SERVICES
+              case _ => access
+            }
+            case TPattern(_) => access match { // a user accessing a pattern
+              case Access.READ => Access.READ_ALL_PATTERNS
+              case Access.WRITE => Access.WRITE_ALL_PATTERNS
+              case Access.CREATE => Access.CREATE_PATTERNS
+              case _ => access
+            }
+            case TOrg(_) => access match { // a anonymous accessing his org resource
+              case Access.READ => Access.READ_MY_ORG
+              case Access.WRITE => Access.WRITE_MY_ORG
+              case Access.CREATE => Access.CREATE_ORGS
+              case _ => access
+            }
+            case TAction(_) => access // a anonymous running an action
+          }
         }
-      } else { // the target is in the same org as the identity
-        access2 = target match {
-          case TUser(id) => access match { // a anonymous accessing a user
-            case Access.READ => Access.READ_ALL_USERS
-            case Access.WRITE => Access.WRITE_ALL_USERS
-            case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
-            case _ => access
-          }
-          case TNode(_) => access match { // a anonymous accessing a node
-            case Access.READ => Access.READ_ALL_NODES
-            case Access.WRITE => Access.WRITE_ALL_NODES
-            case Access.CREATE => Access.CREATE_NODE
-            case _ => access
-          }
-          case TAgbot(_) => access match { // a anonymous accessing a agbot
-            case Access.READ => Access.READ_ALL_AGBOTS
-            case Access.WRITE => Access.WRITE_ALL_AGBOTS
-            case Access.CREATE => Access.CREATE_AGBOT
-            case _ => access
-          }
-          case TService(_) => access match { // a anonymous accessing a service
-            case Access.READ => Access.READ_ALL_SERVICES
-            case Access.WRITE => Access.WRITE_ALL_SERVICES
-            case Access.CREATE => Access.CREATE_SERVICES
-            case _ => access
-          }
-          case TPattern(_) => access match { // a user accessing a pattern
-            case Access.READ => Access.READ_ALL_PATTERNS
-            case Access.WRITE => Access.WRITE_ALL_PATTERNS
-            case Access.CREATE => Access.CREATE_PATTERNS
-            case _ => access
-          }
-          case TOrg(_) => access match { // a anonymous accessing his org resource
-            case Access.READ => Access.READ_MY_ORG
-            case Access.WRITE => Access.WRITE_MY_ORG
-            case Access.CREATE => Access.CREATE_ORGS
-            case _ => access
-          }
-          case TAction(_) => access // a anonymous running an action
-        }
-      }
-      if (Role.hasAuthorization(Role.ANONYMOUS, access2)) return this else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access2)))
+      RequiresAccess(requiredAccess)
     }
   }
 
@@ -953,15 +1005,16 @@ trait AuthenticationSupport extends ScalatraBase with AuthSupport {
    * be used for authorization, or halting the request due to invalid
    * credentials.
    */
-  def authenticate(anonymousOk: Boolean = false, hint: String = ""): Identity = {
+  def authenticate(anonymousOk: Boolean = false, hint: String = ""): AuthenticatedIdentity = {
     val loginCtx = new LoginContext(
       "ExchangeApiLogin",
       new ExchCallbackHandler(RequestInfo(request, params, isDbMigration, anonymousOk, hint))
     )
-    for (failure <- Try(loginCtx.login()).failed) {
+    for (_ <- Try(loginCtx.login()).failed) {
       halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
     }
-    loginCtx.getSubject.getPrivateCredentials(classOf[Identity]).asScala.head
+    val subject = loginCtx.getSubject
+    AuthenticatedIdentity(subject.getPrivateCredentials(classOf[Identity]).asScala.head, subject)
   }
 
   def credsAndLog(anonymousOk: Boolean = false): Identity = {

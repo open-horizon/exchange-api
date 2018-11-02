@@ -1,14 +1,14 @@
-# Adds a workload
+# Adds a pattern
 source `dirname $0`/../../functions.sh POST $*
 
 curl $copts -X POST -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic $EXCHANGE_ORG/$EXCHANGE_USER:$EXCHANGE_PW" -d '{
   "label": "My Pattern", "description": "blah blah", "public": true,
-  "workloads": [
+  "services": [
     {
-      "workloadUrl": "https://bluehorizon.network/workloads/netspeed",
-      "workloadOrgid": "'$EXCHANGE_ORG'",
-      "workloadArch": "amd64",
-      "workloadVersions": [
+      "serviceUrl": "https://bluehorizon.network/services/netspeed",
+      "serviceOrgid": "'$EXCHANGE_ORG'",
+      "serviceArch": "amd64",
+      "serviceVersions": [
         {
           "version": "1.0.0",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",

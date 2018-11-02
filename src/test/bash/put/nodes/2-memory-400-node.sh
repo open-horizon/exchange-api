@@ -4,7 +4,7 @@ source `dirname $0`/../../functions.sh PUT $*
 curl $copts -X PUT -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization:Basic 2:abcdef" -d '{
   "token": "abcdef",
   "name": "rpi2-node",
-  "registeredMicroservices": [
+  "desiredServices": [
     {
       "url": "https://bluehorizon.network/documentation/sdr-node-api",
       "numAgreements": 1,

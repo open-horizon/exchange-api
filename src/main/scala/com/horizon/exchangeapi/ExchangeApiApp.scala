@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory
  *  @param swagger the ExchangeApiSwagger instance, created in ScalatraBootstrap
  */
 class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends ScalatraServlet
-    with FutureSupport with NativeJsonSupport with SwaggerSupport with CorsSupport with AuthenticationSupport with NodesRoutes with AgbotsRoutes with UsersRoutes with AdminRoutes with BlockchainsRoutes with ServiceRoutes with MicroserviceRoutes with WorkloadRoutes with PatternRoutes with OrgRoutes {
+    with FutureSupport with NativeJsonSupport with SwaggerSupport with CorsSupport with AuthenticationSupport with NodesRoutes with AgbotsRoutes with UsersRoutes with AdminRoutes with ServiceRoutes with PatternRoutes with OrgRoutes {
 
   /** Sets up automatic case class to JSON output serialization, required by the JValueResult trait. */
   protected implicit val jsonFormats: Formats = DefaultFormats
@@ -62,11 +62,7 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
   AuthCache.users.init(db)
   AuthCache.nodes.init(db)
   AuthCache.agbots.init(db)
-  AuthCache.bctypes.init(db)
-  AuthCache.blockchains.init(db)
   AuthCache.services.init(db)
-  AuthCache.microservices.init(db)
-  AuthCache.workloads.init(db)
   AuthCache.patterns.init(db)
 
   // All of the route implementations are in traits called *Routes

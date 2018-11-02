@@ -79,42 +79,6 @@ svcDockAuthRegistry='registry.ng.bluemix.net'
 svcDockAuthUsername='iamapikey'
 svcDockAuthToken='abcdefghijk'
 
-microid="bluehorizon.network-microservices-network_1.0.0_amd64"
-microurl="https://bluehorizon.network/microservices/network"
-microarch="amd64"
-microversion="1.0.0"
-
-msKeyId="mykey.pem"
-msKey='-----BEGIN CERTIFICATE-----
-MIII+jCCBOKgAwIBAgIUEfeMrmSFxCUKATcNPcowfs/lU9owDQYJKoZIhvcNAQEL
-BQAwJjEMMAoGA1UEChMDaWJtMRYwFAYDVQQDDA1icEB1cy5pYm0uY29tMB4XDTE4
-MDEwMjAxNDkyMFoXDTIyMDEwMjEzNDgzMFowJjEMMAoGA1UEChMDaWJtMRYwFAYD
-VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
------END CERTIFICATE-----
-'
-
-microid2="bluehorizon.network-microservices-rtlsdr_2.0.0_amd64"
-microurl2="https://bluehorizon.network/microservices/rtlsdr"
-microarch2="amd64"
-microversion2="2.0.0"
-
-workid="bluehorizon.network-workloads-netspeed_1.0.0_amd64"
-workurl="https://bluehorizon.network/workloads/netspeed"
-workarch="amd64"
-workversion="1.0.0"
-
-wkKeyId="mykey2.pem"
-wkKey='-----BEGIN CERTIFICATE-----
-MIII+jCCBOKgAwIBAgIUEfeMrmSFxCUKATcNPcowfs/lU9owDQYJKoZIhvcNAQEL
-BQAwJjEMMAoGA1UEChMDaWJtMRYwFAYDVQQDDA1icEB1cy5pYm0uY29tMB4XDTE4
-MDEwMjAxNDkyMFoXDTIyMDEwMjEzNDgzMFowJjEMMAoGA1UEChMDaWJtMRYwFAYD
-VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
------END CERTIFICATE-----
-'
-
-workid2="bluehorizon.network-workloads-weather_1.0.0_amd64"
-workurl2="https://bluehorizon.network/workloads/weather"
-
 patid="p1"
 patid2="p2"
 
@@ -126,10 +90,6 @@ MDEwMjAxNDkyMFoXDTIyMDEwMjEzNDgzMFowJjEMMAoGA1UEChMDaWJtMRYwFAYD
 VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
 -----END CERTIFICATE-----
 '
-
-bctypeid="bct1"
-
-blockchainid="bc1"
 
 #curlBasicArgs="-s -w %{http_code} --output /dev/null $accept"
 curlBasicArgs="-sS -w %{http_code} $accept"
@@ -304,94 +264,6 @@ else
     echo "orgs/$orgid2/services/$svcid exists"
 fi
 
-rc=$(curlfind $userauth "orgs/$orgid/microservices/$microid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauth "orgs/$orgid/microservices" '{"label": "Network x86_64", "description": "blah blah", "public": true, "specRef": "'$microurl'",
-  "version": "'$microversion'", "arch": "'$microarch'", "sharable": "single", "downloadUrl": "",
-  "matchHardware": {},
-  "userInput": [],
-  "workloads": [] }'
-else
-    echo "orgs/$orgid/microservices/$microid exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/microservices/$microid/keys/$msKeyId")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/microservices/$microid/keys/$msKeyId" "$msKey" "$contenttext"
-else
-    echo "orgs/$orgid/microservices/$microid/keys/$msKeyId exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/microservices/$microid2")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauth "orgs/$orgid/microservices" '{"label": "Network x86_64", "description": "blah blah", "public": true, "specRef": "'$microurl2'",
-  "version": "'$microversion2'", "arch": "'$microarch2'", "sharable": "single", "downloadUrl": "",
-  "matchHardware": {},
-  "userInput": [],
-  "workloads": [] }'
-else
-    echo "orgs/$orgid/microservices/$microid2 exists"
-fi
-
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/microservices/$microid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauthorg2 "orgs/$orgid2/microservices" '{"label": "Network x86_64", "description": "blah blah", "public": false, "specRef": "'$microurl'",
-  "version": "'$microversion'", "arch": "'$microarch'", "sharable": "single", "downloadUrl": "",
-  "matchHardware": {},
-  "userInput": [],
-  "workloads": [] }'
-else
-    echo "orgs/$orgid2/microservices/$microid exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/workloads/$workid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauth "orgs/$orgid/workloads" '{"label": "Netspeed x86_64", "description": "blah blah", "public": true, "workloadUrl": "'$workurl'",
-  "version": "'$workversion'", "arch": "'$workarch'", "downloadUrl": "",
-  "apiSpec": [{ "specRef": "'$microurl'", "org": "'$orgid'", "version": "'$microversion'", "arch": "'$microarch'" }],
-  "userInput": [],
-  "workloads": [] }'
-else
-    echo "orgs/$orgid/workloads/$workid exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/workloads/$workid/keys/$wkKeyId")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/workloads/$workid/keys/$wkKeyId" "$wkKey" "$contenttext"
-else
-    echo "orgs/$orgid/workloads/$workid/keys/$wkKeyId exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/workloads/$workid2")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauth "orgs/$orgid/workloads" '{"label": "Weather x86_64", "description": "blah blah", "public": true, "workloadUrl": "'$workurl2'",
-  "version": "1.0.0", "arch": "amd64", "downloadUrl": "",
-  "apiSpec": [{ "specRef": "'$microurl'", "org": "'$orgid'", "version": "'$microversion'", "arch": "'$microarch'" }],
-  "userInput": [],
-  "workloads": [] }'
-else
-    echo "orgs/$orgid/workloads/$workid2 exists"
-fi
-
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/workloads/$workid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauthorg2 "orgs/$orgid2/workloads" '{"label": "Netspeed x86_64", "description": "blah blah", "public": false, "workloadUrl": "'$workurl'",
-  "version": "'$workversion'", "arch": "'$workarch'", "downloadUrl": "",
-  "apiSpec": [{ "specRef": "'$microurl'", "org": "'$orgid2'", "version": "'$microversion'", "arch": "'$microarch'" }],
-  "userInput": [],
-  "workloads": [] }'
-else
-    echo "orgs/$orgid2/workloads/$workid exists"
-fi
-
 rc=$(curlfind $userauth "orgs/$orgid/patterns/$patid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
@@ -502,7 +374,7 @@ fi
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredMicroservices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
 else
     echo "orgs/$orgid2/nodes/$nodeid exists"
 fi
@@ -510,7 +382,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/status")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/status" '{ "connectivity": {"firmware.bluehorizon.network": true}, "microservices": [], "workloads": [] }'
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/status" '{ "connectivity": {"firmware.bluehorizon.network": true}, "services": [] }'
 else
     echo "orgs/$orgid/nodes/$nodeid/status exists"
 fi
@@ -583,7 +455,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid1")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $agbotauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid1" '{"workload": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$workurl'"}, "state": "negotiating"}'
+    curlcreate "PUT" $agbotauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid1" '{"service": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$svcurl'"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid/agbots/$agbotid/agreements/$agreementid1 exists"
 fi
@@ -591,21 +463,5 @@ fi
 # Do not have a good way to know what msg id they will have, but it is ok to create additional msgs
 curlputpost "POST" $agbotauth "orgs/$orgid/nodes/$nodeid/msgs" '{"message": "hey there", "ttl": 300}'
 curlputpost "POST" $nodeauth "orgs/$orgid/agbots/$agbotid/msgs" '{"message": "hey there", "ttl": 300}'
-
-rc=$(curlfind $userauth "orgs/$orgid/bctypes/$bctypeid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/bctypes/$bctypeid" '{"description": "abc", "details": "escaped json"}'
-else
-    echo "orgs/$orgid/bctypes/$bctypeid exists"
-fi
-
-rc=$(curlfind $userauth "orgs/$orgid/bctypes/$bctypeid/blockchains/$blockchainid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/bctypes/$bctypeid/blockchains/$blockchainid" '{"description": "abc", "public": true, "details": "escaped json"}'
-else
-    echo "orgs/$orgid/bctypes/$bctypeid/blockchains/$blockchainid exists"
-fi
 
 echo "All resources added successfully"

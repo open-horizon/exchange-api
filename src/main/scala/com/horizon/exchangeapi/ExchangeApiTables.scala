@@ -21,10 +21,10 @@ object ExchangeApiTables {
   // Create all of the current version's tables - used in /admin/initdb
   val initDB = DBIO.seq((
     SchemaTQ.rows.schema ++ OrgsTQ.rows.schema ++ UsersTQ.rows.schema
-      ++ NodesTQ.rows.schema ++ RegMicroservicesTQ.rows.schema ++ PropsTQ.rows.schema ++ NodeAgreementsTQ.rows.schema ++ NodeStatusTQ.rows.schema
+      ++ NodesTQ.rows.schema ++ NodeAgreementsTQ.rows.schema ++ NodeStatusTQ.rows.schema
       ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ AgbotPatternsTQ.rows.schema
       ++ NodeMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema
-      ++ BctypesTQ.rows.schema ++ BlockchainsTQ.rows.schema ++ ServicesTQ.rows.schema ++ ServiceKeysTQ.rows.schema ++ ServiceDockAuthsTQ.rows.schema ++ MicroservicesTQ.rows.schema ++ MicroserviceKeysTQ.rows.schema ++ WorkloadsTQ.rows.schema ++ WorkloadKeysTQ.rows.schema ++ PatternsTQ.rows.schema ++ PatternKeysTQ.rows.schema
+      ++ ServicesTQ.rows.schema ++ ServiceKeysTQ.rows.schema ++ ServiceDockAuthsTQ.rows.schema ++ PatternsTQ.rows.schema ++ PatternKeysTQ.rows.schema
     ).create,
     SchemaTQ.getSetVersionAction)
 
@@ -40,17 +40,15 @@ object ExchangeApiTables {
   // Note: doing this with raw sql stmts because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints (only adding), we should be ok with the drops below?
   //val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
   val dropDB = DBIO.seq(
-    sqlu"drop table if exists patternkeys", sqlu"drop table if exists patterns", sqlu"drop table if exists servicedockauths", sqlu"drop table if exists servicekeys", sqlu"drop table if exists services", sqlu"drop table if exists workloadkeys", sqlu"drop table if exists workloads", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes",  // no table depends on these
-    sqlu"drop table if exists mmicroservices",       // from older schema
-    sqlu"drop table if exists devmsgs",   // from older schema
+    sqlu"drop table if exists patternkeys", sqlu"drop table if exists patterns", sqlu"drop table if exists servicedockauths", sqlu"drop table if exists servicekeys", sqlu"drop table if exists services",   // no table depends on these
     sqlu"drop table if exists nodemsgs", sqlu"drop table if exists agbotmsgs",     // these depend on both nodes and agbots
     sqlu"drop table if exists agbotpatterns", sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots",
-    sqlu"drop table if exists devagreements",   // from older schema
     sqlu"drop table if exists nodeagreements", sqlu"drop table if exists nodestatus",
     sqlu"drop table if exists properties",
-    sqlu"drop table if exists microservicekeys", sqlu"drop table if exists microservices", sqlu"drop table if exists devmicros", sqlu"drop table if exists devices",   // from older schema
     sqlu"drop table if exists nodemicros", sqlu"drop table if exists nodes",
-    sqlu"drop table if exists users", sqlu"drop table if exists orgs", sqlu"drop table if exists schema"
+    sqlu"drop table if exists users", sqlu"drop table if exists orgs", sqlu"drop table if exists schema",
+    // these are no longer used, but here just in case they are still hanging around
+    sqlu"drop table if exists microservicekeys", sqlu"drop table if exists microservices", sqlu"drop table if exists workloadkeys", sqlu"drop table if exists workloads", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes"
   )
 
   // Delete the previous version's tables - used to be used by /admin/migratedb
@@ -115,16 +113,6 @@ object ExchangeApiTables {
       val filename = dumpDir+"/nodes"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[NodeRow](filename).dump(xs)
-      RegMicroservicesTQ.rows.result
-    }).flatMap({ xs =>
-      val filename = dumpDir+"/nodemicros"+dumpSuffix
-      logger.info("dumping "+xs.size+" rows to "+filename)
-      new TableIo[RegMicroserviceRow](filename).dump(xs)
-      PropsTQ.rows.result
-    }).flatMap({ xs =>
-      val filename = dumpDir+"/properties"+dumpSuffix
-      logger.info("dumping "+xs.size+" rows to "+filename)
-      new TableIo[PropRow](filename).dump(xs)
       NodeAgreementsTQ.rows.result
     }).flatMap({ xs =>
       val filename = dumpDir+"/nodeagreements"+dumpSuffix
@@ -150,16 +138,6 @@ object ExchangeApiTables {
       val filename = dumpDir+"/agbotmsgs"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[AgbotMsgRow](filename).dump(xs)
-      BctypesTQ.rows.result
-    }).flatMap({ xs =>
-      val filename = dumpDir+"/bctypes"+dumpSuffix
-      logger.info("dumping "+xs.size+" rows to "+filename)
-      new TableIo[BctypeRow](filename).dump(xs)
-      BlockchainsTQ.rows.result
-    }).flatMap({ xs =>
-      val filename = dumpDir+"/blockchains"+dumpSuffix
-      logger.info("dumping "+xs.size+" rows to "+filename)
-      new TableIo[BlockchainRow](filename).dump(xs)
       ServicesTQ.rows.result
     }).flatMap({ xs =>
       val filename = dumpDir+"/services"+dumpSuffix
@@ -175,26 +153,6 @@ object ExchangeApiTables {
       val filename = dumpDir+"/servicedockauths"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[ServiceDockAuthRow](filename).dump(xs)
-      MicroservicesTQ.rows.result
-    }).flatMap({ xs =>
-      val filename = dumpDir+"/microservices"+dumpSuffix
-      logger.info("dumping "+xs.size+" rows to "+filename)
-      new TableIo[MicroserviceRow](filename).dump(xs)
-      MicroserviceKeysTQ.rows.result
-    }).flatMap({ xs =>
-      val filename = dumpDir+"/microservicekeys"+dumpSuffix
-      logger.info("dumping "+xs.size+" rows to "+filename)
-      new TableIo[MicroserviceKeyRow](filename).dump(xs)
-      WorkloadsTQ.rows.result
-    }).flatMap({ xs =>
-      val filename = dumpDir+"/workloads"+dumpSuffix
-      logger.info("dumping "+xs.size+" rows to "+filename)
-      new TableIo[WorkloadRow](filename).dump(xs)
-      WorkloadKeysTQ.rows.result
-    }).flatMap({ xs =>
-      val filename = dumpDir+"/workloadkeys"+dumpSuffix
-      logger.info("dumping "+xs.size+" rows to "+filename)
-      new TableIo[WorkloadKeyRow](filename).dump(xs)
       PatternsTQ.rows.result
     }).flatMap({ xs =>
       val filename = dumpDir+"/patterns"+dumpSuffix
@@ -255,12 +213,6 @@ object ExchangeApiTables {
     val nodes = new TableIo[NodeRow](dumpDir+"/nodes"+dumpSuffix).load
     if (nodes.nonEmpty) actions += (NodesTQ.rows ++= nodes)
 
-    val nodemicros = new TableIo[RegMicroserviceRow](dumpDir+"/nodemicros"+dumpSuffix).load
-    if (nodemicros.nonEmpty) actions += (RegMicroservicesTQ.rows ++= nodemicros)
-
-    val properties = new TableIo[PropRow](dumpDir+"/properties"+dumpSuffix).load
-    if (properties.nonEmpty) actions += (PropsTQ.rows ++= properties)
-
     val nodeagreements = new TableIo[NodeAgreementRow](dumpDir+"/nodeagreements"+dumpSuffix).load
     if (nodeagreements.nonEmpty) actions += (NodeAgreementsTQ.rows ++= nodeagreements)
 
@@ -276,12 +228,6 @@ object ExchangeApiTables {
     val agbotmsgs = new TableIo[AgbotMsgRow](dumpDir+"/agbotmsgs"+dumpSuffix).load
     if (agbotmsgs.nonEmpty) actions += (AgbotMsgsTQ.rows ++= agbotmsgs)
 
-    val bctypes = new TableIo[BctypeRow](dumpDir+"/bctypes"+dumpSuffix).load
-    if (bctypes.nonEmpty) actions += (BctypesTQ.rows ++= bctypes)
-
-    val blockchains = new TableIo[BlockchainRow](dumpDir+"/blockchains"+dumpSuffix).load
-    if (blockchains.nonEmpty) actions += (BlockchainsTQ.rows ++= blockchains)
-
     val services = new TableIo[ServiceRow](dumpDir+"/services"+dumpSuffix).load
     if (services.nonEmpty) actions += (ServicesTQ.rows ++= services)
 
@@ -290,18 +236,6 @@ object ExchangeApiTables {
 
     val servicedockauths = new TableIo[ServiceDockAuthRow](dumpDir+"/servicedockauths"+dumpSuffix).load
     if (servicedockauths.nonEmpty) actions += (ServiceDockAuthsTQ.rows ++= servicedockauths)
-
-    val microservices = new TableIo[MicroserviceRow](dumpDir+"/microservices"+dumpSuffix).load
-    if (microservices.nonEmpty) actions += (MicroservicesTQ.rows ++= microservices)
-
-    val microservicekeys = new TableIo[MicroserviceKeyRow](dumpDir+"/microservicekeys"+dumpSuffix).load
-    if (microservicekeys.nonEmpty) actions += (MicroserviceKeysTQ.rows ++= microservicekeys)
-
-    val workloads = new TableIo[WorkloadRow](dumpDir+"/workloads"+dumpSuffix).load
-    if (workloads.nonEmpty) actions += (WorkloadsTQ.rows ++= workloads)
-
-    val workloadkeys = new TableIo[WorkloadKeyRow](dumpDir+"/workloadkeys"+dumpSuffix).load
-    if (workloadkeys.nonEmpty) actions += (WorkloadKeysTQ.rows ++= workloadkeys)
 
     val patterns = new TableIo[PatternRow](dumpDir+"/patterns"+dumpSuffix).load
     if (patterns.nonEmpty) actions += (PatternsTQ.rows ++= patterns)

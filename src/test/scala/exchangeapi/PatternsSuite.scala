@@ -52,10 +52,6 @@ class PatternsSuite extends FunSuite {
   val agbotId = "9948"
   val agbotToken = agbotId+"tok"
   val AGBOTAUTH = ("Authorization","Basic "+authpref+agbotId+":"+agbotToken)
-  //val workid = "bluehorizon.network-workloads-netspeed_1.0.0_amd64"
-  val workurl = "https://bluehorizon.network/workloads/netspeed"
-  val workarch = "amd64"
-  val workversion = "1.0.0"
   val svcurl = "https://bluehorizon.network/services/netspeed"
   val svcarch = "amd64"
   val svcversion = "1.0.0"
@@ -114,7 +110,7 @@ class PatternsSuite extends FunSuite {
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
-    val devInput = PutNodesRequest(nodeToken, "bc dev test", "", None, Some(List(RegService("foo", 1, "{}", List(
+    val devInput = PutNodesRequest(nodeToken, "bc dev test", "", Some(List(RegService("foo", 1, "{}", List(
       Prop("arch", "arm", "string", "in"),
       Prop("version", "2.0.0", "version", "in"),
       Prop("blockchainProtocols", "agProto", "list", "in"))))), "whisper-id", Map(), "NODEABC")
@@ -129,20 +125,13 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" before service exists - should fail") {
-    val input = PostPutPatternRequest(ptBase, None, None, None,
-      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ))),
+    val input = PostPutPatternRequest(ptBase, None, None,
+      List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
-  }
-
-  test("Add workload for future tests") {
-    val workInput = PostPutWorkloadRequest("test-workload", "desc", public = false, workurl, workversion, workarch, None, List(), List(Map("name" -> "foo")), List(MDockerImages("{\"services\":{}}","a","a")))
-    val workResponse = Http(URL+"/workloads").postData(write(workInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+workResponse.code+", response.body: "+workResponse.body)
-    assert(workResponse.code === HttpCode.POST_OK)
   }
 
   test("Add service for future tests") {
@@ -153,8 +142,8 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update pattern that is not there yet - should fail") {
-    val input = PostPutPatternRequest("Bad Pattern", None, None, None,
-      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ))),
+    val input = PostPutPatternRequest("Bad Pattern", None, None,
+      List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -163,8 +152,8 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" that is not signed - should fail") {
-    val input = PostPutPatternRequest(ptBase, None, None, None,
-      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, Some("{\"services\":{}}"), None, None, None)), None, None ))),
+    val input = PostPutPatternRequest(ptBase, None, None,
+      List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, Some("{\"services\":{}}"), None, None, None)), None, None )),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -173,8 +162,8 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as user") {
-    val input = PostPutPatternRequest(ptBase, Some("desc"), Some(true), None,
-      Some(List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) ))),
+    val input = PostPutPatternRequest(ptBase, Some("desc"), Some(true),
+      List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -185,8 +174,8 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" again - should fail") {
-    val input = PostPutPatternRequest("Bad Pattern", None, None, None,
-      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ))),
+    val input = PostPutPatternRequest("Bad Pattern", None, None,
+      List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -195,8 +184,8 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as same user, w/o dataVerification or nodeHealth fields") {
-    val input = PostPutPatternRequest(ptBase+" amd64", None, None, Some(List()),   // <- specify empty workloads field to make sure it is allowed
-      Some(List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None ))),
+    val input = PostPutPatternRequest(ptBase+" amd64", None, None,
+      List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -205,8 +194,8 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as 2nd user - should fail") {
-    val input = PostPutPatternRequest("Bad Pattern", Some("desc"), None, None,
-      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ))),
+    val input = PostPutPatternRequest("Bad Pattern", Some("desc"), None,
+      List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
@@ -215,8 +204,8 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as agbot - should fail") {
-    val input = PostPutPatternRequest("Bad Pattern", None, None, None,
-      Some(List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ))),
+    val input = PostPutPatternRequest("Bad Pattern", None, None,
+      List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -235,8 +224,8 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as node - should fail") {
     val input = PostPutPatternRequest("Bad Pattern2", None, None,
-      Some(List( PWorkloads(workurl, orgid, workarch, List(PServiceVersions(workversion, None, None, None, None)), None, None ))),
-      None, None
+      List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
+      None
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -245,8 +234,8 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as 2nd user") {
     val input = PostPutPatternRequest(ptBase2+" amd64", None, Some(true),
-      Some(List( PWorkloads(workurl, orgid, workarch, List(PServiceVersions(workversion, None, None, None, None)), None, None ))),
-      Some(List()), None
+      List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
+      None
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

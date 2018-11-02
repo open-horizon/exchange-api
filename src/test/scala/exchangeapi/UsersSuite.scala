@@ -1,7 +1,7 @@
 package exchangeapi
 
 //import com.horizon.exchangeapi.tables.APattern
-import com.horizon.exchangeapi.tables.PWorkloads
+import com.horizon.exchangeapi.tables.PServices
 import org.scalatest.FunSuite
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
@@ -58,9 +58,6 @@ class UsersSuite extends FunSuite {
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
   val CONNTIMEOUT = HttpOptions.connTimeout(20000)
   val READTIMEOUT = HttpOptions.readTimeout(20000)
-  val msBase = "ms"
-  val msUrl = "http://" + msBase
-  val microservice = msBase + "_1.0.0_arm"
   val svcBase = "svc"
   val svcurl = "http://" + svcBase
   val svcarch = "arm"
@@ -491,53 +488,6 @@ class UsersSuite extends FunSuite {
   }
 
 
-  test("POST /orgs/"+orgid+"/microservices - add "+microservice+" as not public in 1st org") {
-    val input = PostPutMicroserviceRequest(msBase+" arm", "desc", public = false, msUrl, "1.0.0", "arm", "single", None, None, List(), List())
-    val response = Http(URL+"/microservices").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-  }
-
-  test("GET /orgs/"+orgid+"/microservices - as org2 user - should find no public microservices") {
-    val response: HttpResponse[String] = Http(URL + "/microservices").headers(ACCEPT).headers(ORG2USERAUTH).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND)
-  }
-
-  test("GET /orgs/"+orgid+"/microservices/"+microservice+" - as org2 user - should fail") {
-    val response: HttpResponse[String] = Http(URL + "/microservices/" + microservice).headers(ACCEPT).headers(ORG2USERAUTH).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
-  }
-
-  test("PATCH /orgs/"+orgid+"/microservices/"+microservice+" - to make it public") {
-    val jsonInput = """{ "public": true }"""
-    val response = Http(URL+"/microservices/"+microservice).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
-  }
-
-  test("GET /orgs/"+orgid+"/microservices - as org2 user - this time it should find 1") {
-    val response: HttpResponse[String] = Http(URL + "/microservices").headers(ACCEPT).headers(ORG2USERAUTH).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
-    val respObj = parse(response.body).extract[GetMicroservicesResponse]
-    assert(respObj.microservices.size === 1)
-  }
-
-  test("GET /orgs/"+orgid+"/microservices/"+microservice+" - as org2 user - this time it should work") {
-    val response: HttpResponse[String] = Http(URL + "/microservices/" + microservice).headers(ACCEPT).headers(ORG2USERAUTH).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
-    val respObj = parse(response.body).extract[GetMicroservicesResponse]
-    assert(respObj.microservices.size === 1)
-  }
-
-
   test("POST /orgs/"+orgid+"/services - add "+service+" as not public in 1st org") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -586,7 +536,7 @@ class UsersSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as not public in 1st org") {
-    val input = PostPutPatternRequest("Pattern", None, None, Some(List(PWorkloads("a", "a", "a", List(), None, None))), None, None )
+    val input = PostPutPatternRequest("Pattern", None, None, List(PServices("a", "a", "a", None, List(), None, None)), None )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

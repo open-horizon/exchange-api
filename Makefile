@@ -61,7 +61,7 @@ docker: .docker-exec
 #  - the create because the network already exists because of the build step
 .docker-network:
 	-docker network remove $(DOCKER_NETWORK) 2> /dev/null || :
-	-docker network create $(DOCKER_NETWORK)
+	docker network create $(DOCKER_NETWORK)
 	@touch $@
 
 # Using dot files to hold the modification time the docker image and container were built
@@ -72,7 +72,7 @@ docker: .docker-exec
 	@touch $@
 
 .docker-compile: $(wildcard src/main/scala/com/horizon/exchangeapi/*) $(wildcard src/main/resources/*) .docker-bld
-	docker exec -t $(DOCKER_NAME)_bld /bin/bash -c "cd $(EXCHANGE_API_DIR) && ./sbt package"
+	docker exec -t $(DOCKER_NAME)_bld /bin/bash -c "cd $(EXCHANGE_API_DIR) && sbt package"
 	# war file ends up in: ./target/scala-$SCALA_VERSION_SHORT/exchange-api_$SCALA_VERSION_SHORT-$EXCHANGE_API_WAR_VERSION.war
 	@touch $@
 
@@ -90,10 +90,9 @@ docker: .docker-exec
 	@touch $@
 
 # Run the automated tests in the bld container against the exchange svr running in the exec container
-test:
-docker-test: .docker-bld
+test: .docker-bld
 	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
-	docker exec -t -e EXCHANGE_URL_ROOT=http://$(DOCKER_NAME):8080 -e "EXCHANGE_ROOTPW=$$EXCHANGE_ROOTPW" $(DOCKER_NAME)_bld /bin/bash -c 'cd $(EXCHANGE_API_DIR) && ./sbt test'
+	docker exec -t -e EXCHANGE_URL_ROOT=http://$(DOCKER_NAME):8080 -e "EXCHANGE_ROOTPW=$$EXCHANGE_ROOTPW" $(DOCKER_NAME)_bld /bin/bash -c 'cd $(EXCHANGE_API_DIR) && sbt test'
 
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:
@@ -132,4 +131,4 @@ version:
 
 .SECONDARY:
 
-.PHONY: default clean clean-exec-image clean-all docker docker-test docker-push-only docker-push sync-swagger-ui testmake
+.PHONY: default clean clean-exec-image clean-all docker test docker-push-only docker-push-version-only docker-push docker-push-to-prod sync-swagger-ui testmake version

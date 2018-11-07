@@ -6,7 +6,7 @@ The exchange service also provides a few key services for BH for areas in which 
 do not scale well enough yet. As soon as the decentralized tools are sufficient, they will replace these
 services in the exchange.
 
-## Preconditions
+## Preconditions for Local Development
 
 - [Install scala](http://www.scala-lang.org/download/install.html)
 - [Install sbt](https://www.scala-sbt.org/1.x/docs/Setup.html)
@@ -43,14 +43,19 @@ services in the exchange.
 }
 ```
 
-## Building in Local Sandbox
+- Set the same exchange root password in your shell environment, for example:
+```
+export EXCHANGE_ROOTPW=myrootpw
+```
+
+## Building and Running in Local Sandbox
 
 - `sbt`
 - `jetty:start`
 - Or to have the server restart automatically when code changes: `~;jetty:stop;jetty:start`
 - Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/nodes?id=a&token=b](http://localhost:8080/v1/orgs/IBM/nodes?id=a&token=b)
 - To see the swagger output, browse: [http://localhost:8080/api](http://localhost:8080/api)
-- Run the automated tests (with the exchange server still running): `sbt test`
+- Run the automated tests in a second shell (with the exchange server still running in the first): `sbt test`
 - Run just 1 of the the automated test suites (with the exchange server still running): `sbt "testOnly exchangeapi.AgbotsSuite"`
 - Run the performance tests: `src/test/bash/scale/test.sh` or `src/test/bash/scale/wrapper.sh 8`
 
@@ -59,33 +64,38 @@ services in the exchange.
 - Update the version in `src/main/resources.version.txt`
 - To build the build container, compile your local code, build the exchange container, and run it, run: `make` . Or you can do the individual steps:
     - Build the build container: `make .docker-bld`
-    - Build the code from your local exchange repo in the build container: `make docker-compile`
+    - Build the code from your local exchange repo in the build container: `make .docker-compile`
     - Build the exchange api container and run it locally: `make .docker-exec-run`
 - Manually test container locally: `curl -sS -w %{http_code} http://localhost:8080/v1/admin/version`
     - Note: the container can not access a postgres db running locally on the docker host if the db is only listening for unix domain sockets or 127.0.0.1.
 - Run the automated tests: `sbt test`
-- Push container to our docker registry: `make docker-push-only`
+- Push container to the docker hub registry: `make docker-push-only`
 - Deploy the new container to a docker host
     - Ensure that no changes are needed to the /etc/horizon/exchange/config.json file
 - Test the new container : `curl -sS -w %{http_code} https://<exchange-host>/v1/admin/version`
-- To see the swagger info from the container: `https://<exchange-host>/api`
+- To see the swagger info from the container: `https://<exchange-host-and-port>/api`
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or might also go to `/var/log/syslog` depending on the docker and syslog configuration.
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
 
-### Todos left to be finished in subsequent versions
+### Todos that may be done in future versions
 
-* investigate: WARN  slick.util.AsyncExecutor - Having maxConnection > maxThreads can result in deadlocks if transactions or database locks are used.
 - Add ability to change owner of node
 - Add patch capability for node registered services
 - Add an unauthenticated admin status rest api
-- Change local automated tests in Makefile to be more consistent with travis ci
 - Consider:
-    - Add optional param in POST pattern to automatically add it to agbots
-    - detect if pattern contains 2 workloads that depend on the same exclusive MS
-    - detect if a pattern is updated with ms/wk that has userInput w/o default values, and give warning
-    - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same workload.
+    - detect if pattern contains 2 services that depend on the same exclusive MS
+    - detect if a pattern is updated with service that has userInput w/o default values, and give warning
+    - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 1.63.0
+
+- Fixed swagger
+- Cleaned up README.md
+- Improved error in `POST pattern` when reference service does not exist to output service org, url, arch, version range
+- Added optional `documentation` field to service resource
+- Added new `resource` definition that can be required by services to hold things like models
 
 ## Changes in 1.62.0
 

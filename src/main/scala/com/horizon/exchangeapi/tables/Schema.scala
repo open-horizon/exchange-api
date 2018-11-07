@@ -85,12 +85,15 @@ object SchemaTQ {
         sqlu"drop table if exists microservicekeys", sqlu"drop table if exists microservices",
         sqlu"drop table if exists workloadkeys", sqlu"drop table if exists workloads",
         sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes"
-    )
+      )
+      case 13 => DBIO.seq(   // v1.63.0
+        sqlu"alter table services add column documentation character varying not null default ''"
+      )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 12     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
-  val latestSchemaDescription = "Removed microservice, workload, and blockchain tables and columns"
+  val latestSchemaVersion = 13     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
+  val latestSchemaDescription = "Added dcoumentation column to services table, and add resources table"
 
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

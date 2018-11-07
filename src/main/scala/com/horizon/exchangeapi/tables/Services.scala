@@ -10,11 +10,11 @@ import slick.jdbc.PostgresProfile.api._
 case class ServiceRef(url: String, org: String, version: String, arch: String)
 
 // This is the service table minus the key - used as the data structure to return to the REST clients
-class Service(var owner: String, var label: String, var description: String, var public: Boolean, var url: String, var version: String, var arch: String, var sharable: String, var matchHardware: Map[String,Any], var requiredServices: List[ServiceRef], var userInput: List[Map[String,String]], var deployment: String, var deploymentSignature: String, var imageStore: Map[String,Any], var lastUpdated: String) {
-  def copy = new Service(owner, label, description, public, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, imageStore, lastUpdated)
+class Service(var owner: String, var label: String, var description: String, var public: Boolean, var documentation: String, var url: String, var version: String, var arch: String, var sharable: String, var matchHardware: Map[String,Any], var requiredServices: List[ServiceRef], var userInput: List[Map[String,String]], var deployment: String, var deploymentSignature: String, var imageStore: Map[String,Any], var lastUpdated: String) {
+  def copy = new Service(owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, imageStore, lastUpdated)
 }
 
-case class ServiceRow(service: String, orgid: String, owner: String, label: String, description: String, public: Boolean, url: String, version: String, arch: String, sharable: String, matchHardware: String, requiredServices: String, userInput: String, deployment: String, deploymentSignature: String, imageStore: String, lastUpdated: String) {
+case class ServiceRow(service: String, orgid: String, owner: String, label: String, description: String, public: Boolean, documentation: String, url: String, version: String, arch: String, sharable: String, matchHardware: String, requiredServices: String, userInput: String, deployment: String, deploymentSignature: String, imageStore: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toService: Service = {
@@ -22,7 +22,7 @@ case class ServiceRow(service: String, orgid: String, owner: String, label: Stri
     val rs = if (requiredServices != "") read[List[ServiceRef]](requiredServices) else List[ServiceRef]()
     val input = if (userInput != "") read[List[Map[String,String]]](userInput) else List[Map[String,String]]()
     val p = if (imageStore != "") read[Map[String,Any]](imageStore) else Map[String,Any]()
-    new Service(owner, label, description, public, url, version, arch, sharable, mh, rs, input, deployment, deploymentSignature, p, lastUpdated)
+    new Service(owner, label, description, public, documentation, url, version, arch, sharable, mh, rs, input, deployment, deploymentSignature, p, lastUpdated)
   }
 
   // update returns a DB action to update this row
@@ -40,6 +40,7 @@ class Services(tag: Tag) extends Table[ServiceRow](tag, "services") {
   def label = column[String]("label")
   def description = column[String]("description")
   def public = column[Boolean]("public")
+  def documentation = column[String]("documentation")
   def url = column[String]("serviceurl")
   def version = column[String]("version")
   def arch = column[String]("arch")
@@ -52,7 +53,7 @@ class Services(tag: Tag) extends Table[ServiceRow](tag, "services") {
   def imageStore = column[String]("imagestore")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (service, orgid, owner, label, description, public, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, imageStore, lastUpdated) <> (ServiceRow.tupled, ServiceRow.unapply)
+  def * = (service, orgid, owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, imageStore, lastUpdated) <> (ServiceRow.tupled, ServiceRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -75,6 +76,7 @@ object ServicesTQ {
   def getLabel(service: String) = rows.filter(_.service === service).map(_.label)
   def getDescription(service: String) = rows.filter(_.service === service).map(_.description)
   def getPublic(service: String) = rows.filter(_.service === service).map(_.public)
+  def getDocumentation(service: String) = rows.filter(_.service === service).map(_.documentation)
   def getUrl(service: String) = rows.filter(_.service === service).map(_.url)
   def getVersion(service: String) = rows.filter(_.service === service).map(_.version)
   def getArch(service: String) = rows.filter(_.service === service).map(_.arch)
@@ -96,6 +98,7 @@ object ServicesTQ {
       case "label" => filter.map(_.label)
       case "description" => filter.map(_.description)
       case "public" => filter.map(_.public)
+      case "documentation" => filter.map(_.documentation)
       case "url" => filter.map(_.url)
       case "version" => filter.map(_.version)
       case "arch" => filter.map(_.arch)

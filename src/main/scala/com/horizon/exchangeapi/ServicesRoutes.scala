@@ -2,6 +2,7 @@
 package com.horizon.exchangeapi
 
 import com.horizon.exchangeapi.tables._
+import java.net.{MalformedURLException, URL}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
@@ -29,12 +30,14 @@ object SharableVals extends Enumeration {
 }
 
 /** Input format for POST /orgs/{orgid}/services or PUT /orgs/{orgid}/services/<service-id> */
-case class PostPutServiceRequest(label: String, description: Option[String], public: Boolean, url: String, version: String, arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: String, deploymentSignature: String, imageStore: Option[Map[String,Any]]) {
+case class PostPutServiceRequest(label: String, description: Option[String], public: Boolean, documentation: Option[String], url: String, version: String, arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: String, deploymentSignature: String, imageStore: Option[Map[String,Any]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(orgid: String, serviceId: String) = {
-    // Currently we do not want to force that the url is a valid URL
-    //try { new URL(url) }
-    //catch { case _: MalformedURLException => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "url is not valid URL format.")) }
+    // Ensure that the documentation field is a valid URL
+    if (documentation.getOrElse("") != "") {
+      try { new URL(documentation.getOrElse("")) }
+      catch { case _: MalformedURLException => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the 'documentation' field is not valid URL format.")) }
+    }
 
     if (!Version(version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '"+version+"' is not valid version format."))
     if (arch == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "arch can not be empty."))
@@ -67,10 +70,10 @@ case class PostPutServiceRequest(label: String, description: Option[String], pub
 
   def formId(orgid: String) = ServicesTQ.formId(orgid, url, version, arch)
 
-  def toServiceRow(service: String, orgid: String, owner: String) = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment, deploymentSignature, write(imageStore), ApiTime.nowUTC)
+  def toServiceRow(service: String, orgid: String, owner: String) = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, documentation.getOrElse(""), url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment, deploymentSignature, write(imageStore), ApiTime.nowUTC)
 }
 
-case class PatchServiceRequest(label: Option[String], description: Option[String], public: Option[Boolean], url: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
+case class PatchServiceRequest(label: Option[String], description: Option[String], public: Option[Boolean], documentation: Option[String], url: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the service, and the attribute name being updated. */
@@ -80,6 +83,7 @@ case class PatchServiceRequest(label: Option[String], description: Option[String
     label match { case Some(lab) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.label,d.lastUpdated)).update((service, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.description,d.lastUpdated)).update((service, desc, lastUpdated)), "description"); case _ => ; }
     public match { case Some(pub) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.public,d.lastUpdated)).update((service, pub, lastUpdated)), "public"); case _ => ; }
+    documentation match { case Some(doc) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.documentation,d.lastUpdated)).update((service, doc, lastUpdated)), "documentation"); case _ => ; }
     url match { case Some(u) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.url,d.lastUpdated)).update((service, u, lastUpdated)), "url"); case _ => ; }
     version match { case Some(ver) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.version,d.lastUpdated)).update((service, ver, lastUpdated)), "version"); case _ => ; }
     arch match { case Some(ar) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.arch,d.lastUpdated)).update((service, ar, lastUpdated)), "arch"); case _ => ; }
@@ -232,11 +236,11 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "label": "Location for amd64",     // this will be displayed in the node registration UI
   "description": "blah blah",
   "public": true,       // whether or not it can be viewed by other organizations
-  "url": "https://bluehorizon.network/services/location",   // the unique identifier of this service
+  "documentation": "https://console.cloud.ibm.com/docs/services/edge-fabric/poc/sdr.html",   // description of what this service does and how to use it
+  "url": "github.com.open-horizon.examples.sdr2msghub",   // the unique identifier of this service
   "version": "1.0.0",
   "arch": "amd64",
   "sharable": "single",   // if multiple services require this service, how many instances are deployed: "exclusive", "single", "multiple"
-  "matchHardware": {},    // reserved for future use, can be omitted (will be hints to the node about how to tell if it has the physical sensors required by this service)
   // The other services this service requires. (The other services must exist in the exchange before creating this service.)
   "requiredServices": [
     {
@@ -351,7 +355,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val putServices =
     (apiOperation[ApiResponse]("putServices")
       summary "Updates a service"
-      description """Does a full replace of an existing service. This can only be called by the user that originally created it."""
+      description """Does a full replace of an existing service. See the description of the body fields in the POST method. This can only be called by the user that originally created it."""
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
@@ -436,7 +440,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[PatchServiceRequest],
-          Option[String]("Partial service object that contains 1 attribute to be updated in this service. See details in the Implementation Notes above."),
+          Option[String]("Partial service object that contains 1 attribute to be updated in this service."),
           paramType = ParamType.Body)
         )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))

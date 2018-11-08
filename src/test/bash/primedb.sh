@@ -229,10 +229,10 @@ if [[ $rc != 200 ]]; then
   "version": "'$svc2version'", "arch": "'$svc2arch'", "sharable": "single",
   "requiredServices": [
     {
-      "url": "https://bluehorizon.network/services/gps",
-      "org": "IBM",
+      "url": "'$svcurl'",
+      "org": "'$orgid'",
       "version": "[1.0.0,INFINITY)",
-      "arch": "amd64"
+      "arch": "'$svcarch'"
     }
   ],
   "userInput": [

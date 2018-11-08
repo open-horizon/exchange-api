@@ -262,7 +262,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   // Information about how to deploy the docker images for this service
   "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
   "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
-  "imageStore": {
+  "imageStore": {      // can be omitted
     // There could be several different package reference schemes so the schema will be left open. However, the storeType must be set for all cases to discriminate the type of storage being used.
     "storeType": "dockerRegistry" // imageServer and dockerRegistry are the only supported values right now
   }
@@ -303,6 +303,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("POST /orgs/"+orgid+"/services requiredServices validation: "+xs.toString)
       xs match {
         case Success(rows) => var invalidIndex = -1
+          var invalidSvcRef = ServiceRef("","","","")
           // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
           // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
           breakable { for ( (svcRef, index) <- serviceReq.requiredServices.getOrElse(List()).zipWithIndex) {
@@ -312,11 +313,16 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
                 if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(svcRef.version)) ) break  // we satisfied this requiredService so move on to the next
               }
               invalidIndex = index    // we finished the inner loop but did not find a service that satisfied the requirement
+              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.arch)
             }     //  if we found a service that satisfies the requirement, it breaks to this line
             if (invalidIndex >= 0) break    // a requiredService was not satisfied, so break out of the outer loop and return an error
           } }
           if (invalidIndex < 0) ServicesTQ.getNumOwned(owner).result.asTry    // we are good, move on to the next step
-          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced service in requiredServices does not exist in the exchange")).asTry
+          else {
+            //else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced service in requiredServices does not exist in the exchange")).asTry
+            val errStr = "the following required service does not exist in the exchange: org=" + invalidSvcRef.org + ", url=" + invalidSvcRef.url + ", version=" + invalidSvcRef.version + ", arch=" + invalidSvcRef.arch
+            DBIO.failed(new Throwable(errStr)).asTry
+          }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -324,7 +330,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       xs match {
         case Success(num) => val numOwned = num
           val maxServices = ExchConfig.getInt("api.limits.maxServices")
-          if (maxServices == 0 || numOwned <= maxServices) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
+          if (maxServices == 0 || maxServices >= numOwned) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
             serviceReq.toServiceRow(service, orgid, owner).insert.asTry
           }
           else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxServices+ " services")).asTry
@@ -392,6 +398,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("POST /orgs/"+orgid+"/services apiSpec validation: "+xs.toString)
       xs match {
         case Success(rows) => var invalidIndex = -1
+          var invalidSvcRef = ServiceRef("","","","")
           // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
           // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
           breakable { for ( (svcRef, index) <- serviceReq.requiredServices.getOrElse(List()).zipWithIndex) {
@@ -401,11 +408,15 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
                 if (specRef == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(svcRef.version)) ) break  // we satisfied this apiSpec requirement so move on to the next
               }
               invalidIndex = index    // we finished the inner loop but did not find a service that satisfied the requirement
+              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.arch)
             }     //  if we found a service that satisfies the requirment, it breaks to this line
             if (invalidIndex >= 0) break    // an requiredService was not satisfied, so break out and return an error
           } }
           if (invalidIndex < 0) serviceReq.toServiceRow(service, orgid, owner).update.asTry    // we are good, move on to the next step
-          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced service in requiredServices does not exist in the exchange")).asTry
+          else {
+            val errStr = "the following required service does not exist in the exchange: org=" + invalidSvcRef.org + ", url=" + invalidSvcRef.url + ", version=" + invalidSvcRef.version + ", arch=" + invalidSvcRef.arch
+            DBIO.failed(new Throwable(errStr)).asTry
+          }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
@@ -423,8 +434,13 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               ApiResponse(ApiResponseType.NOT_FOUND, "service '"+service+"' not found")
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "service '"+service+"' not updated: "+e) }    // the specific exception is NumberFormatException
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "service '"+service+"' not updated: "+t.getMessage)
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+            resp.setStatus(HttpCode.ACCESS_DENIED)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, "service '" + service + "' not updated: " + t.getMessage)
+          } else {
+            resp.setStatus(HttpCode.BAD_INPUT)
+            ApiResponse(ApiResponseType.BAD_INPUT, "service '" + service + "' not updated: " + t.getMessage)
+          }
       }
     })
   })
@@ -463,7 +479,42 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       val allSharableVals = SharableVals.values.map(_.toString)
       if (!allSharableVals.contains(serviceReq.sharable.getOrElse(""))) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value '" + serviceReq.sharable.getOrElse("") + "' for the sharable attribute."))
     }
-    db.run(action.transactionally.asTry).map({ xs =>
+
+    // Make a list of service wildcarded searches for the required services. This can match more services than we need, we'll do exact matches later.
+    val svcIds = if (attrName == "requiredServices") serviceReq.requiredServices.getOrElse(List()).map( s => ServicesTQ.formId(s.org, s.url, "%", s.arch) ) else List()
+    val svcChkActions = if (svcIds.isEmpty) DBIO.successful(Vector())   // no services to look for
+    else {
+      // The inner map() and reduceLeft() OR together all of the likes to give to filter()
+      ServicesTQ.rows.filter(s => { svcIds.map(s.service like _).reduceLeft(_ || _) }).map(s => (s.orgid, s.url, s.version, s.arch)).result
+    }
+
+    // First check that the requiredServices exist (if that is not watch they are patching, this is a noop)
+    db.run(svcChkActions.transactionally.asTry.flatMap({ xs =>
+      logger.debug("PATCH /orgs/"+orgid+"/services requiredServices validation: "+xs.toString)
+      xs match {
+        case Success(rows) => var invalidIndex = -1
+          var invalidSvcRef = ServiceRef("","","","")
+          // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
+          // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
+          breakable { for ( (svcRef, index) <- serviceReq.requiredServices.getOrElse(List()).zipWithIndex) {
+            breakable {
+              for ( (orgid,url,version,arch) <- rows ) {
+                //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
+                if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(svcRef.version)) ) break  // we satisfied this requiredService so move on to the next
+              }
+              invalidIndex = index    // we finished the inner loop but did not find a service that satisfied the requirement
+              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.arch)
+            }     //  if we found a service that satisfies the requirement, it breaks to this line
+            if (invalidIndex >= 0) break    // a requiredService was not satisfied, so break out of the outer loop and return an error
+          } }
+          if (invalidIndex < 0) action.transactionally.asTry    // we are good, move on to the real patch action
+          else {
+            val errStr = "the following required service does not exist in the exchange: org=" + invalidSvcRef.org + ", url=" + invalidSvcRef.url + ", version=" + invalidSvcRef.version + ", arch=" + invalidSvcRef.arch
+            DBIO.failed(new Throwable(errStr)).asTry
+          }
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/services/"+bareService+" result: "+xs.toString)
       xs match {
         case Success(v) => try {
@@ -477,8 +528,13 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               ApiResponse(ApiResponseType.NOT_FOUND, "service '"+service+"' not found")
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "service '"+service+"' not updated: "+t.toString)
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+            resp.setStatus(HttpCode.ACCESS_DENIED)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, "service '" + service + "' not updated: " + t.getMessage)
+          } else {
+            resp.setStatus(HttpCode.BAD_INPUT)
+            ApiResponse(ApiResponseType.BAD_INPUT, "service '" + service + "' not updated: " + t.getMessage)
+          }
       }
     })
   })

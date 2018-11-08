@@ -93,7 +93,7 @@ export EXCHANGE_ROOTPW=myrootpw
 
 - Fixed swagger
 - Cleaned up README.md
-- Improved error in `POST pattern` when reference service does not exist to output service org, url, arch, version range
+- Improved error in `POST/PUT/PATCH pattern` when reference service does not exist to output service org, url, arch, version range
 - Added optional `documentation` field to service resource
 - Added new `resource` definition that can be required by services to hold things like models
 

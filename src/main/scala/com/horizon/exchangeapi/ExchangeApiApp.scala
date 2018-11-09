@@ -5,6 +5,7 @@
 
 package com.horizon.exchangeapi
 
+import com.horizon.exchangeapi.auth.IbmCloudAuth
 import org.scalatra._
 import slick.jdbc.PostgresProfile.api._
 // import scala.concurrent.ExecutionContext.Implicits.global    // this is needed for FutureSupport
@@ -65,6 +66,7 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
   AuthCache.resources.init(db)
   AuthCache.services.init(db)
   AuthCache.patterns.init(db)
+  IbmCloudAuth.init(db)
 
   // All of the route implementations are in traits called *Routes
 }

@@ -14,6 +14,7 @@ class Module extends LoginModule with AuthSupport {
   private var subject: Subject = _
   private var handler: CallbackHandler = _
   private var identity: Identity = _
+  private var succeeded = false
   lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
 
 
@@ -32,6 +33,7 @@ class Module extends LoginModule with AuthSupport {
     val loginResult = Try {
       handler.handle(Array(reqCallback))
       if (reqCallback.request.isEmpty) {
+        logger.debug("Unable to get HTTP request while authenticating")
         throw new Exception("invalid credentials")
       }
       val reqInfo = reqCallback.request.get
@@ -52,7 +54,8 @@ class Module extends LoginModule with AuthSupport {
       }
       true
     }
-    loginResult.getOrElse(false)
+    succeeded = loginResult.getOrElse(false)
+    succeeded
   }
 
   override def logout(): Boolean = {
@@ -63,9 +66,11 @@ class Module extends LoginModule with AuthSupport {
   override def abort() = false
 
   override def commit(): Boolean = {
-    subject.getPrivateCredentials().add(identity)
-    subject.getPrincipals().add(ExchangeRole(identity.role))
-    true
+    if (succeeded) {
+      subject.getPrivateCredentials().add(identity)
+      subject.getPrincipals().add(ExchangeRole(identity.role))
+    }
+    succeeded
   }
 }
 

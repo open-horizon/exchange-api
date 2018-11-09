@@ -2,7 +2,8 @@ package com.horizon.exchangeapi.tables
 
 import org.json4s._
 //import org.json4s.jackson.Serialization.read
-import slick.jdbc.PostgresProfile.api._
+import ExchangePostgresProfile.api._
+import ExchangePostgresProfile.jsonMethods._
 
 
 /** Contains the object representations of the DB tables related to orgs. */
@@ -30,6 +31,7 @@ class Orgs(tag: Tag) extends Table[OrgRow](tag, "orgs") {
   def label = column[String]("label")
   def description = column[String]("description")
   def lastUpdated = column[String]("lastupdated")
+  def tags = column[Option[JValue]]("tags")
   // this describes what you get back when you return rows from a query
   def * = (orgid, label, description, lastUpdated) <> (OrgRow.tupled, OrgRow.unapply)
 }
@@ -42,6 +44,7 @@ object OrgsTQ {
   def getLabel(orgid: String) = rows.filter(_.orgid === orgid).map(_.label)
   def getDescription(orgid: String) = rows.filter(_.orgid === orgid).map(_.description)
   def getLastUpdated(orgid: String) = rows.filter(_.orgid === orgid).map(_.lastUpdated)
+  def getTag(orgid: String, tag: String) = rows.filter(_.orgid === orgid).map(_.tags.map(tags => tags +>> tag))
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(orgid: String, attrName: String): Query[_,_,Seq] = {

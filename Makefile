@@ -86,7 +86,7 @@ docker: .docker-exec
 
 .docker-exec-run: .docker-exec
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
-	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -v $(EXCHANGE_HOST_CONFIG_DIR):$(EXCHANGE_CONFIG_DIR) $(image-string):$(DOCKER_TAG) -Djava.security.auth.login.config=$(EXCHANGE_CONFIG_DIR)/jaas.config -Djava.security.policy=$(EXCHANGE_CONFIG_DIR)/auth.policy
+	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -v $(EXCHANGE_HOST_CONFIG_DIR):$(EXCHANGE_CONFIG_DIR) $(image-string):$(DOCKER_TAG)
 	@touch $@
 
 # Run the automated tests in the bld container against the exchange svr running in the exec container

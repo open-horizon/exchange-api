@@ -121,7 +121,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
 
   get("/orgs/:orgid/resources", operation(getResources)) ({
     val orgid = params("orgid")
-    val ident = credsAndLog().authenticate().authorizeTo(TResource(OrgAndId(orgid,"*").toString),Access.READ)
+    val ident = authenticate().authorizeTo(TResource(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
     var q = ResourcesTQ.getAllResources(orgid)
     // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
@@ -160,7 +160,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val orgid = params("orgid")
     val bareResource = params("resource")   // but do not have a hack/fix for the name
     val resource = OrgAndId(orgid,bareResource).toString
-    credsAndLog().authenticate().authorizeTo(TResource(resource),Access.READ)
+    authenticate().authorizeTo(TResource(resource),Access.READ)
     val resp = response
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the resource
@@ -231,7 +231,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   post("/orgs/:orgid/resources", operation(postResources)) ({
   //post("/orgs/:orgid/resources") ({
     val orgid = params("orgid")
-    val ident = credsAndLog().authenticate().authorizeTo(TResource(OrgAndId(orgid,"").toString),Access.CREATE)
+    val ident = authenticate().authorizeTo(TResource(OrgAndId(orgid,"").toString),Access.CREATE)
     val resourceReq = try { parse(request.body).extract[PostPutResourceRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     resourceReq.validate(orgid, null)
@@ -293,7 +293,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val orgid = params("orgid")
     val bareResource = params("resource")   // but do not have a hack/fix for the name
     val resource = OrgAndId(orgid,bareResource).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TResource(resource),Access.WRITE)
+    val ident = authenticate().authorizeTo(TResource(resource),Access.WRITE)
     val resourceReq = try { parse(request.body).extract[PostPutResourceRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     resourceReq.validate(orgid, resource)
@@ -348,7 +348,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val orgid = params("orgid")
     val bareResource = params("resource")   // but do not have a hack/fix for the name
     val resource = OrgAndId(orgid,bareResource).toString
-    credsAndLog().authenticate().authorizeTo(TResource(resource),Access.WRITE)
+    authenticate().authorizeTo(TResource(resource),Access.WRITE)
     val resourceReq = try { parse(request.body).extract[PatchResourceRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.trace("PATCH /orgs/"+orgid+"/resources/"+bareResource+" input: "+resourceReq.toString)
@@ -405,7 +405,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val orgid = params("orgid")
     val bareResource = params("resource")   // but do not have a hack/fix for the name
     val resource = OrgAndId(orgid,bareResource).toString
-    credsAndLog().authenticate().authorizeTo(TResource(resource),Access.WRITE)
+    authenticate().authorizeTo(TResource(resource),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
     db.run(ResourcesTQ.getResource(resource).delete.transactionally.asTry).map({ xs =>
@@ -447,7 +447,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
-    credsAndLog().authenticate().authorizeTo(TResource(compositeId),Access.READ)
+    authenticate().authorizeTo(TResource(compositeId),Access.READ)
     val resp = response
     db.run(ResourceKeysTQ.getKeys(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/resources/"+resource+"/keys result size: "+list.size)
@@ -479,7 +479,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
     val keyId = params("keyid")
-    credsAndLog().authenticate().authorizeTo(TResource(compositeId),Access.READ)
+    authenticate().authorizeTo(TResource(compositeId),Access.READ)
     val resp = response
     db.run(ResourceKeysTQ.getKey(compositeId, keyId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/resources/"+resource+"/keys/"+keyId+" result: "+list.size)
@@ -522,7 +522,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
     val keyId = params("keyid")
-    credsAndLog().authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
     val keyReq = PutResourceKeyRequest(request.body)
     //val keyReq = try { parse(request.body).extract[PutResourceKeyRequest] }
     //catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
@@ -562,7 +562,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
-    credsAndLog().authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
     val resp = response
     db.run(ResourceKeysTQ.getKeys(compositeId).delete.asTry).map({ xs =>
       logger.debug("DELETE /resources/"+resource+"/keys result: "+xs.toString)
@@ -600,7 +600,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
     val keyId = params("keyid")
-    credsAndLog().authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
     val resp = response
     db.run(ResourceKeysTQ.getKey(compositeId,keyId).delete.asTry).map({ xs =>
       logger.debug("DELETE /resources/"+resource+"/keys/"+keyId+" result: "+xs.toString)
@@ -639,7 +639,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
-    credsAndLog().authenticate().authorizeTo(TResource(compositeId),Access.READ)
+    authenticate().authorizeTo(TResource(compositeId),Access.READ)
     val resp = response
     db.run(ResourceAuthsTQ.getAuths(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/resources/"+resource+"/auths result size: "+list.size)
@@ -672,7 +672,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
     val authId = try { params("authid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "authid must be an integer: "+e)) }    // the specific exception is NumberFormatException
-    credsAndLog().authenticate().authorizeTo(TResource(compositeId),Access.READ)
+    authenticate().authorizeTo(TResource(compositeId),Access.READ)
     val resp = response
     db.run(ResourceAuthsTQ.getAuth(compositeId, authId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/resources/"+resource+"/auths/"+authId+" result: "+list.size)
@@ -710,7 +710,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
     val authId = 0      // the db will choose a new id on insert
-    credsAndLog().authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
     val authIdReq = try { parse(request.body).extract[PostPutResourceAuthRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     authIdReq.validate(authId)
@@ -767,7 +767,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
     val authId = try { params("authid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "authid must be an integer: "+e)) }    // the specific exception is NumberFormatException
-    credsAndLog().authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
     val authIdReq = try { parse(request.body).extract[PostPutResourceAuthRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     authIdReq.validate(authId)
@@ -812,7 +812,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
-    credsAndLog().authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
     val resp = response
     db.run(ResourceAuthsTQ.getAuths(compositeId).delete.asTry).map({ xs =>
       logger.debug("DELETE /resources/"+resource+"/auths result: "+xs.toString)
@@ -850,7 +850,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
     val authId = try { params("authid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "authid must be an integer: "+e)) }    // the specific exception is NumberFormatException
-    credsAndLog().authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TResource(compositeId),Access.WRITE)
     val resp = response
     db.run(ResourceAuthsTQ.getAuth(compositeId,authId).delete.asTry).map({ xs =>
       logger.debug("DELETE /resources/"+resource+"/auths/"+authId+" result: "+xs.toString)

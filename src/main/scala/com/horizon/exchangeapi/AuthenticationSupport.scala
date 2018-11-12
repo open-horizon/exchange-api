@@ -259,7 +259,7 @@ object AuthCache {
       }
     }
 
-    /** Put owners of services in the cache */
+    /** Put owners of resources in the cache */
     def _initResources(credList: Seq[(String,String,Boolean)]): Unit = {
       for ((resource,owner,isPub) <- credList) {
         if (owner != "") _putOwner(resource, owner)

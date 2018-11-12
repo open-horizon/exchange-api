@@ -41,6 +41,7 @@ lazy val root = (project in file(".")).
       "javax.mail" % "javax.mail-api" % "latest.release"
       //"com.sun.mail" % "javax.mail" % "latest.release"
     ),
-    scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
+    scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
+    javaOptions ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config", "-Djava.security.policy=src/main/resources/auth.policy")
   ).
   enablePlugins(JettyPlugin)

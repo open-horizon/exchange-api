@@ -18,8 +18,14 @@ RUN ln -s `ls -1dr /usr/local/share/scala-2* | head -1` /usr/local/share/scala
 USER jetty
 ENV PATH="/usr/local/share/scala/bin:$PATH"
 
+# copy default auth config and policy
+RUN mkdir exchange_config
+ADD ./src/main/resources/jaas.config $JETTY_BASE/exchange_config
+ADD ./src/main/resources/auth.policy $JETTY_BASE/exchange_config
 # copy exchange war file to jetty-base and start it. This listens on port 8080
 ADD ./target/scala-$SCALA_VERSION_SHORT/exchange-api_$SCALA_VERSION_SHORT-$EXCHANGE_API_WAR_VERSION.war $JETTY_BASE/webapps/ROOT.war
+# copy start script that does some rudimentary option handling
+ADD ./start_exchange.sh $JETTY_BASE
 EXPOSE 8080
 # the jetty container already sets the working dir to $JETTY_BASE
-CMD java -jar $JETTY_HOME/start.jar
+CMD ./start_exchange.sh

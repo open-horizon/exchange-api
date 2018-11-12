@@ -1,13 +1,13 @@
 /** Services routes for all of the /users api methods. */
 package com.horizon.exchangeapi
 
+import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
-import com.horizon.exchangeapi.tables._
 
 import scala.collection.immutable._
 import scala.collection.mutable.{HashMap => MutableHashMap}
@@ -73,7 +73,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   get("/orgs/:orgid/users", operation(getUsers)) ({
     val orgid = params("orgid")
-    val ident = credsAndLog().authenticate().authorizeTo(TUser(OrgAndId(orgid,"*").toString),Access.READ)
+    val ident = authenticate().authorizeTo(TUser(OrgAndId(orgid,"*").toString),Access.READ)
     val superUser = ident.isSuperUser
     val resp = response
     db.run(UsersTQ.getAllUsers(orgid).result).map({ list =>
@@ -106,7 +106,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.READ)
+    val ident = authenticate().authorizeTo(TUser(compositeId),Access.READ)
     val superUser = ident.isSuperUser
     val resp = response     // needed so the db.run() future has this context
     // logger.debug("using postgres")
@@ -156,7 +156,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
-    val ident = credsAndLog(true).authenticate().authorizeTo(TUser(compositeId),Access.CREATE)
+    val ident = authenticate(anonymousOk = true).authorizeTo(TUser(compositeId),Access.CREATE)
     val user = try { parse(request.body).extract[PostPutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.debug(user.toString)
@@ -197,7 +197,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
+    val ident = authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
     val isRoot = ident.isSuperUser
     val user = try { parse(request.body).extract[PostPutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
@@ -257,7 +257,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
+    val ident = authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
     val user = try { parse(request.body).extract[PatchUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.debug(user.toString)
@@ -302,7 +302,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
-    credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
     val resp = response
     // now with all the foreign keys set up correctly and onDelete=cascade, the db will automatically delete the associated rows in other tables
     db.run(UsersTQ.getUser(compositeId).delete.transactionally.asTry).map({ xs =>
@@ -340,7 +340,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
-    credsAndLog().authenticate().authorizeTo(TUser(compositeId),Access.READ)
+    authenticate().authorizeTo(TUser(compositeId),Access.READ)
     status_=(HttpCode.POST_OK)
     ApiResponse(ApiResponseType.OK, "confirmation successful")
   })
@@ -369,7 +369,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
     // Note: anonymous is allowed, obviously, but haproxy rate limiting is used to prevent someone else flooding their email
-    val ident = credsAndLog(true).authenticate().authorizeTo(TUser(compositeId),Access.RESET_USER_PW)
+    val ident = authenticate(anonymousOk = true).authorizeTo(TUser(compositeId),Access.RESET_USER_PW)
 
     if (ident.isSuperUser) {
       // verify the username exists via the cache
@@ -440,7 +440,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
-    credsAndLog().authenticate("token").authorizeTo(TUser(compositeId),Access.WRITE)
+    authenticate(hint = "token").authorizeTo(TUser(compositeId),Access.WRITE)
     val req = try { parse(request.body).extract[ChangePwRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     val resp = response

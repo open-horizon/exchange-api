@@ -9,6 +9,7 @@ import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
+
 import scala.collection.immutable._
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.util._
@@ -122,7 +123,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   get("/orgs/:orgid/agbots", operation(getAgbots)) ({
     val orgid = params("orgid")
-    val ident = credsAndLog().authenticate().authorizeTo(TAgbot(OrgAndId(orgid,"*").toString),Access.READ)
+    val ident = authenticate().authorizeTo(TAgbot(OrgAndId(orgid,"*").toString),Access.READ)
     val superUser = ident.isSuperUser
     val resp = response
     //var q = AgbotsTQ.rows.subquery
@@ -159,7 +160,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
+    val ident = authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
     val superUser = ident.isSuperUser
     val resp = response
     params.get("attribute") match {
@@ -210,7 +211,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    val ident = authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val agbot = try { parse(request.body).extract[PutAgbotsRequest] }
     catch {
       case e: Exception => /* Left here for reference, how to make a resource change backward compatible: if (e.getMessage.contains("No usable value for publicKey")) {    // the specific exception is MappingException
@@ -272,7 +273,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val agbot = try { parse(request.body).extract[PatchAgbotsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.trace("PATCH /orgs/"+orgid+"/agbots/"+id+" input: "+agbot.toString)
@@ -316,7 +317,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
     db.run(AgbotsTQ.getAgbot(compositeId).delete.transactionally.asTry).map({ xs =>
@@ -353,7 +354,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
     db.run(AgbotsTQ.getLastHeartbeat(compositeId).update(ApiTime.nowUTC).asTry).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/heartbeat result: "+xs.toString)
@@ -390,7 +391,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
     val resp = response
     db.run(AgbotPatternsTQ.getPatterns(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/patterns result size: "+list.size)
@@ -422,7 +423,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val patId = params("patid")
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
     val resp = response
     db.run(AgbotPatternsTQ.getPattern(compositeId, patId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/patterns/"+patId+" result: "+list.toString)
@@ -455,7 +456,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val pattern = try { parse(request.body).extract[PostAgbotPatternRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     pattern.validate()
@@ -504,7 +505,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
     db.run(AgbotPatternsTQ.getPatterns(compositeId).delete.asTry).map({ xs =>
       logger.debug("DELETE /agbots/"+id+"/patterns result: "+xs.toString)
@@ -541,7 +542,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val patId = params("patid")
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
     db.run(AgbotPatternsTQ.getPattern(compositeId,patId).delete.asTry).map({ xs =>
       logger.debug("DELETE /agbots/"+id+"/patterns/"+patId+" result: "+xs.toString)
@@ -578,7 +579,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
     val resp = response
     db.run(AgbotAgreementsTQ.getAgreements(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/agreements result size: "+list.size)
@@ -610,7 +611,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val agrId = params("agid")
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
     val resp = response
     db.run(AgbotAgreementsTQ.getAgreement(compositeId, agrId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" result: "+list.toString)
@@ -645,7 +646,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val agrId = params("agid")
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val agreement = try { parse(request.body).extract[PutAgbotAgreementRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     agreement.validate()
@@ -691,7 +692,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
     db.run(AgbotAgreementsTQ.getAgreements(compositeId).delete.asTry).map({ xs =>
       logger.debug("DELETE /agbots/"+id+"/agreements result: "+xs.toString)
@@ -728,7 +729,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val agrId = params("agid")
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
     db.run(AgbotAgreementsTQ.getAgreement(compositeId,agrId).delete.asTry).map({ xs =>
       logger.debug("DELETE /agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
@@ -862,7 +863,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
   post("/orgs/:orgid/agreements/confirm", operation(postAgreementsConfirm)) ({
     val orgid = params("orgid")
-    val ident = credsAndLog().authenticate().authorizeTo(TAgbot(OrgAndId(orgid,"#").toString),Access.READ)
+    val ident = authenticate().authorizeTo(TAgbot(OrgAndId(orgid,"#").toString),Access.READ)
     val creds = ident.creds
     val req = try { parse(request.body).extract[PostAgreementsConfirmRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
@@ -936,7 +937,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.SEND_MSG_TO_AGBOT)
+    val ident = authenticate().authorizeTo(TAgbot(compositeId),Access.SEND_MSG_TO_AGBOT)
     val nodeId = ident.creds.id      //todo: handle the case where the acls allow users to send msgs
     val msg = try { parse(request.body).extract[PostAgbotsMsgsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
@@ -995,7 +996,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
     val resp = response
     // Remove msgs whose TTL is past, and then get the msgs for this agbot
     db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
@@ -1032,7 +1033,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
     val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "msgid must be an integer: "+e)) }    // the specific exception is NumberFormatException
-    credsAndLog().authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
     db.run(AgbotMsgsTQ.getMsg(compositeId,msgId).delete.asTry).map({ xs =>
       logger.debug("DELETE /agbots/"+id+"/msgs/"+msgId+" result: "+xs.toString)

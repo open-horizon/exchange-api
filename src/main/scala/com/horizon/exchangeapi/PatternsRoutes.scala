@@ -1,6 +1,7 @@
 /** Services routes for all of the /orgs/{orgid}/patterns api methods. */
 package com.horizon.exchangeapi
 
+import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
@@ -8,7 +9,6 @@ import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
-import com.horizon.exchangeapi.tables._
 
 import scala.collection.immutable._
 import scala.collection.mutable.{HashMap => MutableHashMap}
@@ -111,7 +111,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   get("/orgs/:orgid/patterns", operation(getPatterns)) ({
     val orgid = params("orgid")
-    val ident = credsAndLog().authenticate().authorizeTo(TPattern(OrgAndId(orgid,"*").toString),Access.READ)
+    val ident = authenticate().authorizeTo(TPattern(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
     //var q = PatternsTQ.rows.subquery
     var q = PatternsTQ.getAllPatterns(orgid)
@@ -151,7 +151,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
     val pattern = OrgAndId(orgid,barePattern).toString
-    credsAndLog().authenticate().authorizeTo(TPattern(pattern),Access.READ)
+    authenticate().authorizeTo(TPattern(pattern),Access.READ)
     val resp = response
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the pattern
@@ -265,7 +265,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
     val pattern = OrgAndId(orgid,barePattern).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TPattern(OrgAndId(orgid,"").toString),Access.CREATE)
+    val ident = authenticate().authorizeTo(TPattern(OrgAndId(orgid,"").toString),Access.CREATE)
     val patternReq = try { parse(request.body).extract[PostPutPatternRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     patternReq.validate()
@@ -342,7 +342,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
     val pattern = OrgAndId(orgid,barePattern).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
+    val ident = authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
     val patternReq = try { parse(request.body).extract[PostPutPatternRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     patternReq.validate()
@@ -405,7 +405,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
     val pattern = OrgAndId(orgid,barePattern).toString
-    credsAndLog().authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
+    authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
     val patternReq = try { parse(request.body).extract[PatchPatternRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.trace("PATCH /orgs/"+orgid+"/patterns/"+barePattern+" input: "+patternReq.toString)
@@ -465,7 +465,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
     val pattern = OrgAndId(orgid,barePattern).toString
-    credsAndLog().authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
+    authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
     db.run(PatternsTQ.getPattern(pattern).delete.transactionally.asTry).map({ xs =>
@@ -506,7 +506,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val pattern = params("pattern")
     val compositeId = OrgAndId(orgid,pattern).toString
-    credsAndLog().authenticate().authorizeTo(TPattern(compositeId),Access.READ)
+    authenticate().authorizeTo(TPattern(compositeId),Access.READ)
     val resp = response
     db.run(PatternKeysTQ.getKeys(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys result size: "+list.size)
@@ -538,7 +538,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val pattern = params("pattern")
     val compositeId = OrgAndId(orgid,pattern).toString
     val keyId = params("keyid")
-    credsAndLog().authenticate().authorizeTo(TPattern(compositeId),Access.READ)
+    authenticate().authorizeTo(TPattern(compositeId),Access.READ)
     val resp = response
     db.run(PatternKeysTQ.getKey(compositeId, keyId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" result: "+list.size)
@@ -581,7 +581,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val pattern = params("pattern")
     val compositeId = OrgAndId(orgid,pattern).toString
     val keyId = params("keyid")
-    credsAndLog().authenticate().authorizeTo(TPattern(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TPattern(compositeId),Access.WRITE)
     val keyReq = PutPatternKeyRequest(request.body)
     //val keyReq = try { parse(request.body).extract[PutPatternKeyRequest] }
     //catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
@@ -621,7 +621,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val pattern = params("pattern")
     val compositeId = OrgAndId(orgid,pattern).toString
-    credsAndLog().authenticate().authorizeTo(TPattern(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TPattern(compositeId),Access.WRITE)
     val resp = response
     db.run(PatternKeysTQ.getKeys(compositeId).delete.asTry).map({ xs =>
       logger.debug("DELETE /patterns/"+pattern+"/keys result: "+xs.toString)
@@ -659,7 +659,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val pattern = params("pattern")
     val compositeId = OrgAndId(orgid,pattern).toString
     val keyId = params("keyid")
-    credsAndLog().authenticate().authorizeTo(TPattern(compositeId),Access.WRITE)
+    authenticate().authorizeTo(TPattern(compositeId),Access.WRITE)
     val resp = response
     db.run(PatternKeysTQ.getKey(compositeId,keyId).delete.asTry).map({ xs =>
       logger.debug("DELETE /patterns/"+pattern+"/keys/"+keyId+" result: "+xs.toString)

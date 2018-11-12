@@ -282,7 +282,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     // try {    // this try/catch does not get us much more than what scalatra does by default
     // I think the request member is of type org.eclipse.jetty.server.Request, which implements interfaces javax.servlet.http.HttpServletRequest and javax.servlet.ServletRequest
     val orgid = params("orgid")
-    val ident = credsAndLog().authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
+    val ident = authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val superUser = ident.isSuperUser
     val resp = response
     // throw new IllegalArgumentException("arg 1 was wrong...")
@@ -327,7 +327,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
+    val ident = authenticate().authorizeTo(TNode(id),Access.READ)
     val superUser = ident.isSuperUser
     val resp = response
     params.get("attribute") match {
@@ -394,7 +394,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val pattern = params("pattern")
     val compositePat = OrgAndId(orgid,pattern).toString
-    credsAndLog().authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
+    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostPatternSearchRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     searchProps.validate()
@@ -514,7 +514,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val pattern = params("pattern")
     val compositePat = OrgAndId(orgid,pattern).toString
-    credsAndLog().authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
+    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostNodeHealthRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     searchProps.validate()
@@ -586,7 +586,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   /** Normally called by the agbot to search for available nodes. */
   post("/orgs/:orgid/search/nodes", operation(postSearchNodes)) ({
     val orgid = params("orgid")
-    credsAndLog().authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
+    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostSearchNodesRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     searchProps.validate()
@@ -643,7 +643,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     //val pattern = params("patid")
     //val compositePat = OrgAndId(orgid,pattern).toString
-    credsAndLog().authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
+    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostNodeHealthRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     searchProps.validate()
@@ -721,7 +721,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
+    val ident = authenticate().authorizeTo(TNode(id),Access.WRITE)
     val node = try { parse(request.body).extract[PutNodesRequest] }
     catch {
       case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e))
@@ -786,7 +786,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
+    authenticate().authorizeTo(TNode(id),Access.WRITE)
     val node = try { parse(request.body).extract[PatchNodesRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     logger.trace("PATCH /orgs/"+orgid+"/nodes/"+bareId+" input: "+node.toString)
@@ -838,7 +838,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
+    authenticate().authorizeTo(TNode(id),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
     db.run(NodesTQ.getNode(id).delete.transactionally.asTry).map({ xs =>
@@ -875,7 +875,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
+    authenticate().authorizeTo(TNode(id),Access.WRITE)
     val resp = response
     db.run(NodesTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/heartbeat result: "+xs.toString)
@@ -911,7 +911,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
+    authenticate().authorizeTo(TNode(id),Access.READ)
     val resp = response
       db.run(NodeStatusTQ.getNodeStatus(id).result).map({ list =>
         logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/status result size: "+list.size)
@@ -970,7 +970,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
+    authenticate().authorizeTo(TNode(id),Access.WRITE)
     val status = try { parse(request.body).extract[PutNodeStatusRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     status.validate()
@@ -1008,7 +1008,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
+    authenticate().authorizeTo(TNode(id),Access.WRITE)
     val resp = response
     db.run(NodeStatusTQ.getNodeStatus(id).delete.asTry).map({ xs =>
       logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)
@@ -1043,7 +1043,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
+    authenticate().authorizeTo(TNode(id),Access.READ)
     val resp = response
     db.run(NodeAgreementsTQ.getAgreements(id).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/agreements result size: "+list.size)
@@ -1074,7 +1074,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     val agId = params("agid")
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
+    authenticate().authorizeTo(TNode(id),Access.READ)
     val resp = response
     db.run(NodeAgreementsTQ.getAgreement(id, agId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+list.toString)
@@ -1125,7 +1125,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     val agId = params("agid")
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
+    authenticate().authorizeTo(TNode(id),Access.WRITE)
     val agreement = try { parse(request.body).extract[PutNodeAgreementRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     agreement.validate()
@@ -1170,7 +1170,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
+    authenticate().authorizeTo(TNode(id),Access.WRITE)
     val resp = response
     db.run(NodeAgreementsTQ.getAgreements(id).delete.asTry).map({ xs =>
       logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/agreements result: "+xs.toString)
@@ -1207,7 +1207,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     val agId = params("agid")
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
+    authenticate().authorizeTo(TNode(id),Access.WRITE)
     val resp = response
     db.run(NodeAgreementsTQ.getAgreement(id,agId).delete.asTry).map({ xs =>
       logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+xs.toString)
@@ -1254,7 +1254,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val nodeId = OrgAndId(orgid,bareId).toString
-    val ident = credsAndLog().authenticate().authorizeTo(TNode(nodeId),Access.SEND_MSG_TO_NODE)
+    val ident = authenticate().authorizeTo(TNode(nodeId),Access.SEND_MSG_TO_NODE)
     val agbotId = ident.creds.id
     val msg = try { parse(request.body).extract[PostNodesMsgsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
@@ -1316,7 +1316,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.READ)
+    authenticate().authorizeTo(TNode(id),Access.READ)
     val resp = response
     // Remove msgs whose TTL is past, and then get the msgs for this node
     db.run(NodeMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
@@ -1352,7 +1352,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "msgid must be an integer: "+e)) }    // the specific exception is NumberFormatException
-    credsAndLog().authenticate().authorizeTo(TNode(id),Access.WRITE)
+    authenticate().authorizeTo(TNode(id),Access.WRITE)
     val resp = response
     db.run(NodeMsgsTQ.getMsg(id,msgId).delete.asTry).map({ xs =>
       logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/msgs/"+msgId+" result: "+xs.toString)

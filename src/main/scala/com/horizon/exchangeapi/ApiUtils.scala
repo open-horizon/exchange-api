@@ -60,22 +60,6 @@ object ExchConfig {
       logger.info("Root user from config.json added to the in-memory authentication cache")
     }
 
-    // Read the ACLs and set them in our Role object
-    for (role <- List("ANONYMOUS", "USER", "ADMINUSER", "SUPERUSER", "NODE", "AGBOT")) {
-      val accessList = getStringList("api.acls."+role)
-      if (accessList.nonEmpty) {
-        val accessSet = accessList.toSet
-        if (!Role.isValidAcessValues(accessSet)) logger.error("Invalid value in ACLs for role "+role)
-        else {
-          logger.info("Setting access for role "+role+": "+accessList.toString)
-          Role.setRole(role, accessSet) match {
-            case Success(_) => ; // we are good
-            case Failure(t) => logger.error("Could not set access for role " + role + " to " + accessList.toString + ": " + t.toString)
-          }
-        }
-      }
-    }
-
     // Let them know if they are running with the in-memory db
     if (getBoolean("api.db.memoryDb")) logger.info("Running with the in-memory DB (not the persistent postgresql DB).")
     else logger.info("Running with the persistent postgresql DB.")

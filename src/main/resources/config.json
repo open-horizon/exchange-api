@@ -8,6 +8,7 @@
 			"maxAgbots": 1000,		// maximum number of agbots 1 user is allowed to create, 0 for unlimited
 			"maxAgreements": 1000,	// maximum number of agreements 1 node or agbot is allowed to create, 0 for unlimited
 			"maxMessagesInMailbox": 500,	// maximum number of msgs currently in 1 node or agbot mailbox (the sending side is handled by rate limiting), 0 for unlimited
+			"maxResources": 200,		// maximum number of resources 1 user is allowed to create, 0 for unlimited
 			"maxServices": 100,		// maximum number of services 1 user is allowed to create, 0 for unlimited
 			"maxPatterns": 100		// maximum number of patterns 1 user is allowed to create, 0 for unlimited
 		},

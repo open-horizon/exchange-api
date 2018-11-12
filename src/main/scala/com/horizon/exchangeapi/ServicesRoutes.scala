@@ -25,7 +25,8 @@ case class GetServiceAttributeResponse(attribute: String, value: String)
 object SharableVals extends Enumeration {
   type SharableVals = Value
   val EXCLUSIVE = Value("exclusive")
-  val SINGLE = Value("single")
+  val SINGLE = Value("single")    // this is being replaced by singleton
+  val SINGLETON = Value("singleton")
   val MULTIPLE = Value("multiple")
 }
 
@@ -240,7 +241,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "url": "github.com.open-horizon.examples.sdr2msghub",   // the unique identifier of this service
   "version": "1.0.0",
   "arch": "amd64",
-  "sharable": "single",   // if multiple services require this service, how many instances are deployed: "exclusive", "single", "multiple"
+  "sharable": "singleton",   // if multiple services require this service, how many instances are deployed: "exclusive", "singleton", "multiple"
   // The other services this service requires. (The other services must exist in the exchange before creating this service.)
   "requiredServices": [
     {
@@ -263,8 +264,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
   "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
   "imageStore": {      // can be omitted
-    // There could be several different package reference schemes so the schema will be left open. However, the storeType must be set for all cases to discriminate the type of storage being used.
-    "storeType": "dockerRegistry" // imageServer and dockerRegistry are the only supported values right now
+    "storeType": "dockerRegistry" // dockerRegistry is the only supported value right now, and is the default
   }
 }
 ```"""

@@ -55,6 +55,10 @@ agreementid1="${agreementbase}1"
 agreementid2="${agreementbase}2"
 agreementid3="${agreementbase}3"
 
+resname="res1"
+resversion="7.8.9"
+resid="${resname}_$resversion"
+
 svcid="bluehorizon.network-services-gps_1.2.3_amd64"
 svcurl="https://bluehorizon.network/services/gps"
 svcarch="amd64"
@@ -220,6 +224,18 @@ if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/services/$svcid/dockauths" '{"registry": "'$svcDockAuthRegistry'", "username": "'$svcDockAuthUsername'", "token": "'$svcDockAuthToken'"}'
 else
     echo "orgs/$orgid/services/$svcid/dockauths/$svcDockAuthId exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/resources/$resid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauth "orgs/$orgid/resources" '{"name": "'$resname'", "description": "blah blah", "public": true, "documentation": "https://myres.com/myres",
+  "version": "'$resversion'", "sharable": "singleton",
+  "deployment": "{\"volumeMountPoint\":\"/models/mymodel\",\"access\":\"readonly\"}",
+  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",
+  "resourceStore": { "url": "https://..." } }'
+else
+    echo "orgs/$orgid/services/$svcid exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/services/$svc2id")

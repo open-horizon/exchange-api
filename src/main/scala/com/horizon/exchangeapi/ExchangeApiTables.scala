@@ -24,6 +24,7 @@ object ExchangeApiTables {
       ++ NodesTQ.rows.schema ++ NodeAgreementsTQ.rows.schema ++ NodeStatusTQ.rows.schema
       ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ AgbotPatternsTQ.rows.schema
       ++ NodeMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema
+      ++ ResourcesTQ.rows.schema ++ ResourceKeysTQ.rows.schema ++ ResourceAuthsTQ.rows.schema
       ++ ServicesTQ.rows.schema ++ ServiceKeysTQ.rows.schema ++ ServiceDockAuthsTQ.rows.schema ++ PatternsTQ.rows.schema ++ PatternKeysTQ.rows.schema
     ).create,
     SchemaTQ.getSetVersionAction)
@@ -41,6 +42,7 @@ object ExchangeApiTables {
   //val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
   val dropDB = DBIO.seq(
     sqlu"drop table if exists patternkeys", sqlu"drop table if exists patterns", sqlu"drop table if exists servicedockauths", sqlu"drop table if exists servicekeys", sqlu"drop table if exists services",   // no table depends on these
+    sqlu"drop table if exists resourceauths", sqlu"drop table if exists resourcekeys", sqlu"drop table if exists resources",   // no table depends on these
     sqlu"drop table if exists nodemsgs", sqlu"drop table if exists agbotmsgs",     // these depend on both nodes and agbots
     sqlu"drop table if exists agbotpatterns", sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots",
     sqlu"drop table if exists nodeagreements", sqlu"drop table if exists nodestatus",
@@ -138,6 +140,21 @@ object ExchangeApiTables {
       val filename = dumpDir+"/agbotmsgs"+dumpSuffix
       logger.info("dumping "+xs.size+" rows to "+filename)
       new TableIo[AgbotMsgRow](filename).dump(xs)
+      ResourcesTQ.rows.result
+    }).flatMap({ xs =>
+      val filename = dumpDir+"/resources"+dumpSuffix
+      logger.info("dumping "+xs.size+" rows to "+filename)
+      new TableIo[ResourceRow](filename).dump(xs)
+      ResourceKeysTQ.rows.result
+    }).flatMap({ xs =>
+      val filename = dumpDir+"/resourcekeys"+dumpSuffix
+      logger.info("dumping "+xs.size+" rows to "+filename)
+      new TableIo[ResourceKeyRow](filename).dump(xs)
+      ResourceAuthsTQ.rows.result
+    }).flatMap({ xs =>
+      val filename = dumpDir+"/resourceauths"+dumpSuffix
+      logger.info("dumping "+xs.size+" rows to "+filename)
+      new TableIo[ResourceAuthRow](filename).dump(xs)
       ServicesTQ.rows.result
     }).flatMap({ xs =>
       val filename = dumpDir+"/services"+dumpSuffix
@@ -172,7 +189,7 @@ object ExchangeApiTables {
     })
 
 
-    /* previous attemp, but left here as an example of how to wait on multiple futures...
+    /* previous attempt, but left here as an example of how to wait on multiple futures...
     val fUsers: Future[Try[String]] = db.run(UsersTQ.rows.result.asTry).map({ xs =>
       val filename = dir+"/users"+suffix
       xs match {
@@ -227,6 +244,15 @@ object ExchangeApiTables {
 
     val agbotmsgs = new TableIo[AgbotMsgRow](dumpDir+"/agbotmsgs"+dumpSuffix).load
     if (agbotmsgs.nonEmpty) actions += (AgbotMsgsTQ.rows ++= agbotmsgs)
+
+    val resources = new TableIo[ResourceRow](dumpDir+"/resources"+dumpSuffix).load
+    if (resources.nonEmpty) actions += (ResourcesTQ.rows ++= resources)
+
+    val resourcekeys = new TableIo[ResourceKeyRow](dumpDir+"/resourcekeys"+dumpSuffix).load
+    if (resourcekeys.nonEmpty) actions += (ResourceKeysTQ.rows ++= resourcekeys)
+
+    val resourceauths = new TableIo[ResourceAuthRow](dumpDir+"/resourceauths"+dumpSuffix).load
+    if (resourceauths.nonEmpty) actions += (ResourceAuthsTQ.rows ++= resourceauths)
 
     val services = new TableIo[ServiceRow](dumpDir+"/services"+dumpSuffix).load
     if (services.nonEmpty) actions += (ServicesTQ.rows ++= services)

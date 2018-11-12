@@ -49,6 +49,11 @@ object Access extends Enumeration {
   val READ_ALL_USERS = Value("READ_ALL_USERS")
   val WRITE_ALL_USERS = Value("WRITE_ALL_USERS")
   val RESET_USER_PW = Value("RESET_USER_PW")
+  val READ_MY_RESOURCES = Value("READ_MY_RESOURCES")
+  val WRITE_MY_RESOURCES = Value("WRITE_MY_RESOURCES")
+  val READ_ALL_RESOURCES = Value("READ_ALL_RESOURCES")
+  val WRITE_ALL_RESOURCES = Value("WRITE_ALL_RESOURCES")
+  val CREATE_RESOURCES = Value("CREATE_RESOURCES")
   val READ_MY_SERVICES = Value("READ_MY_SERVICES")
   val WRITE_MY_SERVICES = Value("WRITE_MY_SERVICES")
   val READ_ALL_SERVICES = Value("READ_ALL_SERVICES")
@@ -230,6 +235,7 @@ object AuthCache {
         case "users" => db.run(UsersTQ.rows.map(x => (x.username, x.password, x.admin)).result).map({ list => this._initUsers(list, skipRoot = true) })
         case "nodes" => db.run(NodesTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
         case "agbots" => db.run(AgbotsTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
+        case "resources" => db.run(ResourcesTQ.rows.map(x => (x.resource, x.owner, x.public)).result).map({ list => this._initResources(list) })
         case "services" => db.run(ServicesTQ.rows.map(x => (x.service, x.owner, x.public)).result).map({ list => this._initServices(list) })
         case "patterns" => db.run(PatternsTQ.rows.map(x => (x.pattern, x.owner, x.public)).result).map({ list => this._initPatterns(list) })
       }
@@ -250,6 +256,14 @@ object AuthCache {
         val tokens: Tokens = if (Password.isHashed(password)) Tokens("", password) else Tokens(password, Password.hash(password))
         if (!(skipRoot && Role.isSuperUser(username))) _put(username, tokens)     // Note: ExchConfig.createRoot(db) already puts root in the auth cache and we do not want a race condition
         if (admin) _putOwner(username, "admin")
+      }
+    }
+
+    /** Put owners of services in the cache */
+    def _initResources(credList: Seq[(String,String,Boolean)]): Unit = {
+      for ((resource,owner,isPub) <- credList) {
+        if (owner != "") _putOwner(resource, owner)
+        _putIsPublic(resource, isPub)
       }
     }
 
@@ -363,6 +377,7 @@ object AuthCache {
             //case "users" => UsersTQ.getAdminAsString(id).result
             case "nodes" => NodesTQ.getOwner(id).result
             case "agbots" => AgbotsTQ.getOwner(id).result
+            case "resources" => ResourcesTQ.getOwner(id).result
             case "services" => ServicesTQ.getOwner(id).result
             case "patterns" => PatternsTQ.getOwner(id).result
           }
@@ -383,6 +398,7 @@ object AuthCache {
       try {
         // For the all the others, we are looking for the traditional owner
         val a = whichTable match {
+          case "resources" => ResourcesTQ.getPublic(id).result
           case "services" => ServicesTQ.getPublic(id).result
           case "patterns" => PatternsTQ.getPublic(id).result
           case _ => return Some(false)      // should never get here
@@ -461,6 +477,7 @@ object AuthCache {
   val users = new Cache("users")
   val nodes = new Cache("nodes")
   val agbots = new Cache("agbots")
+  val resources = new Cache("resources")
   val services = new Cache("services")
   val patterns = new Cache("patterns")
 }
@@ -697,6 +714,12 @@ trait AuthSupport extends Control with ServletApiImplicits {
               case Access.CREATE => Access.CREATE_AGBOT
               case _ => access
             }
+            case TResource(_) => access match { // a user accessing a resource
+              case Access.READ => if (iOwnTarget(target)) Access.READ_MY_RESOURCES else Access.READ_ALL_RESOURCES
+              case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_RESOURCES else Access.WRITE_ALL_RESOURCES
+              case Access.CREATE => Access.CREATE_RESOURCES
+              case _ => access
+            }
             case TService(_) => access match { // a user accessing a service
               case Access.READ => if (iOwnTarget(target)) Access.READ_MY_SERVICES else Access.READ_ALL_SERVICES
               case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_SERVICES else Access.WRITE_ALL_SERVICES
@@ -741,6 +764,7 @@ trait AuthSupport extends Control with ServletApiImplicits {
           case TUser(id) => return id == creds.id
           case TNode(id) => AuthCache.nodes.getOwner(id)
           case TAgbot(id) => AuthCache.agbots.getOwner(id)
+          case TResource(id) => AuthCache.resources.getOwner(id)
           case TService(id) => AuthCache.services.getOwner(id)
           case TPattern(id) => AuthCache.patterns.getOwner(id)
           case _ => return false
@@ -759,7 +783,7 @@ trait AuthSupport extends Control with ServletApiImplicits {
     def authorizeTo(target: Target, access: Access): Authorization = {
       if (hasFrontEndAuthority) return FrontendAuth     // allow whatever it wants to do
       // Transform any generic access into specific access
-      var requiredAccess =
+      val requiredAccess =
         if (!isMyOrg(target) && !target.isPublic && !isMsgToMultiTenantAgbot(target,access)) {
           access match {
             case Access.READ => Access.READ_OTHER_ORGS
@@ -785,6 +809,12 @@ trait AuthSupport extends Control with ServletApiImplicits {
               case Access.READ => Access.READ_ALL_AGBOTS
               case Access.WRITE => Access.WRITE_ALL_AGBOTS
               case Access.CREATE => Access.CREATE_AGBOT
+              case _ => access
+            }
+            case TResource(_) => access match { // a user accessing a resource
+              case Access.READ => Access.READ_ALL_RESOURCES
+              case Access.WRITE => Access.WRITE_ALL_RESOURCES
+              case Access.CREATE => Access.CREATE_RESOURCES
               case _ => access
             }
             case TService(_) => access match { // a node accessing a service
@@ -822,7 +852,7 @@ trait AuthSupport extends Control with ServletApiImplicits {
     def authorizeTo(target: Target, access: Access): Authorization = {
       if (hasFrontEndAuthority) return FrontendAuth     // allow whatever it wants to do
       // Transform any generic access into specific access
-      var requiredAccess =
+      val requiredAccess =
         if (!isMyOrg(target) && !target.isPublic && !isMultiTenantAgbot) {
           access match {
             case Access.READ => Access.READ_OTHER_ORGS
@@ -848,6 +878,12 @@ trait AuthSupport extends Control with ServletApiImplicits {
               case Access.READ => if (id == creds.id) Access.READ_MYSELF else if (target.mine) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
               case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (target.mine) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
               case Access.CREATE => Access.CREATE_AGBOT
+              case _ => access
+            }
+            case TResource(_) => access match { // a user accessing a resource
+              case Access.READ => Access.READ_ALL_RESOURCES
+              case Access.WRITE => Access.WRITE_ALL_RESOURCES
+              case Access.CREATE => Access.CREATE_RESOURCES
               case _ => access
             }
             case TService(_) => access match { // a agbot accessing a service
@@ -891,7 +927,7 @@ trait AuthSupport extends Control with ServletApiImplicits {
 
     def authorizeTo(target: Target, access: Access): Authorization = {
       // Transform any generic access into specific access
-      var requiredAccess =
+      val requiredAccess =
         //todo: This makes anonymous never work, which might be what we want. Decide what to do about it.
         if (!isMyOrg(target) && !target.isPublic) {
           access match {
@@ -918,6 +954,12 @@ trait AuthSupport extends Control with ServletApiImplicits {
               case Access.READ => Access.READ_ALL_AGBOTS
               case Access.WRITE => Access.WRITE_ALL_AGBOTS
               case Access.CREATE => Access.CREATE_AGBOT
+              case _ => access
+            }
+            case TResource(_) => access match { // a user accessing a resource
+              case Access.READ => Access.READ_ALL_RESOURCES
+              case Access.WRITE => Access.WRITE_ALL_RESOURCES
+              case Access.CREATE => Access.CREATE_RESOURCES
               case _ => access
             }
             case TService(_) => access match { // a anonymous accessing a service
@@ -978,6 +1020,9 @@ trait AuthSupport extends Control with ServletApiImplicits {
   case class TUser(id: String) extends Target
   case class TNode(id: String) extends Target
   case class TAgbot(id: String) extends Target
+  case class TResource(id: String) extends Target {      // for resources only the user that created it can update/delete it
+    override def isPublic: Boolean = if (all) return true else return AuthCache.resources.getIsPublic(id).getOrElse(false)
+  }
   case class TService(id: String) extends Target {      // for services only the user that created it can update/delete it
     override def isPublic: Boolean = if (all) return true else return AuthCache.services.getIsPublic(id).getOrElse(false)
   }

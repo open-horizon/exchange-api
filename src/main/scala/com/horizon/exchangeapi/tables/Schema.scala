@@ -86,7 +86,9 @@ object SchemaTQ {
       )
       case 13 => DBIO.seq(   // v1.63.0
         sqlu"alter table services add column documentation character varying not null default ''",
-        ResourcesTQ.rows.schema.create
+        ResourcesTQ.rows.schema.create,
+        ResourceKeysTQ.rows.schema.create,
+        ResourceAuthsTQ.rows.schema.create
       )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }

@@ -116,7 +116,7 @@ class ResourceKeys(tag: Tag) extends Table[ResourceKeyRow](tag, "resourcekeys") 
   def key = column[String]("key")                   // the actual key content
   def lastUpdated = column[String]("lastupdated")
   def * = (keyId, resourceId, key, lastUpdated) <> (ResourceKeyRow.tupled, ResourceKeyRow.unapply)
-  def primKey = primaryKey("pk_svck", (keyId, resourceId))
+  def primKey = primaryKey("pk_resk", (keyId, resourceId))
   def resource = foreignKey("resource_fk", resourceId, ResourcesTQ.rows)(_.resource, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
@@ -146,7 +146,7 @@ class ResourceAuths(tag: Tag) extends Table[ResourceAuthRow](tag, "resourceauths
   def token = column[String]("token")                   // the actual token content
   def lastUpdated = column[String]("lastupdated")
   def * = (authId, resourceId, username, token, lastUpdated) <> (ResourceAuthRow.tupled, ResourceAuthRow.unapply)
-  //def primKey = primaryKey("pk_svck", (authId, resourceId))    // <- the auto-created id is already unique
+  //def primKey = primaryKey("pk_authk", (authId, resourceId))    // <- the auto-created id is already unique
   def resource = foreignKey("resource_fk", resourceId, ResourcesTQ.rows)(_.resource, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 

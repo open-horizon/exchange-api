@@ -38,7 +38,7 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
   }
 
   // Build a list of db actions to verify that the referenced services exist
-  def validateServiceIds: DBIO[Vector[Int]] = { PatternsTQ.validateServiceIds(services) }
+  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { PatternsTQ.validateServiceIds(services) }
 
   // Note: write() handles correctly the case where the optional fields are None.
   def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
@@ -205,14 +205,14 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           "version": "1.0.1",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
           "deployment_overrides_signature": "",     // filled in by the Horizon signing process
-          "priority": {
+          "priority": {      // can be omitted
             "priority_value": 50,
             "retries": 1,
             "retry_durations": 3600,
             "verified_durations": 52
           },
           // When Horizon should upgrade nodes to newer service versions. Can be set to {} to take the default of immediate.
-          "upgradePolicy": {
+          "upgradePolicy": {      // can be omitted
             "lifecycle": "immediate",
             "time": "01:00AM"     // reserved for future use
           }
@@ -220,7 +220,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       ],
       // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the service is sending data.
       // If not using this, the dataVerification field can be set to {} or omitted completely.
-      "dataVerification": {
+      "dataVerification": {      // can be omitted
         "enabled": true,
         "URL": "",
         "user": "",
@@ -234,14 +234,14 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         }
       },
       // If not using agbot node health check, this field can be set to {} or omitted completely.
-      "nodeHealth": {
+      "nodeHealth": {      // can be omitted
         "missing_heartbeat_interval": 600,      // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
         "check_agreement_status": 120        // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
       }
     }
   ],
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
-  "agreementProtocols": [
+  "agreementProtocols": [      // can be omitted
     {
       "name": "Basic"
     }
@@ -273,8 +273,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     // Get optional agbots that should be updated with this new pattern
     //val agbotParams = multiParams("updateagbot")
     val resp = response
-    // validateServiceIds() checks that the services referenced exist
-    db.run(patternReq.validateServiceIds.asTry.flatMap({ xs =>
+    val (valServiceIdActions, svcRefs) = patternReq.validateServiceIds  // to check that the services referenced exist
+    db.run(valServiceIdActions.asTry.flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" service validation: "+xs.toString)
       xs match {
         case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
@@ -285,7 +285,11 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             }
           } }
           if (invalidIndex < 0) PatternsTQ.getNumOwned(owner).result.asTry
-          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange")).asTry
+          else {
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+              else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            DBIO.failed(new Throwable(errStr)).asTry
+          }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -348,7 +352,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     patternReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
-    db.run(patternReq.validateServiceIds.asTry.flatMap({ xs =>
+    val (valServiceIdActions, svcRefs) = patternReq.validateServiceIds  // to check that the services referenced exist
+    db.run(valServiceIdActions.asTry.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" service validation: "+xs.toString)
       xs match {
         case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
@@ -359,7 +364,11 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             }
           } }
           if (invalidIndex < 0) patternReq.toPatternRow(pattern, orgid, owner).update.asTry
-          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange")).asTry
+          else {
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+              else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            DBIO.failed(new Throwable(errStr)).asTry
+          }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
@@ -412,8 +421,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val resp = response
     val (action, attrName) = patternReq.getDbUpdate(pattern, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid pattern attribute specified"))
-    val patValidateAction = if (attrName == "services") PatternsTQ.validateServiceIds(patternReq.services.get) else DBIO.successful(Vector())
-    db.run(patValidateAction.asTry.flatMap({ xs =>
+    val (valServiceIdActions, svcRefs) = if (attrName == "services") PatternsTQ.validateServiceIds(patternReq.services.get) else (DBIO.successful(Vector()), Vector())
+    db.run(valServiceIdActions.asTry.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" service validation: "+xs.toString)
       xs match {
         case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
@@ -424,7 +433,11 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             }
           } }
           if (invalidIndex < 0) action.transactionally.asTry
-          else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange")).asTry
+          else {
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+              else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            DBIO.failed(new Throwable(errStr)).asTry
+          }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>

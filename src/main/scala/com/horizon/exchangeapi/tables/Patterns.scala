@@ -51,17 +51,19 @@ object PatternsTQ {
   val rows = TableQuery[Patterns]
 
   // Build a list of db actions to verify that the referenced services exist
-  def validateServiceIds(services: List[PServices]): DBIO[Vector[Int]] = {
+  def validateServiceIds(services: List[PServices]): (DBIO[Vector[Int]], Vector[ServiceRef]) = {
     // Currently, anax does not support a pattern with no services, so do not support that here
     val actions = ListBuffer[DBIO[Int]]()
+    val svcRefs = ListBuffer[ServiceRef]()
     for (s <- services) {
       for (sv <- s.serviceVersions) {
+        svcRefs += ServiceRef(s.serviceUrl, s.serviceOrgid, sv.version, s.serviceArch)
         val svcId = ServicesTQ.formId(s.serviceOrgid, s.serviceUrl, sv.version, s.serviceArch)
         actions += ServicesTQ.getService(svcId).length.result
       }
     }
     //return DBIO.seq(actions: _*)      // convert the list of actions to a DBIO seq
-    return DBIO.sequence(actions.toVector)      // convert the list of actions to a DBIO sequence
+    return (DBIO.sequence(actions.toVector), svcRefs.toVector)      // convert the list of actions to a DBIO sequence
   }
 
   def getAllPatterns(orgid: String) = rows.filter(_.orgid === orgid)

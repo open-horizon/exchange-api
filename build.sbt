@@ -25,10 +25,11 @@ lazy val root = (project in file(".")).
       "org.eclipse.jetty" % "jetty-webapp" % "latest.release" % "container",
       "org.eclipse.jetty" % "jetty-plus" % "latest.release" % "container",
       "org.scalatra" %% "scalatra-json" % "latest.release",
-      "org.json4s" %% "json4s-native" % "latest.release",
-      "org.json4s" %% "json4s-jackson" % "latest.release",
-      //"org.json4s" %% "json4s-native" % "3.5.3",
-      //"org.json4s" %% "json4s-jackson" % "3.5.3",
+      // Using latest for json4s causes it to select 3.5.3, but that results in swagger throwing: NoSuchMethodError: org.json4s.JsonDSL$.seq2jvalue
+      //"org.json4s" %% "json4s-native" % "latest.release",
+      //"org.json4s" %% "json4s-jackson" % "latest.release",
+      "org.json4s" %% "json4s-native" % "3.5.2",
+      "org.json4s" %% "json4s-jackson" % "3.5.2",
       "org.scalatra" %% "scalatra-swagger"  % "latest.release",
       "org.scalatest" %% "scalatest" % "latest.release" % "test",
       "org.scalacheck" %% "scalacheck" % "latest.release" % "test",
@@ -40,6 +41,7 @@ lazy val root = (project in file(".")).
       "javax.mail" % "javax.mail-api" % "latest.release"
       //"com.sun.mail" % "javax.mail" % "latest.release"
     ),
-    scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
+    scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
+    javaOptions ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config", "-Djava.security.policy=src/main/resources/auth.policy")
   ).
   enablePlugins(JettyPlugin)

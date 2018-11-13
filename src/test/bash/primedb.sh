@@ -55,6 +55,10 @@ agreementid1="${agreementbase}1"
 agreementid2="${agreementbase}2"
 agreementid3="${agreementbase}3"
 
+resname="res1"
+resversion="7.8.9"
+resid="${resname}_$resversion"
+
 svcid="bluehorizon.network-services-gps_1.2.3_amd64"
 svcurl="https://bluehorizon.network/services/gps"
 svcarch="amd64"
@@ -222,6 +226,16 @@ else
     echo "orgs/$orgid/services/$svcid/dockauths/$svcDockAuthId exists"
 fi
 
+rc=$(curlfind $userauth "orgs/$orgid/resources/$resid")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauth "orgs/$orgid/resources" '{"name": "'$resname'", "description": "blah blah", "public": true, "documentation": "https://myres.com/myres",
+  "version": "'$resversion'",
+  "resourceStore": { "url": "https://..." } }'
+else
+    echo "orgs/$orgid/resources/$resid exists"
+fi
+
 rc=$(curlfind $userauth "orgs/$orgid/services/$svc2id")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
@@ -229,10 +243,17 @@ if [[ $rc != 200 ]]; then
   "version": "'$svc2version'", "arch": "'$svc2arch'", "sharable": "single",
   "requiredServices": [
     {
-      "url": "https://bluehorizon.network/services/gps",
-      "org": "IBM",
+      "url": "'$svcurl'",
+      "org": "'$orgid'",
       "version": "[1.0.0,INFINITY)",
-      "arch": "amd64"
+      "arch": "'$svcarch'"
+    }
+  ],
+  "requiredResources": [
+    {
+      "org": "'$orgid'",
+      "name": "'$resname'",
+      "version": "[1.0.0,INFINITY)"
     }
   ],
   "userInput": [

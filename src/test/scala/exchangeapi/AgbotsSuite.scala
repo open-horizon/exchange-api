@@ -288,7 +288,7 @@ class AgbotsSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/services - add "+svcid+" and check that agbot can read it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

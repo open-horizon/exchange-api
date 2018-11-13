@@ -135,7 +135,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("Add service for future tests") {
-    val svcInput = PostPutServiceRequest("test-service", None, public = false, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val svcResponse = Http(URL+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
     assert(svcResponse.code === HttpCode.POST_OK)

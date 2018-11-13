@@ -1,7 +1,5 @@
 package com.horizon.exchangeapi.tables
 
-//import org.json4s._
-//import org.json4s.jackson.Serialization.read
 import com.horizon.exchangeapi.ApiTime
 import slick.jdbc.PostgresProfile.api._
 import org.slf4j._
@@ -85,12 +83,20 @@ object SchemaTQ {
         sqlu"drop table if exists microservicekeys", sqlu"drop table if exists microservices",
         sqlu"drop table if exists workloadkeys", sqlu"drop table if exists workloads",
         sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes"
-    )
+      )
+      case 13 => DBIO.seq(   // v1.63.0
+        sqlu"alter table services add column documentation character varying not null default ''",
+        ResourcesTQ.rows.schema.create,
+        ResourceKeysTQ.rows.schema.create,
+        ResourceAuthsTQ.rows.schema.create,
+        sqlu"alter table services add column requiredResources character varying not null default ''"
+      )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 12     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
-  val latestSchemaDescription = "Removed microservice, workload, and blockchain tables and columns"
+  val latestSchemaVersion = 13     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
+  val latestSchemaDescription = "Added dcoumentation column to services table, and added resources table"
+  // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

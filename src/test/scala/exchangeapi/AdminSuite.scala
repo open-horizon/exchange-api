@@ -30,7 +30,7 @@ class AdminSuite extends FunSuite {
   val ACCEPTTEXT = ("Accept","text/plain")
   val CONTENT = ("Content-Type","application/json")
   val rootuser = Role.superUser
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "Horizon-Rul3s")      // need to put this root pw in config.json
+  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.

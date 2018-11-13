@@ -7,19 +7,19 @@ import slick.jdbc.PostgresProfile.api._
 
 
 /** Contains the object representations of the DB tables related to resources. */
-case class ResourceRef(org: String, url: String, version: String, arch: String)
+case class ResourceRef(org: String, name: String, version: String)
 
 // This is the resource table minus the key - used as the data structure to return to the REST clients
-class Resource(var owner: String, var name: String, var description: String, var public: Boolean, var documentation: String, var version: String, var arch: String, var sharable: String, var deployment: String, var deploymentSignature: String, var resourceStore: Map[String,Any], var lastUpdated: String) {
-  def copy = new Resource(owner, name, description, public, documentation, version, arch, sharable, deployment, deploymentSignature, resourceStore, lastUpdated)
+class Resource(var owner: String, var name: String, var description: String, var public: Boolean, var documentation: String, var version: String, var arch: String, var resourceStore: Map[String,Any], var lastUpdated: String) {
+  def copy = new Resource(owner, name, description, public, documentation, version, arch, resourceStore, lastUpdated)
 }
 
-case class ResourceRow(resource: String, orgid: String, owner: String, name: String, description: String, public: Boolean, documentation: String, version: String, arch: String, sharable: String, deployment: String, deploymentSignature: String, resourceStore: String, lastUpdated: String) {
+case class ResourceRow(resource: String, orgid: String, owner: String, name: String, description: String, public: Boolean, documentation: String, version: String, arch: String, resourceStore: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toResource: Resource = {
     val p = if (resourceStore != "") read[Map[String,Any]](resourceStore) else Map[String,Any]()
-    new Resource(owner, name, description, public, documentation, version, arch, sharable, deployment, deploymentSignature, p, lastUpdated)
+    new Resource(owner, name, description, public, documentation, version, arch, p, lastUpdated)
   }
 
   // update returns a DB action to update this row
@@ -40,13 +40,13 @@ class Resources(tag: Tag) extends Table[ResourceRow](tag, "resources") {
   def documentation = column[String]("documentation")
   def version = column[String]("version")
   def arch = column[String]("arch")
-  def sharable = column[String]("sharable")
-  def deployment = column[String]("deployment")
-  def deploymentSignature = column[String]("deploymentsignature")
+//  def sharable = column[String]("sharable")
+//  def deployment = column[String]("deployment")
+//  def deploymentSignature = column[String]("deploymentsignature")
   def resourceStore = column[String]("resourceStore")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (resource, orgid, owner, name, description, public, documentation, version, arch, sharable, deployment, deploymentSignature, resourceStore, lastUpdated) <> (ResourceRow.tupled, ResourceRow.unapply)
+  def * = (resource, orgid, owner, name, description, public, documentation, version, arch, resourceStore, lastUpdated) <> (ResourceRow.tupled, ResourceRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -71,9 +71,6 @@ object ResourcesTQ {
   def getDocumentation(resource: String) = rows.filter(_.resource === resource).map(_.documentation)
   def getVersion(resource: String) = rows.filter(_.resource === resource).map(_.version)
   def getArch(resource: String) = rows.filter(_.resource === resource).map(_.arch)
-  def getSharable(resource: String) = rows.filter(_.resource === resource).map(_.sharable)
-  def getDeployment(resource: String) = rows.filter(_.resource === resource).map(_.deployment)
-  def getDeploymentSignature(resource: String) = rows.filter(_.resource === resource).map(_.deploymentSignature)
   def getResourceStore(resource: String) = rows.filter(_.resource === resource).map(_.resourceStore)
   def getLastUpdated(resource: String) = rows.filter(_.resource === resource).map(_.lastUpdated)
 
@@ -89,9 +86,6 @@ object ResourcesTQ {
       case "documentation" => filter.map(_.documentation)
       case "version" => filter.map(_.version)
       case "arch" => filter.map(_.arch)
-      case "sharable" => filter.map(_.sharable)
-      case "deployment" => filter.map(_.deployment)
-      case "deploymentSignature" => filter.map(_.deploymentSignature)
       case "resourceStore" => filter.map(_.resourceStore)
       case "lastUpdated" => filter.map(_.lastUpdated)
       case _ => null

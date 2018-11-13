@@ -230,12 +230,10 @@ rc=$(curlfind $userauth "orgs/$orgid/resources/$resid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/resources" '{"name": "'$resname'", "description": "blah blah", "public": true, "documentation": "https://myres.com/myres",
-  "version": "'$resversion'", "sharable": "singleton",
-  "deployment": "{\"volumeMountPoint\":\"/models/mymodel\",\"access\":\"readonly\"}",
-  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",
+  "version": "'$resversion'",
   "resourceStore": { "url": "https://..." } }'
 else
-    echo "orgs/$orgid/services/$svcid exists"
+    echo "orgs/$orgid/resources/$resid exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/services/$svc2id")
@@ -249,6 +247,13 @@ if [[ $rc != 200 ]]; then
       "org": "'$orgid'",
       "version": "[1.0.0,INFINITY)",
       "arch": "'$svcarch'"
+    }
+  ],
+  "requiredResources": [
+    {
+      "org": "'$orgid'",
+      "name": "'$resname'",
+      "version": "[1.0.0,INFINITY)"
     }
   ],
   "userInput": [

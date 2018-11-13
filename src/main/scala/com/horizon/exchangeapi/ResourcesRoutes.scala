@@ -23,7 +23,7 @@ case class GetResourcesResponse(resources: Map[String,Resource], lastIndex: Int)
 case class GetResourceAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST /orgs/{orgid}/resources or PUT /orgs/{orgid}/resources/<resource-id> */
-case class PostPutResourceRequest(name: String, description: Option[String], public: Boolean, documentation: Option[String], version: String, arch: Option[String], sharable: String, deployment: String, deploymentSignature: String, resourceStore: Map[String,Any]) {
+case class PostPutResourceRequest(name: String, description: Option[String], public: Boolean, documentation: Option[String], version: String, arch: Option[String], resourceStore: Map[String,Any]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(orgid: String, resourceId: String) = {
     // Ensure that the documentation field is a valid URL
@@ -37,22 +37,16 @@ case class PostPutResourceRequest(name: String, description: Option[String], pub
     // We enforce that the attributes equal the existing id for PUT, because even if they change the attribute, the id would not get updated correctly
     if (resourceId != null && resourceId != "" && formId(orgid) != resourceId) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the resource id specified in the URL does not match the name and version in the body."))
 
-    val allSharableVals = SharableVals.values.map(_.toString)
-    if (sharable == "" || !allSharableVals.contains(sharable)) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value '"+sharable+"' for the sharable attribute."))
-
-    // Check that it is signed
-    if (deployment != "" && deploymentSignature == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this resource definition does not appear to be signed."))
-
     // Ensure they specified url in resourceStore
     if (!resourceStore.keySet.contains("url")) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the 'resourceStore' field must at least contain the 'url' field."))
   }
 
   def formId(orgid: String) = ResourcesTQ.formId(orgid, name, version)
 
-  def toResourceRow(resource: String, orgid: String, owner: String) = ResourceRow(resource, orgid, owner, name, description.getOrElse(name), public, documentation.getOrElse(""), version, arch.getOrElse(""), sharable, deployment, deploymentSignature, write(resourceStore), ApiTime.nowUTC)
+  def toResourceRow(resource: String, orgid: String, owner: String) = ResourceRow(resource, orgid, owner, name, description.getOrElse(name), public, documentation.getOrElse(""), version, arch.getOrElse(""), write(resourceStore), ApiTime.nowUTC)
 }
 
-case class PatchResourceRequest(name: Option[String], description: Option[String], public: Option[Boolean], documentation: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], deployment: Option[String], deploymentSignature: Option[String], resourceStore: Option[Map[String,Any]]) {
+case class PatchResourceRequest(name: Option[String], description: Option[String], public: Option[Boolean], documentation: Option[String], version: Option[String], arch: Option[String], resourceStore: Option[Map[String,Any]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the resource, and the attribute name being updated. */
@@ -65,9 +59,6 @@ case class PatchResourceRequest(name: Option[String], description: Option[String
     documentation match { case Some(doc) => return ((for {d <- ResourcesTQ.rows if d.resource === resource } yield (d.resource,d.documentation,d.lastUpdated)).update((resource, doc, lastUpdated)), "documentation"); case _ => ; }
     version match { case Some(ver) => return ((for { d <- ResourcesTQ.rows if d.resource === resource } yield (d.resource,d.version,d.lastUpdated)).update((resource, ver, lastUpdated)), "version"); case _ => ; }
     arch match { case Some(ar) => return ((for { d <- ResourcesTQ.rows if d.resource === resource } yield (d.resource,d.arch,d.lastUpdated)).update((resource, ar, lastUpdated)), "arch"); case _ => ; }
-    sharable match { case Some(share) => return ((for {d <- ResourcesTQ.rows if d.resource === resource } yield (d.resource,d.sharable,d.lastUpdated)).update((resource, share, lastUpdated)), "sharable"); case _ => ; }
-    deployment match { case Some(dep) => return ((for {d <- ResourcesTQ.rows if d.resource === resource } yield (d.resource,d.deployment,d.lastUpdated)).update((resource, dep, lastUpdated)), "deployment"); case _ => ; }
-    deploymentSignature match { case Some(depsig) => return ((for {d <- ResourcesTQ.rows if d.resource === resource } yield (d.resource,d.deploymentSignature,d.lastUpdated)).update((resource, depsig, lastUpdated)), "deploymentSignature"); case _ => ; }
     resourceStore match { case Some(p) => return ((for {d <- ResourcesTQ.rows if d.resource === resource } yield (d.resource,d.resourceStore,d.lastUpdated)).update((resource, write(p), lastUpdated)), "resourceStore"); case _ => ; }
     return (null, null)
   }
@@ -204,10 +195,6 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   "documentation": "https://console.cloud.ibm.com/docs/resources/edge-fabric/poc/sdr-model.html",   // description of what this resource if for and how to use it
   "version": "1.0.0",
   "arch": "amd64",     // optional, can be omitted
-  "sharable": "singleton",   // if multiple resources require this resource, how many instances are deployed: "exclusive", "singleton", "multiple"
-  // Information about how to deploy the resource file to the service containers that require it
-  "deployment": "{\"volumeMountPoint\":\"/models/mymodel",\"access\":\"readonly\"}",
-  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
   "resourceStore": {
     "storeType": "slObjectStore",    // valid values: slObjectStore (default), http
     "packageType": "tarball",   // valid values: tarball (default)
@@ -356,10 +343,6 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val (action, attrName) = resourceReq.getDbUpdate(resource, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid resource attribute specified"))
     if (attrName == "name" || attrName == "version") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "patching attributes 'name' and 'version' are not allowed (because the id would not match). To change those attributes you must delete the resource and recreate it."))
-    if (attrName == "sharable") {
-      val allSharableVals = SharableVals.values.map(_.toString)
-      if (!allSharableVals.contains(resourceReq.sharable.getOrElse(""))) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value '" + resourceReq.sharable.getOrElse("") + "' for the sharable attribute."))
-    }
 
     // First check that the requiredResources exist (if that is not watch they are patching, this is a noop)
     db.run(action.transactionally.asTry).map({ xs =>

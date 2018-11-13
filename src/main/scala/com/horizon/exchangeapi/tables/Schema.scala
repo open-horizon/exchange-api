@@ -88,13 +88,14 @@ object SchemaTQ {
         sqlu"alter table services add column documentation character varying not null default ''",
         ResourcesTQ.rows.schema.create,
         ResourceKeysTQ.rows.schema.create,
-        ResourceAuthsTQ.rows.schema.create
+        ResourceAuthsTQ.rows.schema.create,
+        sqlu"alter table services add column requiredResources character varying not null default ''"
       )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
   val latestSchemaVersion = 13     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
-  val latestSchemaDescription = "Added dcoumentation column to services table, and add resources table"
+  val latestSchemaDescription = "Added dcoumentation column to services table, and added resources table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
 

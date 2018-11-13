@@ -103,7 +103,7 @@ class ResourcesSuite extends FunSuite {
     deleteAllUsers()
   }
 
-  /** Add users, resource for future tests */
+  /** Add users, node, agbot, resources for future tests */
   test("Add users, resource for future tests") {
     var userInput = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -127,21 +127,14 @@ class ResourcesSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/resources/"+resource+" - update resource that is not there yet - should fail") {
-    val input = PostPutResourceRequest(resName, None, public = false, None, resVersion, Some(resArch), "multiple", "{\"resources\":{}}", "a", Map("url" -> resUrl))
+    val input = PostPutResourceRequest(resName, None, public = false, None, resVersion, Some(resArch), Map("url" -> resUrl))
     val response = Http(URL+"/resources/"+resource).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
-  test("POST /orgs/"+orgid+"/resources - add "+resource+" that is not signed - should fail") {
-    val input = PostPutResourceRequest(resName, None, public = false, None, resVersion, Some(resArch), "multiple", "{\"resources\":{}}", "", Map("url" -> resUrl))
-    val response = Http(URL+"/resources").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
-  }
-
   test("POST /orgs/"+orgid+"/resources - add "+resource) {
-    val input = PostPutResourceRequest(resName, None, public = false, None, resVersion, Some(resArch), "multiple", "{\"resources\":{}}", "a", Map("url" -> resUrl))
+    val input = PostPutResourceRequest(resName, None, public = false, None, resVersion, Some(resArch), Map("url" -> resUrl))
     val response = Http(URL+"/resources").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -150,35 +143,28 @@ class ResourcesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/resources - add "+resource+" again - should fail") {
-    val input = PostPutResourceRequest(resName, None, public = false, None, resVersion, Some(resArch), "multiple", "{\"resources\":{}}", "a", Map("url" -> resUrl))
+    val input = PostPutResourceRequest(resName, None, public = false, None, resVersion, Some(resArch), Map("url" -> resUrl))
     val response = Http(URL+"/resources").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ALREADY_EXISTS)
   }
 
   test("PUT /orgs/"+orgid+"/resources/"+resource+" - update changing version - should fail") {
-    val input = PostPutResourceRequest(resName, None, public = false, None, "1.2.3", Some(resArch), "multiple", "{\"resources\":{}}", "a", Map("url" -> resUrl))
-    val response = Http(URL+"/resources/"+resource).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
-  }
-
-  test("PUT /orgs/"+orgid+"/resources/"+resource+" - update with invalid sharable value - should fail") {
-    val input = PostPutResourceRequest(resName, None, public = false, None, resVersion, Some(resArch), "foobar", "{\"resources\":{}}", "a", Map("url" -> resUrl))
+    val input = PostPutResourceRequest(resName, None, public = false, None, "1.2.3", Some(resArch), Map("url" -> resUrl))
     val response = Http(URL+"/resources/"+resource).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("PUT /orgs/"+orgid+"/resources/"+resource+" - update as 2nd user - should fail") {
-    val input = PostPutResourceRequest(resName, None, public = false, None, resVersion, Some(resArch), "multiple", "{\"resources\":{}}", "a", Map("url" -> resUrl))
+    val input = PostPutResourceRequest(resName, None, public = false, None, resVersion, Some(resArch), Map("url" -> resUrl))
     val response = Http(URL+"/resources/"+resource).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("PUT /orgs/"+orgid+"/resources/"+resource+" - update as agbot - should fail") {
-    val input = PostPutResourceRequest(resName, None, public = false, None, resVersion, Some(resArch), "multiple", "{\"resources\":{}}", "a", Map("url" -> resUrl))
+    val input = PostPutResourceRequest(resName, None, public = false, None, resVersion, Some(resArch), Map("url" -> resUrl))
     val response = Http(URL+"/resources/"+resource).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -194,14 +180,14 @@ class ResourcesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/resources - add "+resource2+" as node - should fail") {
-    val input = PostPutResourceRequest(resName2, None, public = true, None, resVersion2, None, "singleton", "{\"resources\":{}}", "a", Map("url" -> resUrl2))
+    val input = PostPutResourceRequest(resName2, None, public = true, None, resVersion2, None, Map("url" -> resUrl2))
     val response = Http(URL+"/resources").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("POST /orgs/"+orgid+"/resources - add "+resource2+" as 2nd user") {
-    val input = PostPutResourceRequest(resName2, None, public = true, None, resVersion2, None, "singleton", "{\"resources\":{}}", "a", Map("url" -> resUrl2))
+    val input = PostPutResourceRequest(resName2, None, public = true, None, resVersion2, None, Map("url" -> resUrl2))
     val response = Http(URL+"/resources").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -297,35 +283,28 @@ class ResourcesSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
-  test("PATCH /orgs/"+orgid+"/resources/"+resource+" - invalid sharable value - should fail") {
-    val jsonInput = """{ "sharable": "foobar" }"""
-    val response = Http(URL+"/resources/"+resource).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
-  }
-
   test("PATCH /orgs/"+orgid+"/resources/"+resource+" - as user") {
-    val jsonInput = """{ "sharable": "exclusive" }"""
+    val jsonInput = """{ "documentation": "https://mysite.com/mymodel" }"""
     val response = Http(URL+"/resources/"+resource).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PATCH /orgs/"+orgid+"/resources/"+resource+" - as user2 - should fail") {
-    val jsonInput = """{ "sharable": "multiple" }"""
+    val jsonInput = """{ "documentation": "https://mysite.com/mymodel" }"""
     val response = Http(URL+"/resources/"+resource).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("GET /orgs/"+orgid+"/resources/"+resource+" - as agbot, check patch by getting that 1 attr") {
-    val response: HttpResponse[String] = Http(URL+"/resources/"+resource).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","sharable").asString
+    val response: HttpResponse[String] = Http(URL+"/resources/"+resource).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","documentation").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetResourceAttributeResponse]
-    assert(respObj.attribute === "sharable")
-    assert(respObj.value === "exclusive")
+    assert(respObj.attribute === "documentation")
+    assert(respObj.value === "https://mysite.com/mymodel")
   }
 
   test("GET /orgs/"+orgid+"/resources/"+resource+"notthere - as user - should fail") {

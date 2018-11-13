@@ -96,6 +96,7 @@ export EXCHANGE_ROOTPW=myrootpw
 - Improved error in `POST/PUT/PATCH pattern` when reference service does not exist to output service org, url, arch, version range
 - Added optional `documentation` field to service resource
 - Added new `resource` definition that can be required by services to hold things like models
+- Added `singleton` as a valid `sharable` value
 - Added JAAS authentication framework
 
 ## Changes in 1.62.0

@@ -1051,6 +1051,12 @@ trait AuthenticationSupport extends ScalatraBase with AuthSupport {
    * credentials.
    */
   def authenticate(anonymousOk: Boolean = false, hint: String = ""): AuthenticatedIdentity = {
+    /*
+     * For JAAS, the LoginContext is what you use to attempt to login a user
+     * and get a Subject back. It takes care of creating the LoginModules and
+     * calling them. It is configured by the jaas.config file, which specifies
+     * which LoginModules to use.
+     */
     val loginCtx = new LoginContext(
       "ExchangeApiLogin",
       new ExchCallbackHandler(RequestInfo(request, params, isDbMigration, anonymousOk, hint))

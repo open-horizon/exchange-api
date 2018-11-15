@@ -14,6 +14,7 @@ class Module extends LoginModule with AuthSupport {
   private var subject: Subject = _
   private var handler: CallbackHandler = _
   private var identity: Identity = _
+  private var succeeded = false
   lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
 
 
@@ -27,11 +28,21 @@ class Module extends LoginModule with AuthSupport {
     this.handler = handler
   }
 
+
+  /*
+   * This is where the actual login logic is performed, and is called by the
+   * LoginContext when its login method is called. This uses the callback to
+   * get acces to the web request, and then uses the logic from the credsAndLog
+   * to get an Identity from the request. This is later attached to the subject
+   * in the commit method, which is called by the context after login succeeds,
+   * and that is where we can get access to it in the route handling code.
+   */
   override def login(): Boolean = {
     val reqCallback = new RequestCallback
     val loginResult = Try {
       handler.handle(Array(reqCallback))
       if (reqCallback.request.isEmpty) {
+        logger.debug("Unable to get HTTP request while authenticating")
         throw new Exception("invalid credentials")
       }
       val reqInfo = reqCallback.request.get
@@ -52,7 +63,8 @@ class Module extends LoginModule with AuthSupport {
       }
       true
     }
-    loginResult.getOrElse(false)
+    succeeded = loginResult.getOrElse(false)
+    succeeded
   }
 
   override def logout(): Boolean = {
@@ -63,12 +75,25 @@ class Module extends LoginModule with AuthSupport {
   override def abort() = false
 
   override def commit(): Boolean = {
-    subject.getPrivateCredentials().add(identity)
-    subject.getPrincipals().add(ExchangeRole(identity.role))
-    true
+    if (succeeded) {
+      subject.getPrivateCredentials().add(identity)
+      subject.getPrincipals().add(ExchangeRole(identity.role))
+    }
+    succeeded
   }
 }
 
+/*
+ * Login modules get info about the subject (like username and password)
+ * through callbacks. JAAS doesn't really seem to have been meant for web
+ * apps (a lot of the callbacks seem to be meant to interact with the user,
+ * e.g., prompt them to type in a password), and after some research I
+ * found some people were implementing it in web apps by creating callbacks
+ * that return the http request object, so I went with that. It's possible
+ * that we will want to support more callbacks like Name and Password, which
+ * we can pull from the request in the callback handler, but grabbing the
+ * request like this made it easy to re-use the existing logic.
+ */
 class ExchCallbackHandler(request: RequestInfo) extends CallbackHandler {
   override def handle(callbacks: Array[Callback]): Unit = {
     for (callback <- callbacks) {

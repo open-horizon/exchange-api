@@ -90,14 +90,17 @@ object SchemaTQ {
         ResourceKeysTQ.rows.schema.create,
         ResourceAuthsTQ.rows.schema.create,
         sqlu"alter table services add column requiredResources character varying not null default ''"
+    )
+      case 14 => DBIO.seq(   // TODO: update version
+        sqlu"alter table orgs add column tags jsonb",
+        sqlu"create index on orgs((tags->>'ibmcloud_id'))"
       )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 13     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
-  val latestSchemaDescription = "Added dcoumentation column to services table, and added resources table"
+  val latestSchemaVersion = 14     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
+  val latestSchemaDescription = "Added a json field for optional info (key-value pairs) to be stored with an org"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
-
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion
 

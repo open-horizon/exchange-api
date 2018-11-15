@@ -13,6 +13,8 @@ lazy val root = (project in file(".")).
       "org.scalatra" %% "scalatra-specs2" % "latest.release" % "test",
       "com.typesafe.slick" %% "slick" % "latest.release",
       "com.typesafe.slick" %% "slick-hikaricp" % "latest.release",
+      "com.github.tminglei" %% "slick-pg" % "0.16.3",
+      "com.github.tminglei" %% "slick-pg_json4s" % "0.16.3",
       "org.postgresql" % "postgresql" % "latest.release",
       "com.zaxxer" % "HikariCP" % "latest.release",
       //"com.zaxxer" % "HikariCP" % "2.5.1",
@@ -38,6 +40,7 @@ lazy val root = (project in file(".")).
       "com.typesafe" % "config" % "latest.release",
       "org.mindrot" % "jbcrypt" % "latest.release",
       "com.pauldijou" %% "jwt-core" % "latest.release",
+      "com.github.cb372" %% "scalacache-guava" % "0.26.0",
       "javax.mail" % "javax.mail-api" % "latest.release"
       //"com.sun.mail" % "javax.mail" % "latest.release"
     ),

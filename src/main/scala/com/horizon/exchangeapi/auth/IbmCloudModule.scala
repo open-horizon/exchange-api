@@ -118,6 +118,14 @@ object IbmCloudAuth {
   }
 
   def authenticateUser(apikey: String): Try[UserRow] = {
+    /*
+     * The caching library provides several functions that work on
+     * the cache defined above. The caching function takes a key and tries
+     * to retrieve from the cache, and if it is not there runs the block
+     * of code provided, adds the result to the cache, and then returns it.
+     * I use cachingF here so that I can return a Try value
+     * (see http://cb372.github.io/scalacache/docs/#basic-cache-operations for more info)
+     */
     cachingF(apikey)(ttl = None) {
       for {
         token <- getIamToken(apikey)

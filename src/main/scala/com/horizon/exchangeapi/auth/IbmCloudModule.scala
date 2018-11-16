@@ -92,7 +92,9 @@ class IbmCloudModule extends LoginModule with AuthSupport {
 
   private def extractApiKey(reqInfo: RequestInfo): Try[String] = {
     val creds = credentials(reqInfo)
-    if (creds.id == "iamapikey" && !creds.token.isEmpty) Success(creds.token)
+    val (org, id) = IbmCloudAuth.compositIdSplit(creds.id)
+    //todo: we should verify the org is the same as the org they are trying to access
+    if (id == "iamapikey" && !creds.token.isEmpty) Success(creds.token)
     else Failure(new Exception("Auth is not an IAM apikey"))
   }
 }
@@ -201,6 +203,17 @@ object IbmCloudAuth {
         ApiTime.nowUTC
       )
       (UsersTQ.rows += user).asTry.map(count => count.map(_ => user))
+    }
+  }
+
+  // Split an id in the form org/id and return both parts. If there is no / we assume it is an id without the org.
+  def compositIdSplit(compositeId: String): (String, String) = {
+    val reg = """^(\S*?)/(\S*)$""".r
+    compositeId match {
+      case reg(org,id) => return (org,id)
+      case reg(org,_) => return (org,"")
+      case reg(_,id) => return ("",id)
+      case _ => return ("", compositeId)
     }
   }
 }

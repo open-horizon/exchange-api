@@ -32,6 +32,8 @@ rootauth="root/root:$EXCHANGE_ROOTPW"
 
 orgid=$EXCHANGE_ORG
 orgid2="org2"
+orgidcarl="cgiroua@us.ibm.com"
+orgcarlid="f0a2bcb1b163c7dfa2868f4f4109e646"
 
 user="$EXCHANGE_USER"
 pw=$EXCHANGE_PW
@@ -181,6 +183,14 @@ if [[ $rc == 404 ]]; then
     curlcreate "POST" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2" '{"label": "Another org", "description": "blah blah"}'
 else
     echo "orgs/$orgid2 exists"
+fi
+
+rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgidcarl")
+checkrc "$rc" 200 404
+if [[ $rc == 404 ]]; then
+    curlcreate "POST" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgidcarl" '{"label": "Carls org", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcarlid'"} }'
+else
+    echo "orgs/$orgidcarl exists"
 fi
 
 rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid/users/$user")

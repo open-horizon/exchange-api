@@ -2,7 +2,7 @@ package com.horizon.exchangeapi
 
 import java.util.Base64
 
-import com.horizon.exchangeapi.auth.{ExchCallbackHandler, PermissionCheck}
+import com.horizon.exchangeapi.auth.{AuthErrors, ExchCallbackHandler, PermissionCheck}
 import com.horizon.exchangeapi.tables._
 import javax.security.auth.Subject
 import javax.security.auth.login.LoginContext
@@ -1061,8 +1061,8 @@ trait AuthenticationSupport extends ScalatraBase with AuthSupport {
       "ExchangeApiLogin",
       new ExchCallbackHandler(RequestInfo(request, params, isDbMigration, anonymousOk, hint))
     )
-    for (_ <- Try(loginCtx.login()).failed) {
-      halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+    for (err <- Try(loginCtx.login()).failed) {
+      halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, AuthErrors.message(err)))
     }
     val subject = loginCtx.getSubject
     AuthenticatedIdentity(subject.getPrivateCredentials(classOf[Identity]).asScala.head, subject)

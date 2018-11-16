@@ -3,6 +3,7 @@ package com.horizon.exchangeapi
 
 import java.util.Properties
 
+import com.horizon.exchangeapi.auth.IbmCloudAuth
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -541,6 +542,18 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       GetNodeMsgsResponse(msgs.toList, 0)
     })
     */
+  })
+
+  post("/admin/clearAuthCaches") ({
+    authenticate().authorizeTo(TAction(), Access.ADMIN)
+    IbmCloudAuth.clearCache()
+    AuthCache.agbots.removeAll()
+    AuthCache.nodes.removeAll()
+    AuthCache.patterns.removeAll()
+    AuthCache.resources.removeAll()
+    AuthCache.services.removeAll()
+    AuthCache.users.removeAll()
+    ApiResponse(ApiResponseType.OK, "cache cleared")
   })
 
 }

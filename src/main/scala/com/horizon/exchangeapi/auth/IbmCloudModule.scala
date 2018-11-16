@@ -57,7 +57,6 @@ class IbmCloudModule extends LoginModule with AuthSupport {
       val RequestInfo(req, _, isDbMigration, _, hint) = reqInfo
       val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
 
-      logger.info("attempting to authenticate with IBM Cloud")
       var authenticated = false
       for {
         key <- extractApiKey(reqInfo)
@@ -107,6 +106,8 @@ object IbmCloudAuth {
 
   private implicit val formats = DefaultFormats
 
+  lazy val logger: Logger = LoggerFactory.getLogger("IbmCloudAuth")
+
   private val guavaCache = CacheBuilder.newBuilder()
     .maximumSize(1000)
     .expireAfterWrite(10, TimeUnit.MINUTES)
@@ -118,6 +119,7 @@ object IbmCloudAuth {
   }
 
   def authenticateUser(apikey: String): Try[UserRow] = {
+    logger.info("attempting to authenticate with IBM Cloud")
     /*
      * The caching library provides several functions that work on
      * the cache defined above. The caching function takes a key and tries

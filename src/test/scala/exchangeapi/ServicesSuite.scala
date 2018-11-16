@@ -110,7 +110,7 @@ class ServicesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
 
-    val input = PostPutOrgRequest("My Org", "desc")
+    val input = PostPutOrgRequest("My Org", "desc", None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

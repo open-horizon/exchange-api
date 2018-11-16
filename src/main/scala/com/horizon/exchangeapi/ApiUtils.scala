@@ -6,6 +6,7 @@ import java.time._
 
 import com.horizon.exchangeapi.tables.{OrgRow, UserRow}
 import com.typesafe.config._
+import org.json4s.JValue
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
@@ -79,10 +80,10 @@ object ExchConfig {
       AuthCache.users.put(Creds(Role.superUser, rootpw))    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
       val rootemail = config.getString("api.root.email")
       // Create the root org, create the public org, and create the root user (all only if necessary)
-      db.run(OrgRow("root", "Root Org", "Organization for the root user only", ApiTime.nowUTC).upsert.asTry.flatMap({ xs =>
+      db.run(OrgRow("root", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None).upsert.asTry.flatMap({ xs =>
         logger.debug("Upsert /orgs/root result: "+xs.toString)
         xs match {
-          case Success(_) => OrgRow("public", "Public Org", "Organization for anyone to use", ApiTime.nowUTC).upsert.asTry    // next action
+          case Success(_) => OrgRow("public", "Public Org", "Organization for anyone to use", ApiTime.nowUTC, None).upsert.asTry    // next action
           case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
         }
       }).flatMap({ xs =>
@@ -296,5 +297,15 @@ case class Nth(n: Int) {
       case 3 => return n + "rd"
       case _ => return n + "th"
     }
+  }
+}
+
+object ApiJsonUtil {
+  def asJValue(src: AnyRef): JValue = {
+    import org.json4s.{ Extraction, NoTypeHints }
+    import org.json4s.jackson.Serialization
+    implicit val formats = Serialization.formats(NoTypeHints)
+
+    Extraction.decompose(src)
   }
 }

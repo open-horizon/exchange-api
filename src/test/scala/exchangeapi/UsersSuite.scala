@@ -110,16 +110,17 @@ class UsersSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)     // for now this is what is returned when the json-to-scala conversion fails
 
     // Now add a good org
-    var input = PostPutOrgRequest("My Org", "desc")
+    var input = PostPutOrgRequest("My Org", "desc", Some(Map("tagName" -> "test")))
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
 
     // Update the org
-    input = PostPutOrgRequest("My Org", "desc - updated")
+    input = PostPutOrgRequest("My Org", "desc - updated", None)
     response = Http(URL).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+    assert(!response.body.contains("tags"))
 
     // Patch the org
     val jsonInput = """{ "description": "desc - patched" }"""
@@ -127,8 +128,41 @@ class UsersSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
 
-    // Add a 2nd org
-    val input2 = PostPutOrgRequest("My Other Org", "desc")
+    // Patch the org, updating a tag
+    var tagInput = """{ "tags": {"tagName": "patchedTag"} }"""
+    response = Http(URL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+
+    // Ensure tag is updated
+    response = Http(NOORGURL+s"/orgs/$orgid").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    var tagResponse = parse(response.body).extract[GetOrgsResponse]
+    assert(tagResponse.orgs(orgid).tags.get("tagName") === "patchedTag")
+
+    // Ensure tags work when retrieving a single attribute
+    response = Http(NOORGURL+s"/orgs/$orgid").headers(ACCEPT).headers(ROOTAUTH).params("attribute" -> "tags").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    val attrResponse = parse(response.body).extract[Map[String, String]]
+    assert(attrResponse("value") === """{"tagName":"patchedTag"}""")
+
+    // Patch the org, deleting a tag
+    tagInput = """{ "tags": {"tagName": null} }"""
+    response = Http(URL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+
+    // Ensure tag is deleted
+    response = Http(NOORGURL+s"/orgs/$orgid").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    tagResponse = parse(response.body).extract[GetOrgsResponse]
+    assert(!tagResponse.orgs(orgid).tags.get.contains("tagName"))
+
+    // Add a 2nd org, no tags to make sure it is optional
+    val input2 = PostPutOrgRequest("My Other Org", "desc", None)
     response = Http(URL2).postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

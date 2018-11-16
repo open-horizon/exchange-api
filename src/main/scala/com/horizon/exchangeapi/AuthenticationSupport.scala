@@ -1068,6 +1068,7 @@ trait AuthenticationSupport extends ScalatraBase with AuthSupport {
     AuthenticatedIdentity(subject.getPrivateCredentials(classOf[Identity]).asScala.head, subject)
   }
 
+  // Only used by unauthenticated rest api methods
   def credsAndLog(anonymousOk: Boolean = false): Identity = {
     val clientIp = request.header("X-Forwarded-For").orElse(Option(request.getRemoteAddr)).get      // haproxy inserts the real client ip into the header for us
 

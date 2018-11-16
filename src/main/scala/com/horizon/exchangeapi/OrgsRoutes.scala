@@ -157,7 +157,16 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val postOrgs =
     (apiOperation[ApiResponse]("postOrgs")
       summary "Adds a org"
-      description """Creates an org resource. This can only be called by the root user."""
+      description
+        """Creates an org resource. This can only be called by the root user. The **request body** structure:
+
+```
+{
+  "label": "My org",
+  "description": "blah blah",
+  "tags": { "ibmcloud_id": "abc123def456" }
+}
+```""".stripMargin
       parameters(
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),

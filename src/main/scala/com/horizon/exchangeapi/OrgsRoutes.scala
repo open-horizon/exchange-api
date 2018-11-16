@@ -3,12 +3,12 @@ package com.horizon.exchangeapi
 
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-//import org.json4s.jackson.Serialization.write
+import org.json4s.jackson.Serialization.write
 import com.horizon.exchangeapi.tables._
 import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
-import slick.jdbc.PostgresProfile.api._
+import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 
 import scala.collection.immutable._
 import scala.collection.mutable.{HashMap => MutableHashMap}
@@ -22,23 +22,43 @@ case class GetOrgsResponse(orgs: Map[String,Org], lastIndex: Int)
 case class GetOrgAttributeResponse(attribute: String, value: String)
 
 /** Input format for PUT /orgs/<org-id> */
-case class PostPutOrgRequest(label: String, description: String) {
+case class PostPutOrgRequest(label: String, description: String, tags: Option[Map[String, String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {}
 
-  def toOrgRow(orgId: String) = OrgRow(orgId, label, description, ApiTime.nowUTC)
+  def toOrgRow(orgId: String) = OrgRow(orgId, label, description, ApiTime.nowUTC, tags.map(ts => ApiJsonUtil.asJValue(ts)))
 }
 
-case class PatchOrgRequest(label: Option[String], description: Option[String]) {
+case class PatchOrgRequest(label: Option[String], description: Option[String], tags: Option[Map[String, Option[String]]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the org, and the attribute name being updated. */
   def getDbUpdate(orgId: String): (DBIO[_],String) = {
+    import com.horizon.exchangeapi.tables.ExchangePostgresProfile.plainAPI._
+    import scala.concurrent.ExecutionContext.Implicits.global
     val lastUpdated = ApiTime.nowUTC
     //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this org
     label match { case Some(lab) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid,d.label,d.lastUpdated)).update((orgId, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid,d.description,d.lastUpdated)).update((orgId, desc, lastUpdated)), "description"); case _ => ; }
+    tags match {
+      case Some(ts) => {
+        val (deletes, updates) = ts.partition {
+          case (k, v) => v.isEmpty
+        }
+        val dbUpdates =
+          if (updates.isEmpty) Seq()
+          else Seq(sqlu"update orgs set tags = coalesce(tags, '{}'::jsonb) || ${ApiJsonUtil.asJValue(updates)} where orgid = $orgId")
+
+        val dbDeletes =
+          for (tag <- deletes.keys.toSeq) yield {
+            sqlu"update orgs set tags = tags - $tag where orgid = $orgId"
+          }
+        val allChanges = dbUpdates ++ dbDeletes
+        return (DBIO.sequence(allChanges).map(counts => counts.sum), "tags")
+      }
+      case _ =>
+    }
     return (null, null)
   }
 }
@@ -81,6 +101,13 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
     })
   })
 
+  def renderAttribute(attribute: scala.Seq[Any]): String = {
+    attribute.head match {
+      case attr: JValue => write(attr)
+      case attr => attr.toString
+    }
+  }
+
   /* ====== GET /orgs/{orgid} ================================ */
   val getOneOrg =
     (apiOperation[GetOrgsResponse]("getOneOrg")
@@ -107,7 +134,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
           logger.trace("GET /orgs/"+orgId+" attribute result: "+list.toString)
           if (list.nonEmpty) {
             resp.setStatus(HttpCode.OK)
-            GetOrgAttributeResponse(attribute, list.head.toString)
+            GetOrgAttributeResponse(attribute, renderAttribute(list))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
             ApiResponse(ApiResponseType.NOT_FOUND, "not found")

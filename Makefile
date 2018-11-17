@@ -92,7 +92,13 @@ docker: .docker-exec
 # Run the automated tests in the bld container against the exchange svr running in the exec container
 test: .docker-bld
 	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
-	docker exec -t -e EXCHANGE_URL_ROOT=http://$(DOCKER_NAME):8080 -e "EXCHANGE_ROOTPW=$$EXCHANGE_ROOTPW" $(DOCKER_NAME)_bld /bin/bash -c 'cd $(EXCHANGE_API_DIR) && sbt test'
+	docker exec -t \
+		-e EXCHANGE_URL_ROOT=http://$(DOCKER_NAME):8080 \
+		-e "EXCHANGE_ROOTPW=$$EXCHANGE_ROOTPW" \
+		-e "EXCHANGE_IAM_KEY=$$EXCHANGE_IAM_KEY" \
+		-e "EXCHANGE_IAM_EMAIL=$$EXCHANGE_IAM_EMAIL" \
+		-e "EXCHANGE_IAM_ACCOUNT=$$EXCHANGE_IAM_ACCOUNT" \
+		$(DOCKER_NAME)_bld /bin/bash -c 'cd $(EXCHANGE_API_DIR) && sbt test'
 
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:

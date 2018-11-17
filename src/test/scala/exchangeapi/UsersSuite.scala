@@ -68,6 +68,10 @@ class UsersSuite extends FunSuite {
   val pattern = ptBase + "_1.0.0_arm"
   val agbotId = "a1"
   val agbotToken = agbotId+"tok"
+  val iamKey = sys.env.getOrElse("EXCHANGE_IAM_KEY", "")
+  val iamEmail = sys.env.getOrElse("EXCHANGE_IAM_EMAIL", "")
+  val iamAccount = sys.env.getOrElse("EXCHANGE_IAM_ACCOUNT", "")
+  val IAMAUTH = { org: String => ("Authorization", s"Basic $org/iamapikey:$iamKey") }
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -615,6 +619,76 @@ class UsersSuite extends FunSuite {
     assert(respObj.patterns.size === 1)
   }
 
+  test("IAM login") {
+    // these tests will perform authentication with IBM cloud and will only run
+    // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY,
+    // EXCHANGE_IAM_EMAIL, and EXCHANGE_IAM_ACCOUNT
+    if (!iamKey.isEmpty && !iamEmail.isEmpty && !iamAccount.isEmpty) {
+      // add ibmcloud_id to org
+      var tagInput = s"""{ "tags": {"ibmcloud_id": "$iamAccount"} }"""
+      var response = Http(URL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
+
+      // authenticate as a cloud user and view org (action they are authorized for)
+      response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code)
+      assert(response.code === HttpCode.OK)
+
+      // authenticate as a cloud user and view org, ensuring cached user works
+      response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code)
+      assert(response.code === HttpCode.OK)
+
+      // ensure user can't view other org (action they are not authorized for)
+      response = Http(URL2).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code)
+      assert(response.code === HttpCode.ACCESS_DENIED)
+
+      // remove ibmcloud_id from org
+      tagInput = """{ "tags": {"ibmcloud_id": null} }"""
+      response = Http(URL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
+
+      // remove created user
+      response = Http(URL+"/users/"+iamEmail).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("DELETE "+iamEmail+", code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+
+      // clear auth cache
+      response = Http(NOORGURL+"/admin/clearAuthCaches").method("post").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("CLEAR CACHE code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.OK)
+
+      response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code)
+      assert(response.code === HttpCode.BADCREDS)
+      var errorMsg = s"There is no exchange organization for the IBM cloud account with id $iamAccount"
+      assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
+
+      // add ibmcloud_id to different org
+      tagInput = s"""{ "tags": {"ibmcloud_id": "$iamAccount"} }"""
+      response = Http(URL2).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
+
+      // authenticating with wrong org should notify user
+      response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code)
+      assert(response.code === HttpCode.BADCREDS)
+      errorMsg = s"A valid IBM Cloud API key was provided, but that cloud account ($iamAccount) is not associated with org $orgid"
+      assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
+
+      // remove ibmcloud_id from org
+      tagInput = """{ "tags": {"ibmcloud_id": null} }"""
+      response = Http(URL2).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
+    } else {
+      info("skipping")
+    }
+  }
 
   /** Clean up, delete all the test users */
   test("Cleanup 1 - DELETE all test users") {

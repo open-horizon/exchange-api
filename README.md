@@ -89,6 +89,12 @@ export EXCHANGE_ROOTPW=myrootpw
     - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.65.0
+
+- Added better errors for ibm auth
+- Added /admin/clearAuthCaches
+- Added IBM Cloud auth automated tests
+
 ## Changes in 1.64.0
 
 - Added IBM Cloud auth plugin

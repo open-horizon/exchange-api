@@ -213,7 +213,7 @@ rc=$(curlfind $userauth "orgs/$orgid/services/$svcid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/services" '{"label": "GPS for amd64", "description": "blah blah", "public": true, "url": "'$svcurl'",
-  "version": "'$svcversion'", "arch": "'$svcarch'", "sharable": "single",
+  "version": "'$svcversion'", "arch": "'$svcarch'", "sharable": "singleton",
   "deployment": "{\"services\":{\"gps\":{\"image\":\"summit.hovitos.engineering/x86/gps:1.2.3\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
   "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=" }'
 else
@@ -250,7 +250,7 @@ rc=$(curlfind $userauth "orgs/$orgid/services/$svc2id")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauth "orgs/$orgid/services" '{"label": "Location for amd64", "public": true, "url": "'$svc2url'",
-  "version": "'$svc2version'", "arch": "'$svc2arch'", "sharable": "single",
+  "version": "'$svc2version'", "arch": "'$svc2arch'", "sharable": "singleton",
   "requiredServices": [
     {
       "url": "'$svcurl'",
@@ -288,7 +288,7 @@ rc=$(curlfind $userauthorg2 "orgs/$orgid2/services/$svcid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauthorg2 "orgs/$orgid2/services" '{"label": "GPS for amd64", "description": "blah blah", "public": false, "url": "'$svcurl'",
-  "version": "'$svcversion'", "arch": "'$svcarch'", "sharable": "single",
+  "version": "'$svcversion'", "arch": "'$svcarch'", "sharable": "singleton",
   "deployment": "",
   "deploymentSignature": "" }'
 else

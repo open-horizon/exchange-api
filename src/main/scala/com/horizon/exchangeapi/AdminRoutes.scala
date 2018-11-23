@@ -544,8 +544,21 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     */
   })
 
+  // =========== POST /admin/clearAuthCaches ===============================
+  val postAdminClearAuthCaches =
+    (apiOperation[ApiResponse]("postAdminClearAuthCaches")
+      summary "Tells the exchange clear its authentication cache"
+      description "Directs the exchange server to clear its authentication cache. Can only be run by the root user."
+      parameters(
+        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
+    )
+
   post("/admin/clearAuthCaches") ({
     authenticate().authorizeTo(TAction(), Access.ADMIN)
+    //todo: ensure other client requests are not updating the cache at the same time
     IbmCloudAuth.clearCache()
     AuthCache.agbots.removeAll()
     AuthCache.nodes.removeAll()

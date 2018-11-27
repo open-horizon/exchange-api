@@ -104,9 +104,15 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   get("/orgs/:orgid/users/:username", operation(getOneUser)) ({
     val orgid = params("orgid")
-    val username = params("username")
-    val compositeId = OrgAndId(orgid,username).toString
+    var username = params("username")
+    var compositeId = OrgAndId(orgid,username).toString
     val ident = authenticate().authorizeTo(TUser(compositeId),Access.READ)
+    if (username == "iamapikey") {
+      // Need to change the target into the username that the key resolved to
+      username = ident.getIdentity
+      compositeId = OrgAndId(ident.getOrg,ident.getIdentity).toString
+    }
+    logger.debug("GET /orgs/"+orgid+"/users/"+username+" ident: "+ident)
     val superUser = ident.isSuperUser
     val resp = response     // needed so the db.run() future has this context
     // logger.debug("using postgres")

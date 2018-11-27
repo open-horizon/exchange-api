@@ -592,8 +592,20 @@ trait AuthSupport extends Control with ServletApiImplicits {
   case class AuthenticatedIdentity(identity: Identity, subject: Subject) {
     def authorizeTo(target: Target, access: Access): Identity = {
       try {
-        identity.authorizeTo(target, access).as(subject)
-        identity
+        identity match {
+          case IUser(_) => if (target.getId == "iamapikey") {
+            val authenticatedIdentity = subject.getPrivateCredentials(classOf[IUser]).asScala.head.creds
+            logger.debug("authenticatedIdentity=" + authenticatedIdentity.id)
+            identity.authorizeTo(TUser(authenticatedIdentity.id), access).as(subject)
+            IUser(authenticatedIdentity)
+          } else {
+            identity.authorizeTo(target, access).as(subject)
+            identity
+          }
+          case _ =>
+            identity.authorizeTo(target, access).as(subject)
+            identity
+        }
       } catch {
         case _: Exception => halt(
           HttpCode.ACCESS_DENIED,
@@ -697,7 +709,7 @@ trait AuthSupport extends Control with ServletApiImplicits {
         } else {      // the target is in the same org as the identity
           target match {
             case TUser(id) => access match { // a user accessing a user
-              case Access.READ => if (id == creds.id) Access.READ_MYSELF else Access.READ_ALL_USERS
+              case Access.READ => logger.debug("id="+id+", creds.id=",creds.id); if (id == creds.id) Access.READ_MYSELF else Access.READ_ALL_USERS
               case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else Access.WRITE_ALL_USERS
               case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
               case _ => access

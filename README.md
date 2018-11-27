@@ -53,8 +53,18 @@ export EXCHANGE_ROOTPW=myrootpw
 - `sbt`
 - `jetty:start`
 - Or to have the server restart automatically when code changes: `~;jetty:stop;jetty:start`
-- Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/nodes?id=a&token=b](http://localhost:8080/v1/orgs/IBM/nodes?id=a&token=b)
+- Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/admin/version](http://localhost:8080/v1/admin/version)
 - To see the swagger output, browse: [http://localhost:8080/api](http://localhost:8080/api)
+
+## Running the Automated Tests in Local Sandbox
+
+- (Optional) To include tests for IBM agbot ACLs: `export EXCHANGE_AGBOTAUTH=myibmagbot:abcdef`
+- (Optional) To include tests for IBM IAM platform key authentication:
+```
+export EXCHANGE_IAM_KEY=myiamplatformkey
+export EXCHANGE_IAM_EMAIL=myaccountemail@something.com
+export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
+```
 - Run the automated tests in a second shell (with the exchange server still running in the first): `sbt test`
 - Run just 1 of the the automated test suites (with the exchange server still running): `sbt "testOnly exchangeapi.AgbotsSuite"`
 - Run the performance tests: `src/test/bash/scale/test.sh` or `src/test/bash/scale/wrapper.sh 8`
@@ -88,6 +98,10 @@ export EXCHANGE_ROOTPW=myrootpw
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 1.66.0
+
+- Handled special case of getting your own user when using iamapikey
 
 ## Changes in 1.65.0
 

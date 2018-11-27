@@ -621,10 +621,11 @@ class UsersSuite extends FunSuite {
 
   test("IAM login") {
     // these tests will perform authentication with IBM cloud and will only run
-    // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY,
-    // EXCHANGE_IAM_EMAIL, and EXCHANGE_IAM_ACCOUNT
+    // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY, EXCHANGE_IAM_EMAIL, and EXCHANGE_IAM_ACCOUNT
     if (!iamKey.isEmpty && !iamEmail.isEmpty && !iamAccount.isEmpty) {
       // add ibmcloud_id to org
+      //todo: the normal usage is to add an org with the same name as the ibm account email, so we should probably test that,
+      //      rather than adding ibmcloud_id to a different org
       var tagInput = s"""{ "tags": {"ibmcloud_id": "$iamAccount"} }"""
       var response = Http(URL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
@@ -640,10 +641,47 @@ class UsersSuite extends FunSuite {
       info("code: "+response.code)
       assert(response.code === HttpCode.OK)
 
+      // authenticate as a cloud user and view this user
+      response = Http(URL+"/users/"+iamEmail).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code)
+      assert(response.code === HttpCode.OK)
+      var getUserResp = parse(response.body).extract[GetUsersResponse]
+      assert(getUserResp.users.size === 1)
+      assert(getUserResp.users.contains(orgid+"/"+iamEmail))
+      var u = getUserResp.users(orgid+"/"+iamEmail)
+      assert(u.email === iamEmail)
+
+      // run special case of authenticate as a cloud user and view your own user
+      response = Http(URL+"/users/iamapikey").headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code)
+      assert(response.code === HttpCode.OK)
+      getUserResp = parse(response.body).extract[GetUsersResponse]
+      assert(getUserResp.users.size === 1)
+      assert(getUserResp.users.contains(orgid+"/"+iamEmail))
+      u = getUserResp.users(orgid+"/"+iamEmail)
+      assert(u.email === iamEmail)
+
+      // ensure user does not have admin auth by trying to get other user
+      response = Http(URL+"/users/"+user).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code)
+      assert(response.code === HttpCode.ACCESS_DENIED)
+
       // ensure user can't view other org (action they are not authorized for)
       response = Http(URL2).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
       info("code: "+response.code)
       assert(response.code === HttpCode.ACCESS_DENIED)
+
+      // ensure we can add a service to check acls to other objects
+      val inputSvc = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, "s1", "1.2.3", "amd64", "single", None, None, None, None, "a","b",None)
+      response = Http(URL+"/services").postData(write(inputSvc)).method("post").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.POST_OK)
+
+      // ensure we can add a node to check acls to other objects
+      val inputNode = PutNodesRequest("abc", "my node", "", None, "", Map(), "ABC")
+      response = Http(URL+"/nodes/n1").postData(write(inputNode)).method("put").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
 
       // remove ibmcloud_id from org
       tagInput = """{ "tags": {"ibmcloud_id": null} }"""

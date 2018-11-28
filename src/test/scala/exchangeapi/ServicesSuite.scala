@@ -123,7 +123,7 @@ class ServicesSuite extends FunSuite {
   }
 
   /** Add users, node, agbot, services, resource for future tests */
-  test("Add users, node, service for future tests") {
+  test("Add users, node, agbot for future tests") {
     var userInput = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
@@ -159,7 +159,7 @@ class ServicesSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
-  test("POST /orgs/"+orgid+"/services - add service so services can reference it") {
+  test("POST /orgs/"+orgid+"/services - add service so other services can reference it") {
     val input = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, reqsvcurl, reqsvcversion, reqsvcarch, "single", None, None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

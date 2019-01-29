@@ -48,7 +48,7 @@ class UsersSuite extends FunSuite {
   val ENCODEDAUTH = ("Authorization","Basic "+encodedCreds)
   val user2 = "u2"       // this is NOT an admin user
   val orguser2 = orgid+"/"+user2
-  val pw2 = user2+"pw"
+  val pw2 = user2+" pw"   // intentionally adding a space in the pw
   val creds2 = orguser2+":"+pw2
   val USERAUTH2 = ("Authorization","Basic "+creds2)
   val user3 = "u3"

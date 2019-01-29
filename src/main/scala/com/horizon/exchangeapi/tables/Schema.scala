@@ -91,19 +91,22 @@ object SchemaTQ {
         ResourceAuthsTQ.rows.schema.create,
         sqlu"alter table services add column requiredResources character varying not null default ''"
       )
-      case 14 => DBIO.seq(   // TODO: update version
+      case 14 => DBIO.seq(   // version 1.64.0
         sqlu"alter table orgs add column tags jsonb",
         sqlu"create index on orgs((tags->>'ibmcloud_id'))"
       )
-      case 15 => DBIO.seq(   // TODO: update version
+      case 15 => DBIO.seq(   // version 1.65.0 ?
         sqlu"drop index orgs_expr_idx",
         sqlu"create unique index orgs_ibmcloud_idx on orgs((tags->>'ibmcloud_id'))"
+      )
+      case 16 => DBIO.seq(   // version 1.67.0
+        sqlu"drop index orgs_ibmcloud_idx"
       )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 15     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep()
-  val latestSchemaDescription = "Make the ibmcloud_id tag unique"
+  val latestSchemaVersion = 16     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "Remove requirement for the ibmcloud_id tag to be unique"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

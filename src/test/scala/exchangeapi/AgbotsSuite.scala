@@ -52,7 +52,7 @@ class AgbotsSuite extends FunSuite {
   val AGBOTAUTH = ("Authorization","Basic "+orgagbotId+":"+agbotToken)
   val agbot2Id = "9931"
   val orgagbot2Id = authpref+agbot2Id
-  val agbot2Token = agbot2Id+"tok"
+  val agbot2Token = agbot2Id+" tok"   // intentionally adding a space in the token
   val AGBOT2AUTH = ("Authorization","Basic "+orgagbot2Id+":"+agbot2Token)
   val agbot3Id = "9932"
   val orgagbot3Id = authpref+agbot3Id

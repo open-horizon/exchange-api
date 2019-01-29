@@ -48,7 +48,7 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
 
   // Browsers sometimes do a preflight check of this before making the real rest api call
   options("/*"){
-    val creds = credentials(true)
+    val creds = credsForAnonymous()
     val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
     val clientIp = request.header("X-Forwarded-For").orElse(Option(request.getRemoteAddr)).get      // haproxy inserts the real client ip into the header for us
     logger.info("User or id "+userOrId+" from "+clientIp+" running "+request.getMethod+" "+request.getPathInfo+" with request header "+request.getHeader("Access-Control-Request-Headers"))

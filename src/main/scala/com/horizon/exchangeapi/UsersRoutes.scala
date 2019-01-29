@@ -30,6 +30,7 @@ case class PatchUsersRequest(password: Option[String], admin: Option[Boolean], e
     // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
     password match {
       case Some(password2) => if (password2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the password can not be set to the empty string"))
+        println("password2="+password2+".")
         val pw = if (Password.isHashed(password2)) password2 else Password.hash(password2)
         return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated)).update((username, pw, lastUpdated)), "password")
       case _ => ;

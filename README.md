@@ -99,6 +99,11 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.67.0
+
+- Make orgs/ibmcloud_id table column not need to be unique, to support multiple orgs for the same ibm cloud account
+- Fix problem with spaces in creds (issue 90)
+
 ## Changes in 1.66.0
 
 - Handled special case of getting your own user when using iamapikey

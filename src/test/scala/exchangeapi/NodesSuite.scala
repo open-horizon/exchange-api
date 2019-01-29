@@ -59,8 +59,8 @@ class NodesSuite extends FunSuite {
   val NODEAUTH = ("Authorization","Basic "+orgnodeId+":"+nodeToken)
   val nodeId2 = "n2"
   val orgnodeId2 = authpref+nodeId2
-  //val nodeToken2 = "mytok"   // <- all nodes use nodeToken
-  val NODE2AUTH = ("Authorization","Basic "+orgnodeId2+":"+nodeToken)
+  val nodeToken2 = "my tok"   // intentionally adding a space in the token
+  val NODE2AUTH = ("Authorization","Basic "+orgnodeId2+":"+nodeToken2)
   val nodeId3 = "n3"
   val orgnodeId3 = authpref+nodeId3
   val nodeId4 = "n4"
@@ -293,7 +293,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+" - node with higher memory 400, and version 2.0.0") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId2+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,"{json policy for "+nodeId2+" sdr}",List(
+    val input = PutNodesRequest(nodeToken2, "rpi"+nodeId2+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,"{json policy for "+nodeId2+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),

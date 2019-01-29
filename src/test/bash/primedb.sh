@@ -177,20 +177,20 @@ else
     echo "orgs/$orgid exists"
 fi
 
-rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2")
-checkrc "$rc" 200 404
-if [[ $rc == 404 ]]; then
-    curlcreate "POST" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2" '{"label": "Another org", "description": "blah blah"}'
-else
-    echo "orgs/$orgid2 exists"
-fi
-
 rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgidcarl")
 checkrc "$rc" 200 404
 if [[ $rc == 404 ]]; then
     curlcreate "POST" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgidcarl" '{"label": "Carls org", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcarlid'"} }'
 else
     echo "orgs/$orgidcarl exists"
+fi
+
+rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2")
+checkrc "$rc" 200 404
+if [[ $rc == 404 ]]; then
+    curlcreate "POST" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2" '{"label": "Another org under carls ibm cloud acct", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcarlid'"} }'
+else
+    echo "orgs/$orgid2 exists"
 fi
 
 rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid/users/$user")

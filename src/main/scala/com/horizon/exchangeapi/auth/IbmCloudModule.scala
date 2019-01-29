@@ -33,6 +33,8 @@ case class OrgNotFound(info: IamUserInfo)
 case class IncorrectOrgFound(authInfo: IamAuthCredentials, userInfo: IamUserInfo)
   extends UserFacingError(s"A valid IBM Cloud API key was provided, but that cloud account (${userInfo.accountId}) is not associated with org ${authInfo.org}")
 
+/** JAAS module to authenticate to the IBM cloud. Called from AuthenticationSupport:authenticate() because jaas.config references this module.
+  */
 class IbmCloudModule extends LoginModule with AuthSupport {
   private var subject: Subject = _
   private var handler: CallbackHandler = _

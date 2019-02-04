@@ -21,17 +21,19 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
-case class IamAuthCredentials(org: String, apikey: String)
+case class IamAuthCredentials(org: String, apikey: String) {
+  override def toString = org + "/" + apikey
+}
 case class IamToken(accessToken: String)
 case class IamUserInfo(account: IamAccount, email: String) {
   val accountId = account.bss
 }
 case class IamAccount(bss: String)
 
-case class OrgNotFound(info: IamUserInfo)
-  extends UserFacingError(s"There is no exchange organization for the IBM cloud account with id ${info.accountId}")
-case class IncorrectOrgFound(authInfo: IamAuthCredentials, userInfo: IamUserInfo)
-  extends UserFacingError(s"A valid IBM Cloud API key was provided, but that cloud account (${userInfo.accountId}) is not associated with org ${authInfo.org}")
+case class OrgNotFound(authInfo: IamAuthCredentials)
+  extends UserFacingError(s"IAM authentication succeeded, but no matching org with a cloud account id was found for ${authInfo.org}")
+case class IncorrectOrgFound(orgAcctId: String, userInfo: IamUserInfo)
+  extends UserFacingError(s"IAM authentication succeeded, but the cloud account id of the org ($orgAcctId) does not match that of the cloud account credentials (${userInfo.accountId})")
 
 /** JAAS module to authenticate to the IBM cloud. Called from AuthenticationSupport:authenticate() because jaas.config references this module.
   */
@@ -64,14 +66,14 @@ class IbmCloudModule extends LoginModule with AuthSupport {
     val loginResult = for {
       reqInfo <- Try(reqCallback.request.get)
       user <- {
-        val RequestInfo(req, _, isDbMigration, _, hint) = reqInfo
+        val RequestInfo(req, _, isDbMigration, _, _) = reqInfo
         val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
 
         for {
           key <- extractApiKey(reqInfo)
-          userRow <- IbmCloudAuth.authenticateUser(key)
+          username <- IbmCloudAuth.authenticateUser(key)
         } yield {
-          val user = IUser(Creds(userRow.username, ""))
+          val user = IUser(Creds(username, ""))
           logger.info("User " + user.creds.id + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
           if (isDbMigration && !Role.isSuperUser(user.creds.id)) halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied - in the process of DB migration"))
           identity = user
@@ -124,18 +126,21 @@ object IbmCloudAuth {
 
   lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
 
+  //case class CacheEntry(org: String, baseUsername: String)  // not used
+
   private val guavaCache = CacheBuilder.newBuilder()
     .maximumSize(1000)
     .expireAfterWrite(10, TimeUnit.MINUTES)
-    .build[String, Entry[UserRow]]
+    .build[String, Entry[String]]     // the cache key is org/apiky, and the value is org/username
   implicit val userCache = GuavaCache(guavaCache)
 
   def init(db: Database): Unit = {
     this.db = db
   }
 
-  def authenticateUser(authInfo: IamAuthCredentials): Try[UserRow] = {
-    logger.info("attempting to authenticate with IBM Cloud")
+  //def authenticateUser(authInfo: IamAuthCredentials): Try[UserRow] = {
+  def authenticateUser(authInfo: IamAuthCredentials): Try[String] = {
+    logger.info("authenticateUser(): attempting to authenticate with IBM Cloud with "+authInfo)
     /*
      * The caching library provides several functions that work on
      * the cache defined above. The caching function takes a key and tries
@@ -144,12 +149,27 @@ object IbmCloudAuth {
      * I use cachingF here so that I can return a Try value
      * (see http://cb372.github.io/scalacache/docs/#basic-cache-operations for more info)
      */
-    cachingF(authInfo.apikey)(ttl = None) {
+    cachingF(authInfo.toString)(ttl = None) {
       for {
         token <- getIamToken(authInfo.apikey)
         userInfo <- getUserInfo(token)
         user <- getOrCreateUser(authInfo, userInfo)
-      } yield user
+      } yield user.username   // this is the composite org/username
+
+        /*
+          .map[CacheEntry]( userRow => {
+          // The cache returns the correct base username associated with the cloud api key, but if there are multiple exchange orgs for
+          // this ibm cloud account, the org in the cache may not be correct, so replace it with the org requested before returning it.
+          val username = userRow.username
+          val (org, baseUsername) = CompositeId(username).split
+          if (org != authInfo.org) {
+            logger.info("authenticateUser(): adjusting the org in the username from '" + org + "' to '" + authInfo.org + "'")
+            OrgAndId(authInfo.org, baseUsername).toString
+          } else {
+            username
+          }
+        })
+        */
     }
   }
 
@@ -181,8 +201,10 @@ object IbmCloudAuth {
 
   private def getOrCreateUser(authInfo: IamAuthCredentials, userInfo: IamUserInfo): Try[UserRow] = {
     val userQuery = for {
-      associatedOrgId <- fetchOrg(userInfo)
-      orgId <- verifyOrg(authInfo, userInfo, associatedOrgId)
+      //associatedOrgId <- fetchOrg(userInfo) // can no longer use this, because the account id it uses to find the org is not necessarily unique...
+      //orgId <- verifyOrg(authInfo, userInfo, associatedOrgId)
+      ibmCloudAcctId <- fetchOrg(authInfo.org)
+      orgId <- verifyOrg(authInfo, userInfo, ibmCloudAcctId)   // verify cloud acct id of the apikey and the org entry match
       userRow <- fetchUser(orgId, userInfo)
       user <- {
         if (userRow.isEmpty) createUser(orgId, userInfo)
@@ -192,18 +214,20 @@ object IbmCloudAuth {
     Await.result(db.run(userQuery.transactionally), Duration(3000, MILLISECONDS))
   }
 
-  private def verifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, org: Option[String]) = {
-    if (org.isEmpty) {
-      logger.error(s"IAM authentication succeeded, but no matching org was found for ${userInfo.accountId}")
-      DBIO.failed(OrgNotFound(userInfo))
-    } else if (org.get != authInfo.org) {
-      logger.error(s"IAM authentication succeeded, but the org does not match. User provided org ${authInfo.org} but org ${org.get} matches account ${userInfo.accountId}")
-      DBIO.failed(IncorrectOrgFound(authInfo, userInfo))
+  // Verify that the cloud acct id of the cloud api key and the exchange org entry match
+  private def verifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, orgAcctId: Option[String]) = {
+    if (orgAcctId.isEmpty) {
+      logger.error(s"IAM authentication succeeded, but no matching org with a cloud account id was found for ${authInfo.org}")
+      DBIO.failed(OrgNotFound(authInfo))
+    } else if (orgAcctId.getOrElse("") != userInfo.accountId) {
+      logger.error(s"IAM authentication succeeded, but the cloud account id of the org $orgAcctId does not match that of the cloud account ${userInfo.accountId}")
+      DBIO.failed(IncorrectOrgFound(orgAcctId.getOrElse(""), userInfo))
     } else {
-      DBIO.successful(org.get)
+      DBIO.successful(authInfo.org)
     }
   }
 
+  /* This fetch is no longer valid because we no longer require the ibmcloud_id field to be unique, so this could find any of the orgs with this ibmcloud_id.
   private def fetchOrg(info: IamUserInfo) = {
     OrgsTQ.rows
       .filter(_.tags.+>>("ibmcloud_id") === info.accountId)
@@ -211,6 +235,16 @@ object IbmCloudAuth {
       .take(1)
       .result
       .headOption
+  }
+  */
+
+  // Get the associated ibm cloud id of the org that the client requested in the exchange api
+  private def fetchOrg(org: String) = {
+    OrgsTQ.getOrgid(org)
+      .map(_.tags.+>>("ibmcloud_id"))
+      .take(1)
+      .result
+      .head
   }
 
   private def fetchUser(org: String, info: IamUserInfo) = {
@@ -226,7 +260,7 @@ object IbmCloudAuth {
       s"$org/${info.email}",
       org,
       "",
-      false,
+      admin = false,
       info.email,
       ApiTime.nowUTC
     )

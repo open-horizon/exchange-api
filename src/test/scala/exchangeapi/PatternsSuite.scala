@@ -55,14 +55,19 @@ class PatternsSuite extends FunSuite {
   val svcurl = "https://bluehorizon.network/services/netspeed"
   val svcarch = "amd64"
   val svcversion = "1.0.0"
-  val ptBase = "pt9920"
-  val pattern = ptBase
+  val pattern = "pt9920"
   val orgpattern = authpref+pattern
-  val ptBase2 = "pt9921"
-  val pattern2 = ptBase2
+  val pattern2 = "pt9921"
   val orgpattern2 = authpref+pattern2
-  //val ptBase3 = "pt9922"
-  //val pattern3 = ptBase3
+  val IBMURL = urlRoot+"/v1/orgs/IBM"
+  val ibmSvcBase = "service-only-for-pattern-automated-tests"   // needs to be different from the IBM svc created in ServicesSuite
+  val ibmSvcUrl = "http://" + ibmSvcBase
+  val ibmSvcVersion = "9.7.5"
+  val ibmSvcArch = "arm"
+  val ibmService = ibmSvcBase + "_" + ibmSvcVersion + "_" + ibmSvcArch
+  val ibmOrgService = "IBM/"+ibmService
+  val ibmPattern = "pattern-only-for-automated-tests"
+  val ibmOrgPattern = "IBM/"+ibmPattern
   val keyId = "mykey.pem"
   val key = "abcdefghijk"
   val keyId2 = "mykey2.pem"
@@ -98,8 +103,8 @@ class PatternsSuite extends FunSuite {
     deleteAllUsers()
   }
 
-  /** Add users, node, pattern for future tests */
-  test("Add users, node, pattern for future tests") {
+  /** Add users, node, agbot for future tests */
+  test("Add users, node, agbot for future tests") {
     var userInput = PostPutUsersRequest(pw, admin = false, user + "@hotmail.com")
     var userResponse = Http(URL + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
@@ -125,7 +130,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" before service exists - should fail") {
-    val input = PostPutPatternRequest(ptBase, None, None,
+    val input = PostPutPatternRequest(pattern, None, None,
       List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       None
     )
@@ -152,7 +157,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" that is not signed - should fail") {
-    val input = PostPutPatternRequest(ptBase, None, None,
+    val input = PostPutPatternRequest(pattern, None, None,
       List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, Some("{\"services\":{}}"), None, None, None)), None, None )),
       None
     )
@@ -162,7 +167,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as user") {
-    val input = PostPutPatternRequest(ptBase, Some("desc"), Some(true),
+    val input = PostPutPatternRequest(pattern, Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List(Map("name" -> "Basic")))
     )
@@ -184,7 +189,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as same user, w/o dataVerification or nodeHealth fields") {
-    val input = PostPutPatternRequest(ptBase+" amd64", None, None,
+    val input = PostPutPatternRequest(pattern+" amd64", None, None,
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       None
     )
@@ -233,7 +238,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as 2nd user") {
-    val input = PostPutPatternRequest(ptBase2+" amd64", None, Some(true),
+    val input = PostPutPatternRequest(pattern2+" amd64", None, Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       None
     )
@@ -282,18 +287,18 @@ class PatternsSuite extends FunSuite {
 
     assert(respObj.patterns.contains(orgpattern))
     var pt = respObj.patterns(orgpattern)
-    assert(pt.label === ptBase+" amd64")
+    assert(pt.label === pattern+" amd64")
     assert(pt.owner === orguser)
     assert(pt.services.head.agreementLess.get === true)
 
     assert(respObj.patterns.contains(orgpattern2))
     pt = respObj.patterns(orgpattern2)
-    assert(pt.label === ptBase2+" amd64")
+    assert(pt.label === pattern2+" amd64")
     assert(pt.owner === orguser2)
   }
 
   test("GET /orgs/"+orgid+"/patterns - filter owner and patternUrl") {
-    val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).param("owner",authpref+"%").param("label",ptBase+"%").asString
+    val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).param("owner",authpref+"%").param("label",pattern+"%").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
@@ -348,7 +353,7 @@ class PatternsSuite extends FunSuite {
 
     assert(respObj.patterns.contains(orgpattern))
     val pt = respObj.patterns(orgpattern)     // the 2nd get turns the Some(val) into val
-    assert(pt.label === ptBase+" amd64")
+    assert(pt.label === pattern+" amd64")
 
     // Verify the lastUpdated from the PUT above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
     val now: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
@@ -387,8 +392,8 @@ class PatternsSuite extends FunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
-    val getPatternResp = parse(response.body).extract[GetPatternsResponse]
-    assert(getPatternResp.patterns.size === 0)
+    //val getPatternResp = parse(response.body).extract[GetPatternsResponse]
+    //assert(getPatternResp.patterns.size === 0)
   }
 
   test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - patch the service") {
@@ -407,6 +412,56 @@ class PatternsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
+
+
+  // IBM pattern tests ==============================================
+
+  test("POST /orgs/IBM/services - add IBM service so patterns can reference it") {
+    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, None, "{\"services\":{}}", "a", None)
+    val response = Http(IBMURL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/IBM/patterns/"+ibmPattern+" - add "+ibmPattern+" as root") {
+    val input = PostPutPatternRequest(ibmPattern, None, Some(true),
+      List( PServices(ibmSvcUrl, "IBM", ibmSvcArch, None, List(PServiceVersions(ibmSvcVersion, None, None, None, None)), None, None )),
+      None
+    )
+    val response = Http(IBMURL+"/patterns/"+ibmPattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("pattern '"+ibmOrgPattern+"' created"))
+  }
+
+  test("GET /orgs/IBM/patterns") {
+    val response: HttpResponse[String] = Http(IBMURL+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val respObj = parse(response.body).extract[GetPatternsResponse]
+    //assert(respObj.patterns.size === 2)  // cant test this because there could be other patterns in the IBM org
+
+    assert(respObj.patterns.contains(ibmOrgPattern))
+    var pt = respObj.patterns(ibmOrgPattern)
+    assert(pt.label === ibmPattern)
+  }
+
+  test("GET /orgs/IBM/patterns/"+ibmPattern+" - as user") {
+    val response: HttpResponse[String] = Http(IBMURL+"/patterns/"+ibmPattern).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val respObj = parse(response.body).extract[GetPatternsResponse]
+    assert(respObj.patterns.size === 1)
+
+    assert(respObj.patterns.contains(ibmOrgPattern))
+    val pt = respObj.patterns(ibmOrgPattern)     // the 2nd get turns the Some(val) into val
+    assert(pt.label === ibmPattern)
+  }
+
+  // the test to try to get an IBM pattern that doesnt exist is at the end when we are cleaning up
 
 
   // Key tests ==============================================
@@ -495,8 +550,8 @@ class PatternsSuite extends FunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
-    val getPatternResp = parse(response.body).extract[GetPatternsResponse]
-    assert(getPatternResp.patterns.size === 0)
+    //val getPatternResp = parse(response.body).extract[GetPatternsResponse]
+    //assert(getPatternResp.patterns.size === 0)
   }
 
   test("DELETE /orgs/"+orgid+"/users/"+user2+" - which should also delete pattern2") {
@@ -510,8 +565,29 @@ class PatternsSuite extends FunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
-    val getPatternResp = parse(response.body).extract[GetPatternsResponse]
-    assert(getPatternResp.patterns.size === 0)
+    //val getPatternResp = parse(response.body).extract[GetPatternsResponse]
+    //assert(getPatternResp.patterns.size === 0)
+  }
+
+  test("DELETE /orgs/IBM/patterns/"+ibmPattern) {
+    val response = Http(IBMURL+"/patterns/"+ibmPattern).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("GET /orgs/IBM/patterns/"+ibmPattern+" - as user - verify gone") {
+    val response: HttpResponse[String] = Http(IBMURL+"/patterns/"+ibmPattern).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    //assert(response.code === HttpCode.NOT_FOUND)
+    //todo: change this to NOT_FOUND when issue anax issue 778 is fixed
+    assert(response.code === HttpCode.ACCESS_DENIED)
+  }
+
+  test("DELETE /orgs/IBM/services/"+ibmService) {
+    val response = Http(IBMURL+"/services/"+ibmService).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
   }
 
   /** Clean up, delete all the test patterns */

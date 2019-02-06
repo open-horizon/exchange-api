@@ -74,6 +74,13 @@ class ServicesSuite extends FunSuite {
   val reqsvcurl3 = "https://bluehorizon.network/services/rtlsdr"
   val reqsvcarch3 = "amd64"   // intentionally different arch
   val reqsvcversion3 = "1.0.0"
+  val IBMURL = urlRoot+"/v1/orgs/IBM"
+  val ibmSvcBase = "service-only-for-automated-tests"
+  val ibmSvcUrl = "http://" + ibmSvcBase
+  val ibmSvcVersion = "9.7.5"
+  val ibmSvcArch = "arm"
+  val ibmService = ibmSvcBase + "_" + ibmSvcVersion + "_" + ibmSvcArch
+  val ibmOrgService = "IBM/"+ibmService
   val resName = "res9920"
   val resDoc = "http://doc-" + resName
   val resUrl = "http://" + resName
@@ -122,7 +129,7 @@ class ServicesSuite extends FunSuite {
     deleteAllUsers()
   }
 
-  /** Add users, node, agbot, services, resource for future tests */
+  /** Add users, node, agbot, for future tests */
   test("Add users, node, agbot for future tests") {
     var userInput = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -488,9 +495,47 @@ class ServicesSuite extends FunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
-    val getServiceResp = parse(response.body).extract[GetServicesResponse]
-    assert(getServiceResp.services.size === 0)
+    //val getServiceResp = parse(response.body).extract[GetServicesResponse]
+    //assert(getServiceResp.services.size === 0)
   }
+
+
+  // IBM service tests ==============================================
+
+  test("POST /orgs/IBM/services - add IBM service so other services can reference it") {
+    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, None, "{\"services\":{}}", "a", None)
+    val response = Http(IBMURL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("GET /orgs/IBM/services") {
+    val response: HttpResponse[String] = Http(IBMURL+"/services").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    //info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val respObj = parse(response.body).extract[GetServicesResponse]
+    //assert(respObj.services.size === 1)  // cant check this because there could be other services defined in the IBM org
+
+    assert(respObj.services.contains(ibmOrgService))
+    val wk = respObj.services(ibmOrgService)
+    assert(wk.label === "IBMTestSvc")
+  }
+
+  test("GET /orgs/IBM/services/"+ibmService) {
+    val response: HttpResponse[String] = Http(IBMURL+"/services/"+ibmService).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    //info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val respObj = parse(response.body).extract[GetServicesResponse]
+    assert(respObj.services.size === 1)  // cant check this because there could be other services defined in the IBM org
+
+    assert(respObj.services.contains(ibmOrgService))
+    val wk = respObj.services(ibmOrgService)
+    assert(wk.label === "IBMTestSvc")
+  }
+
+  // the test to try to get an IBM service that doesnt exist is at the end when we are cleaning up
 
 
   // Key tests ==============================================
@@ -683,8 +728,8 @@ class ServicesSuite extends FunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
-    val getServiceResp = parse(response.body).extract[GetServicesResponse]
-    assert(getServiceResp.services.size === 0)
+    //val getServiceResp = parse(response.body).extract[GetServicesResponse]
+    //assert(getServiceResp.services.size === 0)
   }
 
   test("DELETE /orgs/"+orgid+"/users/"+user2+" - which should also delete service2") {
@@ -698,12 +743,27 @@ class ServicesSuite extends FunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
-    val getServiceResp = parse(response.body).extract[GetServicesResponse]
-    assert(getServiceResp.services.size === 0)
+    //val getServiceResp = parse(response.body).extract[GetServicesResponse]
+    //assert(getServiceResp.services.size === 0)
   }
 
-  /** Clean up, delete all the test services */
-  test("Cleanup - DELETE all test services") {
+  test("DELETE /orgs/IBM/services/"+ibmService) {
+    val response = Http(IBMURL+"/services/"+ibmService).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("GET /orgs/IBM/services"+ibmService+" - as user - verify gone") {
+    val response: HttpResponse[String] = Http(IBMURL+"/services/"+ibmService).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    //info("code: "+response.code+", response.body: "+response.body)
+    //assert(response.code === HttpCode.NOT_FOUND)
+    //todo: change this to NOT_FOUND when issue anax issue 778 is fixed
+    assert(response.code === HttpCode.ACCESS_DENIED)
+  }
+
+  /** Clean up, delete all the test users */
+  test("Cleanup - DELETE all test users") {
     deleteAllUsers()
   }
 

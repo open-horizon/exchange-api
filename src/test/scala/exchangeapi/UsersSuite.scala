@@ -71,7 +71,10 @@ class UsersSuite extends FunSuite {
   val iamKey = sys.env.getOrElse("EXCHANGE_IAM_KEY", "")
   val iamEmail = sys.env.getOrElse("EXCHANGE_IAM_EMAIL", "")
   val iamAccount = sys.env.getOrElse("EXCHANGE_IAM_ACCOUNT", "")
+  val iamOtherKey = sys.env.getOrElse("EXCHANGE_IAM_OTHER_KEY", "")
+  val iamOtherAccount = sys.env.getOrElse("EXCHANGE_IAM_OTHER_ACCOUNT", "")
   val IAMAUTH = { org: String => ("Authorization", s"Basic $org/iamapikey:$iamKey") }
+  val IAMOTHERAUTH = { org: String => ("Authorization", s"Basic $org/iamapikey:$iamOtherKey") }
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -622,7 +625,7 @@ class UsersSuite extends FunSuite {
   test("IAM login") {
     // these tests will perform authentication with IBM cloud and will only run
     // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY, EXCHANGE_IAM_EMAIL, and EXCHANGE_IAM_ACCOUNT
-    if (!iamKey.isEmpty && !iamEmail.isEmpty && !iamAccount.isEmpty) {
+    if (!iamKey.isEmpty && !iamEmail.isEmpty && !iamAccount.isEmpty && !iamOtherKey.isEmpty && !iamOtherAccount.isEmpty) {
       // add ibmcloud_id to org
       //todo: the normal usage is to add an org with the same name as the ibm account email, so we should probably test that,
       //      rather than adding ibmcloud_id to a different org
@@ -642,8 +645,9 @@ class UsersSuite extends FunSuite {
       assert(response.code === HttpCode.OK)
 
       // authenticate as a cloud user and view this user
-      response = Http(URL+"/users/"+iamEmail).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
-      info("code: "+response.code)
+      response = Http(URL+"/users/"+iamEmail).headers(ACCEPT).headers(ROOTAUTH).asString
+      //response = Http(URL+"/users/"+iamEmail).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.OK)
       var getUserResp = parse(response.body).extract[GetUsersResponse]
       assert(getUserResp.users.size === 1)
@@ -661,7 +665,7 @@ class UsersSuite extends FunSuite {
       u = getUserResp.users(orgid+"/"+iamEmail)
       assert(u.email === iamEmail)
 
-      // ensure user does not have admin auth by trying to get other user
+      // ensure user does not have admin auth by trying to get other users
       response = Http(URL+"/users/"+user).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
       info("code: "+response.code)
       assert(response.code === HttpCode.ACCESS_DENIED)
@@ -683,12 +687,6 @@ class UsersSuite extends FunSuite {
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
-      // remove ibmcloud_id from org
-      tagInput = """{ "tags": {"ibmcloud_id": null} }"""
-      response = Http(URL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK)
-
       // remove created user
       response = Http(URL+"/users/"+iamEmail).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+iamEmail+", code: "+response.code+", response.body: "+response.body)
@@ -699,12 +697,6 @@ class UsersSuite extends FunSuite {
       info("CLEAR CACHE code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.OK)
 
-      response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
-      info("code: "+response.code)
-      assert(response.code === HttpCode.BADCREDS)
-      var errorMsg = s"There is no exchange organization for the IBM cloud account with id $iamAccount"
-      assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
-
       // add ibmcloud_id to different org
       tagInput = s"""{ "tags": {"ibmcloud_id": "$iamAccount"} }"""
       response = Http(URL2).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -712,17 +704,31 @@ class UsersSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
 
       // authenticating with wrong org should notify user
-      response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
-      info("code: "+response.code)
+      response = Http(URL).headers(ACCEPT).headers(IAMOTHERAUTH(orgid)).asString
+      info("test for api key not part of this org: code: "+response.code+", response.body: "+response.body)
+      //info("code: "+response.code)
       assert(response.code === HttpCode.BADCREDS)
-      errorMsg = s"A valid IBM Cloud API key was provided, but that cloud account ($iamAccount) is not associated with org $orgid"
+      var errorMsg = s"IAM authentication succeeded, but the cloud account id of the org ($iamAccount) does not match that of the cloud account credentials ($iamOtherAccount)"
       assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
 
       // remove ibmcloud_id from org
       tagInput = """{ "tags": {"ibmcloud_id": null} }"""
+      response = Http(URL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
+
+      response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code)
+      assert(response.code === HttpCode.BADCREDS)
+      errorMsg = s"IAM authentication succeeded, but no matching org with a cloud account id was found for $orgid"
+      assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
+
+      /* remove ibmcloud_id from org - do not need to do this, because we delete both orgs at the end
+      tagInput = """{ "tags": {"ibmcloud_id": null} }"""
       response = Http(URL2).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
+      */
     } else {
       info("skipping")
     }

@@ -23,6 +23,7 @@ import scala.util._
 //import scala.util.control.NonFatal
 
 /** The list of access rights. */
+//todo: this list of access rights is duplicated in resources/auth.policy. Not sure how to avoid that.
 object Access extends Enumeration {
   type Access = Value
   // Note: the strings here are *not* for checking equality, they are for toString in error msgs
@@ -122,7 +123,7 @@ object Role {
   var NODE = Set[String]()
   var AGBOT = Set[String]()
 
-  /** Sets the set of access values to the specified role */
+  /** Sets the set of access values to the specified role. Not used, now done in resources/auth.policy
   def setRole(role: String, accessValues: Set[String]): Try[String] = {
     role match {
       case "ANONYMOUS" => ANONYMOUS = accessValues
@@ -138,25 +139,26 @@ object Role {
 
   val allAccessValues = getAllAccessValues
 
-  /** Returns a set of all of the Access enum toString values */
+  // Returns a set of all of the Access enum toString values
   def getAllAccessValues: Set[String] = {
     val accessSet = MutableSet[String]()
     for (a <- Access.values) { accessSet += a.toString}
     accessSet.toSet
   }
 
-  /** Returns true if the specified access string is valid. Used to check input from config.json. */
+  // Returns true if the specified access string is valid. Used to check input from config.json.
   def isValidAcessValues(accessValues: Set[String]): Boolean = {
     for (a <- accessValues) if (!allAccessValues.contains(a)) return false
     return true
   }
 
-  /** Returns true if the role has the specified access */
+  // Returns true if the role has the specified access
   def hasAuthorization(role: Set[String], access: Access): Boolean = {
     if (role.contains(Access.ALL.toString)) return true
     if (role.contains(Access.ALL_IN_ORG.toString) && !(access == CREATE_ORGS || access == READ_OTHER_ORGS || access == WRITE_OTHER_ORGS || access == CREATE_IN_OTHER_ORGS || access == ADMIN)) return true
     return role.contains(access.toString)
   }
+  */
 
   def superUser = "root/root"
   def isSuperUser(username: String): Boolean = return username == superUser    // only checks the username, does not verify the pw
@@ -231,7 +233,6 @@ object AuthCache {
     def init(db: Database): Unit = {
       this.db = db      // store for later use
       whichTable match {
-        //TODO: do we add org here?
         case "users" => db.run(UsersTQ.rows.map(x => (x.username, x.password, x.admin)).result).map({ list => this._initUsers(list, skipRoot = true) })
         case "nodes" => db.run(NodesTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
         case "agbots" => db.run(AgbotsTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
@@ -579,14 +580,14 @@ trait AuthSupport extends Control with ServletApiImplicits {
       try {
         identity match {
           case IUser(_) => if (target.getId == "iamapikey") {
-            val authenticatedIdentity = subject.getPrivateCredentials(classOf[IUser]).asScala.head.creds
-            logger.debug("authenticatedIdentity=" + authenticatedIdentity.id)
-            identity.authorizeTo(TUser(authenticatedIdentity.id), access).as(subject)
-            IUser(authenticatedIdentity)
-          } else {
-            identity.authorizeTo(target, access).as(subject)
-            identity
-          }
+              val authenticatedIdentity = subject.getPrivateCredentials(classOf[IUser]).asScala.head.creds
+              logger.debug("authenticatedIdentity=" + authenticatedIdentity.id)
+              identity.authorizeTo(TUser(authenticatedIdentity.id), access).as(subject)
+              IUser(authenticatedIdentity)
+            } else {
+              identity.authorizeTo(target, access).as(subject)
+              identity
+            }
           case _ =>
             identity.authorizeTo(target, access).as(subject)
             identity

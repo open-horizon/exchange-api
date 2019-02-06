@@ -30,6 +30,7 @@ case class IamUserInfo(account: IamAccount, email: String) {
 }
 case class IamAccount(bss: String)
 
+// These error msgs are matched by UsersSuite.scala, so change them there if you change them here
 case class OrgNotFound(authInfo: IamAuthCredentials)
   extends UserFacingError(s"IAM authentication succeeded, but no matching org with a cloud account id was found for ${authInfo.org}")
 case class IncorrectOrgFound(orgAcctId: String, userInfo: IamUserInfo)
@@ -155,21 +156,6 @@ object IbmCloudAuth {
         userInfo <- getUserInfo(token)
         user <- getOrCreateUser(authInfo, userInfo)
       } yield user.username   // this is the composite org/username
-
-        /*
-          .map[CacheEntry]( userRow => {
-          // The cache returns the correct base username associated with the cloud api key, but if there are multiple exchange orgs for
-          // this ibm cloud account, the org in the cache may not be correct, so replace it with the org requested before returning it.
-          val username = userRow.username
-          val (org, baseUsername) = CompositeId(username).split
-          if (org != authInfo.org) {
-            logger.info("authenticateUser(): adjusting the org in the username from '" + org + "' to '" + authInfo.org + "'")
-            OrgAndId(authInfo.org, baseUsername).toString
-          } else {
-            username
-          }
-        })
-        */
     }
   }
 
@@ -211,7 +197,13 @@ object IbmCloudAuth {
         else DBIO.successful(Success(userRow.get))
       }
     } yield user
+    //todo: can this just be a future? getOrCreateUser() is only called if this is not already in the cache, so its a problem if we cant get it in the db
     Await.result(db.run(userQuery.transactionally), Duration(3000, MILLISECONDS))
+    /* it doesnt work to add this to our authorization cache, and cause some exceptions during automated tests
+    val awaitResult = Await.result(db.run(userQuery.transactionally), Duration(3000, MILLISECONDS))
+    AuthCache.users.putBoth(Creds(s"${authInfo.org}/${userInfo.email}", ""), "")
+    awaitResult
+    */
   }
 
   // Verify that the cloud acct id of the cloud api key and the exchange org entry match

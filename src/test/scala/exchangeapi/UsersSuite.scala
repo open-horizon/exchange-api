@@ -645,8 +645,9 @@ class UsersSuite extends FunSuite {
       assert(response.code === HttpCode.OK)
 
       // authenticate as a cloud user and view this user
-      response = Http(URL+"/users/"+iamEmail).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
-      info("code: "+response.code)
+      response = Http(URL+"/users/"+iamEmail).headers(ACCEPT).headers(ROOTAUTH).asString
+      //response = Http(URL+"/users/"+iamEmail).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.OK)
       var getUserResp = parse(response.body).extract[GetUsersResponse]
       assert(getUserResp.users.size === 1)

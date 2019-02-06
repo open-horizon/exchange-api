@@ -102,7 +102,6 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 ## Changes in 1.68.0
 
 - Fix support for multiple orgs associate with 1 ibm cloud account
-- Fix access denied issue with ibm cloud account user creds (issue 778)
 
 ## Changes in 1.67.0
 

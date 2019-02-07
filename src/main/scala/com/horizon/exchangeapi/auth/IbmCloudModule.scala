@@ -109,13 +109,13 @@ class IbmCloudModule extends LoginModule with AuthSupport {
 
   private def extractApiKey(reqInfo: RequestInfo): Try[IamAuthCredentials] = {
     val creds = credentials(reqInfo)
-    val (org, id) = IbmCloudAuth.compositIdSplit(creds.id)
-    //todo: we should verify the org is the same as the org they are trying to access
+    val (org, id) = IbmCloudAuth.compositeIdSplit(creds.id)
     if (id == "iamapikey" && !creds.token.isEmpty) Success(IamAuthCredentials(org, creds.token))
     else Failure(new Exception("Auth is not an IAM apikey"))
   }
 }
 
+// Utilities for managing the ibm auth cache and authenticating with ibm
 object IbmCloudAuth {
   import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 
@@ -126,8 +126,6 @@ object IbmCloudAuth {
   private implicit val formats = DefaultFormats
 
   lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
-
-  //case class CacheEntry(org: String, baseUsername: String)  // not used
 
   private val guavaCache = CacheBuilder.newBuilder()
     .maximumSize(1000)
@@ -164,6 +162,7 @@ object IbmCloudAuth {
     removeAll().map(_ => ())
   }
 
+  // Use the IBM IAM API to authenticate the iamapikey: https://cloud.ibm.com/apidocs/iam-identity-token-api
   private def getIamToken(apikey: String): Try[IamToken] = {
     logger.debug("Retrieving IAM token")
     val tokenResponse = Http("https://iam.cloud.ibm.com/identity/token")
@@ -260,7 +259,7 @@ object IbmCloudAuth {
   }
 
   // Split an id in the form org/id and return both parts. If there is no / we assume it is an id without the org.
-  def compositIdSplit(compositeId: String): (String, String) = {
+  def compositeIdSplit(compositeId: String): (String, String) = {
     val reg = """^(\S*?)/(\S*)$""".r
     compositeId match {
       case reg(org,id) => return (org,id)

@@ -120,8 +120,11 @@ class RequestCallback extends Callback {
   def request: Option[RequestInfo] = req
 }
 
+//---------- Everything below here is for authorization
+
+// Both ExchangeRole and AccessPermission are listed in resources/auth.policy
 case class ExchangeRole(role: String) extends Principal {
-  override def getName() = role
+  override def getName = role
 }
 
 case class AccessPermission(name: String) extends BasicPermission(name)

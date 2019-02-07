@@ -590,7 +590,7 @@ trait AuthSupport extends Control with ServletApiImplicits {
     def authorizeTo(target: Target, access: Access): Identity = {
       try {
         identity match {
-          case IUser(_) => if (target.getId == "iamapikey") {
+          case IUser(_) => if (target.getId == "iamapikey" || target.getId == "iamtoken") {
               val authenticatedIdentity = subject.getPrivateCredentials(classOf[IUser]).asScala.head.creds
               logger.debug("authenticatedIdentity=" + authenticatedIdentity.id)
               identity.authorizeTo(TUser(authenticatedIdentity.id), access).as(subject)

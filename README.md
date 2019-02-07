@@ -99,6 +99,10 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.69.0
+
+- Support authentication via ibm cloud iam token that comes from the web ui
+
 ## Changes in 1.68.0
 
 - Fix support for multiple orgs associate with 1 ibm cloud account

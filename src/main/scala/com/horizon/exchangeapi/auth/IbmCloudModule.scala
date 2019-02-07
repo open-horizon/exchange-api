@@ -21,12 +21,12 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
-case class IamAuthCredentials(org: String, apikey: String) {
-  override def toString = org + "/" + apikey
+case class IamAuthCredentials(org: String, keyType: String, key: String) {
+  def cacheKey = org + "/" + keyType + ":" + key
 }
 case class IamToken(accessToken: String)
-case class IamUserInfo(account: IamAccount, email: String) {
-  val accountId = account.bss
+case class IamUserInfo(account: Option[IamAccount], email: String) {
+  def accountId = if (account.isDefined) account.get.bss else ""
 }
 case class IamAccount(bss: String)
 
@@ -75,7 +75,7 @@ class IbmCloudModule extends LoginModule with AuthSupport {
           username <- IbmCloudAuth.authenticateUser(key)
         } yield {
           val user = IUser(Creds(username, ""))
-          logger.info("User " + user.creds.id + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
+          logger.info("IBM User " + user.creds.id + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
           if (isDbMigration && !Role.isSuperUser(user.creds.id)) halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied - in the process of DB migration"))
           identity = user
           user
@@ -84,8 +84,9 @@ class IbmCloudModule extends LoginModule with AuthSupport {
     } yield user
     succeeded = loginResult.isSuccess
     if (!succeeded) {
+      // Throw an exception so jaas will move on to Module
       throw loginResult.failed.map {
-        case e: UserFacingError => e
+        case e: UserFacingError => e    // errors from verifyOrg()
         case _ => new FailedLoginException
       }.get
     }
@@ -109,13 +110,13 @@ class IbmCloudModule extends LoginModule with AuthSupport {
 
   private def extractApiKey(reqInfo: RequestInfo): Try[IamAuthCredentials] = {
     val creds = credentials(reqInfo)
-    val (org, id) = IbmCloudAuth.compositIdSplit(creds.id)
-    //todo: we should verify the org is the same as the org they are trying to access
-    if (id == "iamapikey" && !creds.token.isEmpty) Success(IamAuthCredentials(org, creds.token))
-    else Failure(new Exception("Auth is not an IAM apikey"))
+    val (org, id) = IbmCloudAuth.compositeIdSplit(creds.id)
+    if ((id == "iamapikey" || id == "iamtoken") && !creds.token.isEmpty) Success(IamAuthCredentials(org, id, creds.token))
+    else Failure(new Exception("Auth is not an IAM apikey or token"))
   }
 }
 
+// Utilities for managing the ibm auth cache and authenticating with ibm
 object IbmCloudAuth {
   import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 
@@ -126,8 +127,6 @@ object IbmCloudAuth {
   private implicit val formats = DefaultFormats
 
   lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
-
-  //case class CacheEntry(org: String, baseUsername: String)  // not used
 
   private val guavaCache = CacheBuilder.newBuilder()
     .maximumSize(1000)
@@ -150,9 +149,9 @@ object IbmCloudAuth {
      * I use cachingF here so that I can return a Try value
      * (see http://cb372.github.io/scalacache/docs/#basic-cache-operations for more info)
      */
-    cachingF(authInfo.toString)(ttl = None) {
+    cachingF(authInfo.cacheKey)(ttl = None) {
       for {
-        token <- getIamToken(authInfo.apikey)
+        token <- if (authInfo.keyType == "iamtoken") Success(IamToken(authInfo.key)) else getIamToken(authInfo.key)
         userInfo <- getUserInfo(token)
         user <- getOrCreateUser(authInfo, userInfo)
       } yield user.username   // this is the composite org/username
@@ -164,6 +163,7 @@ object IbmCloudAuth {
     removeAll().map(_ => ())
   }
 
+  // Use the IBM IAM API to authenticate the iamapikey and get an IAM token. See: https://cloud.ibm.com/apidocs/iam-identity-token-api
   private def getIamToken(apikey: String): Try[IamToken] = {
     logger.debug("Retrieving IAM token")
     val tokenResponse = Http("https://iam.cloud.ibm.com/identity/token")
@@ -176,6 +176,7 @@ object IbmCloudAuth {
     Try(parse(tokenResponse.body).camelizeKeys.extract[IamToken])
   }
 
+  // Using the IAM token get the ibm cloud account id (which we'll use to verify the exchange org) and users email (which we'll use as the exchange user)
   private def getUserInfo(token: IamToken): Try[IamUserInfo] = {
     logger.debug("Retrieving IAM userinfo")
     val infoResponse = Http("https://iam.cloud.ibm.com/identity/userinfo")
@@ -186,11 +187,12 @@ object IbmCloudAuth {
   }
 
   private def getOrCreateUser(authInfo: IamAuthCredentials, userInfo: IamUserInfo): Try[UserRow] = {
+    logger.debug("Getting or creating exchange user using IAM userinfo: "+userInfo)
     val userQuery = for {
       //associatedOrgId <- fetchOrg(userInfo) // can no longer use this, because the account id it uses to find the org is not necessarily unique...
       //orgId <- verifyOrg(authInfo, userInfo, associatedOrgId)
-      ibmCloudAcctId <- fetchOrg(authInfo.org)
-      orgId <- verifyOrg(authInfo, userInfo, ibmCloudAcctId)   // verify cloud acct id of the apikey and the org entry match
+      orgAcctId <- fetchOrg(authInfo.org)
+      orgId <- verifyOrg(authInfo, userInfo, orgAcctId)   // verify cloud acct id of the apikey and the org entry match
       userRow <- fetchUser(orgId, userInfo)
       user <- {
         if (userRow.isEmpty) createUser(orgId, userInfo)
@@ -206,30 +208,6 @@ object IbmCloudAuth {
     */
   }
 
-  // Verify that the cloud acct id of the cloud api key and the exchange org entry match
-  private def verifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, orgAcctId: Option[String]) = {
-    if (orgAcctId.isEmpty) {
-      logger.error(s"IAM authentication succeeded, but no matching org with a cloud account id was found for ${authInfo.org}")
-      DBIO.failed(OrgNotFound(authInfo))
-    } else if (orgAcctId.getOrElse("") != userInfo.accountId) {
-      logger.error(s"IAM authentication succeeded, but the cloud account id of the org $orgAcctId does not match that of the cloud account ${userInfo.accountId}")
-      DBIO.failed(IncorrectOrgFound(orgAcctId.getOrElse(""), userInfo))
-    } else {
-      DBIO.successful(authInfo.org)
-    }
-  }
-
-  /* This fetch is no longer valid because we no longer require the ibmcloud_id field to be unique, so this could find any of the orgs with this ibmcloud_id.
-  private def fetchOrg(info: IamUserInfo) = {
-    OrgsTQ.rows
-      .filter(_.tags.+>>("ibmcloud_id") === info.accountId)
-      .map(_.orgid)
-      .take(1)
-      .result
-      .headOption
-  }
-  */
-
   // Get the associated ibm cloud id of the org that the client requested in the exchange api
   private def fetchOrg(org: String) = {
     OrgsTQ.getOrgid(org)
@@ -239,9 +217,25 @@ object IbmCloudAuth {
       .head
   }
 
+  // Verify that the cloud acct id of the cloud api key and the exchange org entry match
+  private def verifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, orgAcctId: Option[String]) = {
+    if (orgAcctId.isEmpty) {
+      logger.error(s"IAM authentication succeeded, but no matching org with a cloud account id was found for ${authInfo.org}")
+      DBIO.failed(OrgNotFound(authInfo))
+    } else if (authInfo.keyType == "iamtoken" && userInfo.accountId == "") {
+      // This is the case with tokens from the edge mgmt ui, and this is ok
+      DBIO.successful(authInfo.org)
+    } else if (orgAcctId.getOrElse("") != userInfo.accountId) {
+      logger.error(s"IAM authentication succeeded, but the cloud account id of the org $orgAcctId does not match that of the cloud account ${userInfo.accountId}")
+      DBIO.failed(IncorrectOrgFound(orgAcctId.getOrElse(""), userInfo))
+    } else {
+      DBIO.successful(authInfo.org)
+    }
+  }
+
   private def fetchUser(org: String, info: IamUserInfo) = {
     UsersTQ.rows
-      .filter(u => u.orgid === org && u.email === info.email)
+      .filter(u => u.orgid === org && u.username === s"$org/${info.email}")
       .take(1)
       .result
       .headOption
@@ -260,7 +254,7 @@ object IbmCloudAuth {
   }
 
   // Split an id in the form org/id and return both parts. If there is no / we assume it is an id without the org.
-  def compositIdSplit(compositeId: String): (String, String) = {
+  def compositeIdSplit(compositeId: String): (String, String) = {
     val reg = """^(\S*?)/(\S*)$""".r
     compositeId match {
       case reg(org,id) => return (org,id)

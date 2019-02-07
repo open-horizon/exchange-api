@@ -108,7 +108,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     var username = params("username")
     var compositeId = OrgAndId(orgid,username).toString
     val ident = authenticate().authorizeTo(TUser(compositeId),Access.READ)
-    if (username == "iamapikey") {
+    if (username == "iamapikey" || username == "iamtoken") {
       // Need to change the target into the username that the key resolved to
       username = ident.getIdentity
       compositeId = OrgAndId(ident.getOrg,ident.getIdentity).toString

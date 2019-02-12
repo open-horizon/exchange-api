@@ -94,7 +94,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   protected implicit def jsonFormats: Formats
 
   // ====== GET /orgs/{orgid}/resources ================================
-  val getResources =
+  /*val getResources =
     (apiOperation[GetResourcesResponse]("getResources")
       summary("Returns all resources")
       description("""Returns all resource definitions in the exchange DB. Can be run by any user, node, or agbot.""")
@@ -108,9 +108,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("arch", DataType.String, Option[String]("Filter results to only include resources with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+      )*/
 
-  get("/orgs/:orgid/resources", operation(getResources)) ({
+  get("/orgs/:orgid/resources" /*, operation(getResources)*/) ({
     val orgid = params("orgid")
     val ident = authenticate().authorizeTo(TResource(OrgAndId(orgid,"*").toString),Access.READ)
     val resp = response
@@ -133,7 +133,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   // ====== GET /orgs/{orgid}/resources/{resource} ================================
-  val getOneResource =
+  /*val getOneResource =
     (apiOperation[GetResourcesResponse]("getOneResource")
       summary("Returns a resource")
       description("""Returns the resource with the specified id in the exchange DB. Can be run by a user, node, or agbot.""")
@@ -145,9 +145,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire resource will be returned."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+      )*/
 
-  get("/orgs/:orgid/resources/:resource", operation(getOneResource)) ({
+  get("/orgs/:orgid/resources/:resource" /*, operation(getOneResource)*/) ({
     val orgid = params("orgid")
     val bareResource = params("resource")   // but do not have a hack/fix for the name
     val resource = OrgAndId(orgid,bareResource).toString
@@ -181,7 +181,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   // =========== POST /orgs/{orgid}/resources ===============================
-  val postResources =
+  /*val postResources =
     (apiOperation[ApiResponse]("postResources")
       summary "Adds a resource"
       description """Creates a resource. A resource points to a file (can be a tar file) that is needed by some services. Horizon will deploy this file with the services that require it. If public is set to true, the resource can be shared across organizations. This can only be called by a user. The **request body** structure:
@@ -214,8 +214,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val postResources2 = (apiOperation[PostPutResourceRequest]("postResources2") summary("a") description("a"))  // for some bizarre reason, the PostResourceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  */
 
-  post("/orgs/:orgid/resources", operation(postResources)) ({
+  post("/orgs/:orgid/resources" /*, operation(postResources)*/) ({
   //post("/orgs/:orgid/resources") ({
     val orgid = params("orgid")
     val ident = authenticate().authorizeTo(TResource(OrgAndId(orgid,"").toString),Access.CREATE)
@@ -259,7 +260,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   // =========== PUT /orgs/{orgid}/resources/{resource} ===============================
-  val putResources =
+  /*val putResources =
     (apiOperation[ApiResponse]("putResources")
       summary "Updates a resource"
       description """Does a full replace of an existing resource. See the description of the body fields in the POST method. This can only be called by the user that originally created it."""
@@ -275,8 +276,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putResources2 = (apiOperation[PostPutResourceRequest]("putResources2") summary("a") description("a"))  // for some bizarre reason, the PutResourceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  */
 
-  put("/orgs/:orgid/resources/:resource", operation(putResources)) ({
+  put("/orgs/:orgid/resources/:resource" /*, operation(putResources)*/) ({
     val orgid = params("orgid")
     val bareResource = params("resource")   // but do not have a hack/fix for the name
     val resource = OrgAndId(orgid,bareResource).toString
@@ -314,7 +316,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   // =========== PATCH /orgs/{orgid}/resources/{resource} ===============================
-  val patchResources =
+  /*val patchResources =
     (apiOperation[Map[String,String]]("patchResources")
       summary "Updates 1 attribute of a resource"
       description """Updates one attribute of a resource in the exchange DB. This can only be called by the user that originally created this resource."""
@@ -330,8 +332,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val patchResources2 = (apiOperation[PatchResourceRequest]("patchResources2") summary("a") description("a"))  // for some bizarre reason, the PatchResourceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  */
 
-  patch("/orgs/:orgid/resources/:resource", operation(patchResources)) ({
+  patch("/orgs/:orgid/resources/:resource" /*, operation(patchResources)*/) ({
     val orgid = params("orgid")
     val bareResource = params("resource")   // but do not have a hack/fix for the name
     val resource = OrgAndId(orgid,bareResource).toString
@@ -371,7 +374,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   // =========== DELETE /orgs/{orgid}/resources/{resource} ===============================
-  val deleteResources =
+  /*val deleteResources =
     (apiOperation[ApiResponse]("deleteResources")
       summary "Deletes a resource"
       description "Deletes a resource from the exchange DB. Can only be run by the owning user."
@@ -382,9 +385,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+      )*/
 
-  delete("/orgs/:orgid/resources/:resource", operation(deleteResources)) ({
+  delete("/orgs/:orgid/resources/:resource" /*, operation(deleteResources)*/) ({
     val orgid = params("orgid")
     val bareResource = params("resource")   // but do not have a hack/fix for the name
     val resource = OrgAndId(orgid,bareResource).toString
@@ -412,7 +415,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   /* ====== GET /orgs/{orgid}/resources/{resource}/keys ================================ */
-  val getResourceKeys =
+  /*val getResourceKeys =
     (apiOperation[List[String]]("getResourceKeys")
       summary "Returns all keys/certs for this resource"
       description """Returns all the signing public keys/certs for this resource. These are used by the Horizon Agent to verify both the resource deployment string and the resource file. Can be run by any credentials able to view the resource."""
@@ -424,9 +427,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+      )*/
 
-  get("/orgs/:orgid/resources/:resource/keys", operation(getResourceKeys)) ({
+  get("/orgs/:orgid/resources/:resource/keys" /*, operation(getResourceKeys)*/) ({
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
@@ -442,7 +445,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   /* ====== GET /orgs/{orgid}/resources/{resource}/keys/{keyid} ================================ */
-  val getOneResourceKey =
+  /*val getOneResourceKey =
     (apiOperation[String]("getOneResourceKey")
       summary "Returns a key/cert for this resource"
       description """Returns the signing public key/cert with the specified keyid for this resource. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the resource."""
@@ -455,9 +458,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       )
       produces "text/plain"
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+      )*/
 
-  get("/orgs/:orgid/resources/:resource/keys/:keyid", operation(getOneResourceKey)) ({
+  get("/orgs/:orgid/resources/:resource/keys/:keyid" /*, operation(getOneResourceKey)*/) ({
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
@@ -482,7 +485,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   // =========== PUT /orgs/{orgid}/resources/{resource}/keys/{keyid} ===============================
-  val putResourceKey =
+  /*val putResourceKey =
     (apiOperation[ApiResponse]("putResourceKey")
       summary "Adds/updates a key/cert for the resource"
       description """Adds a new signing public key/cert, or updates an existing key/cert, for this resource. This can only be run by the resource owning user. Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'."""
@@ -499,8 +502,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putResourceKey2 = (apiOperation[String]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  */
 
-  put("/orgs/:orgid/resources/:resource/keys/:keyid", operation(putResourceKey)) ({
+  put("/orgs/:orgid/resources/:resource/keys/:keyid" /*, operation(putResourceKey)*/) ({
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
@@ -528,7 +532,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   // =========== DELETE /orgs/{orgid}/resources/{resource}/keys ===============================
-  val deleteResourceAllKey =
+  /*val deleteResourceAllKey =
     (apiOperation[ApiResponse]("deleteResourceAllKey")
       summary "Deletes all keys of a resource"
       description "Deletes all of the current keys/certs for this resource. This can only be run by the resource owning user."
@@ -539,9 +543,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+      )*/
 
-  delete("/orgs/:orgid/resources/:resource/keys", operation(deleteResourceAllKey)) ({
+  delete("/orgs/:orgid/resources/:resource/keys" /*, operation(deleteResourceAllKey)*/) ({
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
@@ -564,7 +568,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   // =========== DELETE /orgs/{orgid}/resources/{resource}/keys/{keyid} ===============================
-  val deleteResourceKey =
+  /*val deleteResourceKey =
     (apiOperation[ApiResponse]("deleteResourceKey")
       summary "Deletes a key of a resource"
       description "Deletes a key/cert for this resource. This can only be run by the resource owning user."
@@ -576,9 +580,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+      )*/
 
-  delete("/orgs/:orgid/resources/:resource/keys/:keyid", operation(deleteResourceKey)) ({
+  delete("/orgs/:orgid/resources/:resource/keys/:keyid" /*, operation(deleteResourceKey)*/) ({
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
@@ -604,7 +608,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   /* ====== GET /orgs/{orgid}/resources/{resource}/auths ================================ */
-  val getResourceAuths =
+  /*val getResourceAuths =
     (apiOperation[List[ResourceAuth]]("getResourceAuths")
       summary "Returns all auth tokens for this resource"
       description """Returns all the authentication tokens for this resource. Can be run by any credentials able to view the resource."""
@@ -616,9 +620,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
     )
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+      )*/
 
-  get("/orgs/:orgid/resources/:resource/auths", operation(getResourceAuths)) ({
+  get("/orgs/:orgid/resources/:resource/auths" /*, operation(getResourceAuths)*/) ({
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
@@ -635,7 +639,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   /* ====== GET /orgs/{orgid}/resources/{resource}/auths/{authid} ================================ */
-  val getOneResourceAuth =
+  /*val getOneResourceAuth =
     (apiOperation[ResourceAuth]("getOneResourceAuth")
       summary "Returns a auth token for this resource"
       description """Returns the  authentication token with the specified authid for this resource. Can be run by any credentials able to view the resource."""
@@ -648,9 +652,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     )
       produces "text/plain"
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+      )*/
 
-  get("/orgs/:orgid/resources/:resource/auths/:authid", operation(getOneResourceAuth)) ({
+  get("/orgs/:orgid/resources/:resource/auths/:authid" /*, operation(getOneResourceAuth)*/) ({
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
@@ -671,7 +675,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   // =========== POST /orgs/{orgid}/resources/{resource}/auths ===============================
-  val postResourceAuth =
+  /*val postResourceAuth =
     (apiOperation[ApiResponse]("postResourceAuth")
       summary "Adds a auth token for the resource"
       description """Adds a new authentication token for this resource. As an optimization, if the auth resource already exists, this method will just update that lastupdated field. This can only be run by the resource owning user."""
@@ -687,8 +691,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val postResourceAuth2 = (apiOperation[PostPutResourceAuthRequest]("postAuth2") summary("a") description("a"))  // for some bizarre reason, the PostAuthsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  */
 
-  post("/orgs/:orgid/resources/:resource/auths", operation(postResourceAuth)) ({
+  post("/orgs/:orgid/resources/:resource/auths" /*, operation(postResourceAuth)*/) ({
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
@@ -727,7 +732,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   // =========== PUT /orgs/{orgid}/resources/{resource}/auths/{authid} ===============================
-  val putResourceAuth =
+  /*val putResourceAuth =
     (apiOperation[ApiResponse]("putResourceAuth")
       summary "Updates a docker image token for the resource"
       description """Updates an existing docker image authentication token for this resource. This can only be run by the resource owning user."""
@@ -744,8 +749,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val putResourceAuth2 = (apiOperation[PostPutResourceAuthRequest]("putAuth2") summary("a") description("a"))  // for some bizarre reason, the PutAuthsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+  */
 
-  put("/orgs/:orgid/resources/:resource/auths/:authid", operation(putResourceAuth)) ({
+  put("/orgs/:orgid/resources/:resource/auths/:authid" /*, operation(putResourceAuth)*/) ({
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
@@ -778,7 +784,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   // =========== DELETE /orgs/{orgid}/resources/{resource}/auths ===============================
-  val deleteResourceAllAuth =
+  /*val deleteResourceAllAuth =
     (apiOperation[ApiResponse]("deleteResourceAllAuth")
       summary "Deletes all docker image auth tokens of a resource"
       description "Deletes all of the current docker image auth tokens for this resource. This can only be run by the resource owning user."
@@ -789,9 +795,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
     )
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+      )*/
 
-  delete("/orgs/:orgid/resources/:resource/auths", operation(deleteResourceAllAuth)) ({
+  delete("/orgs/:orgid/resources/:resource/auths" /*, operation(deleteResourceAllAuth)*/) ({
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString
@@ -814,7 +820,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   })
 
   // =========== DELETE /orgs/{orgid}/resources/{resource}/auths/{authid} ===============================
-  val deleteResourceAuth =
+  /*val deleteResourceAuth =
     (apiOperation[ApiResponse]("deleteResourceAuth")
       summary "Deletes a docker image auth token of a resource"
       description "Deletes a docker image auth token for this resource. This can only be run by the resource owning user."
@@ -826,9 +832,9 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
     )
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+      )*/
 
-  delete("/orgs/:orgid/resources/:resource/auths/:authid", operation(deleteResourceAuth)) ({
+  delete("/orgs/:orgid/resources/:resource/auths/:authid" /*, operation(deleteResourceAuth)*/) ({
     val orgid = params("orgid")
     val resource = params("resource")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,resource).toString

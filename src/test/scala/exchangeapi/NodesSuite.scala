@@ -31,17 +31,21 @@ class NodesSuite extends FunSuite {
   val runningLocally = (urlRoot == localUrlRoot)
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")
-  val SDRSPEC = "https://bluehorizon.network/services/sdr"
-  val NETSPEEDSPEC = "https://bluehorizon.network/services/netspeed/"     // test the trailing / for this one
-  val PWSSPEC = "https://bluehorizon.network/services/pws"
-  val NOTTHERESPEC = "https://bluehorizon.network/services/notthere"
   val orgid = "NodesSuiteTests"
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
   val orgid2 = "NodesSuiteTests2"
   val authpref2=orgid2+"/"
   val URL2 = urlRoot+"/v1/orgs/"+orgid2
+  val orgnotthere = orgid+"NotThere"
   val NOORGURL = urlRoot+"/v1"
+  val SDRSPEC_URL = "bluehorizon.network.sdr"
+  val SDRSPEC = orgid+"/"+SDRSPEC_URL
+  val NETSPEEDSPEC_URL = "bluehorizon.network.netspeed"
+  val NETSPEEDSPEC = orgid2+"/"+NETSPEEDSPEC_URL
+  val PWSSPEC = orgid+"/bluehorizon.network.pws"
+  val NOTTHERESPEC_URL = "bluehorizon.network.notthere"
+  val NOTTHERESPEC = orgid+"/"+NOTTHERESPEC_URL
   val user = "u1"
   val orguser = authpref+user
   val org2user = authpref2+user
@@ -188,7 +192,7 @@ class NodesSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - before pattern exists - should fail") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
       None,
-      "whisper-id", Map("horizon"->"3.2.3"), "NODEABC")
+      Some("whisper-id"), Some(Map("horizon"->"3.2.3")), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT)
@@ -230,24 +234,24 @@ class NodesSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - add normal node as user") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
       Some(List(
-        RegService(PWSSPEC,1,"{json policy for "+nodeId+" pws}",List(
+        RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","="))),
-        RegService(NETSPEEDSPEC,1,"{json policy for "+nodeId+" netspeed}",List(
+        RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("cpus","2","int",">="),
           Prop("version","1.0.0","version","in")))
       )),
-      "whisper-id", Map("horizon"->"3.2.3"), "NODEABC")
+      Some("whisper-id"), Some(Map("horizon"->"3.2.3")), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+" - add node in 2nd org") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid, None, "whisper-id", Map("horizon"->"3.2.3"), "NODEABCORG2")
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid, None, None, None, "NODEABCORG2")
     val response = Http(URL2+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -256,72 +260,73 @@ class NodesSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal - update as user") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal-user", compositePatid,
       Some(List(
-        RegService(PWSSPEC,1,"{json policy for "+nodeId+" pws}",List(
+        RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","="))),
-        RegService(NETSPEEDSPEC,1,"{json policy for "+nodeId+" netspeed}",List(
+        RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("cpus","2","int",">="),
           Prop("version","1.0.0","version","in")))
       )),
-      "", Map("horizon"->"3.2.3"), "OLDNODEABC")
+      Some("whisper-id"), Some(Map("horizon"->"3.2.3")), "OLDNODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
 
+  // this is the last update of nodeId before the GET checks
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal update - as node") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal", compositePatid,
       Some(List(
-        RegService(SDRSPEC,1,"{json policy for "+nodeId+" sdr}",List(
+        RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId+" sdr}",List(
           Prop("arch","arm","string","in"),
           Prop("memory","300","int",">="),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","="))),
-        RegService(NETSPEEDSPEC,1,"{json policy for "+nodeId+" netspeed}",List(
+        RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("version","1.0.0","version","in")))
       )),
-      "", Map("horizon"->"3.2.1"), "NODEABC")
+      Some(""), Some(Map("horizon"->"3.2.1")), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+" - node with higher memory 400, and version 2.0.0") {
-    val input = PutNodesRequest(nodeToken2, "rpi"+nodeId2+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,"{json policy for "+nodeId2+" sdr}",List(
+    val input = PutNodesRequest(nodeToken2, "rpi"+nodeId2+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), "whisper-id", Map(), "NODE2ABC")
+      Prop("dataVerification","true","boolean","="))))), None, None, "NODE2ABC")
     val response = Http(URL+"/nodes/"+nodeId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId3+" - netspeed-amd64, but no publicKey at 1st") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId3+"-netspeed-amd64", compositePatid, Some(List(RegService(NETSPEEDSPEC,1,"{json policy for "+nodeId3+" netspeed}",List(
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId3+"-netspeed-amd64", compositePatid, Some(List(RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId3+" netspeed}",List(
       Prop("arch","amd64","string","in"),
       Prop("memory","300","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), "whisper-id", Map(), "")
+      Prop("dataVerification","true","boolean","="))))), None, None, "")
     val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId4+" - bad integer property") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId4+"-bad-int", compositePatid, Some(List(RegService(SDRSPEC,1,"{json policy for "+nodeId4+" sdr}",List(
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId4+"-bad-int", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId4+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400MB","int",">="),
       Prop("version","2.0.0","version","in"),
-      Prop("dataVerification","true","boolean","="))))), "whisper-id", Map(), "NODE4ABC")
+      Prop("dataVerification","true","boolean","="))))), None, None, "NODE4ABC")
     val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
@@ -357,11 +362,11 @@ class NodesSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId4+" - bad svc url, but this is currently allowed") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId4+"-bad-url", compositePatid, Some(List(RegService(NOTTHERESPEC,1,"{json policy for "+nodeId4+" sdr}",List(
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId4+"-bad-url", compositePatid, Some(List(RegService(NOTTHERESPEC,1,Some("active"),"{json policy for "+nodeId4+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
-      Prop("dataVerification","true","boolean","="))))), "whisper-id", Map(), "NODE4ABC")
+      Prop("dataVerification","true","boolean","="))))), None, None, "NODE4ABC")
     val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -374,7 +379,7 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  //~~~~~ Get nodes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  //~~~~~ Get nodes (and some post configState) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("GET /orgs/"+orgid+"/nodes") {
     // val response: HttpResponse[String] = Http(URL+"/v1/nodes").headers(("Accept","application/json")).param("id","a").param("token","a").asString
@@ -389,9 +394,11 @@ class NodesSuite extends FunSuite {
     var dev = getDevResp.nodes(orgnodeId)
     assert(dev.name === "rpi"+nodeId+"-normal")
     assert(dev.registeredServices.length === 2)
+    // sdr reg svc
     var svc: RegService = dev.registeredServices.find(m => m.url == SDRSPEC).orNull
     assert(svc !== null)
     assert(svc.url === SDRSPEC)
+    assert(svc.configState === Some("active"))
     assert(svc.policy === "{json policy for "+nodeId+" sdr}")
     var archProp = svc.properties.find(p => p.name=="arch").orNull
     assert((archProp !== null) && (archProp.name === "arch"))
@@ -401,8 +408,10 @@ class NodesSuite extends FunSuite {
     assert(dev.softwareVersions.size === 1)
     assert(dev.softwareVersions.contains("horizon"))
     assert(dev.softwareVersions("horizon") === "3.2.1")
+    // netspeed reg svc
     svc = dev.registeredServices.find(m => m.url==NETSPEEDSPEC).orNull
     assert(svc !== null)
+    assert(svc.configState === Some("active"))
     assert(svc.properties.find(p => p.name=="cpus") === None)
     assert(svc.properties.find(p => p.name=="agreementProtocols") !== None)
     assert(dev.registeredServices.find(m => m.url==PWSSPEC) === None)
@@ -428,6 +437,92 @@ class NodesSuite extends FunSuite {
     assert(svc.url === NETSPEEDSPEC)
     archProp = svc.properties.find(p => p.name=="arch").get
     assert(archProp.value === "amd64")
+  }
+
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/configstate - invalid config state - should fail") {
+    val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "foo")
+    val response = Http(URL+"/nodes/"+nodeId+"/configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/configstate - nonexistant url - should return not found") {
+    val input = PostNodeConfigStateRequest(orgid, NOTTHERESPEC_URL, "suspended")
+    val response = Http(URL+"/nodes/"+nodeId+"/configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/configstate - nonexistant org - should return not found") {
+    val input = PostNodeConfigStateRequest(orgnotthere, SDRSPEC_URL, "suspended")
+    val response = Http(URL+"/nodes/"+nodeId+"/configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify none of the bad POSTs above changed the node") {
+    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    val getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    val dev = getDevResp.nodes(orgnodeId)
+    assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.configState.contains("active")))
+    assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
+  }
+
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/configstate - change config state of sdr reg svc") {
+    val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "suspended")
+    val response = Http(URL+"/nodes/"+nodeId+"/configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify sdr reg svc was suspended") {
+    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    val getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    val dev = getDevResp.nodes(orgnodeId)
+    assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.configState.contains("suspended")))
+    assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
+  }
+
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/configstate - change config state of netspeed reg svc") {
+    val input = PostNodeConfigStateRequest("", NETSPEEDSPEC_URL, "suspended")
+    val response = Http(URL+"/nodes/"+nodeId+"/configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify netspeed reg svc was suspended") {
+    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    val getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    val dev = getDevResp.nodes(orgnodeId)
+    assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.configState.contains("suspended")))
+    assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("suspended")))
+  }
+
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/configstate - change config state of all reg svcs back to active") {
+    val input = PostNodeConfigStateRequest("", "", "active")
+    val response = Http(URL+"/nodes/"+nodeId+"/configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify all reg svcs back to active") {
+    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    val getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    val dev = getDevResp.nodes(orgnodeId)
+    assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.configState.contains("active")))
+    assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
   }
 
   test("GET /orgs/"+orgid+"/nodes - filter owner and name") {
@@ -1386,10 +1481,10 @@ class NodesSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
 
       // Now try adding another node - expect it to be rejected
-      val input = PutNodesRequest(nodeToken, "rpi"+nodeId5+"-netspeed", compositePatid, Some(List(RegService(NETSPEEDSPEC,1,"{json policy for "+nodeId5+" netspeed}",List(
+      val input = PutNodesRequest(nodeToken, "rpi"+nodeId5+"-netspeed", compositePatid, Some(List(RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId5+" netspeed}",List(
         Prop("arch","arm","string","in"),
         Prop("version","1.0.0","version","in"),
-        Prop("agreementProtocols",agProto,"list","in"))))), "whisper-id", Map(), "NODE4ABC")
+        Prop("agreementProtocols",agProto,"list","in"))))), None, None, "NODE4ABC")
       response = Http(URL+"/nodes/"+nodeId5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)

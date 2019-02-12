@@ -251,14 +251,6 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       "arch": "amd64"
     }
   ],
-  // The resources (files) this service requires. (The resources must exist in the exchange before creating this service.)
-  "requiredResources": [
-    {
-      "org": "myorg",
-      "name": "mymodel",
-      "version": "[1.0.0,INFINITY)"     // an OSGI-formatted version range
-    }
-  ],
   // Values the node owner will be prompted for and will be set as env vars to the container.
   "userInput": [
     {

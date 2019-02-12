@@ -91,13 +91,17 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 
 - Add ability to change owner of node
 - Add patch capability for node registered services
-- Add an unauthenticated admin status rest api
 - Consider:
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
-    - Allow random PW creation for user creation
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 1.70.0
+
+- In node resource, make msgEndPoint and softwareVersions optional
+- Add node post to be able to be able to update some of the configState attrs
+- Remove Resource from swagger and Services
 
 ## Changes in 1.69.0
 

@@ -4,7 +4,7 @@ package com.horizon.exchangeapi
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization.write
+import org.json4s.jackson.Serialization.{write, read}
 import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
@@ -112,12 +112,12 @@ case class NodeResponse(id: String, name: String, services: List[RegService], ms
 case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
-case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], msgEndPoint: String, softwareVersions: Map[String,String], publicKey: String) {
+case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Halts the request with an error msg if the user input is invalid. */
   def validate() = {
-    // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
+    // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
     if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token specified must not be blank"))
     if (pattern != "" && """.*/.*""".r.findFirstIn(pattern).isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the 'pattern' attribute must have the orgid prepended, with a slash separating"))
     for (m <- registeredServices.getOrElse(List())) {
@@ -133,14 +133,14 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   /** Get the db actions to insert or update all parts of the node */
   def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = {
     //println("getDbUpsert: registeredServices: "+registeredServices)
-    NodeRow(id, orgid, token, name, owner, pattern, write(registeredServices), msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).upsert
+    NodeRow(id, orgid, token, name, owner, pattern, write(registeredServices), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey).upsert
   }
 
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
    * because we can't let a node create new nodes. */
   def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = {
     //println("getDbUpdate: registeredServices: "+registeredServices)
-    NodeRow(id, orgid, token, name, owner, pattern, write(registeredServices), msgEndPoint, write(softwareVersions), ApiTime.nowUTC, publicKey).update
+    NodeRow(id, orgid, token, name, owner, pattern, write(registeredServices), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey).update
   }
 
   /** Not used any more, kept for reference of how to access object store - Returns the microservice templates for the registeredMicroservices in this object
@@ -210,6 +210,59 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
   }
 }
 
+case class PostNodeConfigStateRequest(org: String, url: String, configState: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+  //def logger: Logger    // get access to the logger object in ExchangeApiApp
+
+  def validate() = {
+    if (configState != "suspended" && configState != "active") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the configState value must be either 'suspended' or 'active'."))
+  }
+
+  // Match registered service urls (which are org/url) to the input org and url
+  def isMatch(compositeUrl: String): Boolean = {
+    val reg = """^(\S+?)/(\S+)$""".r
+    val (comporg, compurl) = compositeUrl match {
+      case reg(o,u) => (o, u)
+      case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "node registeredService url '"+compositeUrl+"' is not in valid form 'org/url'."))
+    }
+    (org, url) match {
+      case ("","") => return true
+      case ("",u) => return compurl == u
+      case (o,"") => return comporg == o
+      case (o,u) => return comporg == o && compurl == u
+    }
+  }
+
+  // Given the existing list of registered svcs in the db for this node, determine the db update necessary to apply the new configState
+  def getDbUpdate(regServices: String, id: String): DBIO[_] = {
+    if (regServices == "") halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "node has no registeredServices to change the configState of."))
+    val regSvcs = read[List[RegService]](regServices)
+    if (regSvcs.isEmpty) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "node has no registeredServices to change the configState of."))
+
+    // Copy the list of required svcs, changing configState wherever it applies
+    var matchingSvcFound = false
+    val newRegSvcs = regSvcs.map({ rs =>
+      if (isMatch(rs.url)) {
+        matchingSvcFound = true   // warning: intentional side effect (didnt know how else to do it)
+        if (configState != rs.configState.getOrElse("")) RegService(rs.url,rs.numAgreements, Some(configState), rs.policy, rs.properties)
+        else rs
+      }
+      else rs
+    })
+    // this check is not ok, because we should not return NOT_FOUND if we find matching svc but their configState is already set the requested value
+    //if (newRegSvcs.sameElements(regSvcs)) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "did not find any registeredServices that matched the given org and url criteria."))
+    if (!matchingSvcFound) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "did not find any registeredServices that matched the given org and url criteria."))
+    if (newRegSvcs == regSvcs) {
+      println("No db update necessary, all relevant config states already correct")
+      //logger.debug("No db update necessary, all relevant config states already correct")
+      return DBIO.successful(1)    // all the configStates were already set correctly, so nothing to do
+    }
+
+    // Convert from struct back to string and return db action to update that
+    val newRegSvcsString = write(newRegSvcs)
+    return (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat)).update((id, newRegSvcsString, ApiTime.nowUTC))
+  }
+}
 
 case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: List[OneService]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
@@ -686,7 +739,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   "pattern": "myorg/mypattern",      // (optional) points to a pattern resource that defines what services should be deployed to this type of node
   "registeredServices": [    // list of data services you want to make available
     {
-      "url": "https://bluehorizon.network/documentation/sdr-node-api",
+      "url": "IBM/github.com.open-horizon.examples.cpu",
       "numAgreements": 1,       // for now always set this to 1
       "policy": "{...}"     // the service policy file content as a json string blob
       "properties": [    // list of properties to help agbots search for this, or requirements on the agbot
@@ -699,8 +752,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       ]
     }
   ],
-  "msgEndPoint": "whisper-id",    // msg service endpoint id for this node to be contacted by agbots, empty string to use the built-in Exchange msg service
-  "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the node
+  "msgEndPoint": "",    // not currently used, but may be in the future. Leave empty or omit to use the built-in Exchange msg service
+  "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the node, can omit
   "publicKey": "ABCDEF"      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
 }
 ```"""
@@ -819,6 +872,67 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           ApiResponse(ApiResponseType.BAD_INPUT, "node '"+id+"' not inserted or updated: "+t.getMessage)
       }
     })
+  })
+
+  // =========== POST /orgs/{orgid}/nodes/{id}/configstate ===============================
+  val postNodesConfigstate =
+    (apiOperation[ApiResponse]("postNodesConfigstate")
+      summary "Changes config state of registered services"
+      description """Suspends (or resumes) 1 or more services on this edge node. Can be run by the node owner or the node. The **request body** structure:
+
+```
+{
+  "org": "myorg",    // the org of services to be modified, or empty string for all orgs
+  "url": "myserviceurl"       // the url of services to be modified, or empty string for all urls
+  "configState": "suspended"   // or "active"
+}
+```
+      """
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String]("ID (orgid/nodeid) of the node to be modified."), paramType = ParamType.Path),
+      Parameter("body", DataType[PostNodeConfigStateRequest],
+        Option[String]("Service selection and desired state. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+  val postNodesConfigState2 = (apiOperation[PostNodeConfigStateRequest]("postNodesConfigstate2") summary("a") description("a"))
+
+  post("/orgs/:orgid/nodes/:id/configstate", operation(postNodesConfigstate)) ({
+    val orgid = params("orgid")
+    val bareId = params("id")
+    val nodeId = OrgAndId(orgid,bareId).toString
+    val configStateReq = try { parse(request.body).extract[PostNodeConfigStateRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    configStateReq.validate()
+    val resp = response
+
+    db.run(NodesTQ.getRegisteredServices(nodeId).result.asTry.flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/configstate result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v.nonEmpty) configStateReq.getDbUpdate(v.head, nodeId).asTry   // pass the update action to the next step
+          else DBIO.failed(new Throwable("Invalid Input: node "+nodeId+" not found")).asTry    // it seems this returns success even when the node is not found
+        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step. Is this necessary, or will flatMap do that automatically?
+      }
+
+    })).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/configstate write row result: "+xs.toString)
+      xs match {
+        case Success(i) => //try {     // i comes to us as type Any
+          if (i.toString.toInt > 0) {        // there were no db errors, but determine if it actually found it or not
+            resp.setStatus(HttpCode.PUT_OK)
+            ApiResponse(ApiResponseType.OK, "registeredServices of node '"+nodeId+"' updated")
+          } else {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "node '"+nodeId+"' not found")
+          }
+          //} catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
+        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "node '"+nodeId+"' not inserted or updated: "+t.getMessage)
+      }
+    })
+
   })
 
   // =========== DELETE /orgs/{orgid}/nodes/{id} ===============================

@@ -15,8 +15,11 @@ namebase=""
 
 # Test configuration. You can override these before invoking the script, if you want.
 EXCHANGE_URL_ROOT="${EXCHANGE_URL_ROOT:-http://localhost:8080}"
-#EXCHANGE_ORG="${EXCHANGE_ORG:-myorg}"
-EXCHANGE_ORG=IBM    # fix it to a known value
+if [[ "$HZN_ORG_ID" != "IBM" ]]; then
+    echo "Error: must have environment variables set to IBM org values"
+    exit 2
+fi
+EXCHANGE_ORG="$HZN_ORG_ID"
 EXCHANGE_USER="${EXCHANGE_USER:-me}"
 EXCHANGE_PW="${EXCHANGE_PW:-mypw}"
 EXCHANGE_EMAIL="${EXCHANGE_EMAIL:-me@email.com}"
@@ -39,7 +42,8 @@ user="$EXCHANGE_USER"
 pw=$EXCHANGE_PW
 userauth="$EXCHANGE_ORG/$user:$pw"
 email=$EXCHANGE_EMAIL
-userauthorg2="$orgid2/$user:$pw"
+: ${IC_PLATFORM_KEY_CARL:?}
+userauthorg2="$orgid2/iamapikey:$IC_PLATFORM_KEY_CARL"
 
 nodeid="${EXCHANGE_NODEAUTH%%:*}"
 nodetoken="${EXCHANGE_NODEAUTH#*:}"
@@ -61,8 +65,8 @@ resname="res1"
 resversion="7.8.9"
 resid="${resname}_$resversion"
 
-svcid="bluehorizon.network-services-gps_1.2.3_amd64"
-svcurl="https://bluehorizon.network/services/gps"
+svcid="bluehorizon.network.gps_1.2.3_amd64"
+svcurl="bluehorizon.network.gps"
 svcarch="amd64"
 svcversion="1.2.3"
 
@@ -75,8 +79,8 @@ VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
 -----END CERTIFICATE-----
 '
 
-svc2id="bluehorizon.network-services-location_4.5.6_amd64"
-svc2url="https://bluehorizon.network/services/location"
+svc2id="bluehorizon.network.location_4.5.6_amd64"
+svc2url="bluehorizon.network.location"
 svc2arch="amd64"
 svc2version="4.5.6"
 
@@ -201,13 +205,14 @@ else
     echo "orgs/$orgid/users/$user exists"
 fi
 
-rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2/users/$user")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-        curlcreate "PUT" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
-else
-    echo "orgs/$orgid2/users/$user exists"
-fi
+# since this is an ibm cloud org, the user will get created automatically
+#rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2/users/$user")
+#checkrc "$rc" 200 404
+#if [[ $rc != 200 ]]; then
+#        curlcreate "PUT" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
+#else
+#    echo "orgs/$orgid2/users/$user exists"
+#fi
 
 rc=$(curlfind $userauth "orgs/$orgid/services/$svcid")
 checkrc "$rc" 200 404
@@ -380,16 +385,24 @@ if [[ $rc != 200 ]]; then
     curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'",
   "registeredServices": [
     {
-      "url": "'$svcurl'",
+      "url": "'$orgid'/'$svcurl'",
+      "configState": "active",
       "numAgreements": 1,
-      "policy": "{json policy for rpi1 netspeed}",
+      "policy": "{json policy for n1 gps}",
       "properties": [
         { "name": "arch", "value": "arm", "propType": "string", "op": "in" },
         { "name": "version", "value": "1.0.0", "propType": "version", "op": "in" }
       ]
+    },
+    {
+      "url": "'$orgid2'/'$svc2url'",
+      "configState": "active",
+      "numAgreements": 1,
+      "policy": "{json policy for n2 location}",
+      "properties": []
     }
   ],
-  "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+  "publicKey": "ABC" }'
 else
     echo "orgs/$orgid/nodes/$nodeid exists"
 fi
@@ -397,7 +410,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid2'/'$patid2'", "registeredServices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid2'/'$patid2'", "registeredServices": [], "publicKey": "ABC" }'
 else
     echo "orgs/$orgid/nodes/$nodeid2 exists"
 fi
@@ -405,7 +418,7 @@ fi
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [], "msgEndPoint": "", "softwareVersions": {}, "publicKey": "ABC" }'
+    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [], "publicKey": "ABC" }'
 else
     echo "orgs/$orgid2/nodes/$nodeid exists"
 fi

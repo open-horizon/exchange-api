@@ -167,13 +167,13 @@ class FrontEndSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - create node") {
     val input = PutNodesRequest(nodeToken, nodeId+"-normal", orgpattern,
       Some(List(
-        RegService(SDRSPEC,1,"{json policy for "+nodeId+" pws}",List(
+        RegService(SDRSPEC,1,None,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","=")))
       )),
-      "whisper-id", Map("horizon"->"3.2.3"), "NODEABC")
+      None, None, "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -182,13 +182,13 @@ class FrontEndSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - update node") {
     val input = PutNodesRequest(nodeToken, nodeId+"-update", orgpattern,
       Some(List(
-        RegService(SDRSPEC,1,"{json policy for "+nodeId+" pws}",List(
+        RegService(SDRSPEC,1,None,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","=")))
       )),
-      "whisper-id", Map("horizon"->"3.2.3"), "NODEABC")
+      None, None, "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)

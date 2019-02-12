@@ -115,10 +115,10 @@ class PatternsSuite extends FunSuite {
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
-    val devInput = PutNodesRequest(nodeToken, "bc dev test", "", Some(List(RegService("foo", 1, "{}", List(
+    val devInput = PutNodesRequest(nodeToken, "bc dev test", "", Some(List(RegService("foo", 1, None, "{}", List(
       Prop("arch", "arm", "string", "in"),
       Prop("version", "2.0.0", "version", "in"),
-      Prop("blockchainProtocols", "agProto", "list", "in"))))), "whisper-id", Map(), "NODEABC")
+      Prop("blockchainProtocols", "agProto", "list", "in"))))), None, None, "NODEABC")
     val devResponse = Http(URL + "/nodes/" + nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK)
@@ -444,7 +444,7 @@ class PatternsSuite extends FunSuite {
     //assert(respObj.patterns.size === 2)  // cant test this because there could be other patterns in the IBM org
 
     assert(respObj.patterns.contains(ibmOrgPattern))
-    var pt = respObj.patterns(ibmOrgPattern)
+    val pt = respObj.patterns(ibmOrgPattern)
     assert(pt.label === ibmPattern)
   }
 

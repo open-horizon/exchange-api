@@ -43,7 +43,7 @@ trait RegServiceTrait {
 case class RegServiceSearch(url: String, properties: List[Prop]) extends RegServiceTrait
 
 /** Contains the object representations of the DB tables related to nodes. */
-case class RegService(url: String, numAgreements: Int, policy: String, properties: List[Prop]) extends RegServiceTrait
+case class RegService(url: String, numAgreements: Int, configState: Option[String], policy: String, properties: List[Prop]) extends RegServiceTrait
 
 case class NodeRow(id: String, orgid: String, token: String, name: String, owner: String, pattern: String, regServices: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
@@ -109,6 +109,7 @@ object NodesTQ {
   def getNode(id: String) = rows.filter(_.id === id)
   def getToken(id: String) = rows.filter(_.id === id).map(_.token)
   def getOwner(id: String) = rows.filter(_.id === id).map(_.owner)
+  def getRegisteredServices(id: String) = rows.filter(_.id === id).map(_.regServices)
   def getPattern(id: String) = rows.filter(_.id === id).map(_.pattern)
   def getNumOwned(owner: String) = rows.filter(_.owner === owner).length
   def getLastHeartbeat(id: String) = rows.filter(_.id === id).map(_.lastHeartbeat)

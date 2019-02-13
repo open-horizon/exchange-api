@@ -286,7 +286,7 @@ class NodesSuite extends FunSuite {
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","="))),
-        RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId+" netspeed}",List(
+        RegService(NETSPEEDSPEC,1,None,"{json policy for "+nodeId+" netspeed}",List(  // intentionally setting configState to None to make sure GET displays the default
           Prop("arch","arm","string","in"),
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("version","1.0.0","version","in")))
@@ -439,23 +439,23 @@ class NodesSuite extends FunSuite {
     assert(archProp.value === "amd64")
   }
 
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/configstate - invalid config state - should fail") {
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - invalid config state - should fail") {
     val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "foo")
-    val response = Http(URL+"/nodes/"+nodeId+"/configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/configstate - nonexistant url - should return not found") {
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - nonexistant url - should return not found") {
     val input = PostNodeConfigStateRequest(orgid, NOTTHERESPEC_URL, "suspended")
-    val response = Http(URL+"/nodes/"+nodeId+"/configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/configstate - nonexistant org - should return not found") {
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - nonexistant org - should return not found") {
     val input = PostNodeConfigStateRequest(orgnotthere, SDRSPEC_URL, "suspended")
-    val response = Http(URL+"/nodes/"+nodeId+"/configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND)
   }
@@ -471,9 +471,9 @@ class NodesSuite extends FunSuite {
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
   }
 
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/configstate - change config state of sdr reg svc") {
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - change config state of sdr reg svc") {
     val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "suspended")
-    val response = Http(URL+"/nodes/"+nodeId+"/configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
@@ -489,9 +489,9 @@ class NodesSuite extends FunSuite {
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
   }
 
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/configstate - change config state of netspeed reg svc") {
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - change config state of netspeed reg svc") {
     val input = PostNodeConfigStateRequest("", NETSPEEDSPEC_URL, "suspended")
-    val response = Http(URL+"/nodes/"+nodeId+"/configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
@@ -507,9 +507,9 @@ class NodesSuite extends FunSuite {
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("suspended")))
   }
 
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/configstate - change config state of all reg svcs back to active") {
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - change config state of all reg svcs back to active") {
     val input = PostNodeConfigStateRequest("", "", "active")
-    val response = Http(URL+"/nodes/"+nodeId+"/configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }

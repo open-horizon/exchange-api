@@ -132,15 +132,17 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
 
   /** Get the db actions to insert or update all parts of the node */
   def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = {
-    //println("getDbUpsert: registeredServices: "+registeredServices)
-    NodeRow(id, orgid, token, name, owner, pattern, write(registeredServices), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey).upsert
+    // default new field configState in registeredServices
+    val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
+    NodeRow(id, orgid, token, name, owner, pattern, write(rsvc2), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey).upsert
   }
 
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
    * because we can't let a node create new nodes. */
   def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = {
-    //println("getDbUpdate: registeredServices: "+registeredServices)
-    NodeRow(id, orgid, token, name, owner, pattern, write(registeredServices), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey).update
+    // default new field configState in registeredServices
+    val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
+    NodeRow(id, orgid, token, name, owner, pattern, write(rsvc2), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey).update
   }
 
   /** Not used any more, kept for reference of how to access object store - Returns the microservice templates for the registeredMicroservices in this object
@@ -381,7 +383,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     val ident = authenticate().authorizeTo(TNode(id),Access.READ)
-    val superUser = ident.isSuperUser
+    val isSuperUser = ident.isSuperUser
     val resp = response
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the node
@@ -403,7 +405,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         db.run(q.result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+" result: "+list.size)
           if (list.nonEmpty) {
-            val nodes = NodesTQ.parseJoin(superUser, list)
+            val nodes = NodesTQ.parseJoin(isSuperUser, list)
             resp.setStatus(HttpCode.OK)
             GetNodesResponse(nodes, 0)
           } else {
@@ -874,7 +876,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
-  // =========== POST /orgs/{orgid}/nodes/{id}/configstate ===============================
+  // =========== POST /orgs/{orgid}/nodes/{id}/services_configstate ===============================
   val postNodesConfigstate =
     (apiOperation[ApiResponse]("postNodesConfigstate")
       summary "Changes config state of registered services"
@@ -899,7 +901,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
   val postNodesConfigState2 = (apiOperation[PostNodeConfigStateRequest]("postNodesConfigstate2") summary("a") description("a"))
 
-  post("/orgs/:orgid/nodes/:id/configstate", operation(postNodesConfigstate)) ({
+  post("/orgs/:orgid/nodes/:id/services_configstate", operation(postNodesConfigstate)) ({
     val orgid = params("orgid")
     val bareId = params("id")
     val nodeId = OrgAndId(orgid,bareId).toString

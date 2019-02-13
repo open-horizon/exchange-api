@@ -52,13 +52,15 @@ case class NodeRow(id: String, orgid: String, token: String, name: String, owner
     val tok = if (superUser) token else StrConstants.hiddenPw
     val swv = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
     val rsvc = if (regServices != "") read[List[RegService]](regServices) else List[RegService]()
-    new Node(tok, name, owner, pattern, rsvc, msgEndPoint, swv, lastHeartbeat, publicKey)
+    // Default new configState attr if it doesnt exist. This ends up being called by GET nodes, GET nodes/id, and POST search/nodes
+    val rsvc2 = rsvc.map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
+    new Node(tok, name, owner, pattern, rsvc2, msgEndPoint, swv, lastHeartbeat, publicKey)
   }
 
-  def putInHashMap(superUser: Boolean, nodes: MutableHashMap[String,Node]): Unit = {
+  def putInHashMap(isSuperUser: Boolean, nodes: MutableHashMap[String,Node]): Unit = {
     nodes.get(id) match {
       case Some(_) => ; // do not need to add the node entry, because it is already there
-      case None => nodes.put(id, toNode(superUser))
+      case None => nodes.put(id, toNode(isSuperUser))
     }
   }
 
@@ -135,11 +137,11 @@ object NodesTQ {
 
   /** Separate the join of the nodes and properties tables into their respective scala classes (collapsing duplicates) and return a hash containing it all.
     * Note: this can also be used when querying node rows that have services, because the services are faithfully preserved in the Node object. */
-  def parseJoin(superUser: Boolean, list: Seq[NodeRow] ): Map[String,Node] = {
+  def parseJoin(isSuperUser: Boolean, list: Seq[NodeRow] ): Map[String,Node] = {
     // Separate the partially duplicate join rows into maps that only keep unique values
     val nodes = new MutableHashMap[String,Node]    // the key is node id
     for (d <- list) {
-      d.putInHashMap(superUser, nodes)
+      d.putInHashMap(isSuperUser, nodes)
     }
 
     nodes.toMap

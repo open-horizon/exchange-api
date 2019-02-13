@@ -410,7 +410,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid2'/'$patid2'", "registeredServices": [], "publicKey": "ABC" }'
+    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid2'/'$patid2'", "registeredServices": [{"url": "'$orgid'/'$svcurl'", "numAgreements": 1, "policy": "", "properties": []}], "publicKey": "ABC" }'
 else
     echo "orgs/$orgid/nodes/$nodeid2 exists"
 fi

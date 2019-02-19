@@ -398,7 +398,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Some(url) => url
         // Local development environment, we get http://localhost:8080/api/v1/users/{user}/reset
         case None => logger.trace("request.uri: "+request.uri)
-          val R = """^(.*)/v\d+/users/[^/]*/reset$""".r
+          val R = """^(.*)/v\d+/orgs/[^/]*/users/[^/]*/reset$""".r
           request.uri.toString match {
             case R(url) => url
             case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "unexpected uri"))
@@ -407,6 +407,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       val changePwUrl = requestUrl+"/api?url="+requestUrl+"/api-docs#!/v1/postUsersChangePw"
       logger.trace("changePwUrl: "+changePwUrl)
 
+      //todo: this is broken, get: java.lang.NoClassDefFoundError: com/sun/mail/util/PropUtil
       db.run(UsersTQ.getEmail(compositeId).result).map({ xs =>
         logger.debug("POST /orgs/"+orgid+"/users/"+username+"/reset result: "+xs.toString)
         if (xs.nonEmpty) {

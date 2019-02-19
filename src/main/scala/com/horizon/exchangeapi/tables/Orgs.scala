@@ -2,18 +2,18 @@ package com.horizon.exchangeapi.tables
 
 import com.horizon.exchangeapi.ApiJsonUtil
 import org.json4s._
-//import org.json4s.jackson.Serialization.read
 import ExchangePostgresProfile.api._
-import ExchangePostgresProfile.jsonMethods._
+//import org.json4s.jackson.Serialization.read
+//import ExchangePostgresProfile.jsonMethods._
 
 
 /** Contains the object representations of the DB tables related to orgs. */
 
-case class OrgRow(orgId: String, label: String, description: String, lastUpdated: String, tags: Option[JValue]) {
+case class OrgRow(orgId: String, orgType: String, label: String, description: String, lastUpdated: String, tags: Option[JValue]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toOrg: Org = {
-    new Org(label, description, lastUpdated, tags.flatMap(_.extractOpt[Map[String, String]]))
+    new Org(orgType, label, description, lastUpdated, tags.flatMap(_.extractOpt[Map[String, String]]))
   }
 
   // update returns a DB action to update this row
@@ -29,12 +29,13 @@ case class OrgRow(orgId: String, label: String, description: String, lastUpdated
 /** Mapping of the orgs db table to a scala class */
 class Orgs(tag: Tag) extends Table[OrgRow](tag, "orgs") {
   def orgid = column[String]("orgid", O.PrimaryKey)
+  def orgType = column[String]("orgtype")
   def label = column[String]("label")
   def description = column[String]("description")
   def lastUpdated = column[String]("lastupdated")
   def tags = column[Option[JValue]]("tags")
   // this describes what you get back when you return rows from a query
-  def * = (orgid, label, description, lastUpdated, tags) <> (OrgRow.tupled, OrgRow.unapply)
+  def * = (orgid, orgType, label, description, lastUpdated, tags) <> (OrgRow.tupled, OrgRow.unapply)
 }
 
 // Instance to access the orgs table
@@ -52,6 +53,7 @@ object OrgsTQ {
     val filter = rows.filter(_.orgid === orgid)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
     return attrName match {
+      case "orgType" => filter.map(_.orgType)
       case "label" => filter.map(_.label)
       case "description" => filter.map(_.description)
       case "lastUpdated" => filter.map(_.lastUpdated)
@@ -65,7 +67,7 @@ object OrgsTQ {
 }
 
 // This is the org table minus the key - used as the data structure to return to the REST clients
-class Org(var label: String, var description: String, var lastUpdated: String, var tags: Option[Map[String, String]]) {
-  //def copy = new Org(label, description, lastUpdated)
+class Org(var orgType: String, var label: String, var description: String, var lastUpdated: String, var tags: Option[Map[String, String]]) {
+  //def copy = new Org(orgType, label, description, lastUpdated)
 }
 

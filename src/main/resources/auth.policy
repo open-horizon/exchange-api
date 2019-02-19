@@ -62,6 +62,5 @@ grant principal com.horizon.exchangeapi.auth.ExchangeRole "Agbot" {
 };
 
 grant principal com.horizon.exchangeapi.auth.ExchangeRole "Anonymous" {
-  permission com.horizon.exchangeapi.auth.AccessPermission "CREATE_USER";
   permission com.horizon.exchangeapi.auth.AccessPermission "RESET_USER_PW";
 };

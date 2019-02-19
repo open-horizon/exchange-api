@@ -162,14 +162,14 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+" - create org to use for this test suite") {
-    val input = PostPutOrgRequest("My Org", "desc", None)
+    val input = PostPutOrgRequest(None, "My Org", "desc", None)
     val response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
   test("POST /orgs/"+orgid2+" - create 2nd org to use for this test suite") {
-    val input = PostPutOrgRequest("My 2nd Org", "desc", None)
+    val input = PostPutOrgRequest(None, "My 2nd Org", "desc", None)
     val response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

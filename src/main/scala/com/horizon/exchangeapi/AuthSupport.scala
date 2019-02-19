@@ -108,8 +108,8 @@ case class RequiresAccess(access: Access) extends Authorization {
 
 /** Who is allowed to do what. */
 object Role {
-  /* this is now in config.json
-  val ANONYMOUS = Set(Access.CREATE_USER, Access.RESET_USER_PW)
+  /* this is now in resources/auth.policy
+  val ANONYMOUS = Set(Access.RESET_USER_PW)
   val USER = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.RESET_USER_PW, Access.CREATE_NODE, Access.READ_MY_NODES, Access.WRITE_MY_NODES, Access.READ_ALL_NODES, Access.CREATE_AGBOT, Access.READ_MY_AGBOTS, Access.WRITE_MY_AGBOTS, Access.DATA_HEARTBEAT_MY_AGBOTS, Access.READ_ALL_AGBOTS, Access.STATUS)
   val SUPERUSER = Set(Access.ALL)
   val NODE = Set(Access.READ_MYSELF, Access.WRITE_MYSELF, Access.READ_MY_NODES, Access.SEND_MSG_TO_AGBOT)
@@ -932,13 +932,14 @@ trait AuthSupport extends Control with ServletApiImplicits {
   case class IAnonymous(creds: Creds) extends Identity {
     override lazy val role = AuthRoles.Anonymous
 
-    override def getOrg = Role.publicOrg
+    //override def getOrg = Role.publicOrg  // no longer support the special public org
 
     def authorizeTo(target: Target, access: Access): Authorization = {
       // Transform any generic access into specific access
       val requiredAccess =
-        //todo: This makes anonymous never work, which might be what we want. Decide what to do about it.
-        if (!isMyOrg(target) && !target.isPublic) {
+        //todo: This makes anonymous never work, but we need it to work for RESET_USER_PW
+        if (access == Access.RESET_USER_PW) Access.RESET_USER_PW
+        else if (!isMyOrg(target) && !target.isPublic) {  // Note: IAnonymous.isMyOrg() is always false, except for admin operations
           access match {
             case Access.READ => Access.READ_OTHER_ORGS
             case Access.WRITE => Access.WRITE_OTHER_ORGS

@@ -68,9 +68,9 @@ object Access extends Enumeration {
   val READ_MY_ORG = Value("READ_MY_ORG")
   val WRITE_MY_ORG = Value("WRITE_MY_ORG")
   val STATUS = Value("STATUS")
-  // If you add more cross-org ACLs, add them to hasAuthorization() below too
   val CREATE_ORGS = Value("CREATE_ORGS")
   val READ_OTHER_ORGS = Value("READ_OTHER_ORGS")
+  val READ_IBM_ORGS = Value("READ_IBM_ORGS")
   val WRITE_OTHER_ORGS = Value("WRITE_OTHER_ORGS")
   val CREATE_IN_OTHER_ORGS = Value("CREATE_IN_OTHER_ORGS")
   val ADMIN = Value("ADMIN")
@@ -94,16 +94,21 @@ object AuthRoles {
 // Authorization and its subclasses are used by the authorizeTo() methods in Identity subclasses
 sealed trait Authorization {
   def as(subject: Subject): Unit
+  def specificAccessRequired: Access
 }
 
 case object FrontendAuth extends Authorization {
   override def as(subject: Subject): Unit = {}
+
+  override def specificAccessRequired = Access.NONE   // i think this should never be called
 }
 
-case class RequiresAccess(access: Access) extends Authorization {
+case class RequiresAccess(specificAccess: Access) extends Authorization {
   override def as(subject: Subject): Unit = {
-    Subject.doAsPrivileged(subject, PermissionCheck(access.toString), null)
+    Subject.doAsPrivileged(subject, PermissionCheck(specificAccess.toString), null)
   }
+
+  override def specificAccessRequired = specificAccess
 }
 
 /** Who is allowed to do what. */
@@ -311,25 +316,29 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
   // Embodies both the exchange-specific Identity, and the JAAS/javax.security.auth Subject
   case class AuthenticatedIdentity(identity: Identity, subject: Subject) {
     def authorizeTo(target: Target, access: Access): Identity = {
+      var requiredAccess: Authorization = RequiresAccess(Access.NONE)
       try {
         identity match {
           case IUser(_) => if (target.getId == "iamapikey" || target.getId == "iamtoken") {
               val authenticatedIdentity = subject.getPrivateCredentials(classOf[IUser]).asScala.head.creds
               logger.debug("authenticatedIdentity=" + authenticatedIdentity.id)
-              identity.authorizeTo(TUser(authenticatedIdentity.id), access).as(subject)
+              requiredAccess = identity.authorizeTo(TUser(authenticatedIdentity.id), access)
+              requiredAccess.as(subject)
               IUser(authenticatedIdentity)
             } else {
-              identity.authorizeTo(target, access).as(subject)
+              requiredAccess = identity.authorizeTo(target, access)
+              requiredAccess.as(subject)
               identity
             }
           case _ =>
-            identity.authorizeTo(target, access).as(subject)
+            requiredAccess = identity.authorizeTo(target, access)
+            requiredAccess.as(subject)
             identity
         }
       } catch {
         case _: Exception => halt(
           HttpCode.ACCESS_DENIED,
-          ApiResponse(ApiResponseType.ACCESS_DENIED, identity.accessDeniedMsg(access))
+          ApiResponse(ApiResponseType.ACCESS_DENIED, identity.accessDeniedMsg(requiredAccess.specificAccessRequired))
         )
       }
     }
@@ -464,8 +473,9 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
               case Access.CREATE => Access.CREATE_PATTERNS
               case _ => access
             }
-            case TOrg(_) => access match {    // a user accessing his org resource
+            case TOrg(_) => access match {    // a user accessing an org resource
               case Access.READ => Access.READ_MY_ORG
+              case Access.READ_IBM_ORGS => Access.READ_IBM_ORGS
               case Access.WRITE => Access.WRITE_MY_ORG
               case Access.CREATE => Access.CREATE_ORGS
               case _ => access

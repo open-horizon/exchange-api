@@ -33,6 +33,7 @@ grant principal com.horizon.exchangeapi.auth.ExchangeRole "User" {
   permission com.horizon.exchangeapi.auth.AccessPermission "WRITE_MY_PATTERNS";
   permission com.horizon.exchangeapi.auth.AccessPermission "CREATE_PATTERNS";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_ORG";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_IBM_ORGS";
 };
 
 grant principal com.horizon.exchangeapi.auth.ExchangeRole "Node" {

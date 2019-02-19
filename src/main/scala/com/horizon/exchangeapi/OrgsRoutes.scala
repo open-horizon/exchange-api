@@ -78,17 +78,21 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
       parameters(
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("orgtype", DataType.String, Option[String]("Filter results to only include orgs with this org type. A common org type is 'IBM'."), paramType=ParamType.Query, required=false),
         Parameter("label", DataType.String, Option[String]("Filter results to only include orgs with this label (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs", operation(getOrgs)) ({
-    //todo: implement rule of any user if filter orgType=IBM, otherwise superUser
-    authenticate().authorizeTo(TOrg("*"),Access.READ)
+    // If filter is orgType=IBM then it is a different access required than reading all orgs
+    val access = if (params.get("orgtype").contains("IBM")) Access.READ_IBM_ORGS else Access.READ    // read all orgs
+
+    authenticate().authorizeTo(TOrg("*"),access)
     val resp = response
     var q = OrgsTQ.rows.subquery
     // If multiple filters are specified they are ANDed together by adding the next filter to the previous filter by using q.filter
+    params.get("orgtype").foreach(orgType => { if (orgType.contains("%")) q = q.filter(_.orgType like orgType) else q = q.filter(_.orgType === orgType) })
     params.get("label").foreach(label => { if (label.contains("%")) q = q.filter(_.label like label) else q = q.filter(_.label === label) })
 
     db.run(q.result).map({ list =>

@@ -533,6 +533,21 @@ class UsersSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
   }
 
+  test("GET /orgs - as org2 user - should failed") {
+    val response = Http(NOORGURL + "/orgs").headers(ACCEPT).headers(ORG2USERAUTH).asString
+    info("code: " + response.code)
+    assert(response.code === HttpCode.ACCESS_DENIED)
+  }
+
+  test("GET /orgs?orgtype=IBM - as org2 user - should find just the IBM type orgs") {
+    val response = Http(NOORGURL + "/orgs").headers(ACCEPT).headers(ORG2USERAUTH).param("orgtype","IBM").asString
+    info("code: " + response.code)
+    assert(response.code === HttpCode.OK)
+    val getOrgsResp = parse(response.body).extract[GetOrgsResponse]
+    assert(getOrgsResp.orgs.size === 2)      // the 1 we created + the standard IBM org
+    assert(getOrgsResp.orgs.contains(orgid))
+    assert(getOrgsResp.orgs.contains("IBM"))
+  }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" as not public in 1st org") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, None, "", "", None)

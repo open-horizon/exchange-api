@@ -13,7 +13,7 @@ import scala.util.{Failure, Success, Try}
 /** JAAS module to authenticate local user/pw, nodeid/token, and agbotid/token in the exchange.
   * Called from AuthenticationSupport:authenticate() because jaas.config references this module.
   */
-class Module extends LoginModule with AuthSupport {
+class Module extends LoginModule with AuthorizationSupport {
   private var subject: Subject = _
   private var handler: CallbackHandler = _
   private var identity: Identity = _

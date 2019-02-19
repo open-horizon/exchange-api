@@ -40,7 +40,7 @@ The main authenticate/authorization flow is:
         - AccessController.checkPermission()
           - i think this looks in resources/auth.policy at the roles and accesses defined for each
 */
-trait AuthenticationSupport extends ScalatraBase with AuthSupport {
+trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
   // We could add a before action with befor() {}, but sometimes they need to pass in user/pw, and sometimes id/token
   // I tried using code from http://www.scalatra.org/2.4/guides/http/authentication.html, but it throws an exception.
 

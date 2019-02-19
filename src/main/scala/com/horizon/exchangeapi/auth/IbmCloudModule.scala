@@ -38,7 +38,7 @@ case class IncorrectOrgFound(orgAcctId: String, userInfo: IamUserInfo)
 
 /** JAAS module to authenticate to the IBM cloud. Called from AuthenticationSupport:authenticate() because jaas.config references this module.
   */
-class IbmCloudModule extends LoginModule with AuthSupport {
+class IbmCloudModule extends LoginModule with AuthorizationSupport {
   private var subject: Subject = _
   private var handler: CallbackHandler = _
   private var identity: Identity = _

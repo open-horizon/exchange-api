@@ -455,13 +455,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     searchProps.validate()
     val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
     logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+searchProps.toString)
-    val ourService = searchProps.serviceUrl
+    val searchSvcUrl = searchProps.serviceUrl   // this now is a composite value (org/url), but plain url is supported for backward compat
     val resp = response
     /*
       Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
       In english, the join gets: n.id, n.msgEndPoint, n.publicKey, a.serviceUrl, a.state
       The filters are: n is in the given list of node orgs, n.pattern==ourpattern, the node is not stale, there is an agreement for this node (the filter a.state=="" is applied later in our code below)
-      Then we have to go thru all of the results and find nodes that do NOT have an agreement for ourService.
+      Then we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
       Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
     */
     val oldestTime = if (searchProps.secondsStale > 0) ApiTime.pastUTC(searchProps.secondsStale) else ApiTime.beginningUTC
@@ -470,20 +470,30 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
       } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
 
+    def isEqualUrl(agrSvcUrl: String, searchSvcUrl: String): Boolean = {
+      if (agrSvcUrl == searchSvcUrl) return true    // this is the relevant check when both agbot and agent are recent enough to use composite urls (org/org)
+      // Assume searchSvcUrl is the new composite format (because the agbot is at least as high version as the agent) and strip off the org
+      val reg = """^\S+?/(\S+)$""".r
+      searchSvcUrl match {
+        case reg(url) => return agrSvcUrl == url
+        case _ => return false    // searchSvcUrl was not composite, so the urls are not equal
+      }
+    }
+
     db.run(PatternsTQ.getServices(compositePat).result.flatMap({ list =>
       logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search getServices size: "+list.size)
-      logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search: looking for '"+ourService+"', searching getServices: "+list.toString())
+      logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search: looking for '"+searchSvcUrl+"', searching getServices: "+list.toString())
       if (list.nonEmpty) {
         val services = PatternsTQ.getServicesFromString(list.head)    // we should have found only 1 pattern services string, now parse it to get service list
         var found = false
         breakable { for ( svc <- services) {
-          if (svc.serviceUrl == ourService) {
+          if (svc.serviceOrgid+"/"+svc.serviceUrl == searchSvcUrl || svc.serviceUrl == searchSvcUrl) {
             found = true
             break
           }
         } }
         if (found) q.result.asTry
-        else DBIO.failed(new Throwable("the serviceUrl '"+ourService+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
+        else DBIO.failed(new Throwable("the serviceUrl '"+searchSvcUrl+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
       }
       else DBIO.failed(new Throwable("pattern '"+compositePat+"' not found")).asTry
     })).map({ xs =>
@@ -493,12 +503,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(list) => if (list.nonEmpty) {
             // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
             val nodeHash = new MutableHashMap[String,PatternSearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
-            for ( (id, msgEndPoint, publicKey, serviceUrlOption, stateOption) <- list ) {
-              //logger.trace("id: "+id+", serviceUrlOption: "+serviceUrlOption.getOrElse("")+", ourService: "+ourService+", stateOption: "+stateOption.getOrElse(""))
-              nodeHash.get(id) match {
-                case Some(_) => if (serviceUrlOption.getOrElse("") == ourService && stateOption.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
-                case None => val noAgr = if (serviceUrlOption.getOrElse("") == ourService && stateOption.getOrElse("") != "") false else true
-                  nodeHash.put(id, PatternSearchHashElement(msgEndPoint, publicKey, noAgr))   // this node id not in the hash yet, add it
+            for ( (nodeid, msgEndPoint, publicKey, agrSvcUrlOpt, stateOpt) <- list ) {
+              //logger.trace("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
+              nodeHash.get(nodeid) match {
+                case Some(_) => if (isEqualUrl(agrSvcUrlOpt.getOrElse(""), searchSvcUrl) && stateOpt.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(nodeid, PatternSearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
+                case None => val noAgr = if (isEqualUrl(agrSvcUrlOpt.getOrElse(""), searchSvcUrl) && stateOpt.getOrElse("") != "") false else true
+                  nodeHash.put(nodeid, PatternSearchHashElement(msgEndPoint, publicKey, noAgr))   // this node nodeid not in the hash yet, add it
               }
             }
             // Convert our hash to the list response of the rest api
@@ -1216,7 +1226,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   ],
   "agreementService": {          // specify this for pattern-type agreements
     "orgid": "myorg",     // currently set to the node id, but not used
-    "pattern": "mynodetype",    // composite pattern (org/pat)
+    "pattern": "myorg/mypattern",    // composite pattern (org/pat)
     "url": "myorg/mydomain.com.sdr"   // composite service url (org/svc)
   },
   "state": "negotiating"    // current agreement state: negotiating, signed, finalized, etc.

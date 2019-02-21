@@ -123,7 +123,7 @@ class PatternsSuite extends FunSuite {
     info("code: " + devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK)
 
-    val agbotInput = PutAgbotsRequest(agbotToken, "agbot" + agbotId + "-norm", /*List[APattern](),*/ "whisper-id", "ABC")
+    val agbotInput = PutAgbotsRequest(agbotToken, "agbot" + agbotId + "-norm", None, "ABC")
     val agbotResponse = Http(URL + "/agbots/" + agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + agbotResponse.code + ", agbotResponse.body: " + agbotResponse.body)
     assert(agbotResponse.code === HttpCode.PUT_OK)

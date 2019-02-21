@@ -192,7 +192,7 @@ class NodesSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - before pattern exists - should fail") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
       None,
-      Some("whisper-id"), Some(Map("horizon"->"3.2.3")), "NODEABC")
+      None, Some(Map("horizon"->"3.2.3")), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT)
@@ -244,7 +244,7 @@ class NodesSuite extends FunSuite {
           Prop("cpus","2","int",">="),
           Prop("version","1.0.0","version","in")))
       )),
-      Some("whisper-id"), Some(Map("horizon"->"3.2.3")), "NODEABC")
+      None, Some(Map("horizon"->"3.2.3")), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -270,7 +270,7 @@ class NodesSuite extends FunSuite {
           Prop("cpus","2","int",">="),
           Prop("version","1.0.0","version","in")))
       )),
-      Some("whisper-id"), Some(Map("horizon"->"3.2.3")), "OLDNODEABC")
+      None, Some(Map("horizon"->"3.2.3")), "OLDNODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -353,7 +353,6 @@ class NodesSuite extends FunSuite {
           ]
         }
       ],
-      "msgEndPoint": "whisper-id",
       "softwareVersions": {}
     }"""
     val response = Http(URL+"/nodes/"+nodeId4).postData(badJsonInput).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -373,7 +372,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - add an agbot so we can test it viewing nodes") {
-    val input = PutAgbotsRequest(agbotToken, agbotId+"name", "whisper-id", "AGBOTABC")
+    val input = PutAgbotsRequest(agbotToken, agbotId+"name", None, "AGBOTABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -1502,7 +1501,7 @@ class NodesSuite extends FunSuite {
   //~~~~~ Node messages ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId2+" - add a 2nd agbot so we can test msgs") {
-    val input = PutAgbotsRequest(agbotToken2, agbotId2+"name", "whisper-id", "AGBOT2ABC")
+    val input = PutAgbotsRequest(agbotToken2, agbotId2+"name", None, "AGBOT2ABC")
     val response = Http(URL+"/agbots/"+agbotId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)

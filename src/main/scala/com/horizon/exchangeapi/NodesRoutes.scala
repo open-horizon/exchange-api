@@ -424,7 +424,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
 ```
 {
-  "serviceUrl": "https://bluehorizon.network/services/sdr",   // The service the node does not have an agreement with yet
+  "serviceUrl": "myorg/mydomain.com.sdr",   // The service that the node does not have an agreement with yet. Composite svc url (org/svc)
   "nodeOrgids": [ "org1", "org2", "..." ],   // if not specified, defaults to the same org the pattern is in
   "secondsStale": 60,     // max number of seconds since the exchange has heard from the node, 0 if you do not care
   "startIndex": 0,    // for pagination, ignored right now
@@ -459,8 +459,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val resp = response
     /*
       Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
-      In english, the join gets: n.id, n.msgEndPoint, n.publicKey, n.lastHeartbeat, a.serviceUrl, a.state
-      The filter is: n.pattern==ourpattern (the filter a.state=="" is applied later in our code below)
+      In english, the join gets: n.id, n.msgEndPoint, n.publicKey, a.serviceUrl, a.state
+      The filters are: n is in the given list of node orgs, n.pattern==ourpattern, the node is not stale, there is an agreement for this node (the filter a.state=="" is applied later in our code below)
       Then we have to go thru all of the results and find nodes that do NOT have an agreement for ourService.
       Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
     */
@@ -485,7 +485,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         if (found) q.result.asTry
         else DBIO.failed(new Throwable("the serviceUrl '"+ourService+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
       }
-      else DBIO.failed(new Throwable("the serviceUrl '"+ourService+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
+      else DBIO.failed(new Throwable("pattern '"+compositePat+"' not found")).asTry
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result size: "+xs.getOrElse(Vector()).size)
       logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result: "+xs.toString)
@@ -610,7 +610,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 {
   "desiredServices": [    // list of data services you are interested in
     {
-      "url": "https://bluehorizon.network/services/rtlsdr",
+      "url": "mydomain.com.rtlsdr",
       "properties": [    // list of properties to match specific nodes/services
         {
           "name": "arch",         // typical property names are: arch, version, dataVerification, memory
@@ -1054,7 +1054,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   "services": [
     {
       "agreementId": "78d7912aafb6c11b7a776f77d958519a6dc718b9bd3da36a1442ebb18fe9da30",
-      "serviceUrl":"https://bluehorizon.network/services/location",
+      "serviceUrl":"mydomain.com.location",
       "orgid":"ling.com",
       "version":"1.2",
       "arch":"amd64",
@@ -1212,12 +1212,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 ```
 {
   "services": [          // specify this for CS-type agreements
-    {"orgid": "myorg", "url": "https://bluehorizon.network/services/rtlsdr"}
+    {"orgid": "myorg", "url": "mydomain.com.rtlsdr"}
   ],
   "agreementService": {          // specify this for pattern-type agreements
-    "orgid": "myorg",
-    "pattern": "mynodetype",
-    "url": "https://bluehorizon.network/services/sdr"
+    "orgid": "myorg",     // currently set to the node id, but not used
+    "pattern": "mynodetype",    // composite pattern (org/pat)
+    "url": "myorg/mydomain.com.sdr"   // composite service url (org/svc)
   },
   "state": "negotiating"    // current agreement state: negotiating, signed, finalized, etc.
 }

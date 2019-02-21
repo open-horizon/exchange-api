@@ -195,7 +195,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   // The services that should be deployed to the edge for this pattern. (The services must exist before creating this pattern.)
   "services": [
     {
-      "serviceUrl": "https://bluehorizon.network/services/weather",
+      "serviceUrl": "mydomain.com.weather",
       "serviceOrgid": "myorg",
       "serviceArch": "amd64",
       "agreementLess": false,  // only set to true if the same svc is both top level and required by another svc

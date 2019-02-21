@@ -20,25 +20,18 @@ import scala.util._
 case class GetAgbotsResponse(agbots: Map[String,Agbot], lastIndex: Int)
 case class GetAgbotAttributeResponse(attribute: String, value: String)
 
-/** Left for reference: For backward compatibility for before i added the publicKey field
-case class PutAgbotsRequestOld(token: String, name: String, msgEndPoint: String) {
-  def toPutAgbotsRequest = PutAgbotsRequest(token, name, msgEndPoint, "")
-}
-  */
-
 /** Input format for PUT /orgs/{orgid}/agbots/<agbot-id> */
-case class PutAgbotsRequest(token: String, name: String, msgEndPoint: String, publicKey: String) {
+case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Option[String], publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(): Unit = {
-    // if (msgEndPoint == "" && publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "either msgEndPoint or publicKey must be specified."))  <-- skipping this check because POST /nodes/{id}/msgs checks for the publicKey
     if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token specified must not be blank"))
   }
 
   /** Get the db queries to insert or update the agbot */
-  def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, msgEndPoint, ApiTime.nowUTC, publicKey).upsert
+  def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).upsert
 
   /** Get the db queries to update the agbot */
-  def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, msgEndPoint, ApiTime.nowUTC, publicKey).update
+  def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).update
 }
 
 case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], publicKey: Option[String]) {

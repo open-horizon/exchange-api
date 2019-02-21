@@ -519,7 +519,7 @@ class UsersSuite extends FunSuite {
 
   /** Add a normal agbot */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - verify we can add an agbot as root") {
-    val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-normal", /*List[APattern](APattern(orgid,"mypattern")),*/ "whisper-id", "ABC")
+    val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-normal", None, "ABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)

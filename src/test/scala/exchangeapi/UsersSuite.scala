@@ -35,7 +35,7 @@ class UsersSuite extends FunSuite {
   val orgid2 = "UsersSuiteTests2"
   val URL = urlRoot+"/v1/orgs/"+orgid
   val URL2 = urlRoot+"/v1/orgs/"+orgid2
-  val URLPUBLIC = urlRoot+"/v1/orgs/public"
+  //val URLPUBLIC = urlRoot+"/v1/orgs/public"  // not supported anymore
   val NOORGURL = urlRoot+"/v1"
   val user = "u1"       // this is an admin user
   val orguser = orgid+"/"+user
@@ -90,11 +90,13 @@ class UsersSuite extends FunSuite {
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
+    /*
     for (i <- List(user)) {
       val response = Http(URLPUBLIC+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
+    */
   }
 
   /** Create an org to use for this test */
@@ -117,13 +119,13 @@ class UsersSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)     // for now this is what is returned when the json-to-scala conversion fails
 
     // Now add a good org
-    var input = PostPutOrgRequest("My Org", "desc", Some(Map("tagName" -> "test")))
+    var input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", Some(Map("tagName" -> "test")))
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
 
     // Update the org
-    input = PostPutOrgRequest("My Org", "desc - updated", None)
+    input = PostPutOrgRequest(Some("IBM"), "My Org", "desc - updated", None)
     response = Http(URL).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -169,7 +171,7 @@ class UsersSuite extends FunSuite {
     assert(!tagResponse.orgs(orgid).tags.get.contains("tagName"))
 
     // Add a 2nd org, no tags to make sure it is optional
-    val input2 = PostPutOrgRequest("My Other Org", "desc", None)
+    val input2 = PostPutOrgRequest(None, "My Other Org", "desc", None)
     response = Http(URL2).postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -190,8 +192,9 @@ class UsersSuite extends FunSuite {
     getOrgsResp = parse(response.body).extract[GetOrgsResponse]
     assert(getOrgsResp.orgs.size === 1)
     assert(getOrgsResp.orgs.contains(orgid))
-    val o = getOrgsResp.orgs(orgid) // the 2nd get turns the Some(val) into val
+    val o = getOrgsResp.orgs(orgid)
     assert(o.description === "desc - patched")
+    assert(o.orgType === "IBM")
   }
 
   /** Delete all the test users, in case they exist from a previous run */
@@ -488,6 +491,7 @@ class UsersSuite extends FunSuite {
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
+  /* not supported anymore...
   test("POST /orgs/public/users/"+user+" - create admin user as anonymous - should fail") {
     val input = PostPutUsersRequest(pw, admin = true, user+"@hotmail.com")
     val response = Http(NOORGURL+"/orgs/public/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).asString    // as anonymous
@@ -510,11 +514,12 @@ class UsersSuite extends FunSuite {
     val getUserResp = parse(response.body).extract[GetUsersResponse]
     assert(getUserResp.users.size === 1)
   }
+  */
 
 
   /** Add a normal agbot */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - verify we can add an agbot as root") {
-    val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-normal", /*List[APattern](APattern(orgid,"mypattern")),*/ "whisper-id", "ABC")
+    val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-normal", None, "ABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -528,6 +533,21 @@ class UsersSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
   }
 
+  test("GET /orgs - as org2 user - should failed") {
+    val response = Http(NOORGURL + "/orgs").headers(ACCEPT).headers(ORG2USERAUTH).asString
+    info("code: " + response.code)
+    assert(response.code === HttpCode.ACCESS_DENIED)
+  }
+
+  test("GET /orgs?orgtype=IBM - as org2 user - should find just the IBM type orgs") {
+    val response = Http(NOORGURL + "/orgs").headers(ACCEPT).headers(ORG2USERAUTH).param("orgtype","IBM").asString
+    info("code: " + response.code)
+    assert(response.code === HttpCode.OK)
+    val getOrgsResp = parse(response.body).extract[GetOrgsResponse]
+    assert(getOrgsResp.orgs.size === 2)      // the 1 we created + the standard IBM org
+    assert(getOrgsResp.orgs.contains(orgid))
+    assert(getOrgsResp.orgs.contains("IBM"))
+  }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" as not public in 1st org") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, None, "", "", None)

@@ -173,13 +173,14 @@ function curlputpost {
     checkrc "$rc" 201
 }
 
-rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid")
-checkrc "$rc" 200 404
-if [[ $rc == 404 ]]; then
-    curlcreate "POST" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid" '{"label": "An org", "description": "blah blah"}'
-else
-    echo "orgs/$orgid exists"
-fi
+# Create the IBM org - dont need to do this anymore, the exchange automatically does it
+#rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid")
+#checkrc "$rc" 200 404
+#if [[ $rc == 404 ]]; then
+#    curlcreate "POST" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid" '{"orgType": "IBM", "label": "An org", "description": "blah blah"}'
+#else
+#    echo "orgs/$orgid exists"
+#fi
 
 rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgidcarl")
 checkrc "$rc" 200 404
@@ -434,7 +435,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
+    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "publicKey": "ABC"}'
 else
     echo "orgs/$orgid/agbots/$agbotid exists"
 fi
@@ -442,7 +443,7 @@ fi
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/agbots/$agbotid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "msgEndPoint": "whisper-id", "publicKey": "ABC"}'
+    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "publicKey": "ABC"}'
 else
     echo "orgs/$orgid2/agbots/$agbotid exists"
 fi

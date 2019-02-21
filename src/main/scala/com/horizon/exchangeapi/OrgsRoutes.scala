@@ -22,14 +22,14 @@ case class GetOrgsResponse(orgs: Map[String,Org], lastIndex: Int)
 case class GetOrgAttributeResponse(attribute: String, value: String)
 
 /** Input format for PUT /orgs/<org-id> */
-case class PostPutOrgRequest(label: String, description: String, tags: Option[Map[String, String]]) {
+case class PostPutOrgRequest(orgType: Option[String], label: String, description: String, tags: Option[Map[String, String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {}
 
-  def toOrgRow(orgId: String) = OrgRow(orgId, label, description, ApiTime.nowUTC, tags.map(ts => ApiJsonUtil.asJValue(ts)))
+  def toOrgRow(orgId: String) = OrgRow(orgId, orgType.getOrElse(""), label, description, ApiTime.nowUTC, tags.map(ts => ApiJsonUtil.asJValue(ts)))
 }
 
-case class PatchOrgRequest(label: Option[String], description: Option[String], tags: Option[Map[String, Option[String]]]) {
+case class PatchOrgRequest(orgType: Option[String], label: Option[String], description: Option[String], tags: Option[Map[String, Option[String]]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the org, and the attribute name being updated. */
@@ -39,13 +39,13 @@ case class PatchOrgRequest(label: Option[String], description: Option[String], t
     val lastUpdated = ApiTime.nowUTC
     //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this org
+    orgType match { case Some(ot) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid,d.orgType,d.lastUpdated)).update((orgId, ot, lastUpdated)), "orgType"); case _ => ; }
     label match { case Some(lab) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid,d.label,d.lastUpdated)).update((orgId, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid,d.description,d.lastUpdated)).update((orgId, desc, lastUpdated)), "description"); case _ => ; }
     tags match {
-      case Some(ts) => {
-        val (deletes, updates) = ts.partition {
-          case (k, v) => v.isEmpty
-        }
+      case Some(ts) => val (deletes, updates) = ts.partition {
+            case (_, v) => v.isEmpty
+          }
         val dbUpdates =
           if (updates.isEmpty) Seq()
           else Seq(sqlu"update orgs set tags = coalesce(tags, '{}'::jsonb) || ${ApiJsonUtil.asJValue(updates)} where orgid = $orgId")
@@ -56,7 +56,6 @@ case class PatchOrgRequest(label: Option[String], description: Option[String], t
           }
         val allChanges = dbUpdates ++ dbDeletes
         return (DBIO.sequence(allChanges).map(counts => counts.sum), "tags")
-      }
       case _ =>
     }
     return (null, null)
@@ -75,20 +74,25 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   val getOrgs =
     (apiOperation[GetOrgsResponse]("getOrgs")
       summary("Returns all orgs")
-      description("""Returns all org definitions in the exchange DB. Can be run by an admin user, or the root user.""")
+      description("""Returns some or all org definitions in the exchange DB. Can be run by any user if filter orgType=IBM is used, otherwise can only be run by the root user.""")
       parameters(
         Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("orgtype", DataType.String, Option[String]("Filter results to only include orgs with this org type. A common org type is 'IBM'."), paramType=ParamType.Query, required=false),
         Parameter("label", DataType.String, Option[String]("Filter results to only include orgs with this label (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
   get("/orgs", operation(getOrgs)) ({
-    authenticate().authorizeTo(TOrg("*"),Access.READ)
+    // If filter is orgType=IBM then it is a different access required than reading all orgs
+    val access = if (params.get("orgtype").contains("IBM")) Access.READ_IBM_ORGS else Access.READ    // read all orgs
+
+    authenticate().authorizeTo(TOrg("*"),access)
     val resp = response
     var q = OrgsTQ.rows.subquery
-    // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
+    // If multiple filters are specified they are ANDed together by adding the next filter to the previous filter by using q.filter
+    params.get("orgtype").foreach(orgType => { if (orgType.contains("%")) q = q.filter(_.orgType like orgType) else q = q.filter(_.orgType === orgType) })
     params.get("label").foreach(label => { if (label.contains("%")) q = q.filter(_.label like label) else q = q.filter(_.label === label) })
 
     db.run(q.result).map({ list =>
@@ -162,6 +166,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
 ```
 {
+  "orgType": "my org type",
   "label": "My org",
   "description": "blah blah",
   "tags": { "ibmcloud_id": "abc123def456" }

@@ -33,14 +33,14 @@ The main authenticate/authorization flow is:
   - returns an AuthenticatedIdentity (that contains both the exchange-specific Identity, and the JAAS Subject)
 - from the return of authenticate() the route then calls AuthenticatedIdentity.authorizeTo() with the target and access required
   - calls the correct Identity subclass authorizeTo() method
-    - determines the access required and returns a RequiresAccess object
+    - determines the specific access required and returns a RequiresAccess object
   - calls the as() method on the RequiresAccess object, giving it the Subject
     - calls Subject.doAsPrivileged()
-      - calls Module.PermissionCheck.run(), giving it the access required (permission)
+      - calls Module.PermissionCheck.run(), giving it the specific access required (permission)
         - AccessController.checkPermission()
           - i think this looks in resources/auth.policy at the roles and accesses defined for each
 */
-trait AuthenticationSupport extends ScalatraBase with AuthSupport {
+trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
   // We could add a before action with befor() {}, but sometimes they need to pass in user/pw, and sometimes id/token
   // I tried using code from http://www.scalatra.org/2.4/guides/http/authentication.html, but it throws an exception.
 

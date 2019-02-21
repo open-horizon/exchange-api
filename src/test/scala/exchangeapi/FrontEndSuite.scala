@@ -106,7 +106,7 @@ class FrontEndSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
 
-    val input = PostPutOrgRequest("My Org", "desc", None)
+    val input = PostPutOrgRequest(None, "My Org", "desc", None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -309,7 +309,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - create agbot") {
-    val input = PutAgbotsRequest(agbotToken, agbotId+"name", /*List[APattern](),*/ "whisper-id", "AGBOTABC")
+    val input = PutAgbotsRequest(agbotToken, agbotId+"name", None, "AGBOTABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)

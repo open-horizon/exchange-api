@@ -42,8 +42,9 @@ class NodesSuite extends FunSuite {
   val SDRSPEC_URL = "bluehorizon.network.sdr"
   val SDRSPEC = orgid+"/"+SDRSPEC_URL
   val NETSPEEDSPEC_URL = "bluehorizon.network.netspeed"
-  val NETSPEEDSPEC = orgid2+"/"+NETSPEEDSPEC_URL
-  val PWSSPEC = orgid+"/bluehorizon.network.pws"
+  val NETSPEEDSPEC = orgid+"/"+NETSPEEDSPEC_URL
+  val PWSSPEC_URL = "bluehorizon.network.pws"
+  val PWSSPEC = orgid+"/"+PWSSPEC_URL
   val NOTTHERESPEC_URL = "bluehorizon.network.notthere"
   val NOTTHERESPEC = orgid+"/"+NOTTHERESPEC_URL
   val user = "u1"
@@ -74,11 +75,11 @@ class NodesSuite extends FunSuite {
   val patid = "p1"
   val compositePatid = orgid+"/"+patid
   val svcid = "bluehorizon.network-services-sdr_1.0.0_amd64"
-  val svcurl = SDRSPEC
+  //val svcurl = SDRSPEC
   val svcarch = "amd64"
   val svcversion = "1.0.0"
   val svcid2 = "bluehorizon.network-services-netspeed_1.0.0_amd64"
-  val svcurl2 = NETSPEEDSPEC
+  //val svcurl2 = NETSPEEDSPEC
   val svcarch2 = "amd64"
   val svcversion2 = "1.0.0"
   val agreementId = "agr1"
@@ -162,14 +163,14 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+" - create org to use for this test suite") {
-    val input = PostPutOrgRequest("My Org", "desc", None)
+    val input = PostPutOrgRequest(None, "My Org", "desc", None)
     val response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
   test("POST /orgs/"+orgid2+" - create 2nd org to use for this test suite") {
-    val input = PostPutOrgRequest("My 2nd Org", "desc", None)
+    val input = PostPutOrgRequest(None, "My 2nd Org", "desc", None)
     val response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -192,21 +193,21 @@ class NodesSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - before pattern exists - should fail") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
       None,
-      Some("whisper-id"), Some(Map("horizon"->"3.2.3")), "NODEABC")
+      None, Some(Map("horizon"->"3.2.3")), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion, svcarch, "multiple", None, None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid2+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, svcurl2, svcversion2, svcarch2, "multiple", None, None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, NETSPEEDSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -217,8 +218,8 @@ class NodesSuite extends FunSuite {
     val input = PostPutPatternRequest(patid, None, None,
       List(
         // Reference both services in the pattern so we can search on both later on
-        PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ),
-        PServices(svcurl2, orgid, svcarch2, Some(true), List(PServiceVersions(svcversion2, None, None, None, None)), None, None )
+        PServices(SDRSPEC_URL, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ),
+        PServices(NETSPEEDSPEC_URL, orgid, svcarch2, Some(true), List(PServiceVersions(svcversion2, None, None, None, None)), None, None )
       ),
       None
     )
@@ -244,7 +245,7 @@ class NodesSuite extends FunSuite {
           Prop("cpus","2","int",">="),
           Prop("version","1.0.0","version","in")))
       )),
-      Some("whisper-id"), Some(Map("horizon"->"3.2.3")), "NODEABC")
+      None, Some(Map("horizon"->"3.2.3")), "NODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -270,7 +271,7 @@ class NodesSuite extends FunSuite {
           Prop("cpus","2","int",">="),
           Prop("version","1.0.0","version","in")))
       )),
-      Some("whisper-id"), Some(Map("horizon"->"3.2.3")), "OLDNODEABC")
+      None, Some(Map("horizon"->"3.2.3")), "OLDNODEABC")
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -353,7 +354,6 @@ class NodesSuite extends FunSuite {
           ]
         }
       ],
-      "msgEndPoint": "whisper-id",
       "softwareVersions": {}
     }"""
     val response = Http(URL+"/nodes/"+nodeId4).postData(badJsonInput).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -373,7 +373,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - add an agbot so we can test it viewing nodes") {
-    val input = PutAgbotsRequest(agbotToken, agbotId+"name", "whisper-id", "AGBOTABC")
+    val input = PutAgbotsRequest(agbotToken, agbotId+"name", None, "AGBOTABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -1049,8 +1049,8 @@ class NodesSuite extends FunSuite {
     assert(nodes.count(d => d.id==org2nodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
   }
 
-  test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+"/agreements/"+agreementId2+" - create agreement for node in 2nd org") {
-    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
+  test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+"/agreements/"+agreementId2+" - create agreement for node in 2nd org, with short old style url") {
+    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC))), Some(NAgrService(orgid,patid,SDRSPEC_URL)), "signed")
     val response = Http(URL2+"/nodes/"+nodeId+"/agreements/"+agreementId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -1137,7 +1137,7 @@ class NodesSuite extends FunSuite {
     assert(dev.agreements.contains(agreementId))
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/9951 - and 2nd agreement as node") {
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/9951 - add 2nd agreement as node") {
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,"pws"))), Some(NAgrService(orgid,patid,"pws")), "signed")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/9951").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1248,7 +1248,7 @@ class NodesSuite extends FunSuite {
     patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
     val input = PostPatternSearchRequest(NETSPEEDSPEC, None, 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    //info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
@@ -1502,7 +1502,7 @@ class NodesSuite extends FunSuite {
   //~~~~~ Node messages ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId2+" - add a 2nd agbot so we can test msgs") {
-    val input = PutAgbotsRequest(agbotToken2, agbotId2+"name", "whisper-id", "AGBOT2ABC")
+    val input = PutAgbotsRequest(agbotToken2, agbotId2+"name", None, "AGBOT2ABC")
     val response = Http(URL+"/agbots/"+agbotId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)

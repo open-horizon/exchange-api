@@ -160,7 +160,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     params.get("arch").foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
 
     // We are cheating a little on this one because the whole requiredServices structure is serialized into a json string when put in the db, so it has a string value like
-    // [{"url":"https://bluehorizon.network/services/rtlsdr","version":"1.0.0","arch":"amd64"}]. But we can still match on the url.
+    // [{"url":"mydomain.com.rtlsdr","version":"1.0.0","arch":"amd64"}]. But we can still match on the url.
     params.get("requiredurl").foreach(requrl => {
       val requrl2 = "%\"url\":\"" + requrl + "\"%"
       q = q.filter(_.requiredServices like requrl2)
@@ -246,7 +246,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "requiredServices": [
     {
       "org": "myorg",
-      "url": "https://bluehorizon.network/services/gps",
+      "url": "mydomain.com.gps",
       "version": "[1.0.0,INFINITY)",     // an OSGI-formatted version range
       "arch": "amd64"
     }

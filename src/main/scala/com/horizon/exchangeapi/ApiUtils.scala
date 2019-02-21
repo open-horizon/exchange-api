@@ -79,21 +79,21 @@ object ExchConfig {
     if (rootpw != "") {
       AuthCache.users.put(Creds(Role.superUser, rootpw))    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
       val rootemail = config.getString("api.root.email")
-      // Create the root org, create the public org, and create the root user (all only if necessary)
-      db.run(OrgRow("root", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None).upsert.asTry.flatMap({ xs =>
+      // Create the root org, create the IBM org, and create the root user (all only if necessary)
+      db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None).upsert.asTry.flatMap({ xs =>
         logger.debug("Upsert /orgs/root result: "+xs.toString)
-        xs match {
-          case Success(_) => OrgRow("public", "Public Org", "Organization for anyone to use", ApiTime.nowUTC, None).upsert.asTry    // next action
-          case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
-        }
-      }).flatMap({ xs =>
-        logger.debug("Upsert /orgs/public result: "+xs.toString)
         xs match {
           case Success(_) => UserRow(Role.superUser, "root", rootpw, admin = true, rootemail, ApiTime.nowUTC).upsertUser.asTry    // next action
           case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
         }
-      })).map({ xs =>
+      }).flatMap({ xs =>
         logger.debug("Upsert /orgs/root/users/root (root) result: "+xs.toString)
+        xs match {
+          case Success(_) => OrgRow("IBM", "IBM", "IBM Org", "Organization containing IBM services", ApiTime.nowUTC, None).upsert.asTry    // next action
+          case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
+        }
+      })).map({ xs =>
+        logger.debug("Upsert /orgs/IBM result: "+xs.toString)
         xs match {
           case Success(_) => logger.info("Root org and user from config.json was successfully created/updated in the DB")
           case Failure(t) => logger.error("Failed to write the root user from config.json to the DB: "+t.toString)

@@ -89,6 +89,17 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 
 ### Todos that may be done in future versions
 
+- add Access type of BROWSE that will allow to see these fields of services:
+  - label, description, public, documentation, url, version, arch
+- add acl table and resource with fields:
+  - org
+  - resource (e.g. service)
+  - resourceList (for future use)
+  - requester (org/username)
+  - access
+- add GET, PUT, POST to manage these acls
+- add checks on GET service to use these acls
+- (later) consider adding a GET that returns all services of orgs of orgType=IBM
 - Add ability to change owner of node
 - Add patch capability for node registered services
 - Consider:
@@ -96,6 +107,18 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 1.73.0
+
+- Update scale test driver
+- Support composite service url in `POST /orgs/{orgid}/patterns/{pattern}/search`
+
+## Changes in 1.72.0
+
+- add field to org called orgType, which will have value IBM for any of our orgs that have ibm services in them
+- allow any user to GET all orgs with filter of orgType=IBM
+- delete support for the special `public` org
+- fix bug in which in the access denied error msg it only reported the generic access needed
 
 ## Changes in 1.71.0
 

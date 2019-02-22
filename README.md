@@ -114,6 +114,7 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 
 - Update scale test driver
 - Support composite service url in `POST /orgs/{orgid}/patterns/{pattern}/search`
+- Support composite service url in `/orgs/{orgid}/search/nodes`
 
 ## Changes in 1.72.0
 

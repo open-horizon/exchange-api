@@ -8,7 +8,7 @@ import scala.collection.mutable.{HashMap => MutableHashMap}   //renaming this so
 
 /** We define this trait because services in the DB and in the search criteria need the same methods, but have slightly different constructor args */
 trait RegServiceTrait {
-  def url: String
+  def url: String   // this is the composite org/svcurl
   def properties: List[Prop]
 
   /** Returns an error msg if the user input is invalid. */
@@ -205,7 +205,7 @@ case class NodeAgreementRow(agId: String, nodeId: String, services: String, agrS
 
 class NodeAgreements(tag: Tag) extends Table[NodeAgreementRow](tag, "nodeagreements") {
   def agId = column[String]("agid", O.PrimaryKey)     // agreement ids are unique
-  def nodeId = column[String]("nodeid")
+  def nodeId = column[String]("nodeid")   // in the form org/nodeid
   def services = column[String]("services")
   def agrSvcOrgid = column[String]("agrsvcorgid")
   def agrSvcPattern = column[String]("agrsvcpattern")
@@ -222,7 +222,7 @@ object NodeAgreementsTQ {
   def getAgreements(nodeId: String) = rows.filter(_.nodeId === nodeId)
   def getAgreement(nodeId: String, agId: String) = rows.filter( r => {r.nodeId === nodeId && r.agId === agId} )
   def getNumOwned(nodeId: String) = rows.filter(_.nodeId === nodeId).length
-  def getAgreementsWithState = rows.filter(_.state =!= "")
+  def getAgreementsWithState(orgid: String) = rows.filter( a => {(a.nodeId like orgid+"/%") && a.state =!= ""} )
 }
 
 case class NodeAgreement(services: List[NAService], agrService: NAgrService, state: String, lastUpdated: String)
@@ -238,15 +238,17 @@ class AgreementsHash(dbNodesAgreements: Seq[NodeAgreementRow]) {
     val svcs = a.getServices
     agHash.get(a.nodeId) match {
       case Some(nodeHash) => for (ms <- svcs) {
-        val numAgs = nodeHash.get(ms.url) // node hash is there so find or create the service hashes within it
+        val svcurl = ms.orgid+"/"+ms.url
+        val numAgs = nodeHash.get(svcurl) // node hash is there so find or create the service hashes within it
         numAgs match {
-          case Some(numAgs2) => nodeHash.put(ms.url, numAgs2 + 1)
-          case None => nodeHash.put(ms.url, 1)
+          case Some(numAgs2) => nodeHash.put(svcurl, numAgs2 + 1)
+          case None => nodeHash.put(svcurl, 1)
         }
       }
       case None => val nodeHash = new MutableHashMap[String, Int]() // this node is not in the hash yet, so create it and add the service hashes
         for (ms <- svcs) {
-          nodeHash.put(ms.url, 1)
+          val svcurl = ms.orgid+"/"+ms.url
+          nodeHash.put(svcurl, 1)
         }
         agHash += ((a.nodeId, nodeHash))
     }

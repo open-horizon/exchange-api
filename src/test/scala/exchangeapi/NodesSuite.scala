@@ -1016,21 +1016,21 @@ class NodesSuite extends FunSuite {
   //~~~~~ Node agreements, and more searches and nodehealth ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - create agreement, as node") {
-    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
+    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update agreement as node") {
-    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC))), Some(NAgrService(orgid,patid,SDRSPEC)), "finalized")
+    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "finalized")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update agreement as user") {
-    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC))), Some(NAgrService(orgid,patid,SDRSPEC)), "negotiating")
+    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "negotiating")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -1050,7 +1050,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+"/agreements/"+agreementId2+" - create agreement for node in 2nd org, with short old style url") {
-    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC))), Some(NAgrService(orgid,patid,SDRSPEC_URL)), "signed")
+    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC_URL)), "signed")
     val response = Http(URL2+"/nodes/"+nodeId+"/agreements/"+agreementId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -1153,7 +1153,7 @@ class NodesSuite extends FunSuite {
 
     assert(getAgResp.agreements.contains(agreementId))
     val ag = getAgResp.agreements(agreementId)
-    assert(ag.services === List[NAService](NAService(orgid,SDRSPEC)))
+    assert(ag.services === List[NAService](NAService(orgid,SDRSPEC_URL)))
     assert(ag.state === "negotiating")
     assert(getAgResp.agreements.contains("9951"))
   }
@@ -1167,7 +1167,7 @@ class NodesSuite extends FunSuite {
 
     assert(getAgResp.agreements.contains(agreementId))
     val ag = getAgResp.agreements(agreementId)
-    assert(ag.services === List[NAService](NAService(orgid,SDRSPEC)))
+    assert(ag.services === List[NAService](NAService(orgid,SDRSPEC_URL)))
     assert(ag.state === "negotiating")
 
     info("GET /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" output verified")
@@ -1238,7 +1238,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - netspeed") {
-    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,NETSPEEDSPEC))), Some(NAgrService(orgid,patid,NETSPEEDSPEC)), "signed")
+    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,NETSPEEDSPEC_URL))), Some(NAgrService(orgid,patid,NETSPEEDSPEC)), "signed")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)

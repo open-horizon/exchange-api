@@ -69,7 +69,7 @@ case class PostSearchNodesRequest(desiredServices: List[RegServiceSearch], secon
           // do not even bother checking this against the search criteria if this service is already at its agreement limit
           val agNode = agHash.agHash.get(id)
           agNode match {
-            case Some(agNode2) => val agNum = agNode2.get(m.url)
+            case Some(agNode2) => val agNum = agNode2.get(m.url)  // m.url is the composite org/svcurl
               agNum match {
                 case Some(agNum2) => if (agNum2 >= m.numAgreements) break // this is really a continue
                 case None => ; // no agreements for this service, nothing to do
@@ -498,7 +498,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       else DBIO.failed(new Throwable("pattern '"+compositePat+"' not found")).asTry
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result size: "+xs.getOrElse(Vector()).size)
-      logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result: "+xs.toString)
+      //logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result: "+xs.toString)
       xs match {
         case Success(list) => if (list.nonEmpty) {
             // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
@@ -620,7 +620,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 {
   "desiredServices": [    // list of data services you are interested in
     {
-      "url": "mydomain.com.rtlsdr",
+      "url": "myorg/mydomain.com.rtlsdr",    // composite svc identifier (org/url)
       "properties": [    // list of properties to match specific nodes/services
         {
           "name": "arch",         // typical property names are: arch, version, dataVerification, memory
@@ -663,7 +663,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     if (searchProps.secondsStale > 0) q = q.filter(_.lastHeartbeat >= ApiTime.pastUTC(searchProps.secondsStale))
 
     var agHash: AgreementsHash = null
-    db.run(NodeAgreementsTQ.getAgreementsWithState.result.flatMap({ agList =>
+    db.run(NodeAgreementsTQ.getAgreementsWithState(orgid).result.flatMap({ agList =>
       logger.debug("POST /orgs/" + orgid + "/search/nodes aglist result size: " + agList.size)
       //logger.trace("POST /orgs/" + orgid + "/search/nodes aglist result: " + agList.toString)
       agHash = new AgreementsHash(agList)
@@ -854,7 +854,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     authenticate().authorizeTo(TNode(id),Access.WRITE)
     val node = try { parse(request.body).extract[PatchNodesRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    logger.trace("PATCH /orgs/"+orgid+"/nodes/"+bareId+" input: "+node.toString)
+    //logger.trace("PATCH /orgs/"+orgid+"/nodes/"+bareId+" input: "+node.toString)
     val resp = response
     val (action, attrName) = node.getDbUpdate(id)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid node attribute specified"))

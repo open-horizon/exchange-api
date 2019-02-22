@@ -89,17 +89,19 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 
 ### Todos that may be done in future versions
 
-- add Access type of BROWSE that will allow to see these fields of services:
-  - label, description, public, documentation, url, version, arch
-- add acl table and resource with fields:
-  - org
-  - resource (e.g. service)
-  - resourceList (for future use)
-  - requester (org/username)
-  - access
-- add GET, PUT, POST to manage these acls
-- add checks on GET service to use these acls
-- (later) consider adding a GET that returns all services of orgs of orgType=IBM
+- Granular (per org) service ACL support:
+    - add Access type of BROWSE that will allow to see these fields of services:
+      - label, description, public, documentation, url, version, arch
+    - add acl table and resource with fields:
+      - org
+      - resource (e.g. service)
+      - resourceList (for future use)
+      - requester (org/username)
+      - access
+    - add GET, PUT, POST to manage these acls
+    - add checks on GET service to use these acls
+    - (later) consider adding a GET that returns all services of orgs of orgType=IBM
+- Add rest method to delete a user's stale devices (carl requested)
 - Add ability to change owner of node
 - Add patch capability for node registered services
 - Consider:

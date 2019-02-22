@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Used in Dockerfile-exec to start the exchange
+
 auth_config="-Djava.security.auth.login.config=exchange_config/jaas.config"
 auth_policy="-Djava.security.policy=exchange_config/auth.policy"
 

@@ -476,7 +476,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$svc2url'"}, "state": "negotiating"}'
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$orgid'/'$patid'", "url": "'$orgid'/'$svc2url'"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1 exists"
 fi
@@ -484,7 +484,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"services": [], "agreementService": {"orgid": "'$orgid2'", "pattern": "'$patid2'", "url": "'$svcurl'"}, "state": "negotiating"}'
+    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"services": [], "agreementService": {"orgid": "'$orgid2'", "pattern": "'$orgid'/'$patid2'", "url": "'$orgid'/'$svcurl'"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2 exists"
 fi
@@ -492,7 +492,7 @@ fi
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauthorg2 "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$patid'", "url": "'$svc2url'"}, "state": "negotiating"}'
+    curlcreate "PUT" $nodeauthorg2 "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$orgid'/'$patid'", "url": "'$orgid'/'$svc2url'"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3 exists"
 fi

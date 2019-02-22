@@ -161,7 +161,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         val q = AgbotsTQ.getAttribute(compositeId, attribute)
         if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Agbot attribute name '"+attribute+"' is not an attribute of the agbot resource."))
         db.run(q.result).map({ list =>
-          logger.trace("GET /orgs/"+orgid+"/agbots/"+id+" attribute result: "+list.toString)
+          //logger.trace("GET /orgs/"+orgid+"/agbots/"+id+" attribute result: "+list.toString)
           if (list.nonEmpty) {
             resp.setStatus(HttpCode.OK)
             GetAgbotAttributeResponse(attribute, list.head.toString)
@@ -269,7 +269,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val agbot = try { parse(request.body).extract[PatchAgbotsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    logger.trace("PATCH /orgs/"+orgid+"/agbots/"+id+" input: "+agbot.toString)
+    //logger.trace("PATCH /orgs/"+orgid+"/agbots/"+id+" input: "+agbot.toString)
     val resp = response
     val (action, attrName) = agbot.getDbUpdate(compositeId, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid agbot attribute specified"))
@@ -388,7 +388,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val resp = response
     db.run(AgbotPatternsTQ.getPatterns(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/patterns result size: "+list.size)
-      logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/patterns result: "+list.toString)
+      //logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/patterns result: "+list.toString)
       val patterns = new MutableHashMap[String, AgbotPattern]
       if (list.nonEmpty) for (e <- list) { patterns.put(e.patId, e.toAgbotPattern) }
       if (patterns.nonEmpty) resp.setStatus(HttpCode.OK)
@@ -576,7 +576,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val resp = response
     db.run(AgbotAgreementsTQ.getAgreements(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/agreements result size: "+list.size)
-      logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/agreements result: "+list.toString)
+      //logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/agreements result: "+list.toString)
       val agreements = new MutableHashMap[String, AgbotAgreement]
       if (list.nonEmpty) for (e <- list) { agreements.put(e.agrId, e.toAgbotAgreement) }
       if (agreements.nonEmpty) resp.setStatus(HttpCode.OK)
@@ -997,7 +997,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       AgbotMsgsTQ.getMsgs(compositeId).result
     })).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result size: "+list.size)
-      logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result: "+list.toString)
+      //logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result: "+list.toString)
       val listSorted = list.sortWith(_.msgId < _.msgId)
       val msgs = new ListBuffer[AgbotMsg]
       if (listSorted.nonEmpty) for (m <- listSorted) { msgs += m.toAgbotMsg }

@@ -203,7 +203,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         val q = ServicesTQ.getAttribute(service, attribute)       // get the proper db query for this attribute
         if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Service attribute name '"+attribute+"' is not an attribute of the service resource."))
         db.run(q.result).map({ list =>
-          logger.trace("GET /orgs/"+orgid+"/services/"+bareService+" attribute result: "+list.toString)
+          //logger.trace("GET /orgs/"+orgid+"/services/"+bareService+" attribute result: "+list.toString)
           if (list.nonEmpty) {
             resp.setStatus(HttpCode.OK)
             GetServiceAttributeResponse(attribute, list.head.toString)
@@ -540,7 +540,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     authenticate().authorizeTo(TService(service),Access.WRITE)
     val serviceReq = try { parse(request.body).extract[PatchServiceRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    logger.trace("PATCH /orgs/"+orgid+"/services/"+bareService+" input: "+serviceReq.toString)
+    //logger.trace("PATCH /orgs/"+orgid+"/services/"+bareService+" input: "+serviceReq.toString)
     val resp = response
     val (action, attrName) = serviceReq.getDbUpdate(service, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid service attribute specified"))

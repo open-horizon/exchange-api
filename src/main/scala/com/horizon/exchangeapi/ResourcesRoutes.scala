@@ -158,7 +158,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         val q = ResourcesTQ.getAttribute(resource, attribute)       // get the proper db query for this attribute
         if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Resource attribute name '"+attribute+"' is not an attribute of the resource."))
         db.run(q.result).map({ list =>
-          logger.trace("GET /orgs/"+orgid+"/resources/"+bareResource+" attribute result: "+list.toString)
+          //logger.trace("GET /orgs/"+orgid+"/resources/"+bareResource+" attribute result: "+list.toString)
           if (list.nonEmpty) {
             resp.setStatus(HttpCode.OK)
             GetResourceAttributeResponse(attribute, list.head.toString)
@@ -341,7 +341,7 @@ trait ResourceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     authenticate().authorizeTo(TResource(resource),Access.WRITE)
     val resourceReq = try { parse(request.body).extract[PatchResourceRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    logger.trace("PATCH /orgs/"+orgid+"/resources/"+bareResource+" input: "+resourceReq.toString)
+    //logger.trace("PATCH /orgs/"+orgid+"/resources/"+bareResource+" input: "+resourceReq.toString)
     val resp = response
     val (action, attrName) = resourceReq.getDbUpdate(resource, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid resource attribute specified"))

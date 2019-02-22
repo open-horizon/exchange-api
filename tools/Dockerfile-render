@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+# Do not need this, using the ARG statement in the dockerfile and --build-arg on docker build.
+
 # Replace the variables in the dockerfile template with their values from the environment
 
 if [ "$#" -lt 2 ]; then

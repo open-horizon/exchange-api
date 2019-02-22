@@ -135,7 +135,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
         val q = OrgsTQ.getAttribute(orgId, attribute)       // get the proper db query for this attribute
         if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Org attribute name '"+attribute+"' is not an attribute of the org resource."))
         db.run(q.result).map({ list =>
-          logger.trace("GET /orgs/"+orgId+" attribute result: "+list.toString)
+          //logger.trace("GET /orgs/"+orgId+" attribute result: "+list.toString)
           if (list.nonEmpty) {
             resp.setStatus(HttpCode.OK)
             GetOrgAttributeResponse(attribute, renderAttribute(list))
@@ -275,7 +275,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
     authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
     val orgReq = try { parse(request.body).extract[PatchOrgRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    logger.trace("PATCH /orgs/"+orgId+" input: "+orgReq.toString)
+    //logger.trace("PATCH /orgs/"+orgId+" input: "+orgReq.toString)
     val resp = response
     val (action, attrName) = orgReq.getDbUpdate(orgId)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid org attribute specified"))

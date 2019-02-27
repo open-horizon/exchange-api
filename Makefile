@@ -1,6 +1,4 @@
 # Make targets for the Exchange REST API server
-# Before using this, you must set the following environment variable:
-# DOCKER_REGISTRY - hostname of the docker registry to push newly built containers to
 
 SHELL = /bin/bash -e
 DOCKER_REGISTRY ?= openhorizon
@@ -14,15 +12,15 @@ COMPILE_CLEAN ?= clean
 image-string = $(DOCKER_REGISTRY)/$(ARCH)_exchange-api
 
 # Some of these vars are also used by the Dockerfiles
-JETTY_VERSION ?= 9.4
+JETTY_BASE_VERSION ?= 9.4
 # try to sync this version with the version of scala you have installed on your dev machine, and with what is specified in build.sbt
 SCALA_VERSION ?= 2.12.4
 SCALA_VERSION_SHORT ?= 2.12
-# JETTY_VERSION ?= 9.4.1.v20170120 <- we are now using the jetty docker container, instead of installing it ourselves
 # this version corresponds to the Version variable in project/build.scala
 EXCHANGE_API_WAR_VERSION ?= 0.1.0
 EXCHANGE_API_DIR ?= /src/github.com/open-horizon/exchange-api
 EXCHANGE_API_PORT ?= 8080
+EXCHANGE_API_HTTPS_PORT ?= 8443
 EXCHANGE_CONFIG_DIR ?= /etc/horizon/exchange
 OS := $(shell uname)
 ifeq ($(OS),Darwin)
@@ -32,6 +30,12 @@ else
   # Assume Linux (could test by test if OS is Linux)
   EXCHANGE_HOST_CONFIG_DIR ?= $(EXCHANGE_CONFIG_DIR)
 endif
+# Location of the ssl key/cert so we can mount it into the container for jetty to access
+#EXCHANGE_HOST_KEYSTORE ?= $(PWD)/keys/keystore.pkcs12
+#EXCHANGE_CONTAINER_KEYSTORE ?= /var/lib/jetty/etc/keystore
+# this need to be fully qualified, so docker can mount it into the container
+EXCHANGE_HOST_KEYSTORE_DIR ?= $(PWD)/keys/etc
+EXCHANGE_CONTAINER_KEYSTORE_DIR ?= /var/lib/jetty/etc
 
 
 default: .docker-exec-run
@@ -77,16 +81,17 @@ docker: .docker-exec
 	@touch $@
 
 .docker-exec: .docker-compile
-	docker pull jetty:$(JETTY_VERSION)
-	docker build -t $(image-string):$(DOCKER_TAG) $(DOCKER_OPTS) -f Dockerfile-exec --build-arg JETTY_VERSION=$(JETTY_VERSION) --build-arg SCALA_VERSION=$(SCALA_VERSION) --build-arg SCALA_VERSION_SHORT=$(SCALA_VERSION_SHORT) --build-arg EXCHANGE_API_WAR_VERSION=$(EXCHANGE_API_WAR_VERSION) .
+	docker pull jetty:$(JETTY_BASE_VERSION)
+	docker build -t $(image-string):$(DOCKER_TAG) $(DOCKER_OPTS) -f Dockerfile-exec --build-arg JETTY_BASE_VERSION=$(JETTY_BASE_VERSION) --build-arg SCALA_VERSION=$(SCALA_VERSION) --build-arg SCALA_VERSION_SHORT=$(SCALA_VERSION_SHORT) --build-arg EXCHANGE_API_WAR_VERSION=$(EXCHANGE_API_WAR_VERSION) .
 	@touch $@
 
 # rem-docker-exec:
 # 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
 
 .docker-exec-run: .docker-exec
+	@if [[ ! -f "$(EXCHANGE_HOST_KEYSTORE_DIR)/keystore" || ! -f "$(EXCHANGE_HOST_KEYSTORE_DIR)/keypassword" ]]; then echo "Error: keystore and keypassword do not exist in $(EXCHANGE_HOST_KEYSTORE_DIR). You must first copy them there or run 'make gen-key'"; false; fi
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
-	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -v $(EXCHANGE_HOST_CONFIG_DIR):$(EXCHANGE_CONFIG_DIR) $(image-string):$(DOCKER_TAG)
+	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -p $(EXCHANGE_API_HTTPS_PORT):$(EXCHANGE_API_HTTPS_PORT) -v $(EXCHANGE_HOST_CONFIG_DIR):$(EXCHANGE_CONFIG_DIR) -v $(EXCHANGE_HOST_KEYSTORE_DIR):$(EXCHANGE_CONTAINER_KEYSTORE_DIR):ro $(image-string):$(DOCKER_TAG)
 	@touch $@
 
 # Run the automated tests in the bld container against the exchange svr running in the exec container
@@ -117,6 +122,28 @@ docker-push-to-prod:
 	docker tag $(image-string):$(DOCKER_TAG) $(image-string):stable
 	docker push $(image-string):stable
 
+# Only do this once to create the exchange keystore for https (which includes the private key, and cert with multiple names). Keytool recommends pkcs12 format.
+# You must first set EXCHANGE_KEY_PW to the password you want to use for the private key and for the keystore.
+# References:
+#   https://www.eclipse.org/jetty/documentation/9.4.x/configuring-ssl.html
+#   https://docs.oracle.com/javase/8/docs/technotes/tools/windows/keytool.html
+#   https://stackoverflow.com/questions/8744607/how-to-add-subject-alernative-name-to-ssl-certs
+#   https://wiki.eclipse.org/Jetty/Howto/Secure_Passwords
+gen-key:
+	@if [[ -f "$(EXCHANGE_HOST_KEYSTORE_DIR)/keystore" ]]; then echo "Error: $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore already exists. If you really want to regenerate it, manually delete it first."; false; fi
+	: $${EXCHANGE_KEY_PW:?}
+	@echo "Generating exchange keystore and public certificate for https..."
+	# the arg -ext san=dns:<hostname>,ip:<ip> specify additional hostnames/IPs this cert should apply to
+	keytool -genkey -noprompt -alias exchange -keyalg RSA -sigalg SHA256withRSA -dname "CN=exchange, OU=Edge, O=IBM, L=Unknown, S=Unknown, C=US" -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storetype pkcs12 -storepass $(EXCHANGE_KEY_PW) -keypass $(EXCHANGE_KEY_PW) -validity 3650 -ext san=dns:localhost
+	# extract the public certificate out of the keystore, for clients to use
+	keytool -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storepass $(EXCHANGE_KEY_PW) -keypass $(EXCHANGE_KEY_PW) -export -alias exchange -rfc -file $(EXCHANGE_HOST_KEYSTORE_DIR)/exchangecert.pem
+	# put salted pw in file so it can be used later by the exchange to access the keystore
+	docker run --rm -t jetty:9.4 /bin/bash -c 'java -cp $$JETTY_HOME/lib/jetty-util-$$JETTY_VERSION.jar org.eclipse.jetty.util.security.Password $(EXCHANGE_KEY_PW)' | grep -E '^OBF:' | tr -d '\n' > $(EXCHANGE_HOST_KEYSTORE_DIR)/keypassword
+	# display what we created
+	keytool -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storepass $(EXCHANGE_KEY_PW) -list -alias exchange
+	@echo ""
+	@echo "Keystore created. Mount $(EXCHANGE_HOST_KEYSTORE_DIR) into the exchange container. Copy $(EXCHANGE_HOST_KEYSTORE_DIR)/exchangecert.pem to exchange clients using https."
+
 # Get the latest version of the swagger ui from github and copy the dist dir into our repo
 sync-swagger-ui:
 	rm -rf /tmp/swagger-ui.backup
@@ -130,7 +157,7 @@ sync-swagger-ui:
 	#sed -i '' 's/\(new SwaggerUi({\) *$$/\1 validatorUrl: null,/' src/main/webapp/swagger-index.html   # this is the only way to set validatorUrl to null in swagger
 
 testmake:
-	echo $(DOCKER_REGISTRY)
+	docker run --rm -t jetty:9.4 /bin/bash -c 'java -cp $$JETTY_HOME/lib/jetty-util-$$JETTY_VERSION.jar org.eclipse.jetty.util.security.Password $(EXCHANGE_KEY_PW)' | grep -E '^OBF:' | tr -d '\n' > $(EXCHANGE_HOST_KEYSTORE_DIR)/keypassword
 
 version:
 	@echo $(VERSION)

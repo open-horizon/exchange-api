@@ -13,10 +13,10 @@ import com.horizon.exchangeapi._
 class ExchConfigSuite extends FunSuite {
   test("ExchConfig tests") {
     ExchConfig.load()
-    assert(ExchConfig.getInt("api.limits.maxNodes") === 1000)
+    assert(ExchConfig.getInt("api.limits.maxNodes") === 10000)
     //assert(ExchConfig.getInt("api.limits.maxAgbots") === 1000)  // <- i usually locally test this as 0
-    assert(ExchConfig.getInt("api.limits.maxAgreements") === 1000)
-    assert(ExchConfig.getInt("api.limits.maxMessagesInMailbox") === 500)
+    assert(ExchConfig.getInt("api.limits.maxAgreements") === 0)
+    assert(ExchConfig.getInt("api.limits.maxMessagesInMailbox") === 10000)
 
     assert(ExchConfig.getString("api.db.driverClass") === "org.postgresql.Driver")
     assert(ExchConfig.getString("api.db.jdbcUrl").startsWith("jdbc:"))

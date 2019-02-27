@@ -48,6 +48,14 @@ services in the exchange.
 export EXCHANGE_ROOTPW=myrootpw
 ```
 
+- If someone hasn't done it already, create the TLS private key and certificate:
+```
+export EXCHANGE_KEY_PW=<pass-phrase>
+make gen-key
+```
+
+- Otherwise, get files `exchangecert.pem`, `keypassword`, and `keystore` from the person who created them and put them in `./keys/etc`.
+
 ## Building and Running in Local Sandbox
 
 - `sbt`
@@ -109,6 +117,11 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 1.74.0
+
+- Add TLS/SSL support to jetty, instead of relying on the front end (e.g. haproxy) to terminate the SSL
+- Increase default max number of resources by an order of magnitude
 
 ## Changes in 1.73.0
 

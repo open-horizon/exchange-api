@@ -1,5 +1,5 @@
-ARG JETTY_VERSION
-FROM jetty:$JETTY_VERSION
+ARG JETTY_BASE_VERSION
+FROM jetty:$JETTY_BASE_VERSION
 #FROM jetty:alpine
 MAINTAINER bruce potter <bp@us.ibm.com>
 
@@ -7,9 +7,14 @@ ARG SCALA_VERSION
 ARG SCALA_VERSION_SHORT
 ARG EXCHANGE_API_WAR_VERSION
 
-# install tools we want available
+# The jetty base image sets env vars: JETTY_HOME, JETTY_VERSION, JETTY_BASE
+
+# Configure https in jetty. The keystore will mounted from the host into this container.
+RUN java -jar "$JETTY_HOME/start.jar" --create-startd --add-to-start=https,ssl
+
+# Install tools we want available
 USER root
-RUN apt-get update && apt-get install -y vim
+RUN apt-get update && apt-get install -y vim procps
 #RUN apk update && apk add curl vim
 
 # install scala
@@ -18,7 +23,7 @@ RUN ln -s `ls -1dr /usr/local/share/scala-2* | head -1` /usr/local/share/scala
 USER jetty
 ENV PATH="/usr/local/share/scala/bin:$PATH"
 
-# copy default auth config and policy
+# Copy default auth config and policy. The base jetty docker image sets JETTY_BASE to /var/lib/jetty and cd's to that
 RUN mkdir exchange_config
 ADD ./src/main/resources/jaas.config $JETTY_BASE/exchange_config
 ADD ./src/main/resources/auth.policy $JETTY_BASE/exchange_config

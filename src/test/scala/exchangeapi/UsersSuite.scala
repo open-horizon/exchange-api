@@ -78,6 +78,8 @@ class UsersSuite extends FunSuite {
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
+  //todo: figure out how to run https client requests and add those to all the test suites
+
   /** Delete all the test users in both orgs */
   def deleteAllUsers() = {
     for (i <- List(user, user2)) {     // we do not delete the root user because it was created by the config file, not this test suite

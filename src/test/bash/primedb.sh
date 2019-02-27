@@ -101,8 +101,19 @@ VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
 -----END CERTIFICATE-----
 '
 
+#export EXCHANGE_CLIENT_CERT=../../../keys/etc/exchangecert.pem
+if [[ -n "$EXCHANGE_CLIENT_CERT" && -f "$EXCHANGE_CLIENT_CERT" ]]; then
+    if [[ "$EXCHANGE_URL_ROOT" == "http://localhost:8080" ]]; then
+        echo "Setting EXCHANGE_URL_ROOT=https://localhost:8443"
+        EXCHANGE_URL_ROOT="https://localhost:8443"
+    fi
+    echo "Using certificate $EXCHANGE_CLIENT_CERT"
+    cacert="--cacert $EXCHANGE_CLIENT_CERT"
+fi
+
+
 #curlBasicArgs="-s -w %{http_code} --output /dev/null $accept"
-curlBasicArgs="-sS -w %{http_code} $accept"
+curlBasicArgs="-sS -w %{http_code} $accept $cacert"
 # set -x
 
 # Check the http code returned by curl. Args: returned rc, good rc, second good rc (optional)
@@ -134,7 +145,7 @@ function curlfind {
 	if [[ $auth != "" ]]; then
 		auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
 	fi
-    #echo curl $curlBasicArgs $auth --output /dev/null $EXCHANGE_URL_ROOT/v1/$url
+    #echo curl $curlBasicArgs $auth --output /dev/null $EXCHANGE_URL_ROOT/v1/$url >&2
     rc=$(curl $curlBasicArgs $auth --output /dev/null $EXCHANGE_URL_ROOT/v1/$url 2>&1)
     #checkrc "$rc" 200 404  # <- do not do this inside curl find because it can not output an error msg (it gets gobbled up by the caller)
     echo "$rc"

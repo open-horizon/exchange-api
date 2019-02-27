@@ -4,7 +4,9 @@ target/
 .lib/
 
 # Create by Makefile to hold build timestamps
-.docker-*
+/.docker-*
+
+/keys
 
 # IntelliJ IDEA
 .idea/

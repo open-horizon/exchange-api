@@ -118,6 +118,11 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.75.0
+
+- Configure https/ssl at run time (instead of build time), so the same container can run with both http and https, or just http.
+- Increase db auth access timeout to avoid timeouts under certain conditions.
+
 ## Changes in 1.74.0
 
 - Add TLS/SSL support to jetty, instead of relying on the front end (e.g. haproxy) to terminate the SSL

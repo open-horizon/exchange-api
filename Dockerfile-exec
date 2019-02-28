@@ -9,8 +9,9 @@ ARG EXCHANGE_API_WAR_VERSION
 
 # The jetty base image sets env vars: JETTY_HOME, JETTY_VERSION, JETTY_BASE
 
+# this is now done in start_exchange.sh
 # Configure https in jetty. The keystore will mounted from the host into this container.
-RUN java -jar "$JETTY_HOME/start.jar" --create-startd --add-to-start=https,ssl
+#RUN java -jar "$JETTY_HOME/start.jar" --create-startd --add-to-start=https,ssl
 
 # Install tools we want available
 USER root

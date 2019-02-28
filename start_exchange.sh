@@ -16,14 +16,18 @@ do
   fi
 done
 
-# Get the keystore and key pw
-if [[ -n "$JETTY_BASE/etc/keypassword" ]]; then
+# Determine if we should configure https support, by whether the key/cert and pw are mounted into the container
+if [[ -f "$JETTY_BASE/etc/keystore" && -f "$JETTY_BASE/etc/keypassword" ]]; then
+    # Add the https and ssl modules to the jetty config
+    java -jar "$JETTY_HOME/start.jar" --create-startd --add-to-start=https,ssl
+
+    # Get the keystore and key pass phrase and set those arguments
+    echo "Configuring https/ssl support"
     pw=$(cat $JETTY_BASE/etc/keypassword)
     pw_arg1="-Djetty.sslContext.keyStorePassword=$pw"
     pw_arg2="-Djetty.sslContext.keyManagerPassword=$pw"
 else
-    echo "Error: $JETTY_BASE/etc/keypassword does not exist. Need that to access the certificate keystore."
-    # and we won't set the pw args, which result in an error accessing the keystore when starting
+    echo "Files keystore and keystore are not in $JETTY_BASE/etc/, so not configuring https/ssl support."
 fi
 
 

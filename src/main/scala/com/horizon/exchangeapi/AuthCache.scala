@@ -114,7 +114,9 @@ object AuthCache {
       }
       //todo: this db access should go at the beginning of every rest api db access, using flatmap to move on to the db access the rest api is really for
       val dbHashedTok: String = try {
-        val tokVector = Await.result(db.run(a), Duration(3000, MILLISECONDS))
+        logger.trace("awaiting for DB query of creds for "+id+"...")
+        val tokVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
+        logger.trace("back from awaiting for DB query of creds for "+id+".")
         if (tokVector.nonEmpty) tokVector.head else ""
       } catch {
         //TODO: this seems to happen sometimes when my laptop has been asleep. Maybe it has to reconnect to the db.
@@ -181,7 +183,9 @@ object AuthCache {
       // We are doing this only so we can fall back to the cache's last known owner if the Await.result() times out.
       try {
         if (whichTable == "users") {
-          val ownerVector = Await.result(db.run(UsersTQ.getAdmin(id).result), Duration(3000, MILLISECONDS))
+          logger.trace("awaiting for DB query of admin for "+id+"...")
+          val ownerVector = Await.result(db.run(UsersTQ.getAdmin(id).result), Duration(9000, MILLISECONDS))
+          logger.trace("back from awaiting for DB query of admin for "+id+".")
           if (ownerVector.nonEmpty) {
             if (ownerVector.head) return Some("admin")
             else return Some("")
@@ -197,7 +201,9 @@ object AuthCache {
             case "services" => ServicesTQ.getOwner(id).result
             case "patterns" => PatternsTQ.getOwner(id).result
           }
-          val ownerVector = Await.result(db.run(a), Duration(3000, MILLISECONDS))
+          logger.trace("awaiting for DB query of owner for "+id+"...")
+          val ownerVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
+          logger.trace("back from awaiting for DB query of owner for "+id+".")
           if (ownerVector.nonEmpty) /*{ logger.trace("getOwner return: "+ownerVector.head);*/ return Some(ownerVector.head) else /*{ logger.trace("getOwner return: None");*/ return None
         }
       } catch {
@@ -219,7 +225,9 @@ object AuthCache {
           case "patterns" => PatternsTQ.getPublic(id).result
           case _ => return Some(false)      // should never get here
         }
-        val publicVector = Await.result(db.run(a), Duration(3000, MILLISECONDS))
+        logger.trace("awaiting for DB query of public for "+id+"...")
+        val publicVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
+        logger.trace("back from awaiting for DB query of public for "+id+".")
         if (publicVector.nonEmpty) /*{ logger.trace("getIsPublic return: "+publicVector.head);*/ return Some(publicVector.head) else /*{ logger.trace("getIsPublic return: None");*/ return None
       } catch {
         //      Until i get a better handle on this, use the cache owner when this happens.

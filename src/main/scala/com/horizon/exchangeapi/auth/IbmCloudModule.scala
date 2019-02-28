@@ -71,7 +71,7 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
         val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
 
         for {
-          key <- extractApiKey(reqInfo)
+          key <- extractApiKey(reqInfo)   // this will bail out of the outer for loop if the user isn't iamapikey or iamapitoken
           username <- IbmCloudAuth.authenticateUser(key)
         } yield {
           val user = IUser(Creds(username, ""))
@@ -131,7 +131,7 @@ object IbmCloudAuth {
   private val guavaCache = CacheBuilder.newBuilder()
     .maximumSize(1000)
     .expireAfterWrite(10, TimeUnit.MINUTES)
-    .build[String, Entry[String]]     // the cache key is org/apiky, and the value is org/username
+    .build[String, Entry[String]]     // the cache key is org/apikey, and the value is org/username
   implicit val userCache = GuavaCache(guavaCache)
 
   def init(db: Database): Unit = {
@@ -187,7 +187,7 @@ object IbmCloudAuth {
   }
 
   private def getOrCreateUser(authInfo: IamAuthCredentials, userInfo: IamUserInfo): Try[UserRow] = {
-    logger.debug("Getting or creating exchange user using IAM userinfo: "+userInfo)
+    logger.debug("Getting or creating exchange user from DB using IAM userinfo: "+userInfo)
     val userQuery = for {
       //associatedOrgId <- fetchOrg(userInfo) // can no longer use this, because the account id it uses to find the org is not necessarily unique...
       //orgId <- verifyOrg(authInfo, userInfo, associatedOrgId)
@@ -199,8 +199,10 @@ object IbmCloudAuth {
         else DBIO.successful(Success(userRow.get))
       }
     } yield user
-    //todo: can this just be a future? getOrCreateUser() is only called if this is not already in the cache, so its a problem if we cant get it in the db
-    Await.result(db.run(userQuery.transactionally), Duration(3000, MILLISECONDS))
+    //todo: getOrCreateUser() is only called if this is not already in the cache, so its a problem if we cant get it in the db
+    logger.trace("awaiting for DB query of creds for "+authInfo.org+"/"+userInfo.email+"...")
+    Await.result(db.run(userQuery.transactionally), Duration(9000, MILLISECONDS))
+    //logger.trace("back from awaiting for DB query of creds for "+authInfo.org+"/"+userInfo.email+".", authInfo.org, userInfo.email)
     /* it doesnt work to add this to our authorization cache, and cause some exceptions during automated tests
     val awaitResult = Await.result(db.run(userQuery.transactionally), Duration(3000, MILLISECONDS))
     AuthCache.users.putBoth(Creds(s"${authInfo.org}/${userInfo.email}", ""), "")

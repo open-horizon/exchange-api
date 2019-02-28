@@ -94,6 +94,11 @@ docker: .docker-exec
 	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -p $(EXCHANGE_API_HTTPS_PORT):$(EXCHANGE_API_HTTPS_PORT) -v $(EXCHANGE_HOST_CONFIG_DIR):$(EXCHANGE_CONFIG_DIR) -v $(EXCHANGE_HOST_KEYSTORE_DIR):$(EXCHANGE_CONTAINER_KEYSTORE_DIR):ro $(image-string):$(DOCKER_TAG)
 	@touch $@
 
+.docker-exec-run-no-https: .docker-exec
+	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
+	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -v $(EXCHANGE_HOST_CONFIG_DIR):$(EXCHANGE_CONFIG_DIR) $(image-string):$(DOCKER_TAG)
+	@touch $@
+
 # Run the automated tests in the bld container against the exchange svr running in the exec container
 test: .docker-bld
 	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
@@ -134,7 +139,7 @@ gen-key:
 	: $${EXCHANGE_KEY_PW:?}
 	@echo "Generating exchange keystore and public certificate for https..."
 	# the arg -ext san=dns:<hostname>,ip:<ip> specify additional hostnames/IPs this cert should apply to
-	keytool -genkey -noprompt -alias exchange -keyalg RSA -sigalg SHA256withRSA -dname "CN=exchange, OU=Edge, O=IBM, L=Unknown, S=Unknown, C=US" -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storetype pkcs12 -storepass $(EXCHANGE_KEY_PW) -keypass $(EXCHANGE_KEY_PW) -validity 3650 -ext san=dns:localhost
+	keytool -genkey -noprompt -alias exchange -keyalg RSA -sigalg SHA256withRSA -dname "CN=edge-fab-exchange, OU=Edge, O=IBM, L=Unknown, S=Unknown, C=US" -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storetype pkcs12 -storepass $(EXCHANGE_KEY_PW) -keypass $(EXCHANGE_KEY_PW) -validity 3650 -ext san=dns:localhost,dns:exchange
 	# extract the public certificate out of the keystore, for clients to use
 	keytool -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storepass $(EXCHANGE_KEY_PW) -keypass $(EXCHANGE_KEY_PW) -export -alias exchange -rfc -file $(EXCHANGE_HOST_KEYSTORE_DIR)/exchangecert.pem
 	# put salted pw in file so it can be used later by the exchange to access the keystore

@@ -26,10 +26,12 @@ if [[ -f "$JETTY_BASE/etc/keystore" && -f "$JETTY_BASE/etc/keypassword" ]]; then
     pw=$(cat $JETTY_BASE/etc/keypassword)
     pw_arg1="-Djetty.sslContext.keyStorePassword=$pw"
     pw_arg2="-Djetty.sslContext.keyManagerPassword=$pw"
+    pw_blank_arg1="-Djetty.sslContext.keyStorePassword=****"
+    pw_blank_arg2="-Djetty.sslContext.keyManagerPassword=****"
 else
     echo "Files keystore and keystore are not in $JETTY_BASE/etc/, so not configuring https/ssl support."
 fi
 
 
-echo java -jar $JETTY_HOME/start.jar $auth_config $auth_policy $pw_arg1 $pw_arg2 $@
+echo java -jar $JETTY_HOME/start.jar $auth_config $auth_policy $pw_blank_arg1 $pw_blank_arg2 $@
 java -jar $JETTY_HOME/start.jar $auth_config $auth_policy $pw_arg1 $pw_arg2 $@

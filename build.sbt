@@ -1,4 +1,4 @@
-lazy val scalatraVersion = "2.6.3"    // can see the latest version at https://github.com/scalatra/scalatra/releases
+lazy val scalatraVersion = "2.6.5"    // can see the latest version at https://github.com/scalatra/scalatra/releases
 
 lazy val root = (project in file(".")).
   settings(
@@ -13,25 +13,29 @@ lazy val root = (project in file(".")).
       "org.scalatra" %% "scalatra-specs2" % "latest.release" % "test",
       "com.typesafe.slick" %% "slick" % "latest.release",
       "com.typesafe.slick" %% "slick-hikaricp" % "latest.release",
-      "com.github.tminglei" %% "slick-pg" % "0.16.3",
-      "com.github.tminglei" %% "slick-pg_json4s" % "0.16.3",
+      //"com.github.tminglei" %% "slick-pg" % "0.16.3",
+      //"com.github.tminglei" %% "slick-pg_json4s" % "0.16.3",
+      "com.github.tminglei" %% "slick-pg" % "latest.release",
+      "com.github.tminglei" %% "slick-pg_json4s" % "latest.release",
       "org.postgresql" % "postgresql" % "latest.release",
       "com.zaxxer" % "HikariCP" % "latest.release",
       //"com.zaxxer" % "HikariCP" % "2.5.1",
-      //"org.slf4j" % "slf4j-api" % "latest.release",  // they put version 1.8.0-alpha2 prematurely into latest.release
-      "org.slf4j" % "slf4j-api" % "1.7.25",
-      //"ch.qos.logback" % "logback-classic" % "latest.release",  // they put version 1.3.0-alpha2 prematurely into latest.release
+      //"org.slf4j" % "slf4j-api" % "latest.release",  // they put version 1.8.0-beta4 prematurely into latest.release
+      "org.slf4j" % "slf4j-api" % "1.7.26",
+      //"ch.qos.logback" % "logback-classic" % "latest.release",  // they put version 1.3.0-alpha4 prematurely into latest.release
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.mchange" % "c3p0" % "latest.release",
       "javax.servlet" % "javax.servlet-api" % "latest.release" % "provided",
       "org.eclipse.jetty" % "jetty-webapp" % "latest.release" % "container",
       "org.eclipse.jetty" % "jetty-plus" % "latest.release" % "container",
+      //"org.eclipse.jetty" % "jetty-webapp" % "latest.release",
+      //"org.eclipse.jetty" % "jetty-plus" % "latest.release",
       "org.scalatra" %% "scalatra-json" % "latest.release",
-      // Using latest for json4s causes it to select 3.5.3, but that results in swagger throwing: NoSuchMethodError: org.json4s.JsonDSL$.seq2jvalue
-      //"org.json4s" %% "json4s-native" % "latest.release",
-      //"org.json4s" %% "json4s-jackson" % "latest.release",
-      "org.json4s" %% "json4s-native" % "3.5.2",
-      "org.json4s" %% "json4s-jackson" % "3.5.2",
+      "org.json4s" %% "json4s-native" % "latest.release",
+      "org.json4s" %% "json4s-jackson" % "latest.release",
+      // For a while using latest for json4s was causing it to select 3.5.3, and that resulted in swagger throwing: NoSuchMethodError: org.json4s.JsonDSL$.seq2jvalue
+      //"org.json4s" %% "json4s-native" % "3.5.2",
+      //"org.json4s" %% "json4s-jackson" % "3.5.2",
       "org.scalatra" %% "scalatra-swagger"  % "latest.release",
       "org.scalatest" %% "scalatest" % "latest.release" % "test",
       "org.scalacheck" %% "scalacheck" % "latest.release" % "test",
@@ -40,7 +44,9 @@ lazy val root = (project in file(".")).
       "com.typesafe" % "config" % "latest.release",
       "org.mindrot" % "jbcrypt" % "latest.release",
       "com.pauldijou" %% "jwt-core" % "latest.release",
-      "com.github.cb372" %% "scalacache-guava" % "0.26.0",
+      //"com.github.cb372" %% "scalacache-guava" % "0.26.0",
+      "com.github.cb372" %% "scalacache-guava" % "latest.release",
+      //"org.joda" % "joda-convert" % "2.1.2",
       "javax.mail" % "javax.mail-api" % "latest.release"
       //"com.sun.mail" % "javax.mail" % "latest.release"
     ),

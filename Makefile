@@ -14,7 +14,7 @@ image-string = $(DOCKER_REGISTRY)/$(ARCH)_exchange-api
 # Some of these vars are also used by the Dockerfiles
 JETTY_BASE_VERSION ?= 9.4
 # try to sync this version with the version of scala you have installed on your dev machine, and with what is specified in build.sbt
-SCALA_VERSION ?= 2.12.4
+SCALA_VERSION ?= 2.12.7
 SCALA_VERSION_SHORT ?= 2.12
 # this version corresponds to the Version variable in project/build.scala
 EXCHANGE_API_WAR_VERSION ?= 0.1.0

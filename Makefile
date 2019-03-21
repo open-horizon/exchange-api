@@ -35,6 +35,7 @@ endif
 #EXCHANGE_CONTAINER_KEYSTORE ?= /var/lib/jetty/etc/keystore
 # this need to be fully qualified, so docker can mount it into the container
 EXCHANGE_HOST_KEYSTORE_DIR ?= $(PWD)/keys/etc
+EXCHANGE_HOST_ALIAS ?= edge-fab-exchange
 EXCHANGE_CONTAINER_KEYSTORE_DIR ?= /var/lib/jetty/etc
 
 
@@ -139,13 +140,13 @@ gen-key:
 	: $${EXCHANGE_KEY_PW:?}
 	@echo "Generating exchange keystore and public certificate for https..."
 	# the arg -ext san=dns:<hostname>,ip:<ip> specify additional hostnames/IPs this cert should apply to
-	keytool -genkey -noprompt -alias exchange -keyalg RSA -sigalg SHA256withRSA -dname "CN=edge-fab-exchange, OU=Edge, O=IBM, L=Unknown, S=Unknown, C=US" -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storetype pkcs12 -storepass $(EXCHANGE_KEY_PW) -keypass $(EXCHANGE_KEY_PW) -validity 3650 -ext san=dns:localhost,dns:exchange
+	keytool -genkey -noprompt -alias $(EXCHANGE_HOST_ALIAS) -keyalg RSA -sigalg SHA256withRSA -dname "CN=$(EXCHANGE_HOST_ALIAS), OU=Edge, O=IBM, L=Unknown, S=Unknown, C=US" -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storetype pkcs12 -storepass '$(value EXCHANGE_KEY_PW)' -keypass '$(value EXCHANGE_KEY_PW)' -validity 3650
 	# extract the public certificate out of the keystore, for clients to use
-	keytool -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storepass $(EXCHANGE_KEY_PW) -keypass $(EXCHANGE_KEY_PW) -export -alias exchange -rfc -file $(EXCHANGE_HOST_KEYSTORE_DIR)/exchangecert.pem
+	keytool -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storepass '$(value EXCHANGE_KEY_PW)' -keypass '$(value EXCHANGE_KEY_PW)' -export -alias $(EXCHANGE_HOST_ALIAS) -rfc -file $(EXCHANGE_HOST_KEYSTORE_DIR)/exchangecert.pem
 	# put salted pw in file so it can be used later by the exchange to access the keystore
-	docker run --rm -t jetty:9.4 /bin/bash -c 'java -cp $$JETTY_HOME/lib/jetty-util-$$JETTY_VERSION.jar org.eclipse.jetty.util.security.Password $(EXCHANGE_KEY_PW)' | grep -E '^OBF:' | tr -d '\n' > $(EXCHANGE_HOST_KEYSTORE_DIR)/keypassword
+	docker run --rm -t jetty:9.4 /bin/bash -c 'java -cp $$JETTY_HOME/lib/jetty-util-$$JETTY_VERSION.jar org.eclipse.jetty.util.security.Password '\''$(value EXCHANGE_KEY_PW)'\''' | grep -E '^OBF:' | tr -d '\n' > $(EXCHANGE_HOST_KEYSTORE_DIR)/keypassword
 	# display what we created
-	keytool -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storepass $(EXCHANGE_KEY_PW) -list -alias exchange
+	keytool -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storepass '$(value EXCHANGE_KEY_PW)' -list -alias $(EXCHANGE_HOST_ALIAS)
 	@echo ""
 	@echo "Keystore created. Mount $(EXCHANGE_HOST_KEYSTORE_DIR) into the exchange container. Copy $(EXCHANGE_HOST_KEYSTORE_DIR)/exchangecert.pem to exchange clients using https."
 
@@ -162,7 +163,7 @@ sync-swagger-ui:
 	#sed -i '' 's/\(new SwaggerUi({\) *$$/\1 validatorUrl: null,/' src/main/webapp/swagger-index.html   # this is the only way to set validatorUrl to null in swagger
 
 testmake:
-	docker run --rm -t jetty:9.4 /bin/bash -c 'java -cp $$JETTY_HOME/lib/jetty-util-$$JETTY_VERSION.jar org.eclipse.jetty.util.security.Password $(EXCHANGE_KEY_PW)' | grep -E '^OBF:' | tr -d '\n' > $(EXCHANGE_HOST_KEYSTORE_DIR)/keypassword
+	docker run --rm -t jetty:9.4 /bin/bash -c 'java -cp $$JETTY_HOME/lib/jetty-util-$$JETTY_VERSION.jar org.eclipse.jetty.util.security.Password '\''$(value EXCHANGE_KEY_PW)'\''' | grep -E '^OBF:' | tr -d '\n' > $(EXCHANGE_HOST_KEYSTORE_DIR)/keypassword
 
 version:
 	@echo $(VERSION)

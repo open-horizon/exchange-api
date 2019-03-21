@@ -70,6 +70,7 @@ object ExchangeApiTables {
     // Run this and wait for it, because we don't want any other initialization occurring until the db is right
     val upgradeNotNeededMsg = "DB schema does not need upgrading, it is already at the latest schema version: "
 
+    // The timeout exception that this can throw is handled by the caller of upgradeDb()
     val upgradeResult = Await.result(db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
       logger.debug("ExchangeApiTables.upgradeDb current schema result: "+xs.toString)
       xs match {

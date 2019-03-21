@@ -2,6 +2,8 @@ package com.horizon.exchangeapi
 
 import java.util.Base64
 
+import com.horizon.exchangeapi.auth.InvalidCredentialsException
+
 //import com.horizon.exchangeapi.auth.{AuthErrors, ExchCallbackHandler, PermissionCheck}
 import com.horizon.exchangeapi.auth.PermissionCheck
 //import com.horizon.exchangeapi.tables._
@@ -239,7 +241,7 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
     AuthCache.users.get(username) match {
       // case Some(userTok) => if (userTok.unhashed != "") Token.isValid(token, userTok.unhashed) else Token.isValid(token, userTok.hashed)
       case Some(userTok) => Token.isValid(token, userTok.hashed)
-      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials x8"))
     }
   }
 
@@ -360,18 +362,23 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
     var hasFrontEndAuthority = false   // true if this identity was already vetted by the front end
     def isMultiTenantAgbot: Boolean = return false
 
+    // Called by auth/Module.login() to authenticate a local user/node/agbot
     def authenticate(hint: String = ""): Identity = {
       if (hasFrontEndAuthority) return this       // it is already a specific subclass
       if (creds.isAnonymous) return toIAnonymous
       if (hint == "token") {
         if (isTokenValid(creds.token, creds.id)) return toIUser
-        else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+        else throw new InvalidCredentialsException("invalid token")
       }
       //for ((k, v) <- AuthCache.users.things) { logger.debug("users cache entry: "+k+" "+v) }
-      if (AuthCache.users.isValid(creds)) return toIUser
+      //logger.trace("in Identity.authenticate() calling halt")
+      logger.trace("calling AuthCache.users.isValid(creds)")
+      if (AuthCache.users.isValid(creds)) {logger.trace("back from AuthCache.users.isValid(creds) true"); return toIUser }
+      logger.trace("back from AuthCache.users.isValid(creds) false")
       if (AuthCache.nodes.isValid(creds)) return toINode
       if (AuthCache.agbots.isValid(creds)) return toIAgbot
-      halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+      //halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials x3"))
+      throw new InvalidCredentialsException()   // will be caught by AuthenticationSupport.authenticate() and the proper halt() done
     }
 
     def authorizeTo(target: Target, access: Access): Authorization
@@ -408,7 +415,7 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
   case class IFrontEnd(creds: Creds) extends Identity {
     override def authenticate(hint: String) = {
       if (ExchConfig.config.getString("api.root.frontEndHeader") == creds.id) this    // let everything thru
-      else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+      else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials x7"))
     }
     def authorizeTo(target: Target, access: Access): Authorization = {
       if (ExchConfig.config.getString("api.root.frontEndHeader") == creds.id) FrontendAuth    // let everything thru

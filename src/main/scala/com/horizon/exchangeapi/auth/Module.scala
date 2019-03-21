@@ -5,13 +5,14 @@ import java.security._
 import com.horizon.exchangeapi._
 import javax.security.auth._
 import javax.security.auth.callback._
+import javax.security.auth.login.FailedLoginException
 import javax.security.auth.spi.LoginModule
 import org.slf4j.{Logger, LoggerFactory}
 
 import scala.util.{Failure, Success, Try}
 
 /** JAAS module to authenticate local user/pw, nodeid/token, and agbotid/token in the exchange.
-  * Called from AuthenticationSupport:authenticate() because jaas.config references this module.
+  * Called from AuthenticationSupport:authenticate() because JAAS.config references this module.
   */
 class Module extends LoginModule with AuthorizationSupport {
   private var subject: Subject = _
@@ -41,12 +42,13 @@ class Module extends LoginModule with AuthorizationSupport {
    * and that is where we can get access to it in the route handling code.
    */
   override def login(): Boolean = {
+    logger.error("in Module.login() to try to authenticate a local exchange user")
     val reqCallback = new RequestCallback
     val loginResult = Try {
       handler.handle(Array(reqCallback))
       if (reqCallback.request.isEmpty) {
         logger.debug("Unable to get HTTP request while authenticating")
-        throw new Exception("invalid credentials")
+        throw new AuthInternalErrorException("Unable to get HTTP request while authenticating")
       }
       val reqInfo = reqCallback.request.get
       val RequestInfo(req, params, isDbMigration, anonymousOk, hint) = reqInfo
@@ -66,7 +68,21 @@ class Module extends LoginModule with AuthorizationSupport {
       }
       true
     }
-    succeeded = loginResult.getOrElse(false)
+    logger.trace("Module.login(): loginResult="+loginResult)
+    succeeded = loginResult.isSuccess
+    if (!succeeded) {
+      // Throw an exception so we can report the correct error
+      val excp = loginResult.failed.map {
+        case e: UserFacingError => e    // errors from verifyOrg()
+        case e: DbTimeoutException => e
+        case e: DbConnectionException => e
+        case e: InvalidCredentialsException => e
+        case e: AuthInternalErrorException => e
+        case _ => new FailedLoginException
+      }.get
+      //logger.trace("Module.login(): excp="+excp)
+      throw excp
+    }
     succeeded
   }
 
@@ -101,9 +117,7 @@ class ExchCallbackHandler(request: RequestInfo) extends CallbackHandler {
   override def handle(callbacks: Array[Callback]): Unit = {
     for (callback <- callbacks) {
       callback match {
-        case cb: RequestCallback => {
-          cb.request = request
-        }
+        case cb: RequestCallback => cb.request = request
         case _ =>
       }
     }

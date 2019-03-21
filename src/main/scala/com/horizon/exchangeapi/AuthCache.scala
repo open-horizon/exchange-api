@@ -5,12 +5,13 @@ package com.horizon.exchangeapi
 //import com.horizon.exchangeapi.auth.{AuthErrors, ExchCallbackHandler, PermissionCheck}
 //import com.horizon.exchangeapi.auth.PermissionCheck
 import com.horizon.exchangeapi.tables._
+import org.scalatra.servlet.ServletApiImplicits
 //import javax.security.auth.Subject
 //import javax.security.auth.login.LoginContext
 //import javax.servlet.http.HttpServletRequest
 //import org.mindrot.jbcrypt.BCrypt
 //import org.scalatra.servlet.ServletApiImplicits
-//import org.scalatra.{Control, Params /* , ScalatraBase */ }
+import org.scalatra.Control
 import org.slf4j.LoggerFactory
 //import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim}
 import slick.jdbc.PostgresProfile.api._
@@ -22,9 +23,10 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 //import scala.util._
 //import scala.util.control.NonFatal
+import com.horizon.exchangeapi.auth._
 
 /** In-memory cache of the user/pw, node id/token, and agbot id/token, where the pw and tokens are not hashed to speed up validation */
-object AuthCache {
+object AuthCache extends Control with ServletApiImplicits {
   val logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
 
   /** 1 set of things (user/pw, node id/token, agbot id/token, service/owner, pattern/owner) */
@@ -114,15 +116,18 @@ object AuthCache {
       }
       //todo: this db access should go at the beginning of every rest api db access, using flatmap to move on to the db access the rest api is really for
       val dbHashedTok: String = try {
-        logger.trace("awaiting for DB query of creds for "+id+"...")
+        logger.trace("awaiting for DB query of local exchange creds for "+id+"...")
         val tokVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
-        logger.trace("back from awaiting for DB query of creds for "+id+".")
+        logger.trace("...back from awaiting for DB query of local exchange creds for "+id+".")
         if (tokVector.nonEmpty) tokVector.head else ""
       } catch {
-        //TODO: this seems to happen sometimes when my laptop has been asleep. Maybe it has to reconnect to the db.
-        //      Until i get a better handle on this, use the cache token when this happens.
-        case _: java.util.concurrent.TimeoutException => logger.error("getting hashed pw/token for '"+id+"' timed out. Using the cache for now.")
-          return _get(id)
+        // Handle db problems
+        case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting pw/token for '"+id+"' . Trying to use the cache for now. "+timeout.getMessage)
+          val cacheVal = _get(id)
+          if (cacheVal.isEmpty) throw new DbTimeoutException("DB timed out getting pw/token for '"+id+"' and it was not in the cache. "+timeout.getMessage)
+          return cacheVal
+        case other: Throwable => logger.error("db connection error getting pw/token for '"+id+"': "+other.getMessage)
+          throw new DbConnectionException("DB access threw exception: "+other.getMessage)
       }
 
       // Now get it from the cache and compare/sync the 2
@@ -152,7 +157,10 @@ object AuthCache {
 
     /** Check these creds using our cache, confirming with the db. */
     def isValid(creds: Creds): Boolean = {
-      get(creds.id) match {      // Note: get() will verify the cache with the db before returning
+      //logger.trace("in AuthCache.users.isValid(creds) calling get(creds.id)")
+      val getReturn = get(creds.id)
+      //logger.trace("in AuthCache.users.isValid(creds) back get(creds.id)")
+      getReturn match {      // Note: get() will verify the cache with the db before returning
         // We have this id in the cache, but the unhashed token in the cache could be blank, or the cache could be out of date
         case Some(tokens) => ;
           try {
@@ -161,14 +169,14 @@ object AuthCache {
               if (tokens.unhashed != "") return creds.token == tokens.unhashed
               else {    // the specified token is unhashed, but we do not have the unhashed token in our cache yet
                 if (Password.check(creds.token, tokens.hashed)) {
-                  // now we have the unhashed version of the token so updated our cache with that
+                  // now we have the unhashed version of the token so update our cache with that
                   //logger.debug("updating auth cache with unhashed pw/token for '"+creds.id+"'")
                   _put(creds.id, Tokens(creds.token, tokens.hashed))
                   true
                 } else false
               }
             }
-          } catch { case _: Exception => logger.error("Invalid salt version error from Password.check()"); false }   // can throw IllegalArgumentException: Invalid salt version
+          } catch { case _: Exception => logger.error("Invalid encoded version error from Password.check()"); false }   // can throw IllegalArgumentException: Invalid encoded version
         case None => false
       }
     }
@@ -183,9 +191,9 @@ object AuthCache {
       // We are doing this only so we can fall back to the cache's last known owner if the Await.result() times out.
       try {
         if (whichTable == "users") {
-          logger.trace("awaiting for DB query of admin for "+id+"...")
+          logger.trace("awaiting for DB query of local exchange isAdmin for "+id+"...")
           val ownerVector = Await.result(db.run(UsersTQ.getAdmin(id).result), Duration(9000, MILLISECONDS))
-          logger.trace("back from awaiting for DB query of admin for "+id+".")
+          logger.trace("...back from awaiting for DB query of local exchange isAdmin for "+id+".")
           if (ownerVector.nonEmpty) {
             if (ownerVector.head) return Some("admin")
             else return Some("")
@@ -201,16 +209,18 @@ object AuthCache {
             case "services" => ServicesTQ.getOwner(id).result
             case "patterns" => PatternsTQ.getOwner(id).result
           }
-          logger.trace("awaiting for DB query of owner for "+id+"...")
+          logger.trace("awaiting for DB query of local exchange owner for "+id+"...")
           val ownerVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
-          logger.trace("back from awaiting for DB query of owner for "+id+".")
+          logger.trace("...back from awaiting for DB query of local exchange owner for "+id+".")
           if (ownerVector.nonEmpty) /*{ logger.trace("getOwner return: "+ownerVector.head);*/ return Some(ownerVector.head) else /*{ logger.trace("getOwner return: None");*/ return None
         }
       } catch {
-        //todo: this seems to happen sometimes when the exchange svr has been idle for a while. Or maybe it is just when i'm running local and my laptop has been asleep.
-        //      Until i get a better handle on this, use the cache owner when this happens.
-        case _: java.util.concurrent.TimeoutException => logger.error("getting owner for '"+id+"' timed out. Using the cache for now.")
-          return _getOwner(id)
+        // Handle db problems
+        case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting owner or isAdmin for '"+id+"' . Trying to use the cache for now. "+timeout.getMessage)
+          val cacheVal = _getOwner(id)
+          if (cacheVal.isEmpty) halt(HttpCode.GW_TIMEOUT, ApiResponse(ApiResponseType.GW_TIMEOUT, "DB timed out getting owner or isAdmin for '"+id+"' and it was not in the cache. "+timeout.getMessage))
+          return cacheVal
+        case other: Throwable => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "DB access threw exception: "+other.getMessage))
       }
     }
 
@@ -225,14 +235,17 @@ object AuthCache {
           case "patterns" => PatternsTQ.getPublic(id).result
           case _ => return Some(false)      // should never get here
         }
-        logger.trace("awaiting for DB query of public for "+id+"...")
+        logger.trace("awaiting for DB query of local exchange isPublic for "+id+"...")
         val publicVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
-        logger.trace("back from awaiting for DB query of public for "+id+".")
+        logger.trace("...back from awaiting for DB query of local exchange isPublic for "+id+".")
         if (publicVector.nonEmpty) /*{ logger.trace("getIsPublic return: "+publicVector.head);*/ return Some(publicVector.head) else /*{ logger.trace("getIsPublic return: None");*/ return None
       } catch {
-        //      Until i get a better handle on this, use the cache owner when this happens.
-        case _: java.util.concurrent.TimeoutException => logger.error("getting public for '"+id+"' timed out. Using the cache for now.")
-          return _getIsPublic(id)
+        // Handle db problems
+        case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting isPublic for '"+id+"' . Trying to use the cache for now. "+timeout.getMessage)
+          val cacheVal = _getIsPublic(id)
+          if (cacheVal.isEmpty) halt(HttpCode.GW_TIMEOUT, ApiResponse(ApiResponseType.GW_TIMEOUT, "DB timed out getting isPublic for '"+id+"' and it was not in the cache. "+timeout.getMessage))
+          return cacheVal
+        case other: Throwable => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "DB access threw exception: "+other.getMessage))
       }
     }
 

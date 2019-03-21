@@ -28,8 +28,9 @@ import scala.util._
 The main authenticate/authorization flow is:
 - an api route calls authenticate() which:
   - initiates a login with JAAS, giving it ExchCallbackHandler (which gives it access to the api request
-    - calls the login() methods of each module listed in resources/jaas.config until 1 doesnt throw an exception (i think)
+    - calls the login() methods of each module listed in resources/jaas.config until 1 doesnt throw an exception
       - in IbmCloudModule.login() it calls IbmCloudAuth.authenticateUser()
+      - in Module.login() it calls Identity.authenticate()
   - returns an AuthenticatedIdentity (that contains both the exchange-specific Identity, and the JAAS Subject)
 - from the return of authenticate() the route then calls AuthenticatedIdentity.authorizeTo() with the target and access required
   - calls the correct Identity subclass authorizeTo() method
@@ -41,7 +42,7 @@ The main authenticate/authorization flow is:
           - i think this looks in resources/auth.policy at the roles and accesses defined for each
 */
 trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
-  // We could add a before action with befor() {}, but sometimes they need to pass in user/pw, and sometimes id/token
+  // We could add a before action with before() {}, but sometimes they need to pass in user/pw, and sometimes id/token
   // I tried using code from http://www.scalatra.org/2.4/guides/http/authentication.html, but it throws an exception.
 
   def db: Database      // get access to the db object in ExchangeApiApp
@@ -66,7 +67,9 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
       new ExchCallbackHandler(RequestInfo(request, params, isDbMigration, anonymousOk, hint))
     )
     for (err <- Try(loginCtx.login()).failed) {
-      halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, AuthErrors.message(err)))
+      logger.trace("in AuthenticationSupport.authenticate: err="+err)
+      val (httpCode, apiResponse, msg) = AuthErrors.message(err)
+      halt(httpCode, ApiResponse(apiResponse, msg))
     }
     val subject = loginCtx.getSubject
     AuthenticatedIdentity(subject.getPrivateCredentials(classOf[Identity]).asScala.head, subject)
@@ -114,22 +117,6 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
   def credsForAnonymous(): Creds = {
     getCredentials(request, params, anonymousOk = true)
   }
-
-  /** Work around A swagger Try It button bug that specifies id as "{id}" instead of the actual id. In this case, get the id from the query string.
-    * This might not actually be a swagger bug. The situation arises when the resource is 1 of those that can also be used as creds (user, node, agbot)
-    * In this case the swagger Parameter must be identified as Path or Query, but we really want it to be both. In lieu of that we make it Query and use this
-    * hack to get it from there even for the resource id.
-  def swaggerHack(paramName: String): String = {
-    val paramsVal = params(paramName)
-    if (paramsVal != "{"+paramName+"}") return paramsVal
-    // val parm = request.queryString.split("&").find(x => x.startsWith(paramName+"="))
-    val parm = request.parameters.get(paramName)
-    parm match {
-      case Some(parm2) => return parm2      // parm.replace(paramName+"=","")
-      case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "swagger specifies the "+paramName+" incorrectly in this case"))
-    }
-  }
-  */
 
   /** Returns a temporary pw reset token. */
   def createToken(username: String): String = {

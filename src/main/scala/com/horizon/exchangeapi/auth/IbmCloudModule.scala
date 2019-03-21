@@ -7,7 +7,6 @@ import com.horizon.exchangeapi._
 import com.horizon.exchangeapi.tables.{OrgsTQ, UserRow, UsersTQ}
 import javax.security.auth._
 import javax.security.auth.callback._
-import javax.security.auth.login.FailedLoginException
 import javax.security.auth.spi.LoginModule
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -36,7 +35,7 @@ case class OrgNotFound(authInfo: IamAuthCredentials)
 case class IncorrectOrgFound(orgAcctId: String, userInfo: IamUserInfo)
   extends UserFacingError(s"IAM authentication succeeded, but the cloud account id of the org ($orgAcctId) does not match that of the cloud account credentials (${userInfo.accountId})")
 
-/** JAAS module to authenticate to the IBM cloud. Called from AuthenticationSupport:authenticate() because jaas.config references this module.
+/** JAAS module to authenticate to the IBM cloud. Called from AuthenticationSupport:authenticate() because JAAS.config references this module.
   */
 class IbmCloudModule extends LoginModule with AuthorizationSupport {
   private var subject: Subject = _
@@ -57,6 +56,7 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
   }
 
   override def login(): Boolean = {
+    logger.error("in IbmCloudModule.login() to try to authenticate an IBM cloud user")
     val reqCallback = new RequestCallback
 
     handler.handle(Array(reqCallback))
@@ -84,11 +84,16 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
     } yield user
     succeeded = loginResult.isSuccess
     if (!succeeded) {
-      // Throw an exception so jaas will move on to Module
-      throw loginResult.failed.map {
-        case e: UserFacingError => e    // errors from verifyOrg()
-        case _ => new FailedLoginException
-      }.get
+      /* If we return either false or an exception, JAAS will move on to the next login module (Module for authenticating local exchange users).
+       The difference is: if we return false it means this ibmCloudModule didn't apply, so then if Module ends up throwing an exception it will be reported.
+       On the other hand, if this ibmCloudModule returns an exception and Module does too, JAAS will only report the 1st one. */
+      loginResult.failed.get match {
+        // This looked like an ibm cred, but there was a problem with it, so throw the exception so it gets back to the user
+        case e: UserFacingError =>  throw e    // exceptions from verifyOrg(): OrgNotFound, IncorrectOrgFound
+        // This was not an ibm cred, so return false so JAAS will move on to the next login module and return any exception from it
+        case _: NotIbmCredsException => return false
+        case e => throw e
+      }
     }
     succeeded
   }
@@ -112,7 +117,7 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
     val creds = credentials(reqInfo)
     val (org, id) = IbmCloudAuth.compositeIdSplit(creds.id)
     if ((id == "iamapikey" || id == "iamtoken") && !creds.token.isEmpty) Success(IamAuthCredentials(org, id, creds.token))
-    else Failure(new Exception("Auth is not an IAM apikey or token"))
+    else Failure(new NotIbmCredsException("User is not iamapikey or iamtoken, so credentials are not an IBM cloud IAM api key or token"))
   }
 }
 
@@ -138,7 +143,6 @@ object IbmCloudAuth {
     this.db = db
   }
 
-  //def authenticateUser(authInfo: IamAuthCredentials): Try[UserRow] = {
   def authenticateUser(authInfo: IamAuthCredentials): Try[String] = {
     logger.info("authenticateUser(): attempting to authenticate with IBM Cloud with "+authInfo)
     /*
@@ -188,6 +192,8 @@ object IbmCloudAuth {
 
   private def getOrCreateUser(authInfo: IamAuthCredentials, userInfo: IamUserInfo): Try[UserRow] = {
     logger.debug("Getting or creating exchange user from DB using IAM userinfo: "+userInfo)
+    // Form a DB query with the right logic verify the org and either get or create the user.
+    // This can throw exceptions OrgNotFound or IncorrectOrgFound
     val userQuery = for {
       //associatedOrgId <- fetchOrg(userInfo) // can no longer use this, because the account id it uses to find the org is not necessarily unique...
       //orgId <- verifyOrg(authInfo, userInfo, associatedOrgId)
@@ -200,10 +206,9 @@ object IbmCloudAuth {
       }
     } yield user
     //todo: getOrCreateUser() is only called if this is not already in the cache, so its a problem if we cant get it in the db
-    logger.trace("awaiting for DB query of creds for "+authInfo.org+"/"+userInfo.email+"...")
+    logger.trace("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.email+"...")
     Await.result(db.run(userQuery.transactionally), Duration(9000, MILLISECONDS))
-    //logger.trace("back from awaiting for DB query of creds for "+authInfo.org+"/"+userInfo.email+".", authInfo.org, userInfo.email)
-    /* it doesnt work to add this to our authorization cache, and cause some exceptions during automated tests
+    /* it doesnt work to add this to our authorization cache, and causes some exceptions during automated tests
     val awaitResult = Await.result(db.run(userQuery.transactionally), Duration(3000, MILLISECONDS))
     AuthCache.users.putBoth(Creds(s"${authInfo.org}/${userInfo.email}", ""), "")
     awaitResult

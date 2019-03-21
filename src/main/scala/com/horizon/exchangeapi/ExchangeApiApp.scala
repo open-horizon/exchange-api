@@ -58,7 +58,12 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
   protected implicit def executor = scala.concurrent.ExecutionContext.Implicits.global
 
   // Initialize authentication cache from objects in the db
-  ExchangeApiTables.upgradeDb(db)
+  try { ExchangeApiTables.upgradeDb(db) }
+  catch {
+    // Handle db problems
+    case timeout: java.util.concurrent.TimeoutException => halt(HttpCode.GW_TIMEOUT, ApiResponse(ApiResponseType.GW_TIMEOUT, "DB timed out while upgrading it: "+timeout.getMessage))
+    case other: Throwable => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "while upgrading the DB, the DB threw exception: "+other.getMessage))
+  }
   ExchConfig.createRoot(db)
   AuthCache.users.init(db)
   AuthCache.nodes.init(db)

@@ -11,6 +11,8 @@ lazy val root = (project in file(".")).
       "org.scalatra" %% "scalatra" % "latest.release",
       "org.scalatra" %% "scalatra-auth" % "latest.release",
       "org.scalatra" %% "scalatra-specs2" % "latest.release" % "test",
+      "org.scalatra" %% "scalatra-json" % "latest.release",
+      "org.scalatra" %% "scalatra-swagger"  % "latest.release",
       "com.typesafe.slick" %% "slick" % "latest.release",
       "com.typesafe.slick" %% "slick-hikaricp" % "latest.release",
       //"com.github.tminglei" %% "slick-pg" % "0.16.3",
@@ -20,9 +22,9 @@ lazy val root = (project in file(".")).
       "org.postgresql" % "postgresql" % "latest.release",
       "com.zaxxer" % "HikariCP" % "latest.release",
       //"com.zaxxer" % "HikariCP" % "2.5.1",
-      //"org.slf4j" % "slf4j-api" % "latest.release",  // they put version 1.8.0-beta4 prematurely into latest.release
+      //"org.slf4j" % "slf4j-api" % "latest.stable",  // they put version 1.8.0-beta4 prematurely into latest.release
       "org.slf4j" % "slf4j-api" % "1.7.26",
-      //"ch.qos.logback" % "logback-classic" % "latest.release",  // they put version 1.3.0-alpha4 prematurely into latest.release
+      //"ch.qos.logback" % "logback-classic" % "latest.stable",  // they put version 1.3.0-alpha4 prematurely into latest.release
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.mchange" % "c3p0" % "latest.release",
       "javax.servlet" % "javax.servlet-api" % "latest.release" % "provided",
@@ -30,13 +32,11 @@ lazy val root = (project in file(".")).
       "org.eclipse.jetty" % "jetty-plus" % "latest.release" % "container",
       //"org.eclipse.jetty" % "jetty-webapp" % "latest.release",
       //"org.eclipse.jetty" % "jetty-plus" % "latest.release",
-      "org.scalatra" %% "scalatra-json" % "latest.release",
       "org.json4s" %% "json4s-native" % "latest.release",
       "org.json4s" %% "json4s-jackson" % "latest.release",
       // For a while using latest for json4s was causing it to select 3.5.3, and that resulted in swagger throwing: NoSuchMethodError: org.json4s.JsonDSL$.seq2jvalue
       //"org.json4s" %% "json4s-native" % "3.5.2",
       //"org.json4s" %% "json4s-jackson" % "3.5.2",
-      "org.scalatra" %% "scalatra-swagger"  % "latest.release",
       "org.scalatest" %% "scalatest" % "latest.release" % "test",
       "org.scalacheck" %% "scalacheck" % "latest.release" % "test",
       "junit" % "junit" % "latest.release" % "test",

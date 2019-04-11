@@ -121,6 +121,7 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 ## Changes in 1.76.0
 
 - Do not show keystore encoded password in log
+- Do not return "invalid creds" when can't reach db
 
 ## Changes in 1.75.0
 

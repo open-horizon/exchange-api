@@ -115,7 +115,12 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
    * URL params: id=<id>&token=<token>
    */
   def credsForAnonymous(): Creds = {
-    getCredentials(request, params, anonymousOk = true)
+    try {
+      getCredentials(request, params, anonymousOk = true)   // can throw InvalidCredentialsException
+    } catch {
+      case e: Exception => val (httpCode, apiResponse, msg) = AuthErrors.message(e)
+        halt(httpCode, ApiResponse(apiResponse, msg))
+    }
   }
 
   /** Returns a temporary pw reset token. */

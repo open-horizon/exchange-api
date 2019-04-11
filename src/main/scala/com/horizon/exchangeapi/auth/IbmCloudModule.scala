@@ -56,7 +56,7 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
   }
 
   override def login(): Boolean = {
-    logger.error("in IbmCloudModule.login() to try to authenticate an IBM cloud user")
+    logger.trace("in IbmCloudModule.login() to try to authenticate an IBM cloud user")
     val reqCallback = new RequestCallback
 
     handler.handle(Array(reqCallback))
@@ -76,7 +76,7 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
         } yield {
           val user = IUser(Creds(username, ""))
           logger.info("IBM User " + user.creds.id + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
-          if (isDbMigration && !Role.isSuperUser(user.creds.id)) halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied - in the process of DB migration"))
+          if (isDbMigration && !Role.isSuperUser(user.creds.id)) throw new IsDbMigrationException()
           identity = user
           user
         }
@@ -92,7 +92,13 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
         case e: UserFacingError =>  throw e    // exceptions from verifyOrg(): OrgNotFound, IncorrectOrgFound
         // This was not an ibm cred, so return false so JAAS will move on to the next login module and return any exception from it
         case _: NotIbmCredsException => return false
-        case e => throw e
+        //case e: DbTimeoutException => e
+        //case e: DbConnectionException => e
+        case e: IsDbMigrationException => throw e
+        //case e: InvalidCredentialsException => e
+        //case e: AuthInternalErrorException => e
+        //todo: using this instead of the specific Db exceptions above because i haven't figured out yet how to successfully not have Await.result() bet the last line of getOrCreateUser().
+        case e => throw new DbConnectionException(e.getMessage)
       }
     }
     succeeded
@@ -192,7 +198,7 @@ object IbmCloudAuth {
 
   private def getOrCreateUser(authInfo: IamAuthCredentials, userInfo: IamUserInfo): Try[UserRow] = {
     logger.debug("Getting or creating exchange user from DB using IAM userinfo: "+userInfo)
-    // Form a DB query with the right logic verify the org and either get or create the user.
+    // Form a DB query with the right logic to verify the org and either get or create the user.
     // This can throw exceptions OrgNotFound or IncorrectOrgFound
     val userQuery = for {
       //associatedOrgId <- fetchOrg(userInfo) // can no longer use this, because the account id it uses to find the org is not necessarily unique...
@@ -200,13 +206,14 @@ object IbmCloudAuth {
       orgAcctId <- fetchOrg(authInfo.org)
       orgId <- verifyOrg(authInfo, userInfo, orgAcctId)   // verify cloud acct id of the apikey and the org entry match
       userRow <- fetchUser(orgId, userInfo)
-      user <- {
+      userAction <- {
         if (userRow.isEmpty) createUser(orgId, userInfo)
         else DBIO.successful(Success(userRow.get))
       }
-    } yield user
+    } yield userAction
     //todo: getOrCreateUser() is only called if this is not already in the cache, so its a problem if we cant get it in the db
     logger.trace("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.email+"...")
+    // Note: exceptions from this get caught in login() above
     Await.result(db.run(userQuery.transactionally), Duration(9000, MILLISECONDS))
     /* it doesnt work to add this to our authorization cache, and causes some exceptions during automated tests
     val awaitResult = Await.result(db.run(userQuery.transactionally), Duration(3000, MILLISECONDS))

@@ -188,7 +188,7 @@ object AuthCache extends Control with ServletApiImplicits {
 
       // Even though we try to put every new/updated owner in our cache, when this server runs in multi-node mode,
       // an update could have come to 1 of the other nodes. The db is our sync point, so always verify our cached owner with the db owner.
-      // We are doing this only so we can fall back to the cache's last known owner if the Await.result() times out.
+      // We are doing this only so we can fall back to the cache's last known owner if the db times out.
       try {
         if (whichTable == "users") {
           logger.trace("awaiting for DB query of local exchange isAdmin for "+id+"...")
@@ -218,15 +218,16 @@ object AuthCache extends Control with ServletApiImplicits {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting owner or isAdmin for '"+id+"' . Trying to use the cache for now. "+timeout.getMessage)
           val cacheVal = _getOwner(id)
-          if (cacheVal.isEmpty) halt(HttpCode.GW_TIMEOUT, ApiResponse(ApiResponseType.GW_TIMEOUT, "DB timed out getting owner or isAdmin for '"+id+"' and it was not in the cache. "+timeout.getMessage))
+          if (cacheVal.isEmpty) throw new DbTimeoutException("DB timed out getting owner or isAdmin for '"+id+"' and it was not in the cache. "+timeout.getMessage)
           return cacheVal
-        case other: Throwable => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "DB access threw exception: "+other.getMessage))
+        case other: Throwable => logger.error("db connection error getting owner or isAdmin for '"+id+"': "+other.getMessage)
+          throw new DbConnectionException("DB access threw exception: "+other.getMessage)
       }
     }
 
     /** Returns Some(isPub) from the cache for this id (but verifies with the db 1st), or None if does not exist */
     def getIsPublic(id: String): Option[Boolean] = {
-      // We are doing this only so we can fall back to the cache's last known owner if the Await.result() times out.
+      // We are doing this only so we can fall back to the cache's last known owner if the db times out.
       try {
         // For the all the others, we are looking for the traditional owner
         val a = whichTable match {
@@ -243,9 +244,10 @@ object AuthCache extends Control with ServletApiImplicits {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting isPublic for '"+id+"' . Trying to use the cache for now. "+timeout.getMessage)
           val cacheVal = _getIsPublic(id)
-          if (cacheVal.isEmpty) halt(HttpCode.GW_TIMEOUT, ApiResponse(ApiResponseType.GW_TIMEOUT, "DB timed out getting isPublic for '"+id+"' and it was not in the cache. "+timeout.getMessage))
+          if (cacheVal.isEmpty) throw new DbTimeoutException("DB timed out getting isPublic for '"+id+"' and it was not in the cache. "+timeout.getMessage)
           return cacheVal
-        case other: Throwable => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "DB access threw exception: "+other.getMessage))
+        case other: Throwable => logger.error("db connection error getting isPublic for '"+id+"': "+other.getMessage)
+          throw new DbConnectionException("DB access threw exception: "+other.getMessage)
       }
     }
 

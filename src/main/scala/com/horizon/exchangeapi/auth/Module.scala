@@ -42,7 +42,7 @@ class Module extends LoginModule with AuthorizationSupport {
    * and that is where we can get access to it in the route handling code.
    */
   override def login(): Boolean = {
-    logger.error("in Module.login() to try to authenticate a local exchange user")
+    logger.trace("in Module.login() to try to authenticate a local exchange user")
     val reqCallback = new RequestCallback
     val loginResult = Try {
       handler.handle(Array(reqCallback))
@@ -51,7 +51,7 @@ class Module extends LoginModule with AuthorizationSupport {
         throw new AuthInternalErrorException("Unable to get HTTP request while authenticating")
       }
       val reqInfo = reqCallback.request.get
-      val RequestInfo(req, params, isDbMigration, anonymousOk, hint) = reqInfo
+      val RequestInfo(req, _, isDbMigration, _, hint) = reqInfo
       val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
 
       val feIdentity = frontEndCreds(reqInfo)
@@ -62,8 +62,10 @@ class Module extends LoginModule with AuthorizationSupport {
         // Get the creds from the header or params
         val creds = credentials(reqInfo)
         val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
+        val (_, id) = IbmCloudAuth.compositeIdSplit(userOrId)
+        if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException("User is iamapikey or iamtoken, so credentials are not local Exchange credentials")
         logger.info("User or id " + userOrId + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
-        if (isDbMigration && !Role.isSuperUser(creds.id)) halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied - in the process of DB migration"))
+        if (isDbMigration && !Role.isSuperUser(creds.id)) throw new IsDbMigrationException()
         identity = IIdentity(creds).authenticate(hint)
       }
       true
@@ -72,16 +74,16 @@ class Module extends LoginModule with AuthorizationSupport {
     succeeded = loginResult.isSuccess
     if (!succeeded) {
       // Throw an exception so we can report the correct error
-      val excp = loginResult.failed.map {
-        case e: UserFacingError => e    // errors from verifyOrg()
-        case e: DbTimeoutException => e
-        case e: DbConnectionException => e
-        case e: InvalidCredentialsException => e
-        case e: AuthInternalErrorException => e
-        case _ => new FailedLoginException
-      }.get
-      //logger.trace("Module.login(): excp="+excp)
-      throw excp
+      loginResult.failed.get match {
+        case e: UserFacingError => throw e
+        case _: NotLocalCredsException => return false
+        case e: DbTimeoutException => throw e
+        case e: DbConnectionException => throw e
+        case e: IsDbMigrationException => throw e
+        case e: InvalidCredentialsException => throw e
+        case e: AuthInternalErrorException => throw e
+        case _ => throw new FailedLoginException
+      }
     }
     succeeded
   }

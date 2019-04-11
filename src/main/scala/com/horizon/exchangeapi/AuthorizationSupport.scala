@@ -241,7 +241,7 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
     AuthCache.users.get(username) match {
       // case Some(userTok) => if (userTok.unhashed != "") Token.isValid(token, userTok.unhashed) else Token.isValid(token, userTok.hashed)
       case Some(userTok) => Token.isValid(token, userTok.hashed)
-      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials x8"))
+      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
     }
   }
 
@@ -296,9 +296,9 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
             val R2 = """^(.+):(.+)\s?$""".r      // decode() seems to add a newline at the end
             basicAuthStr2 match {
               case R2(id,tok) => /*logger.trace("id="+id+",tok="+tok+".");*/ Creds(id,tok)
-              case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials format, either it is missing ':' or is bad encoded format: "+basicAuthStr))
+              case _ => throw new InvalidCredentialsException("invalid credentials format, either it is missing ':' or is bad encoded format: "+basicAuthStr)
             }
-          case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "if the Authorization field in the header is specified, only Basic auth is currently supported"))
+          case _ => throw new InvalidCredentialsException("if the Authorization field in the header is specified, only Basic auth is currently supported")
         }
       // Not in the header, look in the url query string. Parameters() gives you the params after "?". Params() gives you the routes variables (if they have same name)
       case None => (params.get("orgid"), request.parameters.get("id").orElse(params.get("id")), request.parameters.get("token")) match {
@@ -309,7 +309,7 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
           case (Some(org), Some(user), Some(pw)) => Creds(OrgAndIdCred(org,user).toString,pw)
           case (None, Some(user), Some(pw)) => Creds(OrgAndIdCred("",user).toString,pw)   // this is when they are querying /orgs so there is not org
           case _ => if (anonymousOk) Creds("","")
-          else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "no credentials given"))
+          else throw new InvalidCredentialsException("no credentials given")
         }
       }
     }
@@ -377,7 +377,6 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
       logger.trace("back from AuthCache.users.isValid(creds) false")
       if (AuthCache.nodes.isValid(creds)) return toINode
       if (AuthCache.agbots.isValid(creds)) return toIAgbot
-      //halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials x3"))
       throw new InvalidCredentialsException()   // will be caught by AuthenticationSupport.authenticate() and the proper halt() done
     }
 
@@ -415,7 +414,7 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
   case class IFrontEnd(creds: Creds) extends Identity {
     override def authenticate(hint: String) = {
       if (ExchConfig.config.getString("api.root.frontEndHeader") == creds.id) this    // let everything thru
-      else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials x7"))
+      else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
     }
     def authorizeTo(target: Target, access: Access): Authorization = {
       if (ExchConfig.config.getString("api.root.frontEndHeader") == creds.id) FrontendAuth    // let everything thru

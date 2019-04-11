@@ -23,6 +23,41 @@ import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 
+/** HTTP codes, taken from https://en.wikipedia.org/wiki/List_of_HTTP_status_codes and https://www.restapitutorial.com/httpstatuscodes.html */
+object HttpCode {
+  val OK = 200
+  val PUT_OK = 201
+  val POST_OK = 201
+  val DELETED = 204     // technically means no content, but usually used for DELETE
+  val BAD_INPUT = 400     // invalid user input, usually in the params or json body
+  val BADCREDS = 401    // user/pw or id/token is wrong (they call it unauthorized, but it is really unauthenticated)
+  val ACCESS_DENIED = 403   // do not have authorization to access this resource
+  val ALREADY_EXISTS = 403   // trying to create a resource that already exists. For now using 403 (forbidden), but could also use 409 (conflict)
+  val ALREADY_EXISTS2 = 409   // trying to create a resource that already exists (409 means conflict)
+  val NOT_FOUND = 404   // resource not found
+  val INTERNAL_ERROR = 500
+  val NOT_IMPLEMENTED = 501
+  val GW_TIMEOUT = 504   // gateway timeout, which for us means db timeout
+}
+
+/** These are used as the response structure for most PUTs, POSTs, and DELETEs. */
+case class ApiResponse(code: String, msg: String)
+object ApiResponseType {
+  val BADCREDS = "invalid-credentials"
+  val ACCESS_DENIED = "access-denied"
+  val ALREADY_EXISTS = "already-exists"
+  val BAD_INPUT = "invalid-input"
+  val NOT_FOUND = "not-found"
+  val INTERNAL_ERROR = "internal_error"
+  val NOT_IMPLEMENTED = "not-implemented"
+  val GW_TIMEOUT = "database-timeout"
+  val ERROR = "error"
+  val WARNING = "warning"
+  val INFO = "info"
+  val OK = "ok"
+  val TOO_BUSY = "too busy"
+}
+
 /** Global config parameters for the exchange. See typesafe config classes: http://typesafehub.github.io/config/latest/api/ */
 object ExchConfig {
   val configResourceName = "config.json"
@@ -121,39 +156,6 @@ object ExchConfig {
 
 object StrConstants {
   val hiddenPw = "********"
-}
-
-/** HTTP codes, taken from https://en.wikipedia.org/wiki/List_of_HTTP_status_codes and https://www.restapitutorial.com/httpstatuscodes.html */
-object HttpCode {
-  val OK = 200
-  val PUT_OK = 201
-  val POST_OK = 201
-  val DELETED = 204     // technically means no content, but usually used for DELETE
-  val BAD_INPUT = 400     // invalid user input, usually in the params or json body
-  val BADCREDS = 401    // user/pw or id/token is wrong (they call it unauthorized, but it is really unauthenticated)
-  val ACCESS_DENIED = 403   // do not have authorization to access this resource
-  val ALREADY_EXISTS = 403   // trying to create a resource that already exists. For now using 403 (forbidden), but could also use 409 (conflict)
-  val ALREADY_EXISTS2 = 409   // trying to create a resource that already exists (409 means conflict)
-  val NOT_FOUND = 404   // resource not found
-  val INTERNAL_ERROR = 500
-  val NOT_IMPLEMENTED = 501
-}
-
-/** These are used as the response structure for most PUTs, POSTs, and DELETEs. */
-case class ApiResponse(code: String, msg: String)
-object ApiResponseType {
-  val BADCREDS = "invalid-credentials"
-  val ACCESS_DENIED = "access-denied"
-  val ALREADY_EXISTS = "already-exists"
-  val BAD_INPUT = "invalid-input"
-  val NOT_FOUND = "not-found"
-  val INTERNAL_ERROR = "internal_error"
-  val NOT_IMPLEMENTED = "not-implemented"
-  val ERROR = "error"
-  val WARNING = "warning"
-  val INFO = "info"
-  val OK = "ok"
-  val TOO_BUSY = "too busy"
 }
 
 /** Convenience methods for setting and comparing lastUpdated and lastHeartbeat attributes */

@@ -1,18 +1,19 @@
 package exchangeapi
 
+/*
 import java.time._
-
 import com.horizon.exchangeapi._
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
+import scalaj.http._
+import scala.collection.immutable._
+*/
 import org.junit.runner.RunWith
 import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
-import scalaj.http._
 
-import scala.collection.immutable._
 
 /**
  * Tests for the /resources routes. To run
@@ -25,6 +26,7 @@ import scala.collection.immutable._
 @RunWith(classOf[JUnitRunner])
 class ResourcesSuite extends FunSuite {
 
+  /* We do not currently support Resources...
   val localUrlRoot = "http://localhost:8080"
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
   val runningLocally = (urlRoot == localUrlRoot)
@@ -75,7 +77,6 @@ class ResourcesSuite extends FunSuite {
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
-  /** Delete all the test users */
   def deleteAllUsers() = {
     for (i <- List(user,user2)) {
       val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
@@ -84,7 +85,6 @@ class ResourcesSuite extends FunSuite {
     }
   }
 
-  /** Create an org to use for this test */
   test("POST /orgs/"+orgid+" - create org") {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
@@ -97,13 +97,11 @@ class ResourcesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
   }
 
-  /** Delete all the test users, in case they exist from a previous run. Do not need to delete the resources, because they are deleted when the user is deleted. */
   test("Begin - DELETE all test users") {
     if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
     deleteAllUsers()
   }
 
-  /** Add users, node, agbot, resources for future tests */
   test("Add users, resource for future tests") {
     var userInput = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -522,17 +520,16 @@ class ResourcesSuite extends FunSuite {
     //assert(getResourceResp.resources.size === 0)
   }
 
-  /** Clean up, delete all the test resources */
   test("Cleanup - DELETE all test resources") {
     deleteAllUsers()
   }
 
-  /** Delete the org we used for this test */
   test("POST /orgs/"+orgid+" - delete org") {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }
+  */
 
 }

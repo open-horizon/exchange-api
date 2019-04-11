@@ -86,6 +86,10 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - Build the exchange api container and run it locally: `make .docker-exec-run`
 - Manually test container locally: `curl -sS -w %{http_code} http://localhost:8080/v1/admin/version`
     - Note: the container can not access a postgres db running locally on the docker host if the db is only listening for unix domain sockets or 127.0.0.1.
+- Manually test the local container via https:
+    - If you haven't already, set EXCHANGE_KEY_PW and run `make gen-key`
+    - Add `edge-fab-exchange` as an alias for `localhost` in `/etc/hosts`
+    - src/test/bash/https.sh get services
 - Run the automated tests: `sbt test`
 - Push container to the docker hub registry: `make docker-push-only`
 - Deploy the new container to a docker host
@@ -117,6 +121,11 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 1.76.0
+
+- Do not show keystore encoded password in log
+- Do not return "invalid creds" when can't reach db
 
 ## Changes in 1.75.0
 

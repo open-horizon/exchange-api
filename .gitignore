@@ -6,7 +6,7 @@ target/
 # Create by Makefile to hold build timestamps
 /.docker-*
 
-/keys
+/keys/
 
 # IntelliJ IDEA
 .idea/

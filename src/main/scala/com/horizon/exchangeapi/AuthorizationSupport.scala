@@ -2,6 +2,8 @@ package com.horizon.exchangeapi
 
 import java.util.Base64
 
+import com.horizon.exchangeapi.auth.InvalidCredentialsException
+
 //import com.horizon.exchangeapi.auth.{AuthErrors, ExchCallbackHandler, PermissionCheck}
 import com.horizon.exchangeapi.auth.PermissionCheck
 //import com.horizon.exchangeapi.tables._
@@ -294,9 +296,9 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
             val R2 = """^(.+):(.+)\s?$""".r      // decode() seems to add a newline at the end
             basicAuthStr2 match {
               case R2(id,tok) => /*logger.trace("id="+id+",tok="+tok+".");*/ Creds(id,tok)
-              case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials format, either it is missing ':' or is bad encoded format: "+basicAuthStr))
+              case _ => throw new InvalidCredentialsException("invalid credentials format, either it is missing ':' or is bad encoded format: "+basicAuthStr)
             }
-          case _ => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "if the Authorization field in the header is specified, only Basic auth is currently supported"))
+          case _ => throw new InvalidCredentialsException("if the Authorization field in the header is specified, only Basic auth is currently supported")
         }
       // Not in the header, look in the url query string. Parameters() gives you the params after "?". Params() gives you the routes variables (if they have same name)
       case None => (params.get("orgid"), request.parameters.get("id").orElse(params.get("id")), request.parameters.get("token")) match {
@@ -307,7 +309,7 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
           case (Some(org), Some(user), Some(pw)) => Creds(OrgAndIdCred(org,user).toString,pw)
           case (None, Some(user), Some(pw)) => Creds(OrgAndIdCred("",user).toString,pw)   // this is when they are querying /orgs so there is not org
           case _ => if (anonymousOk) Creds("","")
-          else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "no credentials given"))
+          else throw new InvalidCredentialsException("no credentials given")
         }
       }
     }
@@ -360,18 +362,22 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
     var hasFrontEndAuthority = false   // true if this identity was already vetted by the front end
     def isMultiTenantAgbot: Boolean = return false
 
+    // Called by auth/Module.login() to authenticate a local user/node/agbot
     def authenticate(hint: String = ""): Identity = {
       if (hasFrontEndAuthority) return this       // it is already a specific subclass
       if (creds.isAnonymous) return toIAnonymous
       if (hint == "token") {
         if (isTokenValid(creds.token, creds.id)) return toIUser
-        else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+        else throw new InvalidCredentialsException("invalid token")
       }
       //for ((k, v) <- AuthCache.users.things) { logger.debug("users cache entry: "+k+" "+v) }
-      if (AuthCache.users.isValid(creds)) return toIUser
+      //logger.trace("in Identity.authenticate() calling halt")
+      logger.trace("calling AuthCache.users.isValid(creds)")
+      if (AuthCache.users.isValid(creds)) {logger.trace("back from AuthCache.users.isValid(creds) true"); return toIUser }
+      logger.trace("back from AuthCache.users.isValid(creds) false")
       if (AuthCache.nodes.isValid(creds)) return toINode
       if (AuthCache.agbots.isValid(creds)) return toIAgbot
-      halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, "invalid credentials"))
+      throw new InvalidCredentialsException()   // will be caught by AuthenticationSupport.authenticate() and the proper halt() done
     }
 
     def authorizeTo(target: Target, access: Access): Authorization

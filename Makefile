@@ -14,7 +14,7 @@ image-string = $(DOCKER_REGISTRY)/$(ARCH)_exchange-api
 # Some of these vars are also used by the Dockerfiles
 JETTY_BASE_VERSION ?= 9.4
 # try to sync this version with the version of scala you have installed on your dev machine, and with what is specified in build.sbt
-SCALA_VERSION ?= 2.12.4
+SCALA_VERSION ?= 2.12.7
 SCALA_VERSION_SHORT ?= 2.12
 # this version corresponds to the Version variable in project/build.scala
 EXCHANGE_API_WAR_VERSION ?= 0.1.0
@@ -138,6 +138,7 @@ docker-push-to-prod:
 gen-key:
 	@if [[ -f "$(EXCHANGE_HOST_KEYSTORE_DIR)/keystore" ]]; then echo "Error: $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore already exists. If you really want to regenerate it, manually delete it first."; false; fi
 	: $${EXCHANGE_KEY_PW:?}
+	mkdir -p $(EXCHANGE_HOST_KEYSTORE_DIR)
 	@echo "Generating exchange keystore and public certificate for https..."
 	# the arg -ext san=dns:<hostname>,ip:<ip> specify additional hostnames/IPs this cert should apply to
 	keytool -genkey -noprompt -alias $(EXCHANGE_HOST_ALIAS) -keyalg RSA -sigalg SHA256withRSA -dname "CN=$(EXCHANGE_HOST_ALIAS), OU=Edge, O=IBM, L=Unknown, S=Unknown, C=US" -keystore $(EXCHANGE_HOST_KEYSTORE_DIR)/keystore -storetype pkcs12 -storepass '$(value EXCHANGE_KEY_PW)' -keypass '$(value EXCHANGE_KEY_PW)' -validity 3650

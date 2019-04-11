@@ -86,6 +86,10 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - Build the exchange api container and run it locally: `make .docker-exec-run`
 - Manually test container locally: `curl -sS -w %{http_code} http://localhost:8080/v1/admin/version`
     - Note: the container can not access a postgres db running locally on the docker host if the db is only listening for unix domain sockets or 127.0.0.1.
+- Manually test the local container via https:
+    - If you haven't already, set EXCHANGE_KEY_PW and run `make gen-key`
+    - Add `edge-fab-exchange` as an alias for `localhost` in `/etc/hosts`
+    - src/test/bash/https.sh get services
 - Run the automated tests: `sbt test`
 - Push container to the docker hub registry: `make docker-push-only`
 - Deploy the new container to a docker host

@@ -186,6 +186,38 @@ object NodeStatusTQ {
 case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], lastUpdated: String)
 
 
+//todo: annotate propType so its json field is type
+case class OneNodeProperty(name: String, `type`: Option[String], value: Any)
+
+case class NodePolicyRow(nodeId: String, properties: String, constraints: String, lastUpdated: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  def toNodePolicy: NodePolicy = {
+    val prop = if (properties != "") read[List[OneNodeProperty]](properties) else List[OneNodeProperty]()
+    val con = if (constraints != "") read[List[String]](constraints) else List[String]()
+    return NodePolicy(prop, con, lastUpdated)
+  }
+
+  def upsert: DBIO[_] = NodePolicyTQ.rows.insertOrUpdate(this)
+}
+
+class NodePolicies(tag: Tag) extends Table[NodePolicyRow](tag, "nodepolicies") {
+  def nodeId = column[String]("nodeid", O.PrimaryKey)
+  def properties = column[String]("properties")
+  def constraints = column[String]("constraints")
+  def lastUpdated = column[String]("lastUpdated")
+  def * = (nodeId, properties, constraints, lastUpdated) <> (NodePolicyRow.tupled, NodePolicyRow.unapply)
+  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+}
+
+object NodePolicyTQ {
+  val rows = TableQuery[NodePolicies]
+  def getNodePolicy(nodeId: String) = rows.filter(_.nodeId === nodeId)
+}
+
+case class NodePolicy(properties: List[OneNodeProperty], constraints: List[String], lastUpdated: String)
+
+
 case class NAService(orgid: String, url: String)
 case class NAgrService(orgid: String, pattern: String, url: String)
 

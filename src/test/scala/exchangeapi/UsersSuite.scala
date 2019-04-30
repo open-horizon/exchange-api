@@ -742,7 +742,7 @@ class UsersSuite extends FunSuite {
       response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
       info("code: "+response.code)
       assert(response.code === HttpCode.BADCREDS)
-      errorMsg = s"IAM authentication succeeded, but no matching org with a cloud account id was found for $orgid"
+      errorMsg = s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for $orgid"
       assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
 
       /* remove ibmcloud_id from org - do not need to do this, because we delete both orgs at the end

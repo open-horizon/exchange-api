@@ -31,7 +31,7 @@ case class IamAccount(bss: String)
 
 // These error msgs are matched by UsersSuite.scala, so change them there if you change them here
 case class OrgNotFound(authInfo: IamAuthCredentials)
-  extends UserFacingError(s"IAM authentication succeeded, but no matching org with a cloud account id was found for ${authInfo.org}")
+  extends UserFacingError(s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for ${authInfo.org}")
 case class IncorrectOrgFound(orgAcctId: String, userInfo: IamUserInfo)
   extends UserFacingError(s"IAM authentication succeeded, but the cloud account id of the org ($orgAcctId) does not match that of the cloud account credentials (${userInfo.accountId})")
 
@@ -204,7 +204,7 @@ object IbmCloudAuth {
       //associatedOrgId <- fetchOrg(userInfo) // can no longer use this, because the account id it uses to find the org is not necessarily unique...
       //orgId <- verifyOrg(authInfo, userInfo, associatedOrgId)
       orgAcctId <- fetchOrg(authInfo.org)
-      orgId <- verifyOrg(authInfo, userInfo, orgAcctId)   // verify cloud acct id of the apikey and the org entry match
+      orgId <- verifyOrg(authInfo, userInfo, orgAcctId.flatten) // verify cloud acct id of the apikey and the org entry match
       userRow <- fetchUser(orgId, userInfo)
       userAction <- {
         if (userRow.isEmpty) createUser(orgId, userInfo)
@@ -224,17 +224,20 @@ object IbmCloudAuth {
 
   // Get the associated ibm cloud id of the org that the client requested in the exchange api
   private def fetchOrg(org: String) = {
+    logger.trace("Fetching org: "+org)
     OrgsTQ.getOrgid(org)
       .map(_.tags.+>>("ibmcloud_id"))
-      .take(1)
+      //.take(1)  // not sure what the purpose of this was
       .result
-      .head
+      .headOption
   }
 
   // Verify that the cloud acct id of the cloud api key and the exchange org entry match
+  // authInfo is the creds they passed in, userInfo is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db
   private def verifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, orgAcctId: Option[String]) = {
+    logger.trace("Verifying org: "+authInfo+", "+userInfo+", "+orgAcctId)
     if (orgAcctId.isEmpty) {
-      logger.error(s"IAM authentication succeeded, but no matching org with a cloud account id was found for ${authInfo.org}")
+      logger.error(s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for ${authInfo.org}")
       DBIO.failed(OrgNotFound(authInfo))
     } else if (authInfo.keyType == "iamtoken" && userInfo.accountId == "") {
       // This is the case with tokens from the edge mgmt ui, and this is ok
@@ -248,14 +251,16 @@ object IbmCloudAuth {
   }
 
   private def fetchUser(org: String, info: IamUserInfo) = {
+    logger.trace("Fetching user: org="+org+", "+IamUserInfo)
     UsersTQ.rows
       .filter(u => u.orgid === org && u.username === s"$org/${info.email}")
-      .take(1)
+      //.take(1)  // not sure what the purpose of this was
       .result
       .headOption
   }
 
   private def createUser(org: String, info: IamUserInfo) = {
+    logger.trace("Creating user: org="+org+", "+IamUserInfo)
     val user = UserRow(
       s"$org/${info.email}",
       org,

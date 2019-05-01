@@ -700,7 +700,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  /* ====== GET /orgs/{orgid}/services/{id}/policy ================================ */
+  /* ====== GET /orgs/{orgid}/services/{service}/policy ================================ */
   val getServicePolicy =
     (apiOperation[ServicePolicy]("getServicePolicy")
       summary("Returns the service policy")
@@ -713,14 +713,14 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
-  get("/orgs/:orgid/services/:id/policy", operation(getServicePolicy)) ({
+  get("/orgs/:orgid/services/:service/policy", operation(getServicePolicy)) ({
     val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TService(id),Access.READ)
+    val bareService = params("service")
+    val service = OrgAndId(orgid,bareService).toString
+    authenticate().authorizeTo(TService(service),Access.READ)
     val resp = response
-    db.run(ServicePolicyTQ.getServicePolicy(id).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/services/"+bareId+"/policy result size: "+list.size)
+    db.run(ServicePolicyTQ.getServicePolicy(service).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/services/"+bareService+"/policy result size: "+list.size)
       if (list.nonEmpty) {
         resp.setStatus(HttpCode.OK)
         list.head.toServicePolicy
@@ -729,7 +729,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     })
   })
 
-  // =========== PUT /orgs/{orgid}/services/{id}/policy ===============================
+  // =========== PUT /orgs/{orgid}/services/{service}/policy ===============================
   val putServicePolicy =
     (apiOperation[ApiResponse]("putServicePolicy")
       summary "Adds/updates the service policy"
@@ -761,32 +761,32 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       )
   val putServicePolicy2 = (apiOperation[PutServicePolicyRequest]("putServicePolicy2") summary("a") description("a"))  // for some bizarre reason, the PutServicePolicyRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
-  put("/orgs/:orgid/services/:id/policy", operation(putServicePolicy)) ({
+  put("/orgs/:orgid/services/:service/policy", operation(putServicePolicy)) ({
     val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TService(id),Access.WRITE)
+    val bareService = params("service")
+    val service = OrgAndId(orgid,bareService).toString
+    authenticate().authorizeTo(TService(service),Access.WRITE)
     val policy = try { parse(request.body).extract[PutServicePolicyRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     policy.validate()
     val resp = response
-    db.run(policy.toServicePolicyRow(id).upsert.asTry).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/services/"+bareId+"/policy result: "+xs.toString)
+    db.run(policy.toServicePolicyRow(service).upsert.asTry).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/services/"+bareService+"/policy result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, "policy added or updated")
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "policy for service '"+id+"' not inserted or updated: "+t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "policy for service '"+service+"' not inserted or updated: "+t.getMessage)
         } else {
           resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "policy for service '"+id+"' not inserted or updated: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "policy for service '"+service+"' not inserted or updated: "+t.toString)
         }
       }
     })
   })
 
-  // =========== DELETE /orgs/{orgid}/services/{id}/policy ===============================
+  // =========== DELETE /orgs/{orgid}/services/{service}/policy ===============================
   val deleteServicePolicy =
     (apiOperation[ApiResponse]("deleteServicePolicy")
       summary "Deletes the policy of a service"
@@ -799,24 +799,24 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
-  delete("/orgs/:orgid/services/:id/policy", operation(deleteServicePolicy)) ({
+  delete("/orgs/:orgid/services/:service/policy", operation(deleteServicePolicy)) ({
     val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TService(id),Access.WRITE)
+    val bareService = params("service")
+    val service = OrgAndId(orgid,bareService).toString
+    authenticate().authorizeTo(TService(service),Access.WRITE)
     val resp = response
-    db.run(ServicePolicyTQ.getServicePolicy(id).delete.asTry).map({ xs =>
-      logger.debug("DELETE /orgs/"+orgid+"/services/"+bareId+"/policy result: "+xs.toString)
+    db.run(ServicePolicyTQ.getServicePolicy(service).delete.asTry).map({ xs =>
+      logger.debug("DELETE /orgs/"+orgid+"/services/"+bareService+"/policy result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
           ApiResponse(ApiResponseType.OK, "service policy deleted")
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "policy for service '"+id+"' not found")
+          ApiResponse(ApiResponseType.NOT_FOUND, "policy for service '"+service+"' not found")
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "policy for service '"+id+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "policy for service '"+service+"' not deleted: "+t.toString)
       }
     })
   })

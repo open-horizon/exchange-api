@@ -6,7 +6,15 @@ ARCH ?= amd64
 DOCKER_NAME ?= exchange-api
 VERSION = $(shell cat src/main/resources/version.txt)
 DOCKER_NETWORK=exchange-api-network
-DOCKER_TAG ?= $(VERSION)
+#todo: when the travis test is working again, get this value from the target git branch
+TARGET_BRANCH ?=
+ifneq ($(TARGET_BRANCH),)
+  BRANCH = -$(TARGET_BRANCH)
+else
+  BRANCH =
+endif
+DOCKER_TAG ?= $(VERSION)$(BRANCH)
+DOCKER_LATEST ?= latest$(BRANCH)
 DOCKER_OPTS ?= --no-cache
 COMPILE_CLEAN ?= clean
 image-string = $(DOCKER_REGISTRY)/$(ARCH)_exchange-api
@@ -48,7 +56,7 @@ clean: clean-exec-image
 
 clean-exec-image:
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
-	- docker rmi $(image-string):{$(DOCKER_TAG),latest} 2> /dev/null || :
+	- docker rmi $(image-string):{$(DOCKER_TAG),$(DOCKER_LATEST)} 2> /dev/null || :
 	rm -f .docker-exec .docker-exec-run
 
 # Also remove the bld image/container
@@ -116,8 +124,8 @@ test: .docker-bld
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:
 	docker push $(image-string):$(DOCKER_TAG)
-	docker tag $(image-string):$(DOCKER_TAG) $(image-string):latest
-	docker push $(image-string):latest
+	docker tag $(image-string):$(DOCKER_TAG) $(image-string):$(DOCKER_LATEST)
+	docker push $(image-string):$(DOCKER_LATEST)
 
 # Push the image with the explicit version tag (so someone else can test it), but do not push the 'latest' tag so it does not get deployed to stg yet
 docker-push-version-only:
@@ -166,7 +174,9 @@ sync-swagger-ui:
 	#sed -i '' 's/\(new SwaggerUi({\) *$$/\1 validatorUrl: null,/' src/main/webapp/swagger-index.html   # this is the only way to set validatorUrl to null in swagger
 
 testmake:
-	docker run --rm -t jetty:9.4 /bin/bash -c 'java -cp $$JETTY_HOME/lib/jetty-util-$$JETTY_VERSION.jar org.eclipse.jetty.util.security.Password '\''$(value EXCHANGE_KEY_PW)'\''' | grep -E '^OBF:' | tr -d '\n' > $(EXCHANGE_HOST_KEYSTORE_DIR)/keypassword
+	@echo "BRANCH=$(BRANCH)"
+	@echo "DOCKER_TAG=$(DOCKER_TAG)"
+	@echo "DOCKER_LATEST=$(DOCKER_LATEST)"
 
 version:
 	@echo $(VERSION)

@@ -138,6 +138,18 @@ e2edev <exchange-version>
     - Ensure that no changes are needed to the /etc/horizon/exchange/config.json file
 - Sniff test the new container : `curl -sS -w %{http_code} https://<exchange-host>/v1/admin/version`
 
+## Building the Container for a Branch
+
+To build an exchange container with code that is targeted for a git branch:
+- Create a development git branch A (that when tested you will merge to branch B). Where A and B can be any branch names.
+- Locally test the branch A exchange via sbt
+- When all tests pass, build the container: `rm -f .docker-compile && make .docker-exec-run TARGET_BRANCH=B`
+- The above command will create a container tagged like: 1.2.3-B
+- Test the exchange container
+- When all tests pass, push it to docker hub: `make docker-push-only TARGET_BRANCH=B`
+- The above command will push the container tagged like 1.2.3-B and latest-B
+- Create a PR to merge your dev branch A to canonical branch B
+
 ### Todos that may be done in future versions
 
 - Granular (per org) service ACL support:
@@ -160,6 +172,10 @@ e2edev <exchange-version>
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 1.78.0 - not done yet
+
+- Add Makefile and README support for building docker images for a branch
 
 ## Changes in 1.77.0
 

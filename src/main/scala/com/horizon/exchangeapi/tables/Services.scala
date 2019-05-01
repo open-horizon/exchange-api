@@ -123,6 +123,38 @@ object ServicesTQ {
 }
 
 
+// Policy is a sub-resource of service
+case class OneServiceProperty(name: String, `type`: Option[String], value: Any)
+
+case class ServicePolicyRow(serviceId: String, properties: String, constraints: String, lastUpdated: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  def toServicePolicy: ServicePolicy = {
+    val prop = if (properties != "") read[List[OneServiceProperty]](properties) else List[OneServiceProperty]()
+    val con = if (constraints != "") read[List[String]](constraints) else List[String]()
+    return ServicePolicy(prop, con, lastUpdated)
+  }
+
+  def upsert: DBIO[_] = ServicePolicyTQ.rows.insertOrUpdate(this)
+}
+
+class ServicePolicies(tag: Tag) extends Table[ServicePolicyRow](tag, "servicepolicies") {
+  def serviceId = column[String]("serviceid", O.PrimaryKey)    // the content of this is orgid/service
+  def properties = column[String]("properties")
+  def constraints = column[String]("constraints")
+  def lastUpdated = column[String]("lastUpdated")
+  def * = (serviceId, properties, constraints, lastUpdated) <> (ServicePolicyRow.tupled, ServicePolicyRow.unapply)
+  def service = foreignKey("service_fk", serviceId, ServicesTQ.rows)(_.service, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+}
+
+object ServicePolicyTQ {
+  val rows = TableQuery[ServicePolicies]
+  def getServicePolicy(serviceId: String) = rows.filter(_.serviceId === serviceId)
+}
+
+case class ServicePolicy(properties: List[OneServiceProperty], constraints: List[String], lastUpdated: String)
+
+
 // Key is a sub-resource of service
 case class ServiceKeyRow(keyId: String, serviceId: String, key: String, lastUpdated: String) {
   def toServiceKey = ServiceKey(key, lastUpdated)

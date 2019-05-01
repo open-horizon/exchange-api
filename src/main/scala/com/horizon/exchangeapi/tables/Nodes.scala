@@ -154,6 +154,7 @@ class Node(var token: String, var name: String, var owner: String, var pattern: 
 }
 
 
+// Status is a sub-resource of node
 case class ContainerStatus(name: String, image: String, created: Int, state: String)
 case class OneService(agreementId: String, serviceUrl: String, orgid: String, version: String, arch: String, containerStatus: List[ContainerStatus])
 
@@ -186,6 +187,39 @@ object NodeStatusTQ {
 case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], lastUpdated: String)
 
 
+// Policy is a sub-resource of node
+case class OneNodeProperty(name: String, `type`: Option[String], value: Any)
+
+case class NodePolicyRow(nodeId: String, properties: String, constraints: String, lastUpdated: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  def toNodePolicy: NodePolicy = {
+    val prop = if (properties != "") read[List[OneNodeProperty]](properties) else List[OneNodeProperty]()
+    val con = if (constraints != "") read[List[String]](constraints) else List[String]()
+    return NodePolicy(prop, con, lastUpdated)
+  }
+
+  def upsert: DBIO[_] = NodePolicyTQ.rows.insertOrUpdate(this)
+}
+
+class NodePolicies(tag: Tag) extends Table[NodePolicyRow](tag, "nodepolicies") {
+  def nodeId = column[String]("nodeid", O.PrimaryKey)
+  def properties = column[String]("properties")
+  def constraints = column[String]("constraints")
+  def lastUpdated = column[String]("lastUpdated")
+  def * = (nodeId, properties, constraints, lastUpdated) <> (NodePolicyRow.tupled, NodePolicyRow.unapply)
+  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+}
+
+object NodePolicyTQ {
+  val rows = TableQuery[NodePolicies]
+  def getNodePolicy(nodeId: String) = rows.filter(_.nodeId === nodeId)
+}
+
+case class NodePolicy(properties: List[OneNodeProperty], constraints: List[String], lastUpdated: String)
+
+
+// Agreement is a sub-resource of node
 case class NAService(orgid: String, url: String)
 case class NAgrService(orgid: String, pattern: String, url: String)
 

@@ -537,6 +537,36 @@ class ServicesSuite extends FunSuite {
 
   // the test to try to get an IBM service that doesnt exist is at the end when we are cleaning up
 
+  //~~~~~ Service policy ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  test("PUT /orgs/"+orgid+"/services/"+service+"/policy - as user") {
+    val input = PutServicePolicyRequest(Some(List(OneServiceProperty("purpose",None,"location"))), Some(List("a == b")))
+    val response = Http(URL+"/services/"+service+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/services/"+service+"/policy - as node") {
+    val response = Http(URL+"/services/"+service+"/policy").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getResp = parse(response.body).extract[ServicePolicy]
+    assert(getResp.properties.size === 1)
+    assert(getResp.properties.head.name === "purpose")
+  }
+
+  test("DELETE /orgs/"+orgid+"/services/"+service+"/policy - as user") {
+    val response = Http(URL+"/services/"+service+"/policy").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("GET /orgs/"+orgid+"/services/"+service+"/policy - as node - should not be there") {
+    val response = Http(URL+"/services/"+service+"/policy").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
 
   // Key tests ==============================================
   test("GET /orgs/"+orgid+"/services/"+service+"/keys - no keys have been created yet - should fail") {

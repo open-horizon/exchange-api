@@ -1013,6 +1013,36 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
+  //~~~~~ Node policy ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node") {
+    val input = PutNodePolicyRequest(Some(List(OneNodeProperty("purpose",None,"testing"))), Some(List("a == b")))
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node") {
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getResp = parse(response.body).extract[NodePolicy]
+    assert(getResp.properties.size === 1)
+    assert(getResp.properties.head.name === "purpose")
+  }
+
+  test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node") {
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node - should not be there") {
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
   //~~~~~ Node agreements, and more searches and nodehealth ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - create agreement, as node") {

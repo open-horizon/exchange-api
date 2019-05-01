@@ -63,6 +63,13 @@ make gen-key
 - Or to have the server restart automatically when code changes: `~;jetty:stop;jetty:start`
 - Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/admin/version](http://localhost:8080/v1/admin/version)
 - To see the swagger output, browse: [http://localhost:8080/api](http://localhost:8080/api)
+- A convenience script `src/test/bash/primedb.sh` can be run to prime the DB with some exchange resources to use in manually testing:
+```
+export EXCHANGE_USER=<my-user-in-IBM-org>
+export EXCHANGE_PW=<my-pw-in-IBM-org>
+src/test/bash/primedb.sh
+```
+- `primedb.sh` will only create what doesn't already exist, so it can be run again to restore some resources you have deleted.
 
 ## Running the Automated Tests in Local Sandbox
 
@@ -91,13 +98,45 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - Add `edge-fab-exchange` as an alias for `localhost` in `/etc/hosts`
     - src/test/bash/https.sh get services
 - Run the automated tests: `sbt test`
-- Push container to the docker hub registry: `make docker-push-only`
-- Deploy the new container to a docker host
-    - Ensure that no changes are needed to the /etc/horizon/exchange/config.json file
-- Test the new container : `curl -sS -w %{http_code} https://<exchange-host>/v1/admin/version`
-- To see the swagger info from the container: `https://<exchange-host-and-port>/api`
+- Check the swagger info from the container: `http://localhost:8080/api`
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or might also go to `/var/log/syslog` depending on the docker and syslog configuration.
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
+
+## Test the Exchange with Anax
+
+- Just the first time: on an ubuntu machine, clone the anax repo and define this bash function:
+```
+mkdir -p ~/src/github.com/open-horizon && cd ~/src/github.com/open-horizon && git clone git@github.com:open-horizon/anax.git
+# See: https://github.com/open-horizon/anax/blob/master/test/README.md
+e2edev () {
+	if [[ -z "$1" ]]; then
+		echo "Usage: e2edev <exchange-version>"
+		return
+	fi
+	set -e
+	systemctl stop horizon.service   # this is only needed if you normally use this machine as a horizon edge node
+	cd ~/src/github.com/open-horizon/anax
+	git pull
+	make clean
+	make
+	cd test
+	make
+	make test TEST_VARS="NOLOOP=1 TEST_PATTERNS=sall" DOCKER_EXCH_TAG=$1
+	echo 'Now run: make realclean && systemctl start horizon.service'
+	set +e
+}
+```
+- Now run the test (this will take about 10 minutes):
+```
+e2edev <exchange-version>
+```
+
+## Deploying the Container to Staging or Production
+
+- Push container to the docker hub registry: `make docker-push-only`
+- Deploy the new container to the staging or production docker host
+    - Ensure that no changes are needed to the /etc/horizon/exchange/config.json file
+- Sniff test the new container : `curl -sS -w %{http_code} https://<exchange-host>/v1/admin/version`
 
 ### Todos that may be done in future versions
 
@@ -121,6 +160,13 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 1.77.0
+
+- Fix swagger doc for node id
+- Fixed bug: when org doesn't exist error msg is database-timeout
+- Added running primedb.sh to README.md
+- Add node and service policy resources
 
 ## Changes in 1.76.0
 

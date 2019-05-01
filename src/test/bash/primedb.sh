@@ -15,11 +15,7 @@ namebase=""
 
 # Test configuration. You can override these before invoking the script, if you want.
 EXCHANGE_URL_ROOT="${EXCHANGE_URL_ROOT:-http://localhost:8080}"
-if [[ "$HZN_ORG_ID" != "IBM" ]]; then
-    echo "Error: must have environment variables set to IBM org values"
-    exit 2
-fi
-EXCHANGE_ORG="$HZN_ORG_ID"
+EXCHANGE_ORG="IBM"
 EXCHANGE_USER="${EXCHANGE_USER:-me}"
 EXCHANGE_PW="${EXCHANGE_PW:-mypw}"
 EXCHANGE_EMAIL="${EXCHANGE_EMAIL:-me@email.com}"

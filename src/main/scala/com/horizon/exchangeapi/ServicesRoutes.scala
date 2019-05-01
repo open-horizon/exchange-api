@@ -100,6 +100,21 @@ case class PatchServiceRequest(label: Option[String], description: Option[String
 }
 
 
+case class PutServicePolicyRequest(properties: Option[List[OneServiceProperty]], constraints: Option[List[String]]) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+  def validate() = {
+    val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of string", "version")
+    for (p <- properties.getOrElse(List())) {
+      if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
+        halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "The 'properties.type' value '"+p.`type`.get+"' must be 1 of: "+validTypes.mkString(", ")))
+      }
+    }
+  }
+
+  def toServicePolicyRow(serviceId: String) = ServicePolicyRow(serviceId, write(properties), write(constraints), ApiTime.nowUTC)
+}
+
+
 /** Input format for PUT /orgs/{orgid}/services/{service}/keys/<key-id> */
 case class PutServiceKeyRequest(key: String) {
   def toServiceKey = ServiceKey(key, ApiTime.nowUTC)
@@ -685,6 +700,129 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+  /* ====== GET /orgs/{orgid}/services/{service}/policy ================================ */
+  val getServicePolicy =
+    (apiOperation[ServicePolicy]("getServicePolicy")
+      summary("Returns the service policy")
+      description("""Returns the service policy. Can be run by a user or the service.""")
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+    )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  get("/orgs/:orgid/services/:service/policy", operation(getServicePolicy)) ({
+    val orgid = params("orgid")
+    val bareService = params("service")
+    val service = OrgAndId(orgid,bareService).toString
+    authenticate().authorizeTo(TService(service),Access.READ)
+    val resp = response
+    db.run(ServicePolicyTQ.getServicePolicy(service).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/services/"+bareService+"/policy result size: "+list.size)
+      if (list.nonEmpty) {
+        resp.setStatus(HttpCode.OK)
+        list.head.toServicePolicy
+      }
+      else resp.setStatus(HttpCode.NOT_FOUND)
+    })
+  })
+
+  // =========== PUT /orgs/{orgid}/services/{service}/policy ===============================
+  val putServicePolicy =
+    (apiOperation[ApiResponse]("putServicePolicy")
+      summary "Adds/updates the service policy"
+      description """Adds or updates the policy of a service. This is called by the owning user. The **request body** structure:
+
+```
+{
+  "properties": [
+    {
+      "name": "mypurpose",
+      "value": "myservice-testing"
+      "type": "string"   // optional, the type of the 'value': string, int, float, boolean, list of string, version
+    }
+  ],
+  "constraints": [
+    "a == b"
+  ]
+}
+```"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PutServicePolicyRequest],
+        Option[String]("Policy object add or update. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+  val putServicePolicy2 = (apiOperation[PutServicePolicyRequest]("putServicePolicy2") summary("a") description("a"))  // for some bizarre reason, the PutServicePolicyRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  put("/orgs/:orgid/services/:service/policy", operation(putServicePolicy)) ({
+    val orgid = params("orgid")
+    val bareService = params("service")
+    val service = OrgAndId(orgid,bareService).toString
+    authenticate().authorizeTo(TService(service),Access.WRITE)
+    val policy = try { parse(request.body).extract[PutServicePolicyRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    policy.validate()
+    val resp = response
+    db.run(policy.toServicePolicyRow(service).upsert.asTry).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/services/"+bareService+"/policy result: "+xs.toString)
+      xs match {
+        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, "policy added or updated")
+        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "policy for service '"+service+"' not inserted or updated: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "policy for service '"+service+"' not inserted or updated: "+t.toString)
+        }
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/services/{service}/policy ===============================
+  val deleteServicePolicy =
+    (apiOperation[ApiResponse]("deleteServicePolicy")
+      summary "Deletes the policy of a service"
+      description "Deletes the policy of a service from the exchange DB. Can be run by the owning user."
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  delete("/orgs/:orgid/services/:service/policy", operation(deleteServicePolicy)) ({
+    val orgid = params("orgid")
+    val bareService = params("service")
+    val service = OrgAndId(orgid,bareService).toString
+    authenticate().authorizeTo(TService(service),Access.WRITE)
+    val resp = response
+    db.run(ServicePolicyTQ.getServicePolicy(service).delete.asTry).map({ xs =>
+      logger.debug("DELETE /orgs/"+orgid+"/services/"+bareService+"/policy result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "service policy deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "policy for service '"+service+"' not found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "policy for service '"+service+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
   /* ====== GET /orgs/{orgid}/services/{service}/keys ================================ */
   val getServiceKeys =
     (apiOperation[List[String]]("getServiceKeys")
@@ -724,8 +862,8 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
         Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
         Parameter("keyid", DataType.String, Option[String]("ID of the key."), paramType = ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
       )
       produces "text/plain"
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -886,8 +1024,8 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
       Parameter("service", DataType.String, Option[String]("Service id."), paramType=ParamType.Path),
       Parameter("dockauthid", DataType.String, Option[String]("ID of the dockauth."), paramType = ParamType.Path),
-      Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-      Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
     )
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )

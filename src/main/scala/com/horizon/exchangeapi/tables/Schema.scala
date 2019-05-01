@@ -105,11 +105,13 @@ object SchemaTQ {
       case 17 => DBIO.seq(   // version 1.72.0
         sqlu"alter table orgs add column orgtype character varying not null default ''"
       )
+      case 18 => DBIO.seq(NodePolicyTQ.rows.schema.create)    // v1.77.0
+      case 19 => DBIO.seq(ServicePolicyTQ.rows.schema.create)    // v1.77.0
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 17     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "add orgtype column to orgs table"
+  val latestSchemaVersion = 19     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "add servicepolicies table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

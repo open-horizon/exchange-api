@@ -154,6 +154,7 @@ class Node(var token: String, var name: String, var owner: String, var pattern: 
 }
 
 
+// Status is a sub-resource of node
 case class ContainerStatus(name: String, image: String, created: Int, state: String)
 case class OneService(agreementId: String, serviceUrl: String, orgid: String, version: String, arch: String, containerStatus: List[ContainerStatus])
 
@@ -186,7 +187,7 @@ object NodeStatusTQ {
 case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], lastUpdated: String)
 
 
-//todo: annotate propType so its json field is type
+// Policy is a sub-resource of node
 case class OneNodeProperty(name: String, `type`: Option[String], value: Any)
 
 case class NodePolicyRow(nodeId: String, properties: String, constraints: String, lastUpdated: String) {
@@ -218,6 +219,7 @@ object NodePolicyTQ {
 case class NodePolicy(properties: List[OneNodeProperty], constraints: List[String], lastUpdated: String)
 
 
+// Agreement is a sub-resource of node
 case class NAService(orgid: String, url: String)
 case class NAgrService(orgid: String, pattern: String, url: String)
 

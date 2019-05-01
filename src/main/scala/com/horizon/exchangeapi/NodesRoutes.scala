@@ -1171,7 +1171,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val getNodePolicy =
     (apiOperation[NodePolicy]("getNodePolicy")
       summary("Returns the node policy")
-      description("""Returns the node run time policy. Can be run by a user or the node.""")
+      description("""Returns the node policy. Can be run by a user or the node.""")
       parameters(
       Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
       Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node."), paramType=ParamType.Path),
@@ -1200,7 +1200,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val putNodePolicy =
     (apiOperation[ApiResponse]("putNodePolicy")
       summary "Adds/updates the node policy"
-      description """Adds or updates the run time policy of a node. This is called by the node or owning user. The **request body** structure:
+      description """Adds or updates the policy of a node. This is called by the node or owning user. The **request body** structure:
 
 ```
 {

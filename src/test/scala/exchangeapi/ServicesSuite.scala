@@ -540,7 +540,7 @@ class ServicesSuite extends FunSuite {
   //~~~~~ Service policy ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/services/"+service+"/policy - as user") {
-    val input = PutServicePolicyRequest(Some(List(OneServiceProperty("purpose",None,"location"))), Some(List("a == b")))
+    val input = PutServicePolicyRequest(Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b")))
     val response = Http(URL+"/services/"+service+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)

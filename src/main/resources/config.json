@@ -10,7 +10,8 @@
 			"maxMessagesInMailbox": 10000,	// maximum number of msgs currently in 1 node or agbot mailbox (the sending side is handled by rate limiting), 0 for unlimited
 			"maxResources": 1000,		// maximum number of resources 1 user is allowed to create, 0 for unlimited
 			"maxServices": 1000,		// maximum number of services 1 user is allowed to create, 0 for unlimited
-			"maxPatterns": 1000		// maximum number of patterns 1 user is allowed to create, 0 for unlimited
+			"maxPatterns": 1000,		// maximum number of patterns 1 user is allowed to create, 0 for unlimited
+			"maxBusinessPolicies": 5000		// maximum number of business policies 1 user is allowed to create, 0 for unlimited
 		},
 		"db": {
 			"driverClass": "org.postgresql.Driver",

@@ -56,6 +56,7 @@ object AuthCache extends Control with ServletApiImplicits {
         case "resources" => db.run(ResourcesTQ.rows.map(x => (x.resource, x.owner, x.public)).result).map({ list => this._initResources(list) })
         case "services" => db.run(ServicesTQ.rows.map(x => (x.service, x.owner, x.public)).result).map({ list => this._initServices(list) })
         case "patterns" => db.run(PatternsTQ.rows.map(x => (x.pattern, x.owner, x.public)).result).map({ list => this._initPatterns(list) })
+        case "business" => db.run(BusinessPoliciesTQ.rows.map(x => (x.businessPolicy, x.owner)).result).map({ list => this._initBusiness(list) })
       }
     }
 
@@ -98,6 +99,14 @@ object AuthCache extends Control with ServletApiImplicits {
       for ((pattern,owner,isPub) <- credList) {
         if (owner != "") _putOwner(pattern, owner)
         _putIsPublic(pattern, isPub)
+      }
+    }
+
+    /** Put owners of business policies in the cache */
+    def _initBusiness(credList: Seq[(String,String)]): Unit = {
+      for ((pattern,owner) <- credList) {
+        if (owner != "") _putOwner(pattern, owner)
+        _putIsPublic(pattern, isPub = false)    // business policies are never public
       }
     }
 
@@ -208,6 +217,7 @@ object AuthCache extends Control with ServletApiImplicits {
             case "resources" => ResourcesTQ.getOwner(id).result
             case "services" => ServicesTQ.getOwner(id).result
             case "patterns" => PatternsTQ.getOwner(id).result
+            case "business" => BusinessPoliciesTQ.getOwner(id).result
           }
           logger.trace("awaiting for DB query of local exchange owner for "+id+"...")
           val ownerVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
@@ -227,6 +237,7 @@ object AuthCache extends Control with ServletApiImplicits {
 
     /** Returns Some(isPub) from the cache for this id (but verifies with the db 1st), or None if does not exist */
     def getIsPublic(id: String): Option[Boolean] = {
+      if (whichTable == "business") return Some(false)    // business policies are never public
       // We are doing this only so we can fall back to the cache's last known owner if the db times out.
       try {
         // For the all the others, we are looking for the traditional owner
@@ -319,4 +330,5 @@ object AuthCache extends Control with ServletApiImplicits {
   val resources = new Cache("resources")
   val services = new Cache("services")
   val patterns = new Cache("patterns")
+  val business = new Cache("business")
 }

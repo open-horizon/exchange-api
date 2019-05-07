@@ -125,9 +125,9 @@ object AuthCache extends Control with ServletApiImplicits {
       }
       //todo: this db access should go at the beginning of every rest api db access, using flatmap to move on to the db access the rest api is really for
       val dbHashedTok: String = try {
-        logger.trace("awaiting for DB query of local exchange creds for "+id+"...")
+        //logger.trace("awaiting for DB query of local exchange creds for "+id+"...")
         val tokVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
-        logger.trace("...back from awaiting for DB query of local exchange creds for "+id+".")
+        //logger.trace("...back from awaiting for DB query of local exchange creds for "+id+".")
         if (tokVector.nonEmpty) tokVector.head else ""
       } catch {
         // Handle db problems
@@ -200,9 +200,9 @@ object AuthCache extends Control with ServletApiImplicits {
       // We are doing this only so we can fall back to the cache's last known owner if the db times out.
       try {
         if (whichTable == "users") {
-          logger.trace("awaiting for DB query of local exchange isAdmin for "+id+"...")
+          //logger.trace("awaiting for DB query of local exchange isAdmin for "+id+"...")
           val ownerVector = Await.result(db.run(UsersTQ.getAdmin(id).result), Duration(9000, MILLISECONDS))
-          logger.trace("...back from awaiting for DB query of local exchange isAdmin for "+id+".")
+          //logger.trace("...back from awaiting for DB query of local exchange isAdmin for "+id+".")
           if (ownerVector.nonEmpty) {
             if (ownerVector.head) return Some("admin")
             else return Some("")
@@ -219,9 +219,9 @@ object AuthCache extends Control with ServletApiImplicits {
             case "patterns" => PatternsTQ.getOwner(id).result
             case "business" => BusinessPoliciesTQ.getOwner(id).result
           }
-          logger.trace("awaiting for DB query of local exchange owner for "+id+"...")
+          //logger.trace("awaiting for DB query of local exchange owner for "+id+"...")
           val ownerVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
-          logger.trace("...back from awaiting for DB query of local exchange owner for "+id+".")
+          //logger.trace("...back from awaiting for DB query of local exchange owner for "+id+".")
           if (ownerVector.nonEmpty) /*{ logger.trace("getOwner return: "+ownerVector.head);*/ return Some(ownerVector.head) else /*{ logger.trace("getOwner return: None");*/ return None
         }
       } catch {
@@ -247,9 +247,9 @@ object AuthCache extends Control with ServletApiImplicits {
           case "patterns" => PatternsTQ.getPublic(id).result
           case _ => return Some(false)      // should never get here
         }
-        logger.trace("awaiting for DB query of local exchange isPublic for "+id+"...")
+        //logger.trace("awaiting for DB query of local exchange isPublic for "+id+"...")
         val publicVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
-        logger.trace("...back from awaiting for DB query of local exchange isPublic for "+id+".")
+        //logger.trace("...back from awaiting for DB query of local exchange isPublic for "+id+".")
         if (publicVector.nonEmpty) /*{ logger.trace("getIsPublic return: "+publicVector.head);*/ return Some(publicVector.head) else /*{ logger.trace("getIsPublic return: None");*/ return None
       } catch {
         // Handle db problems

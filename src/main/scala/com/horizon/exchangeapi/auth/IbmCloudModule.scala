@@ -212,7 +212,7 @@ object IbmCloudAuth {
       }
     } yield userAction
     //todo: getOrCreateUser() is only called if this is not already in the cache, so its a problem if we cant get it in the db
-    logger.trace("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.email+"...")
+    //logger.trace("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.email+"...")
     // Note: exceptions from this get caught in login() above
     Await.result(db.run(userQuery.transactionally), Duration(9000, MILLISECONDS))
     /* it doesnt work to add this to our authorization cache, and causes some exceptions during automated tests

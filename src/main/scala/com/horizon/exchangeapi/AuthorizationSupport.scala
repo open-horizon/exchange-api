@@ -361,10 +361,9 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
         else throw new InvalidCredentialsException("invalid token")
       }
       //for ((k, v) <- AuthCache.users.things) { logger.debug("users cache entry: "+k+" "+v) }
-      //logger.trace("in Identity.authenticate() calling halt")
-      logger.trace("calling AuthCache.users.isValid(creds)")
-      if (AuthCache.users.isValid(creds)) {logger.trace("back from AuthCache.users.isValid(creds) true"); return toIUser }
-      logger.trace("back from AuthCache.users.isValid(creds) false")
+      //logger.trace("calling AuthCache.users.isValid(creds)")
+      if (AuthCache.users.isValid(creds)) {/*logger.trace("back from AuthCache.users.isValid(creds) true");*/ return toIUser }
+      //logger.trace("back from AuthCache.users.isValid(creds) false")
       if (AuthCache.nodes.isValid(creds)) return toINode
       if (AuthCache.agbots.isValid(creds)) return toIAgbot
       throw new InvalidCredentialsException()   // will be caught by AuthenticationSupport.authenticate() and the proper halt() done

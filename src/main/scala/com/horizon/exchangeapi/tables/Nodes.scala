@@ -187,14 +187,11 @@ object NodeStatusTQ {
 case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], lastUpdated: String)
 
 
-// Policy is a sub-resource of node
-case class OneNodeProperty(name: String, `type`: Option[String], value: Any)
-
 case class NodePolicyRow(nodeId: String, properties: String, constraints: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNodePolicy: NodePolicy = {
-    val prop = if (properties != "") read[List[OneNodeProperty]](properties) else List[OneNodeProperty]()
+    val prop = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
     val con = if (constraints != "") read[List[String]](constraints) else List[String]()
     return NodePolicy(prop, con, lastUpdated)
   }
@@ -216,7 +213,7 @@ object NodePolicyTQ {
   def getNodePolicy(nodeId: String) = rows.filter(_.nodeId === nodeId)
 }
 
-case class NodePolicy(properties: List[OneNodeProperty], constraints: List[String], lastUpdated: String)
+case class NodePolicy(properties: List[OneProperty], constraints: List[String], lastUpdated: String)
 
 
 // Agreement is a sub-resource of node

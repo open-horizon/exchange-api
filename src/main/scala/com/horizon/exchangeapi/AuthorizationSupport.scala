@@ -1,29 +1,14 @@
 package com.horizon.exchangeapi
 
 import java.util.Base64
-
 import com.horizon.exchangeapi.auth.InvalidCredentialsException
-
-//import com.horizon.exchangeapi.auth.{AuthErrors, ExchCallbackHandler, PermissionCheck}
 import com.horizon.exchangeapi.auth.PermissionCheck
-//import com.horizon.exchangeapi.tables._
 import javax.security.auth.Subject
-//import javax.security.auth.login.LoginContext
 import javax.servlet.http.HttpServletRequest
-//import org.mindrot.jbcrypt.BCrypt
 import org.scalatra.servlet.ServletApiImplicits
 import org.scalatra.{Control, Params /* , ScalatraBase */ }
 import org.slf4j.Logger
-//import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim}
-//import slick.jdbc.PostgresProfile.api._
-
 import scala.collection.JavaConverters._
-//import scala.collection.mutable.{HashMap => MutableHashMap /* , Set => MutableSet */ }
-//import scala.concurrent.Await
-//import scala.concurrent.ExecutionContext.Implicits.global
-//import scala.concurrent.duration._
-//import scala.util._
-//import scala.util.control.NonFatal
 
 /** The list of access rights. */
 // Note: this list of access rights is duplicated in resources/auth.policy. Not sure how to avoid that.
@@ -67,6 +52,11 @@ object Access extends Enumeration {
   val READ_ALL_PATTERNS = Value("READ_ALL_PATTERNS")
   val WRITE_ALL_PATTERNS = Value("WRITE_ALL_PATTERNS")
   val CREATE_PATTERNS = Value("CREATE_PATTERNS")
+  val READ_MY_BUSINESS = Value("READ_MY_BUSINESS")
+  val WRITE_MY_BUSINESS = Value("WRITE_MY_BUSINESS")
+  val READ_ALL_BUSINESS = Value("READ_ALL_BUSINESS")
+  val WRITE_ALL_BUSINESS = Value("WRITE_ALL_BUSINESS")
+  val CREATE_BUSINESS = Value("CREATE_BUSINESS")
   val READ_MY_ORG = Value("READ_MY_ORG")
   val WRITE_MY_ORG = Value("WRITE_MY_ORG")
   val STATUS = Value("STATUS")
@@ -371,10 +361,9 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
         else throw new InvalidCredentialsException("invalid token")
       }
       //for ((k, v) <- AuthCache.users.things) { logger.debug("users cache entry: "+k+" "+v) }
-      //logger.trace("in Identity.authenticate() calling halt")
-      logger.trace("calling AuthCache.users.isValid(creds)")
-      if (AuthCache.users.isValid(creds)) {logger.trace("back from AuthCache.users.isValid(creds) true"); return toIUser }
-      logger.trace("back from AuthCache.users.isValid(creds) false")
+      //logger.trace("calling AuthCache.users.isValid(creds)")
+      if (AuthCache.users.isValid(creds)) {/*logger.trace("back from AuthCache.users.isValid(creds) true");*/ return toIUser }
+      //logger.trace("back from AuthCache.users.isValid(creds) false")
       if (AuthCache.nodes.isValid(creds)) return toINode
       if (AuthCache.agbots.isValid(creds)) return toIAgbot
       throw new InvalidCredentialsException()   // will be caught by AuthenticationSupport.authenticate() and the proper halt() done
@@ -479,6 +468,12 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
               case Access.CREATE => Access.CREATE_PATTERNS
               case _ => access
             }
+            case TBusiness(_) => access match { // a user accessing a business policy
+              case Access.READ => if (iOwnTarget(target)) Access.READ_MY_BUSINESS else Access.READ_ALL_BUSINESS
+              case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_BUSINESS else Access.WRITE_ALL_BUSINESS
+              case Access.CREATE => Access.CREATE_BUSINESS
+              case _ => access
+            }
             case TOrg(_) => access match {    // a user accessing an org resource
               case Access.READ => Access.READ_MY_ORG
               case Access.READ_IBM_ORGS => Access.READ_IBM_ORGS
@@ -515,6 +510,7 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
           case TResource(id) => AuthCache.resources.getOwner(id)
           case TService(id) => AuthCache.services.getOwner(id)
           case TPattern(id) => AuthCache.patterns.getOwner(id)
+          case TBusiness(id) => AuthCache.business.getOwner(id)
           case _ => return false
         }
         owner match {
@@ -575,6 +571,12 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
               case Access.READ => Access.READ_ALL_PATTERNS
               case Access.WRITE => Access.WRITE_ALL_PATTERNS
               case Access.CREATE => Access.CREATE_PATTERNS
+              case _ => access
+            }
+            case TBusiness(_) => access match { // a user accessing a business policy
+              case Access.READ => Access.READ_ALL_BUSINESS
+              case Access.WRITE => Access.WRITE_ALL_BUSINESS
+              case Access.CREATE => Access.CREATE_BUSINESS
               case _ => access
             }
             case TOrg(_) => access match { // a node accessing his org resource
@@ -644,6 +646,12 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
               case Access.READ => Access.READ_ALL_PATTERNS
               case Access.WRITE => Access.WRITE_ALL_PATTERNS
               case Access.CREATE => Access.CREATE_PATTERNS
+              case _ => access
+            }
+            case TBusiness(_) => access match { // a user accessing a business policy
+              case Access.READ => Access.READ_ALL_BUSINESS
+              case Access.WRITE => Access.WRITE_ALL_BUSINESS
+              case Access.CREATE => Access.CREATE_BUSINESS
               case _ => access
             }
             case TOrg(_) => access match { // a agbot accessing his org resource
@@ -723,6 +731,12 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
               case Access.CREATE => Access.CREATE_PATTERNS
               case _ => access
             }
+            case TBusiness(_) => access match { // a user accessing a business policy
+              case Access.READ => Access.READ_ALL_BUSINESS
+              case Access.WRITE => Access.WRITE_ALL_BUSINESS
+              case Access.CREATE => Access.CREATE_BUSINESS
+              case _ => access
+            }
             case TOrg(_) => access match { // a anonymous accessing his org resource
               case Access.READ => Access.READ_MY_ORG
               case Access.WRITE => Access.WRITE_MY_ORG
@@ -777,6 +791,9 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
   }
   case class TPattern(id: String) extends Target {      // for patterns only the user that created it can update/delete it
     override def isPublic: Boolean = if (all) return true else return AuthCache.patterns.getIsPublic(id).getOrElse(false)
+  }
+  case class TBusiness(id: String) extends Target {      // for business policies only the user that created it can update/delete it
+    override def isPublic: Boolean = if (all) return true else return AuthCache.business.getIsPublic(id).getOrElse(false)
   }
   case class TAction(id: String = "") extends Target    // for post rest api methods that do not target any specific resource (e.g. admin operations)
 }

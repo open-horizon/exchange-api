@@ -100,7 +100,7 @@ case class PatchServiceRequest(label: Option[String], description: Option[String
 }
 
 
-case class PutServicePolicyRequest(properties: Option[List[OneServiceProperty]], constraints: Option[List[String]]) {
+case class PutServicePolicyRequest(properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
     val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of string", "version")

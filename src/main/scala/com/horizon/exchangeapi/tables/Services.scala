@@ -124,13 +124,13 @@ object ServicesTQ {
 
 
 // Policy is a sub-resource of service
-case class OneServiceProperty(name: String, `type`: Option[String], value: Any)
+case class OneProperty(name: String, `type`: Option[String], value: Any)
 
 case class ServicePolicyRow(serviceId: String, properties: String, constraints: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toServicePolicy: ServicePolicy = {
-    val prop = if (properties != "") read[List[OneServiceProperty]](properties) else List[OneServiceProperty]()
+    val prop = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
     val con = if (constraints != "") read[List[String]](constraints) else List[String]()
     return ServicePolicy(prop, con, lastUpdated)
   }
@@ -152,7 +152,7 @@ object ServicePolicyTQ {
   def getServicePolicy(serviceId: String) = rows.filter(_.serviceId === serviceId)
 }
 
-case class ServicePolicy(properties: List[OneServiceProperty], constraints: List[String], lastUpdated: String)
+case class ServicePolicy(properties: List[OneProperty], constraints: List[String], lastUpdated: String)
 
 
 // Key is a sub-resource of service

@@ -32,6 +32,10 @@ grant principal com.horizon.exchangeapi.auth.ExchangeRole "User" {
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_PATTERNS";
   permission com.horizon.exchangeapi.auth.AccessPermission "WRITE_MY_PATTERNS";
   permission com.horizon.exchangeapi.auth.AccessPermission "CREATE_PATTERNS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_BUSINESS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_BUSINESS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "WRITE_MY_BUSINESS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "CREATE_BUSINESS";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_ORG";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_IBM_ORGS";
 };
@@ -45,6 +49,7 @@ grant principal com.horizon.exchangeapi.auth.ExchangeRole "Node" {
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_RESOURCES";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_SERVICES";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_PATTERNS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_BUSINESS";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_ORG";
 };
 
@@ -59,6 +64,7 @@ grant principal com.horizon.exchangeapi.auth.ExchangeRole "Agbot" {
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_RESOURCES";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_SERVICES";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_PATTERNS";
+  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_BUSINESS";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_ORG";
 };
 

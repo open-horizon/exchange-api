@@ -96,7 +96,7 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 - Manually test the local container via https:
     - If you haven't already, set EXCHANGE_KEY_PW and run `make gen-key`
     - Add `edge-fab-exchange` as an alias for `localhost` in `/etc/hosts`
-    - src/test/bash/https.sh get services
+    - `src/test/bash/https.sh get services`
 - Run the automated tests: `sbt test`
 - Check the swagger info from the container: `http://localhost:8080/api`
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or might also go to `/var/log/syslog` depending on the docker and syslog configuration.
@@ -104,6 +104,7 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 
 ## Test the Exchange with Anax
 
+- If you will be testing with anax on another machine, push just the version-tagged exchange image to docker hub, so it will be available to the other machines: `make docker-push-version-only`
 - Just the first time: on an ubuntu machine, clone the anax repo and define this bash function:
 ```
 mkdir -p ~/src/github.com/open-horizon && cd ~/src/github.com/open-horizon && git clone git@github.com:open-horizon/anax.git

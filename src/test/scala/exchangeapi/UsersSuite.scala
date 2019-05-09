@@ -70,9 +70,9 @@ class UsersSuite extends FunSuite {
   val agbotToken = agbotId+"tok"
   val iamKey = sys.env.getOrElse("EXCHANGE_IAM_KEY", "")
   val iamEmail = sys.env.getOrElse("EXCHANGE_IAM_EMAIL", "")
-  val iamAccount = sys.env.getOrElse("EXCHANGE_IAM_ACCOUNT", "")
+  val iamAccount = sys.env.getOrElse("EXCHANGE_IAM_ACCOUNT_ID", "")
   val iamOtherKey = sys.env.getOrElse("EXCHANGE_IAM_OTHER_KEY", "")
-  val iamOtherAccount = sys.env.getOrElse("EXCHANGE_IAM_OTHER_ACCOUNT", "")
+  val iamOtherAccount = sys.env.getOrElse("EXCHANGE_IAM_OTHER_ACCOUNT_ID", "")
   val IAMAUTH = { org: String => ("Authorization", s"Basic $org/iamapikey:$iamKey") }
   val IAMOTHERAUTH = { org: String => ("Authorization", s"Basic $org/iamapikey:$iamOtherKey") }
 
@@ -646,7 +646,7 @@ class UsersSuite extends FunSuite {
 
   test("IAM login") {
     // these tests will perform authentication with IBM cloud and will only run
-    // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY, EXCHANGE_IAM_EMAIL, and EXCHANGE_IAM_ACCOUNT
+    // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY, EXCHANGE_IAM_EMAIL, and EXCHANGE_IAM_ACCOUNT_ID
     if (!iamKey.isEmpty && !iamEmail.isEmpty && !iamAccount.isEmpty && !iamOtherKey.isEmpty && !iamOtherAccount.isEmpty) {
       // add ibmcloud_id to org
       //todo: the normal usage is to add an org with the same name as the ibm account email, so we should probably test that,

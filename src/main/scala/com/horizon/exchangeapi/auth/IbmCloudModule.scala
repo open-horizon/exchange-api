@@ -24,7 +24,9 @@ case class IamAuthCredentials(org: String, keyType: String, key: String) {
   def cacheKey = org + "/" + keyType + ":" + key
 }
 case class IamToken(accessToken: String)
-case class IamUserInfo(account: Option[IamAccount], email: String) {
+
+// For both IBM Cloud and ICP
+case class IamUserInfo(account: Option[IamAccount], sub: String) {   // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
   def accountId = if (account.isDefined) account.get.bss else ""
 }
 case class IamAccount(bss: String)
@@ -95,9 +97,11 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
         //case e: DbTimeoutException => e
         //case e: DbConnectionException => e
         case e: IsDbMigrationException => throw e
+        case e: BadIamCombinationException => throw e
+        case e: IamApiErrorException => throw e
         //case e: InvalidCredentialsException => e
         //case e: AuthInternalErrorException => e
-        //todo: using this instead of the specific Db exceptions above because i haven't figured out yet how to successfully not have Await.result() bet the last line of getOrCreateUser().
+        //todo: using this instead of the specific Db exceptions above because i haven't figured out yet how to successfully not have Await.result() be the last line of getOrCreateUser().
         case e => throw new DbConnectionException(e.getMessage)
       }
     }
@@ -122,8 +126,8 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
   private def extractApiKey(reqInfo: RequestInfo): Try[IamAuthCredentials] = {
     val creds = credentials(reqInfo)
     val (org, id) = IbmCloudAuth.compositeIdSplit(creds.id)
-    if ((id == "iamapikey" || id == "iamtoken") && !creds.token.isEmpty) Success(IamAuthCredentials(org, id, creds.token))
-    else Failure(new NotIbmCredsException("User is not iamapikey or iamtoken, so credentials are not an IBM cloud IAM api key or token"))
+    if ((id == "iamapikey" || id == "iamtoken") && creds.token.nonEmpty) Success(IamAuthCredentials(org, id, creds.token))
+    else Failure(new NotIbmCredsException("User is not iamapikey or iamtoken, so credentials are not IBM cloud IAM credentials"))
   }
 }
 
@@ -161,7 +165,7 @@ object IbmCloudAuth {
      */
     cachingF(authInfo.cacheKey)(ttl = None) {
       for {
-        token <- if (authInfo.keyType == "iamtoken") Success(IamToken(authInfo.key)) else getIamToken(authInfo.key)
+        token <- if (authInfo.keyType == "iamtoken") Success(IamToken(authInfo.key)) else getIamToken(authInfo)
         userInfo <- getUserInfo(token)
         user <- getOrCreateUser(authInfo, userInfo)
       } yield user.username   // this is the composite org/username
@@ -173,27 +177,49 @@ object IbmCloudAuth {
     removeAll().map(_ => ())
   }
 
+  private def isIcp = sys.env.get("PLATFORM_IDENTITY_PROVIDER_URL").nonEmpty   // ICP sets this
+
+  private def getIcpIdentityUrl = sys.env.getOrElse("PLATFORM_IDENTITY_PROVIDER_URL", "") + "/v1/auth"
+
   // Use the IBM IAM API to authenticate the iamapikey and get an IAM token. See: https://cloud.ibm.com/apidocs/iam-identity-token-api
-  private def getIamToken(apikey: String): Try[IamToken] = {
-    logger.debug("Retrieving IAM token")
-    val tokenResponse = Http("https://iam.cloud.ibm.com/identity/token")
-      .header("Accept", "application/json")
-      .postForm(Seq(
-        "grant_type" -> "urn:ibm:params:oauth:grant-type:apikey",
-        "apikey" -> apikey
-      ))
-      .asString
-    Try(parse(tokenResponse.body).camelizeKeys.extract[IamToken])
+  private def getIamToken(authInfo: IamAuthCredentials): Try[IamToken] = {
+    if (authInfo.keyType == "iamapikey") {
+      logger.debug("Retrieving IBM Cloud IAM token using API key")
+      val response = Http("https://iam.cloud.ibm.com/identity/token")
+        .header("Accept", "application/json")
+        .postForm(Seq(
+          "grant_type" -> "urn:ibm:params:oauth:grant-type:apikey",
+          "apikey" -> authInfo.key
+        ))
+        .asString
+      if (response.code == HttpCode.OK) Try(parse(response.body).camelizeKeys.extract[IamToken])
+      else Failure(new IamApiErrorException(response.body.toString))
+    } else {
+      Failure(new AuthInternalErrorException("the user is not a valid IAM keyword"))
+    }
   }
 
   // Using the IAM token get the ibm cloud account id (which we'll use to verify the exchange org) and users email (which we'll use as the exchange user)
   private def getUserInfo(token: IamToken): Try[IamUserInfo] = {
-    logger.debug("Retrieving IAM userinfo")
-    val infoResponse = Http("https://iam.cloud.ibm.com/identity/userinfo")
-      .header("Authorization", s"BEARER ${token.accessToken}")
-      .header("Content-Type", "application/json")
-      .asString
-    Try(parse(infoResponse.body).extract[IamUserInfo])
+    if (isIcp) {
+      val iamUrl = getIcpIdentityUrl + "/userinfo"
+      logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
+      val response = Http(iamUrl).method("post").option(HttpOptions.allowUnsafeSSL)
+        .header("Authorization", s"BEARER ${token.accessToken}")
+        .header("Content-Type", "application/json")
+        .asString
+      if (response.code == HttpCode.OK) Try(parse(response.body).extract[IamUserInfo])
+      else Failure(new IamApiErrorException(response.body.toString))
+    } else {
+      val iamUrl = "https://iam.cloud.ibm.com/identity/userinfo"
+      logger.debug("Retrieving IBM Cloud IAM userinfo from " + iamUrl)
+      val response = Http(iamUrl)
+        .header("Authorization", s"BEARER ${token.accessToken}")
+        .header("Content-Type", "application/json")
+        .asString
+      if (response.code == HttpCode.OK) Try(parse(response.body).extract[IamUserInfo])
+      else Failure(new IamApiErrorException(response.body.toString))
+    }
   }
 
   private def getOrCreateUser(authInfo: IamAuthCredentials, userInfo: IamUserInfo): Try[UserRow] = {
@@ -236,7 +262,9 @@ object IbmCloudAuth {
   // authInfo is the creds they passed in, userInfo is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db
   private def verifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, orgAcctId: Option[String]) = {
     logger.trace("Verifying org: "+authInfo+", "+userInfo+", "+orgAcctId)
-    if (orgAcctId.isEmpty) {
+    if (userInfo.account.isEmpty) {
+      DBIO.successful(authInfo.org)    // this method does not apply to ICP
+    } else if (orgAcctId.isEmpty) {
       logger.error(s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for ${authInfo.org}")
       DBIO.failed(OrgNotFound(authInfo))
     } else if (authInfo.keyType == "iamtoken" && userInfo.accountId == "") {
@@ -250,23 +278,23 @@ object IbmCloudAuth {
     }
   }
 
-  private def fetchUser(org: String, info: IamUserInfo) = {
-    logger.trace("Fetching user: org="+org+", "+IamUserInfo)
+  private def fetchUser(org: String, userInfo: IamUserInfo) = {
+    logger.trace("Fetching user: org="+org+", "+userInfo)
     UsersTQ.rows
-      .filter(u => u.orgid === org && u.username === s"$org/${info.email}")
+      .filter(u => u.orgid === org && u.username === s"$org/${userInfo.sub}")
       //.take(1)  // not sure what the purpose of this was
       .result
       .headOption
   }
 
-  private def createUser(org: String, info: IamUserInfo) = {
-    logger.trace("Creating user: org="+org+", "+IamUserInfo)
+  private def createUser(org: String, userInfo: IamUserInfo) = {
+    logger.trace("Creating user: org="+org+", "+userInfo)
     val user = UserRow(
-      s"$org/${info.email}",
+      s"$org/${userInfo.sub}",
       org,
       "",
       admin = false,
-      info.email,
+      userInfo.sub,
       ApiTime.nowUTC
     )
     (UsersTQ.rows += user).asTry.map(count => count.map(_ => user))

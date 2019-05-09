@@ -21,6 +21,12 @@ class DbConnectionException(msg: String) extends LoginException(msg)
 
 class InvalidCredentialsException(msg: String = "invalid credentials") extends LoginException(msg)
 
+// The IAM token we were given was expired, or some similar problem
+class BadIamCombinationException(msg: String) extends LoginException(msg)
+
+// The keyword specified was for icp, but not in an icp environment (for vice versa)
+class IamApiErrorException(msg: String) extends LoginException(msg)
+
 class AuthInternalErrorException(msg: String) extends LoginException(msg)
 
 object AuthErrors {
@@ -30,6 +36,8 @@ object AuthErrors {
       case t: DbConnectionException => (HttpCode.GW_TIMEOUT, ApiResponseType.GW_TIMEOUT, t.getMessage)
       case t: UserFacingError => (HttpCode.BADCREDS, ApiResponseType.BADCREDS, t.getMessage)
       case t: InvalidCredentialsException => (HttpCode.BADCREDS, ApiResponseType.BADCREDS, t.getMessage)
+      case t: BadIamCombinationException => (HttpCode.BADCREDS, ApiResponseType.BADCREDS, t.getMessage)
+      case t: IamApiErrorException => (HttpCode.BADCREDS, ApiResponseType.BADCREDS, t.getMessage)
       // This one shouldnt ever get this far
       case t: NotIbmCredsException => (HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, t.getMessage)
       // This one shouldnt ever get this far

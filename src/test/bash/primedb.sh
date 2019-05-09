@@ -15,51 +15,60 @@ namebase=""
 
 # Test configuration. You can override these before invoking the script, if you want.
 EXCHANGE_URL_ROOT="${EXCHANGE_URL_ROOT:-http://localhost:8080}"
-EXCHANGE_ORG="IBM"
-EXCHANGE_USER="${EXCHANGE_USER:-me}"
-EXCHANGE_PW="${EXCHANGE_PW:-mypw}"
+user="${EXCHANGE_USER:-me}"
+pw="${EXCHANGE_PW:-mypw}"
 EXCHANGE_EMAIL="${EXCHANGE_EMAIL:-me@email.com}"
 EXCHANGE_NODEAUTH="${EXCHANGE_NODEAUTH:-n1:abc123}"
 EXCHANGE_AGBOTAUTH="${EXCHANGE_AGBOTAUTH:-a1:abcdef}"
+
+: ${EXCHANGE_IAM_ORG:?} : ${EXCHANGE_IAM_ACCOUNT_ID:?} : ${EXCHANGE_IAM_KEY:?}
+orgidcloud="$EXCHANGE_IAM_ORG"
+orgcloudid="$EXCHANGE_IAM_ACCOUNT_ID"
+cloudapikey="$EXCHANGE_IAM_KEY"
+
+#export EXCHANGE_CLIENT_CERT=../../../keys/etc/exchangecert.pem
+if [[ -n "$EXCHANGE_CLIENT_CERT" && -f "$EXCHANGE_CLIENT_CERT" ]]; then
+    if [[ "$EXCHANGE_URL_ROOT" == "http://localhost:8080" ]]; then
+        echo "Setting EXCHANGE_URL_ROOT=https://localhost:8443"
+        EXCHANGE_URL_ROOT="https://localhost:8443"
+    fi
+    echo "Using certificate $EXCHANGE_CLIENT_CERT"
+    cacert="--cacert $EXCHANGE_CLIENT_CERT"
+fi
+
+rootauth="root/root:$EXCHANGE_ROOTPW"
 
 appjson="application/json"
 accept="-H Accept:$appjson"
 content="-H Content-Type:$appjson"
 contenttext="-H Content-Type:text/plain"
 
-rootauth="root/root:$EXCHANGE_ROOTPW"
-
-orgid=$EXCHANGE_ORG
+orgid="IBM"
 orgid2="org2"
-orgidcarl="cgiroua@us.ibm.com"
-orgcarlid="f0a2bcb1b163c7dfa2868f4f4109e646"
 
-user="$EXCHANGE_USER"
-pw=$EXCHANGE_PW
-userauth="$EXCHANGE_ORG/$user:$pw"
+userauth="$orgid/$user:$pw"
 email=$EXCHANGE_EMAIL
-: ${IC_PLATFORM_KEY_CARL:?}
-userauthorg2="$orgid2/iamapikey:$IC_PLATFORM_KEY_CARL"
+userauthorg2="$orgid2/iamapikey:$cloudapikey"
 
 nodeid="${EXCHANGE_NODEAUTH%%:*}"
 nodetoken="${EXCHANGE_NODEAUTH#*:}"
-nodeauth="$EXCHANGE_ORG/$nodeid:$nodetoken"
+nodeauth="$orgid/$nodeid:$nodetoken"
 nodeauthorg2="$orgid2/$nodeid:$nodetoken"
 nodeid2="n2"
-nodeauth2="$EXCHANGE_ORG/$nodeid2:$nodetoken"
+nodeauth2="$orgid/$nodeid2:$nodetoken"
 
 agbotid="${EXCHANGE_AGBOTAUTH%%:*}"
 agbottoken="${EXCHANGE_AGBOTAUTH#*:}"
-agbotauth="$EXCHANGE_ORG/$agbotid:$agbottoken"
+agbotauth="$orgid/$agbotid:$agbottoken"
 
 agreementbase="${namebase}agreement"
 agreementid1="${agreementbase}1"
 agreementid2="${agreementbase}2"
 agreementid3="${agreementbase}3"
 
-resname="res1"
-resversion="7.8.9"
-resid="${resname}_$resversion"
+#resname="res1"
+#resversion="7.8.9"
+#resid="${resname}_$resversion"
 
 svcid="bluehorizon.network.gps_1.2.3_amd64"
 svcurl="bluehorizon.network.gps"
@@ -96,17 +105,6 @@ MDEwMjAxNDkyMFoXDTIyMDEwMjEzNDgzMFowJjEMMAoGA1UEChMDaWJtMRYwFAYD
 VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
 -----END CERTIFICATE-----
 '
-
-#export EXCHANGE_CLIENT_CERT=../../../keys/etc/exchangecert.pem
-if [[ -n "$EXCHANGE_CLIENT_CERT" && -f "$EXCHANGE_CLIENT_CERT" ]]; then
-    if [[ "$EXCHANGE_URL_ROOT" == "http://localhost:8080" ]]; then
-        echo "Setting EXCHANGE_URL_ROOT=https://localhost:8443"
-        EXCHANGE_URL_ROOT="https://localhost:8443"
-    fi
-    echo "Using certificate $EXCHANGE_CLIENT_CERT"
-    cacert="--cacert $EXCHANGE_CLIENT_CERT"
-fi
-
 
 #curlBasicArgs="-s -w %{http_code} --output /dev/null $accept"
 curlBasicArgs="-sS -w %{http_code} $accept $cacert"
@@ -181,43 +179,43 @@ function curlputpost {
 }
 
 # Create the IBM org - dont need to do this anymore, the exchange automatically does it
-#rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid")
+#rc=$(curlfind "$rootauth" "orgs/$orgid")
 #checkrc "$rc" 200 404
 #if [[ $rc == 404 ]]; then
-#    curlcreate "POST" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid" '{"orgType": "IBM", "label": "An org", "description": "blah blah"}'
+#    curlcreate "POST" "$rootauth" "orgs/$orgid" '{"orgType": "IBM", "label": "An org", "description": "blah blah"}'
 #else
 #    echo "orgs/$orgid exists"
 #fi
 
-rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgidcarl")
+rc=$(curlfind "$rootauth" "orgs/$orgidcloud")
 checkrc "$rc" 200 404
 if [[ $rc == 404 ]]; then
-    curlcreate "POST" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgidcarl" '{"label": "Carls org", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcarlid'"} }'
+    curlcreate "POST" "$rootauth" "orgs/$orgidcloud" '{"label": "Carls org", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
 else
-    echo "orgs/$orgidcarl exists"
+    echo "orgs/$orgidcloud exists"
 fi
 
-rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2")
+rc=$(curlfind "$rootauth" "orgs/$orgid2")
 checkrc "$rc" 200 404
 if [[ $rc == 404 ]]; then
-    curlcreate "POST" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2" '{"label": "Another org under carls ibm cloud acct", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcarlid'"} }'
+    curlcreate "POST" "$rootauth" "orgs/$orgid2" '{"label": "Another org under carls ibm cloud acct", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
 else
     echo "orgs/$orgid2 exists"
 fi
 
-rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid/users/$user")
+rc=$(curlfind "$rootauth" "orgs/$orgid/users/$user")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-        curlcreate "PUT" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
+        curlcreate "PUT" "$rootauth" "orgs/$orgid/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
 else
     echo "orgs/$orgid/users/$user exists"
 fi
 
 # since this is an ibm cloud org, the user will get created automatically
-#rc=$(curlfind "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2/users/$user")
+#rc=$(curlfind "$rootauth" "orgs/$orgid2/users/$user")
 #checkrc "$rc" 200 404
 #if [[ $rc != 200 ]]; then
-#        curlcreate "PUT" "root/root:$EXCHANGE_ROOTPW" "orgs/$orgid2/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
+#        curlcreate "PUT" "$rootauth" "orgs/$orgid2/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
 #else
 #    echo "orgs/$orgid2/users/$user exists"
 #fi
@@ -249,15 +247,15 @@ else
     echo "orgs/$orgid/services/$svcid/dockauths/$svcDockAuthId exists"
 fi
 
-rc=$(curlfind $userauth "orgs/$orgid/resources/$resid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauth "orgs/$orgid/resources" '{"name": "'$resname'", "description": "blah blah", "public": true, "documentation": "https://myres.com/myres",
-  "version": "'$resversion'",
-  "resourceStore": { "url": "https://..." } }'
-else
-    echo "orgs/$orgid/resources/$resid exists"
-fi
+#rc=$(curlfind $userauth "orgs/$orgid/resources/$resid")
+#checkrc "$rc" 200 404
+#if [[ $rc != 200 ]]; then
+#    curlcreate "POST" $userauth "orgs/$orgid/resources" '{"name": "'$resname'", "description": "blah blah", "public": true, "documentation": "https://myres.com/myres",
+#  "version": "'$resversion'",
+#  "resourceStore": { "url": "https://..." } }'
+#else
+#    echo "orgs/$orgid/resources/$resid exists"
+#fi
 
 rc=$(curlfind $userauth "orgs/$orgid/services/$svc2id")
 checkrc "$rc" 200 404
@@ -270,13 +268,6 @@ if [[ $rc != 200 ]]; then
       "org": "'$orgid'",
       "version": "[1.0.0,INFINITY)",
       "arch": "'$svcarch'"
-    }
-  ],
-  "requiredResources": [
-    {
-      "org": "'$orgid'",
-      "name": "'$resname'",
-      "version": "[1.0.0,INFINITY)"
     }
   ],
   "userInput": [

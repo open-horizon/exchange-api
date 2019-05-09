@@ -273,7 +273,7 @@ case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: Lis
   def toNodeStatusRow(nodeId: String) = NodeStatusRow(nodeId, write(connectivity), write(services), ApiTime.nowUTC)
 }
 
-case class PutNodePolicyRequest(properties: Option[List[OneNodeProperty]], constraints: Option[List[String]]) {
+case class PutNodePolicyRequest(properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
     val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of string", "version")

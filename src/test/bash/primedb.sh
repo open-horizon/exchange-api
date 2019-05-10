@@ -70,8 +70,8 @@ agreementid3="${agreementbase}3"
 #resversion="7.8.9"
 #resid="${resname}_$resversion"
 
-svcid="bluehorizon.network.gps_1.2.3_amd64"
-svcurl="bluehorizon.network.gps"
+svcid="ibm.gps_1.2.3_amd64"
+svcurl="ibm.gps"
 svcarch="amd64"
 svcversion="1.2.3"
 
@@ -84,8 +84,8 @@ VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
 -----END CERTIFICATE-----
 '
 
-svc2id="bluehorizon.network.location_4.5.6_amd64"
-svc2url="bluehorizon.network.location"
+svc2id="ibm.location_4.5.6_amd64"
+svc2url="ibm.location"
 svc2arch="amd64"
 svc2version="4.5.6"
 
@@ -105,6 +105,8 @@ MDEwMjAxNDkyMFoXDTIyMDEwMjEzNDgzMFowJjEMMAoGA1UEChMDaWJtMRYwFAYD
 VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
 -----END CERTIFICATE-----
 '
+
+buspol=mybuspol
 
 #curlBasicArgs="-s -w %{http_code} --output /dev/null $accept"
 curlBasicArgs="-sS -w %{http_code} $accept $cacert"
@@ -229,6 +231,14 @@ if [[ $rc != 200 ]]; then
   "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=" }'
 else
     echo "orgs/$orgid/services/$svcid exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/services/$svcid/policy")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauth "orgs/$orgid/services/$svcid/policy" '{ "properties": [{"name":"purpose", "value":"location", "type":"string"}], "constraints":["a == b"] }'
+else
+    echo "orgs/$orgid/services/$svcid/policy exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/services/$svcid/keys/$svcKeyId")
@@ -378,6 +388,14 @@ else
     echo "orgs/$orgid2/patterns/$patid2 exists"
 fi
 
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/business/policies/$buspol")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauthorg2 "orgs/$orgid2/business/policies/$buspol" '{ "label": "my business policy", "service": { "name": "'$svcurl'", "org": "'$orgid'", "arch": "'$svcarch'", "serviceVersions": [{ "version": "'$svcversion'" }] }, "properties": [{"name":"purpose", "value":"location", "type":"string"}], "constraints":["a == b"] }'
+else
+    echo "orgs/$orgid2/business/policies/$buspol exists"
+fi
+
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
@@ -428,6 +446,14 @@ if [[ $rc != 200 ]]; then
     curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/status" '{ "connectivity": {"firmware.bluehorizon.network": true}, "services": [] }'
 else
     echo "orgs/$orgid/nodes/$nodeid/status exists"
+fi
+
+rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/policy")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/policy" '{ "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
+else
+    echo "orgs/$orgid/nodes/$nodeid/policy exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid")

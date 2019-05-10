@@ -23,9 +23,9 @@ import scala.util.{Failure, Success, Try}
 case class IamAuthCredentials(org: String, keyType: String, key: String) {
   def cacheKey = org + "/" + keyType + ":" + key
 }
-case class IamToken(accessToken: String)
+case class IamToken(accessToken: String, tokenType: Option[String] = None)
 
-// For both IBM Cloud and ICP
+// For both IBM Cloud and ICP. All the rest apis that use this must be able to parse their results into this class
 case class IamUserInfo(account: Option[IamAccount], sub: String) {   // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
   def accountId = if (account.isDefined) account.get.bss else ""
 }
@@ -165,7 +165,9 @@ object IbmCloudAuth {
      */
     cachingF(authInfo.cacheKey)(ttl = None) {
       for {
-        token <- if (authInfo.keyType == "iamtoken") Success(IamToken(authInfo.key)) else getIamToken(authInfo)
+        token <- if (authInfo.keyType == "iamtoken") Success(IamToken(authInfo.key))
+          else if (isIcp && authInfo.keyType == "iamapikey") Success(IamToken(authInfo.key, Some(authInfo.keyType)))  // this is an apikey we are putting in IamToken, but it can be used like a token in the next step
+          else getIamToken(authInfo)
         userInfo <- getUserInfo(token)
         user <- getOrCreateUser(authInfo, userInfo)
       } yield user.username   // this is the composite org/username
@@ -177,11 +179,11 @@ object IbmCloudAuth {
     removeAll().map(_ => ())
   }
 
-  private def isIcp = sys.env.get("PLATFORM_IDENTITY_PROVIDER_URL").nonEmpty   // ICP sets this
+  private def isIcp = sys.env.get("PLATFORM_IDENTITY_PROVIDER_SERVICE_HOST").nonEmpty   // ICP sets this
 
-  private def getIcpIdentityUrl = sys.env.getOrElse("PLATFORM_IDENTITY_PROVIDER_URL", "") + "/v1/auth"
+  private def getIcpIdentityUrl = "https://" + sys.env.getOrElse("PLATFORM_IDENTITY_PROVIDER_SERVICE_HOST", "") + ":8443"
 
-  // Use the IBM IAM API to authenticate the iamapikey and get an IAM token. See: https://cloud.ibm.com/apidocs/iam-identity-token-api
+  // Use the IBM IAM API to authenticate the iamapikey and get an IAM token. See: https://cloud.ibm.com/apidocs/iam-identity-token-api and https://github.ibm.com/IBMPrivateCloud/roadmap/blob/master/feature-specs/security/security-services-apis.md
   private def getIamToken(authInfo: IamAuthCredentials): Try[IamToken] = {
     if (authInfo.keyType == "iamapikey") {
       logger.debug("Retrieving IBM Cloud IAM token using API key")
@@ -201,9 +203,24 @@ object IbmCloudAuth {
 
   // Using the IAM token get the ibm cloud account id (which we'll use to verify the exchange org) and users email (which we'll use as the exchange user)
   private def getUserInfo(token: IamToken): Try[IamUserInfo] = {
-    if (isIcp) {
-      val iamUrl = getIcpIdentityUrl + "/userinfo"
+    if (isIcp && token.tokenType.getOrElse("") == "iamapikey") {
+      // An icp platform apikey that we can use directly to authenticate and get the username
+      //crl -k -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d "apikey=$ICP_PLATFORM_KEY" $ICP_IAM_URL/iam-token/oidc/introspect
+      val iamUrl = getIcpIdentityUrl + "/iam-token/oidc/introspect"
       logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
+      val apiKey = token.accessToken
+      //TODO: need to get the self-signed cert so we don't have to use the allowUnsafeSSL option
+      val response = Http(iamUrl).method("post").option(HttpOptions.allowUnsafeSSL)
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .postData("apikey="+apiKey)
+        .asString
+      if (response.code == HttpCode.OK) Try(parse(response.body).extract[IamUserInfo])
+      else Failure(new IamApiErrorException(response.body.toString))
+    } else if (isIcp) {
+      // An icp token from the UI
+      val iamUrl = getIcpIdentityUrl + "/idprovider/v1/auth/userinfo"
+      logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
+      //TODO: need to get the self-signed cert so we don't have to use the allowUnsafeSSL option
       val response = Http(iamUrl).method("post").option(HttpOptions.allowUnsafeSSL)
         .header("Authorization", s"BEARER ${token.accessToken}")
         .header("Content-Type", "application/json")
@@ -211,6 +228,7 @@ object IbmCloudAuth {
       if (response.code == HttpCode.OK) Try(parse(response.body).extract[IamUserInfo])
       else Failure(new IamApiErrorException(response.body.toString))
     } else {
+      // An ibm public cloud token, either from the UI or from the platform apikey we were given
       val iamUrl = "https://iam.cloud.ibm.com/identity/userinfo"
       logger.debug("Retrieving IBM Cloud IAM userinfo from " + iamUrl)
       val response = Http(iamUrl)

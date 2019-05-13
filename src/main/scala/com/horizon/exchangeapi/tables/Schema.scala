@@ -108,6 +108,7 @@ object SchemaTQ {
       case 18 => DBIO.seq(NodePolicyTQ.rows.schema.create)    // v1.77.0
       case 19 => DBIO.seq(ServicePolicyTQ.rows.schema.create)    // v1.77.0
       case 20 => DBIO.seq(BusinessPoliciesTQ.rows.schema.create)    // v1.78.0
+      // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }

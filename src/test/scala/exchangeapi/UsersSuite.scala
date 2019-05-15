@@ -762,7 +762,7 @@ class UsersSuite extends FunSuite {
   }
 
   /** Delete the orgs we used for this test */
-  test("DELETE /orgs/"+orgid+" - delete orgs") {
+  test("DELETE orgs") {
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)

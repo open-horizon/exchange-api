@@ -15,9 +15,9 @@
 		},
 		"db": {
 			"driverClass": "org.postgresql.Driver",
-			"jdbcUrl": "jdbc:postgresql://sl-us-dal-9-portal.2.dblayer.com:10869/compose",		// the back-end db the exchange uses
-			"user": "admin",
-			"password": "",			// set this in your own version of this config file
+			"jdbcUrl": "",		// the back-end db the exchange uses
+			"user": "",
+			"password": "",
 			"minPoolSize": 1,
 			"acquireIncrement": 1,
 			"maxPoolSize": 50

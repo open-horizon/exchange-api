@@ -450,12 +450,6 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
               case Access.CREATE => Access.CREATE_AGBOT
               case _ => access
             }
-            case TResource(_) => access match { // a user accessing a resource
-              case Access.READ => if (iOwnTarget(target)) Access.READ_MY_RESOURCES else Access.READ_ALL_RESOURCES
-              case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_RESOURCES else Access.WRITE_ALL_RESOURCES
-              case Access.CREATE => Access.CREATE_RESOURCES
-              case _ => access
-            }
             case TService(_) => access match { // a user accessing a service
               case Access.READ => if (iOwnTarget(target)) Access.READ_MY_SERVICES else Access.READ_ALL_SERVICES
               case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_SERVICES else Access.WRITE_ALL_SERVICES
@@ -507,7 +501,6 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
           case TUser(id) => return id == creds.id
           case TNode(id) => AuthCache.nodes.getOwner(id)
           case TAgbot(id) => AuthCache.agbots.getOwner(id)
-          case TResource(id) => AuthCache.resources.getOwner(id)
           case TService(id) => AuthCache.services.getOwner(id)
           case TPattern(id) => AuthCache.patterns.getOwner(id)
           case TBusiness(id) => AuthCache.business.getOwner(id)
@@ -553,12 +546,6 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
               case Access.READ => Access.READ_ALL_AGBOTS
               case Access.WRITE => Access.WRITE_ALL_AGBOTS
               case Access.CREATE => Access.CREATE_AGBOT
-              case _ => access
-            }
-            case TResource(_) => access match { // a user accessing a resource
-              case Access.READ => Access.READ_ALL_RESOURCES
-              case Access.WRITE => Access.WRITE_ALL_RESOURCES
-              case Access.CREATE => Access.CREATE_RESOURCES
               case _ => access
             }
             case TService(_) => access match { // a node accessing a service
@@ -628,12 +615,6 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
               case Access.READ => if (id == creds.id) Access.READ_MYSELF else if (target.mine) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
               case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (target.mine) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
               case Access.CREATE => Access.CREATE_AGBOT
-              case _ => access
-            }
-            case TResource(_) => access match { // a user accessing a resource
-              case Access.READ => Access.READ_ALL_RESOURCES
-              case Access.WRITE => Access.WRITE_ALL_RESOURCES
-              case Access.CREATE => Access.CREATE_RESOURCES
               case _ => access
             }
             case TService(_) => access match { // a agbot accessing a service
@@ -713,12 +694,6 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
               case Access.CREATE => Access.CREATE_AGBOT
               case _ => access
             }
-            case TResource(_) => access match { // a user accessing a resource
-              case Access.READ => Access.READ_ALL_RESOURCES
-              case Access.WRITE => Access.WRITE_ALL_RESOURCES
-              case Access.CREATE => Access.CREATE_RESOURCES
-              case _ => access
-            }
             case TService(_) => access match { // a anonymous accessing a service
               case Access.READ => Access.READ_ALL_SERVICES
               case Access.WRITE => Access.WRITE_ALL_SERVICES
@@ -783,9 +758,6 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
   case class TUser(id: String) extends Target
   case class TNode(id: String) extends Target
   case class TAgbot(id: String) extends Target
-  case class TResource(id: String) extends Target {      // for resources only the user that created it can update/delete it
-    override def isPublic: Boolean = if (all) return true else return AuthCache.resources.getIsPublic(id).getOrElse(false)
-  }
   case class TService(id: String) extends Target {      // for services only the user that created it can update/delete it
     override def isPublic: Boolean = if (all) return true else return AuthCache.services.getIsPublic(id).getOrElse(false)
   }

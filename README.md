@@ -177,6 +177,7 @@ To build an exchange container with code that is targeted for a git branch:
 ## Changes in 1.82.0
 
 - Log all invalid credentials
+- Removed resource object
 - Add business policies to agbot
 - Add node search api for business policies
 

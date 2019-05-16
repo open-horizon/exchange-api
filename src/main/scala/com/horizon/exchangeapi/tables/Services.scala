@@ -10,20 +10,19 @@ import slick.jdbc.PostgresProfile.api._
 case class ServiceRef(url: String, org: String, version: String, arch: String)
 
 // This is the service table minus the key - used as the data structure to return to the REST clients
-class Service(var owner: String, var label: String, var description: String, var public: Boolean, var documentation: String, var url: String, var version: String, var arch: String, var sharable: String, var matchHardware: Map[String,Any], var requiredServices: List[ServiceRef], var requiredResources: List[ResourceRef], var userInput: List[Map[String,String]], var deployment: String, var deploymentSignature: String, var imageStore: Map[String,Any], var lastUpdated: String) {
-  def copy = new Service(owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, requiredResources, userInput, deployment, deploymentSignature, imageStore, lastUpdated)
+class Service(var owner: String, var label: String, var description: String, var public: Boolean, var documentation: String, var url: String, var version: String, var arch: String, var sharable: String, var matchHardware: Map[String,Any], var requiredServices: List[ServiceRef], var userInput: List[Map[String,String]], var deployment: String, var deploymentSignature: String, var imageStore: Map[String,Any], var lastUpdated: String) {
+  def copy = new Service(owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, imageStore, lastUpdated)
 }
 
-case class ServiceRow(service: String, orgid: String, owner: String, label: String, description: String, public: Boolean, documentation: String, url: String, version: String, arch: String, sharable: String, matchHardware: String, requiredServices: String, requiredResources: String, userInput: String, deployment: String, deploymentSignature: String, imageStore: String, lastUpdated: String) {
+case class ServiceRow(service: String, orgid: String, owner: String, label: String, description: String, public: Boolean, documentation: String, url: String, version: String, arch: String, sharable: String, matchHardware: String, requiredServices: String, userInput: String, deployment: String, deploymentSignature: String, imageStore: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toService: Service = {
     val mh = if (matchHardware != "") read[Map[String,Any]](matchHardware) else Map[String,Any]()
     val rs = if (requiredServices != "") read[List[ServiceRef]](requiredServices) else List[ServiceRef]()
-    val rr = if (requiredResources != "") read[List[ResourceRef]](requiredResources) else List[ResourceRef]()
     val input = if (userInput != "") read[List[Map[String,String]]](userInput) else List[Map[String,String]]()
     val p = if (imageStore != "") read[Map[String,Any]](imageStore) else Map[String,Any]()
-    new Service(owner, label, description, public, documentation, url, version, arch, sharable, mh, rs, rr, input, deployment, deploymentSignature, p, lastUpdated)
+    new Service(owner, label, description, public, documentation, url, version, arch, sharable, mh, rs, input, deployment, deploymentSignature, p, lastUpdated)
   }
 
   // update returns a DB action to update this row
@@ -48,14 +47,13 @@ class Services(tag: Tag) extends Table[ServiceRow](tag, "services") {
   def sharable = column[String]("sharable")
   def matchHardware = column[String]("matchhardware")
   def requiredServices = column[String]("requiredservices")
-  def requiredResources = column[String]("requiredresources")
   def userInput = column[String]("userinput")
   def deployment = column[String]("deployment")
   def deploymentSignature = column[String]("deploymentsignature")
   def imageStore = column[String]("imagestore")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (service, orgid, owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, requiredResources, userInput, deployment, deploymentSignature, imageStore, lastUpdated) <> (ServiceRow.tupled, ServiceRow.unapply)
+  def * = (service, orgid, owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, imageStore, lastUpdated) <> (ServiceRow.tupled, ServiceRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -85,7 +83,6 @@ object ServicesTQ {
   def getSharable(service: String) = rows.filter(_.service === service).map(_.sharable)
   def getMatchHardware(service: String) = rows.filter(_.service === service).map(_.matchHardware)
   def getRequiredServices(service: String) = rows.filter(_.service === service).map(_.requiredServices)
-  def getRequiredResources(service: String) = rows.filter(_.service === service).map(_.requiredResources)
   def getUserInput(service: String) = rows.filter(_.service === service).map(_.userInput)
   def getDeployment(service: String) = rows.filter(_.service === service).map(_.deployment)
   def getDeploymentSignature(service: String) = rows.filter(_.service === service).map(_.deploymentSignature)
@@ -108,7 +105,6 @@ object ServicesTQ {
       case "sharable" => filter.map(_.sharable)
       case "matchHardware" => filter.map(_.matchHardware)
       case "requiredServices" => filter.map(_.requiredServices)
-      case "requiredResources" => filter.map(_.requiredResources)
       case "userInput" => filter.map(_.userInput)
       case "deployment" => filter.map(_.deployment)
       case "deploymentSignature" => filter.map(_.deploymentSignature)

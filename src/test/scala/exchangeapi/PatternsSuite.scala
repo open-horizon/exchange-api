@@ -140,7 +140,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("Add service for future tests") {
-    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val svcResponse = Http(URL+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
     assert(svcResponse.code === HttpCode.POST_OK)
@@ -417,7 +417,7 @@ class PatternsSuite extends FunSuite {
   // IBM pattern tests ==============================================
 
   test("POST /orgs/IBM/services - add IBM service so patterns can reference it") {
-    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, None, "{\"services\":{}}", "a", None)
+    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, "{\"services\":{}}", "a", None)
     val response = Http(IBMURL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

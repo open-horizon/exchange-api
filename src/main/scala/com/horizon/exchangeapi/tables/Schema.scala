@@ -86,9 +86,9 @@ object SchemaTQ {
       )
       case 13 => DBIO.seq(   // v1.63.0
         sqlu"alter table services add column documentation character varying not null default ''",
-        ResourcesTQ.rows.schema.create,
-        ResourceKeysTQ.rows.schema.create,
-        ResourceAuthsTQ.rows.schema.create,
+        //ResourcesTQ.rows.schema.create,
+        //ResourceKeysTQ.rows.schema.create,
+        //ResourceAuthsTQ.rows.schema.create,
         sqlu"alter table services add column requiredResources character varying not null default ''"
       )
       case 14 => DBIO.seq(   // version 1.64.0
@@ -108,12 +108,18 @@ object SchemaTQ {
       case 18 => DBIO.seq(NodePolicyTQ.rows.schema.create)    // v1.77.0
       case 19 => DBIO.seq(ServicePolicyTQ.rows.schema.create)    // v1.77.0
       case 20 => DBIO.seq(BusinessPoliciesTQ.rows.schema.create)    // v1.78.0
+      case 21 => DBIO.seq(    // v1.82.0
+        sqlu"alter table services drop column requiredresources",
+        sqlu"drop table if exists resourcekeys",
+        sqlu"drop table if exists resourceauths",
+        sqlu"drop table if exists resources"
+      )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 20     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "add businesspolicies table"
+  val latestSchemaVersion = 21     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "delete resources table and columns"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

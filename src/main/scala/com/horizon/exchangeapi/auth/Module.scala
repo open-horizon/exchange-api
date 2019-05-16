@@ -75,13 +75,8 @@ class Module extends LoginModule with AuthorizationSupport {
     if (!succeeded) {
       // Throw an exception so we can report the correct error
       loginResult.failed.get match {
-        case e: UserFacingError => throw e
         case _: NotLocalCredsException => return false
-        case e: DbTimeoutException => throw e
-        case e: DbConnectionException => throw e
-        case e: IsDbMigrationException => throw e
-        case e: InvalidCredentialsException => throw e
-        case e: AuthInternalErrorException => throw e
+        case e: AuthException => throw e
         case _ => throw new FailedLoginException
       }
     }

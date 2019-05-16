@@ -90,17 +90,10 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
        The difference is: if we return false it means this ibmCloudModule didn't apply, so then if Module ends up throwing an exception it will be reported.
        On the other hand, if this ibmCloudModule returns an exception and Module does too, JAAS will only report the 1st one. */
       loginResult.failed.get match {
-        // This looked like an ibm cred, but there was a problem with it, so throw the exception so it gets back to the user
-        case e: UserFacingError =>  throw e    // exceptions from verifyOrg(): OrgNotFound, IncorrectOrgFound
         // This was not an ibm cred, so return false so JAAS will move on to the next login module and return any exception from it
         case _: NotIbmCredsException => return false
-        //case e: DbTimeoutException => e
-        //case e: DbConnectionException => e
-        case e: IsDbMigrationException => throw e
-        case e: BadIamCombinationException => throw e
-        case e: IamApiErrorException => throw e
-        //case e: InvalidCredentialsException => e
-        //case e: AuthInternalErrorException => e
+        // This looked like an ibm cred, but there was a problem with it, so throw the exception so it gets back to the user
+        case e: AuthException => throw e
         //todo: using this instead of the specific Db exceptions above because i haven't figured out yet how to successfully not have Await.result() be the last line of getOrCreateUser().
         case e => throw new DbConnectionException(e.getMessage)
       }
@@ -186,16 +179,18 @@ object IbmCloudAuth {
   // Use the IBM IAM API to authenticate the iamapikey and get an IAM token. See: https://cloud.ibm.com/apidocs/iam-identity-token-api and https://github.ibm.com/IBMPrivateCloud/roadmap/blob/master/feature-specs/security/security-services-apis.md
   private def getIamToken(authInfo: IamAuthCredentials): Try[IamToken] = {
     if (authInfo.keyType == "iamapikey") {
-      logger.debug("Retrieving IBM Cloud IAM token using API key")
-      val response = Http("https://iam.cloud.ibm.com/identity/token")
-        .header("Accept", "application/json")
-        .postForm(Seq(
-          "grant_type" -> "urn:ibm:params:oauth:grant-type:apikey",
-          "apikey" -> authInfo.key
-        ))
-        .asString
-      if (response.code == HttpCode.OK) Try(parse(response.body).camelizeKeys.extract[IamToken])
-      else Failure(new IamApiErrorException(response.body.toString))
+      try {
+        logger.debug("Retrieving IBM Cloud IAM token using API key")
+        val response = Http("https://iam.cloud.ibm.com/identity/token")
+          .header("Accept", "application/json")
+          .postForm(Seq(
+            "grant_type" -> "urn:ibm:params:oauth:grant-type:apikey",
+            "apikey" -> authInfo.key
+          ))
+          .asString
+        if (response.code == HttpCode.OK) Success(parse(response.body).camelizeKeys.extract[IamToken])
+        else Failure(new IamApiErrorException(response.body.toString))
+      } catch { case e: Exception => Failure(new IamApiErrorException("error getting IAM token from API key: "+e.getMessage)) }
     } else {
       Failure(new AuthInternalErrorException("the user is not a valid IAM keyword"))
     }
@@ -206,37 +201,43 @@ object IbmCloudAuth {
     if (isIcp && token.tokenType.getOrElse("") == "iamapikey") {
       // An icp platform apikey that we can use directly to authenticate and get the username
       //crl -k -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d "apikey=$ICP_PLATFORM_KEY" $ICP_IAM_URL/iam-token/oidc/introspect
-      val iamUrl = getIcpIdentityUrl + "/iam-token/oidc/introspect"
-      logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
-      val apiKey = token.accessToken
-      //TODO: need to get the self-signed cert so we don't have to use the allowUnsafeSSL option
-      val response = Http(iamUrl).method("post").option(HttpOptions.allowUnsafeSSL)
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .postData("apikey="+apiKey)
-        .asString
-      if (response.code == HttpCode.OK) Try(parse(response.body).extract[IamUserInfo])
-      else Failure(new IamApiErrorException(response.body.toString))
+      try {
+        val iamUrl = getIcpIdentityUrl + "/iam-token/oidc/introspect"
+        logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
+        val apiKey = token.accessToken
+        //TODO: need to get the self-signed cert so we don't have to use the allowUnsafeSSL option
+        val response = Http(iamUrl).method("post").option(HttpOptions.allowUnsafeSSL)
+          .header("Content-Type", "application/x-www-form-urlencoded")
+          .postData("apikey="+apiKey)
+          .asString
+        if (response.code == HttpCode.OK) Success(parse(response.body).extract[IamUserInfo])
+        else Failure(new IamApiErrorException(response.body.toString))
+      } catch { case e: Exception => Failure(new IamApiErrorException("error authenticating ICP IAM API key: "+e.getMessage)) }
     } else if (isIcp) {
       // An icp token from the UI
-      val iamUrl = getIcpIdentityUrl + "/idprovider/v1/auth/userinfo"
-      logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
-      //TODO: need to get the self-signed cert so we don't have to use the allowUnsafeSSL option
-      val response = Http(iamUrl).method("post").option(HttpOptions.allowUnsafeSSL)
-        .header("Authorization", s"BEARER ${token.accessToken}")
-        .header("Content-Type", "application/json")
-        .asString
-      if (response.code == HttpCode.OK) Try(parse(response.body).extract[IamUserInfo])
-      else Failure(new IamApiErrorException(response.body.toString))
+      try {
+        val iamUrl = getIcpIdentityUrl + "/idprovider/v1/auth/userinfo"
+        logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
+        //TODO: need to get the self-signed cert so we don't have to use the allowUnsafeSSL option
+        val response = Http(iamUrl).method("post").option(HttpOptions.allowUnsafeSSL)
+          .header("Authorization", s"BEARER ${token.accessToken}")
+          .header("Content-Type", "application/json")
+          .asString
+        if (response.code == HttpCode.OK) Success(parse(response.body).extract[IamUserInfo])
+        else Failure(new IamApiErrorException(response.body.toString))
+      } catch { case e: Exception => Failure(new IamApiErrorException("error authenticating ICP IAM token: "+e.getMessage)) }
     } else {
       // An ibm public cloud token, either from the UI or from the platform apikey we were given
-      val iamUrl = "https://iam.cloud.ibm.com/identity/userinfo"
-      logger.debug("Retrieving IBM Cloud IAM userinfo from " + iamUrl)
-      val response = Http(iamUrl)
-        .header("Authorization", s"BEARER ${token.accessToken}")
-        .header("Content-Type", "application/json")
-        .asString
-      if (response.code == HttpCode.OK) Try(parse(response.body).extract[IamUserInfo])
-      else Failure(new IamApiErrorException(response.body.toString))
+      try {
+        val iamUrl = "https://iam.cloud.ibm.com/identity/userinfo"
+        logger.debug("Retrieving IBM Cloud IAM userinfo from " + iamUrl)
+        val response = Http(iamUrl)
+          .header("Authorization", s"BEARER ${token.accessToken}")
+          .header("Content-Type", "application/json")
+          .asString
+        if (response.code == HttpCode.OK) Success(parse(response.body).extract[IamUserInfo])
+        else Failure(new IamApiErrorException(response.body.toString))
+      } catch { case e: Exception => Failure(new IamApiErrorException("error authenticating IAM token: "+e.getMessage)) }
     }
   }
 

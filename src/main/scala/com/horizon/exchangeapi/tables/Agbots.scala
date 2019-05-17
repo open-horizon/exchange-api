@@ -112,6 +112,35 @@ object AgbotPatternsTQ {
 case class AgbotPattern(patternOrgid: String, pattern: String, nodeOrgid: String, lastUpdated: String)
 
 
+case class AgbotBusinessPolRow(busPolId: String, agbotId: String, businessPolOrgid: String, businessPol: String, nodeOrgid: String, lastUpdated: String) {
+  def toAgbotBusinessPol = AgbotBusinessPol(businessPolOrgid, businessPol, nodeOrgid, lastUpdated)
+
+  def upsert: DBIO[_] = AgbotBusinessPolsTQ.rows.insertOrUpdate(this)
+  def insert: DBIO[_] = AgbotBusinessPolsTQ.rows += this
+}
+
+class AgbotBusinessPols(tag: Tag) extends Table[AgbotBusinessPolRow](tag, "agbotbusinesspols") {
+  def busPolId = column[String]("buspolid")     // key - this is the businessPol's org concatenated with the businessPol name
+  def agbotId = column[String]("agbotid")               // additional key - the composite orgid/agbotid
+  def businessPolOrgid = column[String]("businesspolorgid")
+  def businessPol = column[String]("businesspol")
+  def nodeOrgid = column[String]("nodeorgid")
+  def lastUpdated = column[String]("lastupdated")
+  def * = (busPolId, agbotId, businessPolOrgid, businessPol, nodeOrgid, lastUpdated) <> (AgbotBusinessPolRow.tupled, AgbotBusinessPolRow.unapply)
+  def primKey = primaryKey("pk_agbp", (busPolId, agbotId))
+  def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object AgbotBusinessPolsTQ {
+  val rows = TableQuery[AgbotBusinessPols]
+
+  def getBusinessPols(agbotId: String) = rows.filter(_.agbotId === agbotId)
+  def getBusinessPol(agbotId: String, busPolId: String) = rows.filter( r => {r.agbotId === agbotId && r.busPolId === busPolId} )
+}
+
+case class AgbotBusinessPol(businessPolOrgid: String, businessPol: String, nodeOrgid: String, lastUpdated: String)
+
+
 case class AAWorkload(orgid: String, pattern: String, url: String)
 case class AAService(orgid: String, pattern: String, url: String)
 

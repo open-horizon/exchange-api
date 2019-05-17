@@ -480,22 +480,21 @@ else
     echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_${patid}_${orgid} exists"
 fi
 
-rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid2}_${patid2}_${orgid}")
+rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid2}_*_${orgid}")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauth "orgs/$orgid/agbots/$agbotid/patterns" '{ "patternOrgid": "'$orgid2'", "pattern": "'$patid2'", "nodeOrgid": "'$orgid'" }'
+    curlcreate "POST" $userauth "orgs/$orgid/agbots/$agbotid/patterns" '{ "patternOrgid": "'$orgid2'", "pattern": "*", "nodeOrgid": "'$orgid'" }'
 else
-    echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid2}_${patid2}_${orgid} exists"
+    echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid2}_*_${orgid} exists"
 fi
 
-# Deprecated...
-#rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_$patid")
-#checkrc "$rc" 200 404
-#if [[ $rc != 200 ]]; then
-#    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_$patid" '{ "patternOrgid": "'$orgid'", "pattern": "'$patid'" }'
-#else
-#    echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_$patid exists"
-#fi
+rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/businesspols/${orgid}_*_${orgid}")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauth "orgs/$orgid/agbots/$agbotid/businesspols" '{ "businessPolOrgid": "'$orgid'", "businessPol": "*" }'
+else
+    echo "orgs/$orgid/agbots/$agbotid/businesspols/${orgid}_*_${orgid} exists"
+fi
 
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1")
 checkrc "$rc" 200 404

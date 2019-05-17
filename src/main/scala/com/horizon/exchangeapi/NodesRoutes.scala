@@ -766,6 +766,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   "token": "abc",       // node token, set by user when adding this node.
   "name": "rpi3",         // node name that you pick
   "pattern": "myorg/mypattern",      // (optional) points to a pattern resource that defines what services should be deployed to this type of node
+  "arch": "arm",      // specifies the architecture of the node
   "registeredServices": [    // list of data services you want to make available
     {
       "url": "IBM/github.com.open-horizon.examples.cpu",
@@ -783,8 +784,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   ],
   "msgEndPoint": "",    // not currently used, but may be in the future. Leave empty or omit to use the built-in Exchange msg service
   "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the node, can omit
-  "publicKey": "ABCDEF",      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
-  "arch": "arm"      // specifies the architecture of the node
+  "publicKey": "ABCDEF"      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
 }
 ```"""
       parameters(

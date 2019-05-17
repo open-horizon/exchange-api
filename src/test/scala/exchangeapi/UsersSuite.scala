@@ -552,7 +552,7 @@ class UsersSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" as not public in 1st org") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, None, "", "", None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -698,7 +698,7 @@ class UsersSuite extends FunSuite {
       assert(response.code === HttpCode.ACCESS_DENIED)
 
       // ensure we can add a service to check acls to other objects
-      val inputSvc = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, "s1", "1.2.3", "amd64", "single", None, None, None, None, "a","b",None)
+      val inputSvc = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, "s1", "1.2.3", "amd64", "single", None, None, None, "a","b",None)
       response = Http(URL+"/services").postData(write(inputSvc)).method("post").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.POST_OK)

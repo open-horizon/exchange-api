@@ -67,6 +67,21 @@ case class PostAgbotPatternRequest(patternOrgid: String, pattern: String, nodeOr
   def validate() = {}
 }
 
+
+/** Output format for GET /orgs/{orgid}/agbots/{id}/businesspols */
+case class GetAgbotBusinessPolsResponse(businessPols: Map[String,AgbotBusinessPol])
+
+/** Input format for POST /orgs/{orgid}/agbots/{id}/businesspols */
+case class PostAgbotBusinessPolRequest(businessPolOrgid: String, businessPol: String, nodeOrgid: Option[String]) {
+  def toAgbotBusinessPol = AgbotBusinessPol(businessPolOrgid, businessPol, nodeOrgid.getOrElse(businessPolOrgid), ApiTime.nowUTC)
+  def toAgbotBusinessPolRow(agbotId: String, busPolId: String) = AgbotBusinessPolRow(busPolId, agbotId, businessPolOrgid, businessPol, nodeOrgid.getOrElse(businessPolOrgid), ApiTime.nowUTC)
+  def formId = businessPolOrgid + "_" + businessPol + "_" + nodeOrgid.getOrElse(businessPolOrgid)
+  def validate() = {
+    val nodeOrg = nodeOrgid.getOrElse(businessPolOrgid)
+    if (nodeOrg != businessPolOrgid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Currently nodeOrgid must be the same as businessPolOrgid, because business policies can only be used within the organization they are defined in"))
+  }
+}
+
 /** Output format for GET /orgs/{orgid}/agbots/{id}/agreements */
 case class GetAgbotAgreementsResponse(agreements: Map[String,AgbotAgreement], lastIndex: Int)
 
@@ -432,7 +447,15 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   val postAgbotPattern =
     (apiOperation[ApiResponse]("postAgbotPattern")
       summary "Adds a pattern that the agbot should serve"
-      description """Adds a new pattern and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the pattern."""
+      description """Adds a new pattern and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the pattern.  The **request body** structure:
+
+```
+{
+  "patternOrgid": "string",
+  "pattern": "string",    // can be "*" to mean all patterns in the org
+  "nodeOrgid": "string"   // optional, if omitted it defaults to patternOrgid
+}
+```"""
       parameters(
       Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
       Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add this pattern."), paramType = ParamType.Path),
@@ -550,6 +573,202 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+patId+"' for agbot '"+compositeId+"' not deleted: "+t.toString)
         }
+    })
+  })
+
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  /* ====== GET /orgs/{orgid}/agbots/{id}/businesspols ================================ */
+  val getAgbotBusinessPols =
+    (apiOperation[GetAgbotBusinessPolsResponse]("getAgbotBusinessPols")
+      summary("Returns all business policies served by this agbot")
+      description("""Returns all business policies that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.""")
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  get("/orgs/:orgid/agbots/:id/businesspols", operation(getAgbotBusinessPols)) ({
+    val orgid = params("orgid")
+    val id = params("id")   // but do not have a hack/fix for the name
+    val compositeId = OrgAndId(orgid,id).toString
+    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
+    val resp = response
+    db.run(AgbotBusinessPolsTQ.getBusinessPols(compositeId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/businesspols result size: "+list.size)
+      //logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/businesspols result: "+list.toString)
+      val businessPols = new MutableHashMap[String, AgbotBusinessPol]
+      if (list.nonEmpty) for (e <- list) { businessPols.put(e.busPolId, e.toAgbotBusinessPol) }
+      if (businessPols.nonEmpty) resp.setStatus(HttpCode.OK)
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      GetAgbotBusinessPolsResponse(businessPols.toMap)
+    })
+  })
+
+  /* ====== GET /orgs/{orgid}/agbots/{id}/businesspols/{buspolid} ================================ */
+  val getOneAgbotBusinessPol =
+    (apiOperation[GetAgbotBusinessPolsResponse]("getOneAgbotBusinessPol")
+      summary("Returns a business policy this agbot is serving")
+      description("""Returns the business policy with the specified buspolid for the specified agbot id. The buspolid should be in the form businessPolOrgid_businessPol. Can be run by the owning user or the agbot.""")
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
+      Parameter("buspolid", DataType.String, Option[String]("ID of the businessPol."), paramType=ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  get("/orgs/:orgid/agbots/:id/businesspols/:buspolid", operation(getOneAgbotBusinessPol)) ({
+    val orgid = params("orgid")
+    val id = params("id")
+    val compositeId = OrgAndId(orgid,id).toString
+    val busPolId = params("buspolid")
+    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
+    val resp = response
+    db.run(AgbotBusinessPolsTQ.getBusinessPol(compositeId, busPolId).result).map({ list =>
+      logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/businesspols/"+busPolId+" result: "+list.toString)
+      val businessPols = new MutableHashMap[String, AgbotBusinessPol]
+      if (list.nonEmpty) for (e <- list) { businessPols.put(e.busPolId, e.toAgbotBusinessPol) }
+      if (businessPols.nonEmpty) resp.setStatus(HttpCode.OK)
+      else resp.setStatus(HttpCode.NOT_FOUND)
+      GetAgbotBusinessPolsResponse(businessPols.toMap)
+    })
+  })
+
+  // =========== POST /orgs/{orgid}/agbots/{id}/businesspols ===============================
+  val postAgbotBusinessPol =
+    (apiOperation[ApiResponse]("postAgbotBusinessPol")
+      summary "Adds a business policy that the agbot should serve"
+      description """Adds a new business policy and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the businessPol.  The **request body** structure:
+
+```
+{
+  "businessPolOrgid": "string",
+  "businessPol": "string",    // can be "*" to mean all business policies in the org
+  "nodeOrgid": "string"   // optional, if omitted it defaults to businessPolOrgid (currently it can *not* be different from businessPolOrgid)
+}
+```"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add this businessPol."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PostAgbotBusinessPolRequest],
+        Option[String]("BusinessPol object that needs to be added to the exchange."),
+        paramType = ParamType.Body)
+    )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"), ResponseMessage(HttpCode.ALREADY_EXISTS2,"already exists"))
+      )
+  val postAgbotBusinessPol2 = (apiOperation[PostAgbotBusinessPolRequest]("postBusinessPol2") summary("a") description("a"))  // for some bizarre reason, the class has to be used in apiOperation() for it to be recognized in the body Parameter above
+
+  post("/orgs/:orgid/agbots/:id/businesspols", operation(postAgbotBusinessPol)) ({
+    val orgid = params("orgid")
+    val id = params("id")
+    val compositeId = OrgAndId(orgid,id).toString
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    val businessPol = try { parse(request.body).extract[PostAgbotBusinessPolRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    businessPol.validate()
+    val busPolId = businessPol.formId
+    val resp = response
+    db.run(BusinessPoliciesTQ.getBusinessPolicy(OrgAndId(businessPol.businessPolOrgid,businessPol.businessPol).toString).length.result.asTry.flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/businesspols business policy validation: "+xs.toString)
+      xs match {
+        case Success(num) => if (num > 0 || businessPol.businessPol == "*") businessPol.toAgbotBusinessPolRow(compositeId, busPolId).insert.asTry
+          else DBIO.failed(new Throwable("the referenced business policy does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/businesspols result: "+xs.toString)
+      xs match {
+        case Success(_) => resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, "businessPol "+busPolId+" added")
+        case Failure(t) => if (t.getMessage.contains("duplicate key")) {
+          resp.setStatus(HttpCode.ALREADY_EXISTS2)
+          ApiResponse(ApiResponseType.ALREADY_EXISTS, "businessPol '"+busPolId+"' for agbot '"+compositeId+"' already exists")
+        } else if (t.getMessage.startsWith("Access Denied:")) {
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, "businessPol '"+busPolId+"' for agbot '"+compositeId+"' not inserted: "+t.getMessage)
+        } else {
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "businessPol '"+busPolId+"' for agbot '"+compositeId+"' not inserted: "+t.getMessage)
+        }
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/agbots/{id}/businesspols ===============================
+  val deleteAgbotAllBusinessPol =
+    (apiOperation[ApiResponse]("deleteAgbotAllBusinessPol")
+      summary "Deletes all business policies of a agbot"
+      description "Deletes all of the current business policies that this agbot was serving. Can be run by the owning user or the agbot."
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the business policy is to be deleted."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  delete("/orgs/:orgid/agbots/:id/businesspols", operation(deleteAgbotAllBusinessPol)) ({
+    val orgid = params("orgid")
+    val id = params("id")
+    val compositeId = OrgAndId(orgid,id).toString
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    val resp = response
+    db.run(AgbotBusinessPolsTQ.getBusinessPols(compositeId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/businesspols result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "agbot business policies deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "no business policies for agbot '"+compositeId+"' found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "businessPols for agbot '"+compositeId+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  // =========== DELETE /orgs/{orgid}/agbots/{id}/businesspols/{buspolid} ===============================
+  val deleteAgbotBusinessPol =
+    (apiOperation[ApiResponse]("deleteAgbotBusinessPol")
+      summary "Deletes a business policy of a agbot"
+      description "Deletes a business policy that this agbot was serving. Can be run by the owning user or the agbot."
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the business policy is to be deleted."), paramType = ParamType.Path),
+      Parameter("buspolid", DataType.String, Option[String]("ID of the business policy to be deleted."), paramType = ParamType.Path),
+      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+    )
+      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  delete("/orgs/:orgid/agbots/:id/businesspols/:buspolid", operation(deleteAgbotBusinessPol)) ({
+    val orgid = params("orgid")
+    val id = params("id")
+    val compositeId = OrgAndId(orgid,id).toString
+    val busPolId = params("buspolid")
+    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
+    val resp = response
+    db.run(AgbotBusinessPolsTQ.getBusinessPol(compositeId,busPolId).delete.asTry).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/businesspols/"+busPolId+" result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "agbot business policy deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, "businessPol '"+busPolId+"' for agbot '"+compositeId+"' not found")
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "businessPol '"+busPolId+"' for agbot '"+compositeId+"' not deleted: "+t.toString)
+      }
     })
   })
 

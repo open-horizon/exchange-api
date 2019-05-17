@@ -1,28 +1,14 @@
 package com.horizon.exchangeapi
 
-//import java.util.Base64
-
-//import com.horizon.exchangeapi.auth.{AuthErrors, ExchCallbackHandler, PermissionCheck}
-//import com.horizon.exchangeapi.auth.PermissionCheck
 import com.horizon.exchangeapi.tables._
 import org.scalatra.servlet.ServletApiImplicits
-//import javax.security.auth.Subject
-//import javax.security.auth.login.LoginContext
-//import javax.servlet.http.HttpServletRequest
-//import org.mindrot.jbcrypt.BCrypt
-//import org.scalatra.servlet.ServletApiImplicits
 import org.scalatra.Control
 import org.slf4j.LoggerFactory
-//import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim}
 import slick.jdbc.PostgresProfile.api._
-
-//import scala.collection.JavaConverters._
 import scala.collection.mutable.{HashMap => MutableHashMap /* , Set => MutableSet */ }
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-//import scala.util._
-//import scala.util.control.NonFatal
 import com.horizon.exchangeapi.auth._
 
 /** In-memory cache of the user/pw, node id/token, and agbot id/token, where the pw and tokens are not hashed to speed up validation */
@@ -53,7 +39,6 @@ object AuthCache extends Control with ServletApiImplicits {
         case "users" => db.run(UsersTQ.rows.map(x => (x.username, x.password, x.admin)).result).map({ list => this._initUsers(list, skipRoot = true) })
         case "nodes" => db.run(NodesTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
         case "agbots" => db.run(AgbotsTQ.rows.map(x => (x.id, x.token, x.owner)).result).map({ list => this._initIds(list) })
-        case "resources" => db.run(ResourcesTQ.rows.map(x => (x.resource, x.owner, x.public)).result).map({ list => this._initResources(list) })
         case "services" => db.run(ServicesTQ.rows.map(x => (x.service, x.owner, x.public)).result).map({ list => this._initServices(list) })
         case "patterns" => db.run(PatternsTQ.rows.map(x => (x.pattern, x.owner, x.public)).result).map({ list => this._initPatterns(list) })
         case "business" => db.run(BusinessPoliciesTQ.rows.map(x => (x.businessPolicy, x.owner)).result).map({ list => this._initBusiness(list) })
@@ -75,14 +60,6 @@ object AuthCache extends Control with ServletApiImplicits {
         val tokens: Tokens = if (Password.isHashed(password)) Tokens("", password) else Tokens(password, Password.hash(password))
         if (!(skipRoot && Role.isSuperUser(username))) _put(username, tokens)     // Note: ExchConfig.createRoot(db) already puts root in the auth cache and we do not want a race condition
         if (admin) _putOwner(username, "admin")
-      }
-    }
-
-    /** Put owners of resources in the cache */
-    def _initResources(credList: Seq[(String,String,Boolean)]): Unit = {
-      for ((resource,owner,isPub) <- credList) {
-        if (owner != "") _putOwner(resource, owner)
-        _putIsPublic(resource, isPub)
       }
     }
 
@@ -214,7 +191,6 @@ object AuthCache extends Control with ServletApiImplicits {
             //case "users" => UsersTQ.getAdminAsString(id).result
             case "nodes" => NodesTQ.getOwner(id).result
             case "agbots" => AgbotsTQ.getOwner(id).result
-            case "resources" => ResourcesTQ.getOwner(id).result
             case "services" => ServicesTQ.getOwner(id).result
             case "patterns" => PatternsTQ.getOwner(id).result
             case "business" => BusinessPoliciesTQ.getOwner(id).result
@@ -242,7 +218,6 @@ object AuthCache extends Control with ServletApiImplicits {
       try {
         // For the all the others, we are looking for the traditional owner
         val a = whichTable match {
-          case "resources" => ResourcesTQ.getPublic(id).result
           case "services" => ServicesTQ.getPublic(id).result
           case "patterns" => PatternsTQ.getPublic(id).result
           case _ => return Some(false)      // should never get here
@@ -327,7 +302,6 @@ object AuthCache extends Control with ServletApiImplicits {
   val users = new Cache("users")
   val nodes = new Cache("nodes")
   val agbots = new Cache("agbots")
-  val resources = new Cache("resources")
   val services = new Cache("services")
   val patterns = new Cache("patterns")
   val business = new Cache("business")

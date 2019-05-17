@@ -704,7 +704,7 @@ class UsersSuite extends FunSuite {
       assert(response.code === HttpCode.POST_OK)
 
       // ensure we can add a node to check acls to other objects
-      val inputNode = PutNodesRequest("abc", "my node", "", None, None, None, "ABC")
+      val inputNode = PutNodesRequest("abc", "my node", "", None, None, None, "ABC", None)
       response = Http(URL+"/nodes/n1").postData(write(inputNode)).method("put").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)

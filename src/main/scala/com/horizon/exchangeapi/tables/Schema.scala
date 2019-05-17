@@ -115,12 +115,15 @@ object SchemaTQ {
         sqlu"drop table if exists resources"
       )
       case 22 => DBIO.seq(AgbotBusinessPolsTQ.rows.schema.create)    // v1.82.0
+      case 23 => DBIO.seq(   // version 1.83.0
+        sqlu"alter table nodes add column arch character varying not null default ''"
+      )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 22     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "add agbotbusinesspols table"
+  val latestSchemaVersion = 23     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "add column arch to nodes table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

@@ -173,7 +173,7 @@ class FrontEndSuite extends FunSuite {
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","=")))
       )),
-      None, None, "NODEABC")
+      None, None, "NODEABC", None)
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -188,7 +188,7 @@ class FrontEndSuite extends FunSuite {
           Prop("agreementProtocols",agProto,"list","in"),
           Prop("dataVerification","true","boolean","=")))
       )),
-      None, None, "NODEABC")
+      None, None, "NODEABC", None)
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)

@@ -563,7 +563,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     AuthCache.agbots.removeAll()
     AuthCache.nodes.removeAll()
     AuthCache.patterns.removeAll()
-    AuthCache.resources.removeAll()
     AuthCache.services.removeAll()
     AuthCache.users.removeAll()
     ApiResponse(ApiResponseType.OK, "cache cleared")

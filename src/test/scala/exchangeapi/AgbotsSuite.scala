@@ -65,6 +65,10 @@ class AgbotsSuite extends FunSuite {
   val patId2 = orgid2 + "_" + pattern2 + "_" + orgid
   val pattern3 = "mypattern3"
   val patId3 = orgid + "_" + pattern3 + "_" + orgid
+  val businessPol = "mybuspol"
+  val busPolId = orgid + "_" + businessPol + "_" + orgid
+  val businessPol2 = "*"
+  val busPolId2 = orgid2 + "_" + businessPol2 + "_" + orgid2
   val svcid = "bluehorizon.network-services-netspeed_1.0.0_amd64"
   val svcurl = "https://bluehorizon.network/services/netspeed"
   val svcarch = "amd64"
@@ -288,7 +292,7 @@ class AgbotsSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/services - add "+svcid+" and check that agbot can read it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -381,7 +385,8 @@ class AgbotsSuite extends FunSuite {
   // Note: when we delete the org, this pattern will get deleted
 
 
-  // Test the pattern sub-resources
+  //~~~~~ Test the pattern sub-resources ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - as user") {
     val input = PostAgbotPatternRequest(orgid, pattern, None)
     val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -481,6 +486,110 @@ class AgbotsSuite extends FunSuite {
     assert(getAgbotResp.patterns.size === 0)
   }
 
+
+  //~~~~~ Test the business policy sub-resources ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPol+" - add "+businessPol+" as user") {
+    val input = PostPutBusinessPolicyRequest(businessPol, None, BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None ), None, None )
+    val response = Http(URL+"/business/policies/"+businessPol).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as user") {
+    val input = PostAgbotBusinessPolRequest(orgid, businessPol, None)
+    val response = Http(URL+"/agbots/"+agbotId+"/businesspols").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - already exists, should get 409") {
+    val input = PostAgbotBusinessPolRequest(orgid, businessPol, None)
+    val response = Http(URL+"/agbots/"+agbotId+"/businesspols").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ALREADY_EXISTS2)
+  }
+
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - node org different from business policy org - should fail") {
+    val input = PostAgbotBusinessPolRequest(orgid2, "*", Some(orgid))
+    val response = Http(URL+"/agbots/"+agbotId+"/businesspols").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - add business policy of '*' in other org") {
+    val input = PostAgbotBusinessPolRequest(orgid2, businessPol2, Some(orgid2))
+    val response = Http(URL+"/agbots/"+agbotId+"/businesspols").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - add business policy that does not exist - should fail") {
+    val input = PostAgbotBusinessPolRequest(orgid, "notthere", None)
+    val response = Http(URL+"/agbots/"+agbotId+"/businesspols").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
+  test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as agbot") {
+    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/businesspols").headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: " + response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getAgbotResp = parse(response.body).extract[GetAgbotBusinessPolsResponse]
+    assert(getAgbotResp.businessPols.size === 2)
+    assert(getAgbotResp.businessPols.contains(busPolId))
+    assert(getAgbotResp.businessPols.contains(busPolId2))
+    val bp = getAgbotResp.businessPols(busPolId)
+    assert(bp.businessPol === businessPol)
+  }
+
+  test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols/"+busPolId2+" - as agbot") {
+    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/businesspols/"+busPolId2).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: " + response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getAgbotResp = parse(response.body).extract[GetAgbotBusinessPolsResponse]
+    assert(getAgbotResp.businessPols.size === 1)
+
+    assert(getAgbotResp.businessPols.contains(busPolId2))
+    val bp = getAgbotResp.businessPols(busPolId2)
+    assert(bp.businessPol === businessPol2)
+  }
+
+  test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols/"+busPolId2+" - delete wildcard business policy") {
+    val response = Http(URL+"/agbots/"+agbotId+"/businesspols/"+busPolId2).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as agbot - should be 1 less") {
+    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/businesspols").headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: " + response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getAgbotResp = parse(response.body).extract[GetAgbotBusinessPolsResponse]
+    assert(getAgbotResp.businessPols.size === 1)
+    assert(getAgbotResp.businessPols.contains(busPolId))
+  }
+
+  test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - delete all as user") {
+    val response = Http(URL+"/agbots/"+agbotId+"/businesspols").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as agbot - should be all gone") {
+    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/businesspols").headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: " + response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND)
+    val getAgbotResp = parse(response.body).extract[GetAgbotBusinessPolsResponse]
+    assert(getAgbotResp.businessPols.size === 0)
+  }
+
+
+  //~~~~~ Test the agreement sub-resources ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   /** Try to confirm the agreement that's not there for agbot 9930 */
   test("POST /orgs/"+orgid+"/agreements/confirm - not there") {

@@ -67,8 +67,12 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
       new ExchCallbackHandler(RequestInfo(request, params, isDbMigration, anonymousOk, hint))
     )
     for (err <- Try(loginCtx.login()).failed) {
-      logger.trace("in AuthenticationSupport.authenticate: err="+err)
+      // An auth exception, log it, then halt
+      val creds = getCredentials(request, params, anonymousOk)
+      val clientIp = request.header("X-Forwarded-For").orElse(Option(request.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
+      //logger.trace("in AuthenticationSupport.authenticate: err="+err)
       val (httpCode, apiResponse, msg) = AuthErrors.message(err)
+      logger.error("User or id " + creds.id + " from " + clientIp + " running " + request.getMethod + " " + request.getPathInfo + ": " + apiResponse + ": " + msg)
       halt(httpCode, ApiResponse(apiResponse, msg))
     }
     val subject = loginCtx.getSubject

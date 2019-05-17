@@ -100,7 +100,7 @@ case class PostSearchNodesRequest(desiredServices: List[RegServiceSearch], secon
 
       if (servicesResp.length == desiredServices.length) {
         // all required services were available in this node, so add this node to the response list
-        nodesResp = nodesResp :+ NodeResponse(id, d.name, servicesResp, d.msgEndPoint, d.publicKey)
+        nodesResp = nodesResp :+ NodeResponse(id, d.name, servicesResp, d.msgEndPoint, d.publicKey, d.arch)
       }
     }
     // return the search result to the rest client
@@ -108,11 +108,11 @@ case class PostSearchNodesRequest(desiredServices: List[RegServiceSearch], secon
   }
 }
 
-case class NodeResponse(id: String, name: String, services: List[RegService], msgEndPoint: String, publicKey: String)
+case class NodeResponse(id: String, name: String, services: List[RegService], msgEndPoint: String, publicKey: String, arch: String)
 case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
-case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String) {
+case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Halts the request with an error msg if the user input is invalid. */
@@ -134,7 +134,7 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, token, name, owner, pattern, write(rsvc2), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey).upsert
+    NodeRow(id, orgid, token, name, owner, pattern, write(rsvc2), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).upsert
   }
 
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
@@ -142,7 +142,7 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, token, name, owner, pattern, write(rsvc2), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey).update
+    NodeRow(id, orgid, token, name, owner, pattern, write(rsvc2), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).update
   }
 
   /** Not used any more, kept for reference of how to access object store - Returns the microservice templates for the registeredMicroservices in this object
@@ -180,7 +180,8 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   */
 }
 
-case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String]) {
+// SADIYAH -- here
+case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
@@ -208,6 +209,7 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
     pattern match { case Some(pattern2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat)).update((id, pattern2, lastHeartbeat)), "pattern"); case _ => ; }
     msgEndPoint match { case Some(msgEndPoint2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint2, lastHeartbeat)), "msgEndPoint"); case _ => ; }
     publicKey match { case Some(publicKey2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey2, lastHeartbeat)), "publicKey"); case _ => ; }
+    arch match { case Some(arch2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.arch,d.lastHeartbeat)).update((id, arch2, lastHeartbeat)), "msgEndPoint"); case _ => ; }
     return (null, null)
   }
 }
@@ -367,6 +369,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     params.get("idfilter").foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
     params.get("name").foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
     params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
+    params.get("arch").foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
 
     db.run(q.result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/nodes result size: "+list.size)

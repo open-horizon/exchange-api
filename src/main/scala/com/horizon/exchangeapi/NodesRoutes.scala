@@ -783,7 +783,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   ],
   "msgEndPoint": "",    // not currently used, but may be in the future. Leave empty or omit to use the built-in Exchange msg service
   "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the node, can omit
-  "publicKey": "ABCDEF"      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
+  "publicKey": "ABCDEF",      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
+  "arch": "arm"      // specifies the architecture of the node
 }
 ```"""
       parameters(

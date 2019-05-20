@@ -107,6 +107,7 @@ VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
 '
 
 buspol=mybuspol
+buspol2=mybuspol2
 
 #curlBasicArgs="-s -w %{http_code} --output /dev/null $accept"
 curlBasicArgs="-sS -w %{http_code} $accept $cacert"
@@ -394,6 +395,14 @@ if [[ $rc != 200 ]]; then
     curlcreate "POST" $userauthorg2 "orgs/$orgid2/business/policies/$buspol" '{ "label": "my business policy", "service": { "name": "'$svcurl'", "org": "'$orgid'", "arch": "'$svcarch'", "serviceVersions": [{ "version": "'$svcversion'" }] }, "properties": [{"name":"purpose", "value":"location", "type":"string"}], "constraints":["a == b"] }'
 else
     echo "orgs/$orgid2/business/policies/$buspol exists"
+fi
+
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/business/policies/$buspol2")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauthorg2 "orgs/$orgid2/business/policies/$buspol2" '{ "label": "my business policy", "service": { "name": "'$svcurl'", "org": "'$orgid'", "arch": "*", "serviceVersions": [{ "version": "'$svcversion'" }] }, "properties": [{"name":"purpose", "value":"location", "type":"string"}], "constraints":["a == b"] }'
+else
+    echo "orgs/$orgid2/business/policies/$buspol2 exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid")

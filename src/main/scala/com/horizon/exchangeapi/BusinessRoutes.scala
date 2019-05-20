@@ -70,7 +70,7 @@ case class PatchBusinessPolicyRequest(label: Option[String], description: Option
 
 
 /** Input for business policy-based search for nodes to make agreements with. */
-case class PostBusinessPolicySearchRequest(nodeOrgids: Option[List[String]], changedSince: Int, startIndex: Option[Int], numEntries: Option[Int]) {
+case class PostBusinessPolicySearchRequest(nodeOrgids: Option[List[String]], changedSince: Long, startIndex: Option[Int], numEntries: Option[Int]) {
   def validate() = { }
 }
 
@@ -189,7 +189,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   "service": {
     "name": "mydomain.com.weather",
     "org": "myorg",
-    "arch": "amd64",
+    "arch": "amd64",   // can be set to "*" to mean all architectures
     // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
     "serviceVersions": [
       {
@@ -542,6 +542,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       xs match {
         case Success(list) => if (list.nonEmpty) {
           // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
+          //todo: filter on arch when node arch is available (support arch=* too)
           //todo: factor in num agreements??
           val nodeHash = new MutableHashMap[String,BusinessPolicySearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
           for ( (nodeid, msgEndPoint, publicKey, agrSvcUrlOpt, stateOpt) <- list ) {

@@ -70,7 +70,7 @@ object ServicesTQ {
   }
 
   def getAllServices(orgid: String) = rows.filter(_.orgid === orgid)
-  def getService(service: String) = rows.filter(_.service === service)
+  def getService(service: String) = if (service.contains("%")) rows.filter(_.service like service) else rows.filter(_.service === service)
   def getOwner(service: String) = rows.filter(_.service === service).map(_.owner)
   def getNumOwned(owner: String) = rows.filter(_.owner === owner).length
   def getLabel(service: String) = rows.filter(_.service === service).map(_.label)

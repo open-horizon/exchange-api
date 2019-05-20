@@ -73,6 +73,8 @@ class NodesSuite extends FunSuite {
   val nodeId5 = "n5"      // not ever successfully created
   val orgnodeId5 = authpref+nodeId5
   val patid = "p1"
+  val businessPolicySdr = "mybuspolsdr"
+  val businessPolicyNS = "mybuspolnetspeed"
   val compositePatid = orgid+"/"+patid
   val svcid = "bluehorizon.network-services-sdr_1.0.0_amd64"
   //val svcurl = SDRSPEC
@@ -110,41 +112,7 @@ class NodesSuite extends FunSuite {
     }
   }
 
-  /*
-  def deleteAllUsers() = {
-    for (i <- List(user)) {
-      val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-      info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
-    }
-  }
-
-  def deleteAllNodes() = {
-    for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
-      val response = Http(URL+"/nodes/"+i).method("delete").headers(ACCEPT).headers(USERAUTH).asString
-      info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
-    }
-  }
-
-  def deleteAllAgreements() = {
-    for (i <- List(agreementId)) {
-      val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+i).method("delete").headers(ACCEPT).headers(USERAUTH).asString
-      info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
-    }
-  }
-
-  def deleteAllAgbots() = {
-    for (i <- List(agbotId)) {
-      val response = Http(URL+"/agbots/"+i).method("delete").headers(ACCEPT).headers(USERAUTH).asString
-      info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
-    }
-  }
-  */
-
-  /** Patches all of the nodes to have a pattern or blank out the pattern (for node and node health searches) */
+  /** Patches all of the nodes to have a pattern or blank out the pattern (for business policy and node health searches) */
   def patchNodePattern(pattern: String): Unit = {
     val jsonInput = """{ "pattern": """"+pattern+"""" }"""
     for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
@@ -153,6 +121,9 @@ class NodesSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK)
     }
   }
+
+  /** Calculated the changedSince arg for business pol search, given seconds ago. */
+  def changedSinceAgo(secondsAgo: Int) = { ApiTime.nowSeconds - secondsAgo }
 
   //~~~~~ Create org, user, service, pattern ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -212,7 +183,6 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
-  // Note: when we delete the org, this service will get deleted
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+" - so nodes can reference it") {
     val input = PostPutPatternRequest(patid, None, None,
@@ -227,7 +197,27 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
-  // Note: when we delete the org, this pattern will get deleted
+
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+" - add "+businessPolicySdr+" as user") {
+    val input = PostPutBusinessPolicyRequest(businessPolicySdr, Some("desc"),
+      //todo: add testing of arch filtering search once the node has an arch field
+      BService(SDRSPEC_URL, orgid, "*", List(BServiceVersions(svcversion, None, None)), None ),
+      Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
+    )
+    val response = Http(URL+"/business/policies/"+businessPolicySdr).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+" - add "+businessPolicyNS+" as user") {
+    val input = PostPutBusinessPolicyRequest(businessPolicyNS, Some("desc"),
+      BService(NETSPEEDSPEC_URL, orgid, "*", List(BServiceVersions(svcversion, None, None)), None ),
+      Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
+    )
+    val response = Http(URL+"/business/policies/"+businessPolicyNS).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
 
   //~~~~~ Create nodes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -732,233 +722,41 @@ class NodesSuite extends FunSuite {
     assert(nodes.size === 0)
   }
 
-  //~~~~~ Node search and nodehealth ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  //~~~~~ Business policy search ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId3+" - add publicKey") {
+  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId3+" - add publicKey so it will be found") {
     val jsonInput = """{ "publicKey": "NODE3ABC" }"""
     val response = Http(URL + "/nodes/" + nodeId3).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("POST /orgs/"+orgid+"/search/nodes - all arm nodes") {
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - all nodes (no agreements yet)") {
     patchNodePattern("")      // remove pattern from nodes so we can search for services
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","arm","string","in"),
-      Prop("memory","2","int",">="),
-      Prop("version","*","version","in"),
-      Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val input = PostBusinessPolicySearchRequest(None, 0, None, None)
+    val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
+    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 2)     // we created 2 arm nodes
-    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2) === 2)
-    val dev = nodes.find(d => d.id == orgnodeId).get // the 2nd get turns the Some(val) into val
-    assert(dev.name === "rpi"+nodeId+"-normal")
-    assert(dev.services.length === 1)
-    val svc = dev.services.head
-    assert(svc.url === SDRSPEC)
-    assert(svc.policy === "{json policy for "+nodeId+" sdr}")
-    var archProp = svc.properties.find(p => p.name=="arch").orNull
-    assert((archProp !== null) && (archProp.name === "arch"))
-    assert(archProp.value === "arm")
+    assert(nodes.length === 4)     // we created 3 nodes
+    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
+    val dev = nodes.find(d => d.id == orgnodeId).get
+    assert(dev.publicKey === "NODEABC")
   }
 
-  test("POST /orgs/"+orgid+"/search/nodes - netspeed arch amd64 - as agbot") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(NETSPEEDSPEC,List(
-      Prop("arch","amd64","string","in"),
-      Prop("memory","*","int",">="),
-      Prop("version","[1.0.0,2.0.0]","version","in"),
-      Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+"/search - as agbot") {
+    val input = PostBusinessPolicySearchRequest(None, 0, None, None)
+    val response = Http(URL+"/business/policies/"+businessPolicyNS+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
+    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 1)
-    assert(nodes.count(d => d.id==orgnodeId3) === 1)
+    assert(nodes.length === 4)     // we created 3 nodes
   }
 
-  test("POST /orgs/"+orgid+"/search/nodes - netspeed arch * - as agbot") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(NETSPEEDSPEC,List(
-      Prop("arch","*","string","in"),
-      Prop("memory","*","int",">="),
-      Prop("version","[1.0.0,2.0.0]","version","in"),
-      Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 2)
-    assert(nodes.count(d => d.id==orgnodeId) === 1)
-    assert(nodes.count(d => d.id==orgnodeId3) === 1)
-  }
+  //todo: add a search test with a bus pol that has a service with a non-wildcarded arch
 
-  test("POST /orgs/"+orgid+"/search/nodes - netspeed and sdr - as agbot") {
-    val input = PostSearchNodesRequest(List(
-      RegServiceSearch(NETSPEEDSPEC,List(
-        Prop("arch","*","string","in"),
-        Prop("memory","*","int",">="),
-        Prop("version","[1.0.0,2.0.0]","version","in"),
-        Prop("agreementProtocols",agProto,"list","in"),
-        Prop("dataVerification","","wildcard","="))),
-      RegServiceSearch(SDRSPEC,List(
-        Prop("arch","arm","string","in"),
-        Prop("memory","2","int",">="),
-        Prop("version","*","version","in"),
-        Prop("agreementProtocols",agProto,"list","in"),
-        Prop("dataVerification","","wildcard","="))
-    )), 86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 1)
-    assert(nodes.count(d => d.id==orgnodeId) === 1)  // this confirms it did get nodeId (2 MSs) and did not get nodeId2 (only 1 of the MSs)
-    val dev = nodes.find(d => d.id == orgnodeId).get // the 2nd get turns the Some(val) into val
-    assert(dev.services.length === 2)
-    assert(dev.services.count(m => m.url==SDRSPEC) === 1)
-    assert(dev.services.count(m => m.url==NETSPEEDSPEC) === 1)
-  }
-
-  test("POST /orgs/"+orgid+"/search/nodes - arch list, mem 400, version 2.0.0") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","arm,amd64","list","in"),
-      Prop("memory","400","int",">="),
-      Prop("version","2.0.0,3.0.0","version","in"),
-      Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 1)
-    assert(nodes.count(d => d.id==orgnodeId2) === 1)
-  }
-
-  test("POST /orgs/"+orgid+"/search/nodes - data verification false - should find no matches") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","","wildcard","in"),
-      Prop("memory","","wildcard",">="),
-      Prop("version","0","version","in"),     // in osgi version format 0 means lower bound is 0 and upper bound infinity
-      Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","false","boolean","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
-    assert(postSearchDevResp.nodes.length === 0)
-  }
-
-  test("POST /orgs/"+orgid+"/search/nodes - invalid propType") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","","stringx","in"),
-      Prop("memory","","int",">="),
-      Prop("version","","version","in"),
-      Prop("dataVerification","","boolean","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
-    val postSearchDevResp = parse(response.body).extract[ApiResponse]
-    assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
-  }
-
-  test("POST /orgs/"+orgid+"/search/nodes - invalid op") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","","string","inx"),
-      Prop("memory","","int",">="),
-      Prop("version","","version","in"),
-      Prop("dataVerification","","boolean","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
-    val postSearchDevResp = parse(response.body).extract[ApiResponse]
-    assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
-  }
-
-  test("POST /orgs/"+orgid+"/search/nodes - invalid version") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","*","string","in"),
-      Prop("memory","*","int",">="),
-      Prop("version","1.2.3.4","version","in"),
-      Prop("dataVerification","*","boolean","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
-    val postSearchDevResp = parse(response.body).extract[ApiResponse]
-    assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
-  }
-
-  test("POST /orgs/"+orgid+"/search/nodes - invalid boolean/op combo") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","","string","in"),
-      Prop("memory","","int",">="),
-      Prop("version","","version","in"),
-      Prop("dataVerification","","boolean","in")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
-    val postSearchDevResp = parse(response.body).extract[ApiResponse]
-    assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
-  }
-
-  test("POST /orgs/"+orgid+"/search/nodes - invalid string/op combo") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","","string","="),
-      Prop("memory","","int",">="),
-      Prop("version","","version","in"),
-      Prop("dataVerification","","boolean","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
-    val postSearchDevResp = parse(response.body).extract[ApiResponse]
-    assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
-  }
-
-  test("POST /orgs/"+orgid+"/search/nodes - invalid int/op combo") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","","string","in"),
-      Prop("memory","","int","in"),
-      Prop("version","","version","in"),
-      Prop("dataVerification","","boolean","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
-    val postSearchDevResp = parse(response.body).extract[ApiResponse]
-    assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
-  }
-
-  test("POST /orgs/"+orgid+"/search/nodes - invalid version/op combo") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","","string","in"),
-      Prop("memory","","int",">="),
-      Prop("version","","version",">="),
-      Prop("dataVerification","","boolean","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
-    val postSearchDevResp = parse(response.body).extract[ApiResponse]
-    assert(postSearchDevResp.code === ApiResponseType.BAD_INPUT)
-  }
+  //~~~~~ Node health search ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("POST /orgs/"+orgid+"/search/nodehealth - as agbot, with blank time - should find all nodes") {
     val input = PostNodeHealthRequest("", None)
@@ -1045,21 +843,21 @@ class NodesSuite extends FunSuite {
 
   //~~~~~ Node agreements, and more searches and nodehealth ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - create agreement, as node") {
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - create sdr agreement, as node") {
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update agreement as node") {
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update sdr agreement as node") {
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "finalized")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update agreement as user") {
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update sdr agreement as user") {
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "negotiating")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1129,28 +927,27 @@ class NodesSuite extends FunSuite {
     assert(dev.agreements.contains(agreementId))
   }
 
-  test("POST /orgs/"+orgid+"/search/nodes - netspeed and sdr - now no nodes, since 1 agreement made") {
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - 1 node in sdr agreement") {
     patchNodePattern("")      // remove pattern from nodes so we can search for services
-    val input = PostSearchNodesRequest(List(
-      RegServiceSearch(NETSPEEDSPEC,List(
-        Prop("arch","*","string","in"),
-        Prop("memory","*","int",">="),
-        Prop("version","[1.0.0,2.0.0]","version","in"),
-        Prop("agreementProtocols",agProto,"list","in"),
-        Prop("dataVerification","","wildcard","="))),
-      RegServiceSearch(SDRSPEC,List(
-        Prop("arch","arm","string","in"),
-        Prop("memory","2","int",">="),
-        Prop("version","*","version","in"),
-        Prop("agreementProtocols",agProto,"list","in"),
-        Prop("dataVerification","","wildcard","="))
-    )), 86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val input = PostBusinessPolicySearchRequest(None, 0, None, None)
+    val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
+    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 0)
+    assert(nodes.length === 3)     // we created 3 nodes
+    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
+  }
+
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+"/search - 1 node in sdr agreement, but that shouldn't affect this") {
+    val input = PostBusinessPolicySearchRequest(None, 0, None, None)
+    val response = Http(URL+"/business/policies/"+businessPolicyNS+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
+    val nodes = postSearchDevResp.nodes
+    assert(nodes.length === 4)     // we created 3 nodes
+    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
   }
 
   test("POST /orgs/"+orgid+"/search/nodehealth - as agbot, with blank time - should find all nodes and 1 agreement for "+nodeId) {
@@ -1167,7 +964,7 @@ class NodesSuite extends FunSuite {
     assert(dev.agreements.contains(agreementId))
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/9951 - add 2nd agreement as node") {
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/9951 - add 2nd agreement - pws - as node") {
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,"pws"))), Some(NAgrService(orgid,patid,"pws")), "signed")
     val response = Http(URL+"/nodes/"+nodeId+"/agreements/9951").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1226,39 +1023,16 @@ class NodesSuite extends FunSuite {
     assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
   }
 
-  test("POST /orgs/"+orgid+"/search/nodes - all arm nodes, should get 1 less result, because "+nodeId+" in agreement") {
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - the pws agreement shouldn't affect this") {
     patchNodePattern("")      // remove pattern from nodes so we can search for services
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","arm","string","in"),
-      Prop("memory","*","int",">="),
-      Prop("version","","wildcard","in"),
-      Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val input = PostBusinessPolicySearchRequest(None, 0, None, None)
+    val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
+    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 1 || nodes.length === 2)     // UsersSuite may have created 1
-    assert(nodes.count(d => d.id==orgnodeId2) === 1)
-  }
-
-  test("POST /orgs/"+orgid+"/search/nodes - netspeed arch arm, "+nodeId+" sdr in agreement, but netspeed not, so still should find it - as agbot") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(NETSPEEDSPEC,List(
-      Prop("arch","arm","string","in"),
-      Prop("memory","*","int",">="),
-      Prop("version","[1.0.0,2.0.0]","version","in"),
-      Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 1)
-    assert(nodes.count(d => d.id==orgnodeId) === 1)
+    assert(nodes.length === 3)     // we created 3 nodes
+    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - sdr") {
@@ -1301,42 +1075,17 @@ class NodesSuite extends FunSuite {
     assert(dev.publicKey === "NODEABC")
   }
 
-  test("POST /orgs/"+orgid+"/search/nodes - netspeed arch arm, "+nodeId+" netspeed in agreement, so shouldn't find it - as agbot") {
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+"/search - the netspeed agreement means we should return 1 less node") {
     patchNodePattern("")      // remove pattern from nodes so we can search for services
-    val input = PostSearchNodesRequest(List(RegServiceSearch(NETSPEEDSPEC,List(
-      Prop("arch","arm","string","in"),
-      Prop("memory","*","int",">="),
-      Prop("version","[1.0.0,2.0.0]","version","in"),
-      Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val input = PostBusinessPolicySearchRequest(None, 0, None, None)
+    val response = Http(URL+"/business/policies/"+businessPolicyNS+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
+    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 0)
+    assert(nodes.length === 3)     // we created 3 nodes
+    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
   }
-
-  test("POST /orgs/"+orgid+"/search/nodes - sdr arch arm, "+nodeId+" netspeed in agreement, but should still find the sdr - as agbot") {
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","arm","string","in"),
-      Prop("memory","*","int",">="),
-      Prop("version","[1.0.0,2.0.0]","version","in"),
-      Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
-      86400, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    // info("code: "+response.code+", response.body: "+response.body)
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 2 || nodes.length === 3)      // UsersSuite creates 1 too
-    assert(nodes.count(d => d.id==orgnodeId) === 1)
-  }
-
-  //todo: add tests for searching for multiple MS URLs in 1 call
 
   //~~~~~ Staleness tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1399,50 +1148,35 @@ class NodesSuite extends FunSuite {
     assert(nodes.count(d => d.id==orgnodeId) === 1)
   }
 
-  test("POST /orgs/"+orgid+"/search/nodes - all arm nodes, but all stale") {
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - with a sleep, so all nodes are stale") {
     patchNodePattern("")      // remove pattern from nodes so we can search for services
     Thread.sleep(1100)    // delay 1.1 seconds so all nodes will be stale
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","arm","string","in"),
-      Prop("memory","2","int",">="),
-      Prop("version","*","version","in"),
-      Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
-      1, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val input = PostBusinessPolicySearchRequest(None, ApiTime.nowSeconds, None, None)
+    val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
+    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 0)
-}
+  }
 
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/heartbeat - so this node won't be stale for non-pattern search") {
-    val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("post").headers(ACCEPT).headers(NODEAUTH).asString
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId2+"/heartbeat - so this node won't be stale for non-pattern search") {
+    val response = Http(URL+"/nodes/"+nodeId2+"/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val devResp = parse(response.body).extract[ApiResponse]
     assert(devResp.code === ApiResponseType.OK)
   }
 
-  test("POST /orgs/"+orgid+"/search/nodes - all arm nodes, 1 not stale") {
-    val secondsNotStale = 1
-    info("secondsNotStale: "+secondsNotStale)
-    val input = PostSearchNodesRequest(List(RegServiceSearch(SDRSPEC,List(
-      Prop("arch","arm","string","in"),
-      Prop("memory","2","int",">="),
-      Prop("version","*","version","in"),
-      Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","","wildcard","=")))),
-      secondsNotStale, None, 0, 0)
-    val response = Http(URL+"/search/nodes").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - now 1 node not stale") {
+    val input = PostBusinessPolicySearchRequest(None, changedSinceAgo(1), None, None)
+    val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    //info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
-    val postSearchDevResp = parse(response.body).extract[PostSearchNodesResponse]
+    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 1)
-    assert(nodes.count(d => d.id==orgnodeId) === 1)
+    assert(nodes.count(d => d.id==orgnodeId2) === 1)
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId3+" - explicit delete of "+nodeId3) {

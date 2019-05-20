@@ -57,7 +57,8 @@ object BusinessPoliciesTQ {
     val svcRefs = ListBuffer[ServiceRef]()
       for (sv <- service.serviceVersions) {
         svcRefs += ServiceRef(service.name, service.org, sv.version, service.arch)
-        val svcId = ServicesTQ.formId(service.org, service.name, sv.version, service.arch)
+        val arch = if (service.arch == "*") "%" else service.arch   // handle arch=* so we can do a like on the resulting svcId
+        val svcId = ServicesTQ.formId(service.org, service.name, sv.version, arch)
         actions += ServicesTQ.getService(svcId).length.result
       }
     return (DBIO.sequence(actions.toVector), svcRefs.toVector)      // convert the list of actions to a DBIO sequence

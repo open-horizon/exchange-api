@@ -107,6 +107,7 @@ VQQDDA1icEB1cy5pYm0uY29tMIIEIjANBgkqhkiG9w0BAQEFAAOCBA8AMIIECgKC
 '
 
 buspol=mybuspol
+buspol2=mybuspol2
 
 #curlBasicArgs="-s -w %{http_code} --output /dev/null $accept"
 curlBasicArgs="-sS -w %{http_code} $accept $cacert"
@@ -396,6 +397,14 @@ else
     echo "orgs/$orgid2/business/policies/$buspol exists"
 fi
 
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/business/policies/$buspol2")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "POST" $userauthorg2 "orgs/$orgid2/business/policies/$buspol2" '{ "label": "my business policy", "service": { "name": "'$svcurl'", "org": "'$orgid'", "arch": "*", "serviceVersions": [{ "version": "'$svcversion'" }] }, "properties": [{"name":"purpose", "value":"location", "type":"string"}], "constraints":["a == b"] }'
+else
+    echo "orgs/$orgid2/business/policies/$buspol2 exists"
+fi
+
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
@@ -454,6 +463,14 @@ if [[ $rc != 200 ]]; then
     curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/policy" '{ "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
 else
     echo "orgs/$orgid/nodes/$nodeid/policy exists"
+fi
+
+rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid2")
+checkrc "$rc" 200 404
+if [[ $rc != 200 ]]; then
+    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "", "publicKey": "ABC" }'
+else
+    echo "orgs/$orgid2/nodes/$nodeid2 exists"
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid")

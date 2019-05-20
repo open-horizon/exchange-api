@@ -479,7 +479,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
     */
     val oldestTime = if (searchProps.secondsStale > 0) ApiTime.pastUTC(searchProps.secondsStale) else ApiTime.beginningUTC
-    val q =
+    val nodeQuery =
       for {
         (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
       } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
@@ -506,7 +506,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
             break
           }
         } }
-        if (found) q.result.asTry
+        if (found) nodeQuery.result.asTry
         else DBIO.failed(new Throwable("the serviceUrl '"+searchSvcUrl+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
       }
       else DBIO.failed(new Throwable("pattern '"+compositePat+"' not found")).asTry

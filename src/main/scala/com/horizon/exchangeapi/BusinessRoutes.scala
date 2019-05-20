@@ -9,8 +9,9 @@ import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
+
 import scala.collection.immutable._
-import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.util._
 import scala.util.control.Breaks._
 
@@ -66,6 +67,18 @@ case class PatchBusinessPolicyRequest(label: Option[String], description: Option
     return (null, null)
   }
 }
+
+
+/** Input for business policy-based search for nodes to make agreements with. */
+case class PostBusinessPolicySearchRequest(nodeOrgids: Option[List[String]], changedSince: Int, startIndex: Option[Int], numEntries: Option[Int]) {
+  def validate() = { }
+}
+
+// Tried this to have names on the tuple returned from the db, but didn't work...
+case class BusinessPolicySearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
+
+case class BusinessPolicyNodeResponse(id: String, msgEndPoint: String, publicKey: String)
+case class PostBusinessPolicySearchResponse(nodes: List[BusinessPolicyNodeResponse], lastIndex: Int)
 
 
 
@@ -455,6 +468,105 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, "business policy '"+businessPolicy+"' not deleted: "+t.toString)
+      }
+    })
+  })
+
+  // ======== POST /org/{orgid}/business/policies/{policy}/search ========================
+  val postBusinessPolicySearch =
+    (apiOperation[PostBusinessPolicySearchResponse]("postBusinessPolicySearch")
+      summary("Returns matching nodes of a particular pattern")
+      description """Returns the matching nodes that are using this pattern and do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node). The **request body** structure:
+
+```
+{
+  "nodeOrgids": [ "org1", "org2", "..." ],   // if not specified, defaults to the same org the business policy is in
+  "changedSince": 123456,     // only return nodes that have changed since this unix epoch time, 0 if you want all relevant nodes
+  "startIndex": 0,    // for pagination, ignored right now
+  "numEntries": 0    // ignored right now
+}
+```"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("policy", DataType.String, Option[String]("Business Policy id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PostBusinessPolicySearchRequest],
+        Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+  val postBusinessPolicySearch2 = (apiOperation[PostBusinessPolicySearchRequest]("postBusinessPolicySearch2") summary("a") description("a"))
+
+  /** Normally called by the agbot to search for available nodes. */
+  post("/orgs/:orgid/business/policies/:policy/search", operation(postBusinessPolicySearch)) ({
+    val orgid = params("orgid")
+    val bareBusinessPolicy = params("policy")
+    val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
+    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
+    val searchProps = try { parse(request.body).extract[PostBusinessPolicySearchRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    searchProps.validate()
+    logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search criteria: "+searchProps.toString)
+    val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
+    var searchSvcUrl = ""    // a composite value (org/url), will be set later in the db.run()
+    val resp = response
+    /*
+      Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
+      In english, the join gets: n.id, n.msgEndPoint, n.publicKey, a.serviceUrl, a.state
+      The filters are: n is in the given list of node orgs, n.pattern is not set, the node is not stale (the filter a.state=="" is applied later in our code below)
+      After this we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
+      Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
+    */
+    val oldestTime = if (searchProps.changedSince > 0) ApiTime.thenUTC(searchProps.changedSince) else ApiTime.beginningUTC
+    val nodeQuery =
+      for {
+        //todo: also check for update time of node agreement and node policy
+        (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+      } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+
+    // First get the service out of the business policy
+    db.run(BusinessPoliciesTQ.getService(businessPolicy).result.flatMap({ list =>
+      logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search getService size: "+list.size)
+      if (list.nonEmpty) {
+        val service = BusinessPoliciesTQ.getServiceFromString(list.head)    // we should have found only 1 business pol service string, now parse it to get service list
+        searchSvcUrl = OrgAndId(service.org, service.name).toString
+        nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
+      }
+      else DBIO.failed(new Throwable("business policy '"+businessPolicy+"' not found")).asTry
+    })).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search result size: "+xs.getOrElse(Vector()).size)
+      //logger.trace("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search result: "+xs.toString)
+      logger.trace("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search: looking for service '"+searchSvcUrl)
+      xs match {
+        case Success(list) => if (list.nonEmpty) {
+          // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
+          //todo: factor in num agreements??
+          val nodeHash = new MutableHashMap[String,BusinessPolicySearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
+          for ( (nodeid, msgEndPoint, publicKey, agrSvcUrlOpt, stateOpt) <- list ) {
+            //logger.trace("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
+            nodeHash.get(nodeid) match {
+              // This node is already in the hash. Only replace it if this is an agreement for the service, because the absence of an agr for this svc isn't useful info
+              case Some(_) => if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
+              // This node is not yet in the hash. Add it with whatever value it has for agreement - this may be overridden later
+              case None => val noAgr = if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") false else true
+                nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgr))   // this node not in the hash yet, add it
+            }
+          }
+          // Convert our hash to the list response of the rest api
+          //val respList = list.map( x => BusinessPolicyNodeResponse(x._1, x._2, x._3)).toList
+          val respList = new ListBuffer[BusinessPolicyNodeResponse]
+          for ( (k, v) <- nodeHash) if (v.noAgreementYet) respList += BusinessPolicyNodeResponse(k, v.msgEndPoint, v.publicKey)
+          if (respList.nonEmpty) resp.setStatus(HttpCode.POST_OK)
+          else resp.setStatus(HttpCode.NOT_FOUND)
+          PostBusinessPolicySearchResponse(respList.toList, 0)
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), 0)
+        }
+        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "invalid input: "+t.getMessage)
       }
     })
   })

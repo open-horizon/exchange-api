@@ -355,7 +355,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       )
-      */
 
   post("/admin/dumptables" /*, operation(postAdminDumpTables)*/ ) ({
     // validateUser(BaseAccess.ADMIN, "")
@@ -374,7 +373,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
-  /* Someday we should clean this up and support this...
   // =========== POST /admin/loadtables ===============================
   val postAdminLoadTables =
     (apiOperation[Seq[String]]("postAdminLoadTables")
@@ -385,7 +383,6 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
       )
-      */
 
   post("/admin/loadtables" /*, operation(postAdminLoadTables) */) ({
     // validateUser(BaseAccess.ADMIN, "")
@@ -405,6 +402,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       }
     })
   })
+      */
 
   // =========== GET /admin/version ===============================
   val getAdminVersion =

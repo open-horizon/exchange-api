@@ -6,11 +6,8 @@ import org.json4s._
 import org.json4s.jackson.Serialization.{read, write}
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
-
-import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
-
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
@@ -22,7 +19,7 @@ object ExchangeApiTables {
   val initDB = DBIO.seq((
     SchemaTQ.rows.schema ++ OrgsTQ.rows.schema ++ UsersTQ.rows.schema
       ++ NodesTQ.rows.schema ++ NodeAgreementsTQ.rows.schema ++ NodeStatusTQ.rows.schema ++ NodePolicyTQ.rows.schema
-      ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ AgbotPatternsTQ.rows.schema
+      ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ AgbotPatternsTQ.rows.schema ++ AgbotBusinessPolsTQ.rows.schema
       ++ NodeMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema
       ++ ServicesTQ.rows.schema ++ ServiceKeysTQ.rows.schema ++ ServiceDockAuthsTQ.rows.schema ++ ServicePolicyTQ.rows.schema ++ PatternsTQ.rows.schema ++ PatternKeysTQ.rows.schema ++ BusinessPoliciesTQ.rows.schema
     ).create,
@@ -42,7 +39,7 @@ object ExchangeApiTables {
   val dropDB = DBIO.seq(
     sqlu"drop table if exists businesspolicies", sqlu"drop table if exists patternkeys", sqlu"drop table if exists patterns", sqlu"drop table if exists servicepolicies", sqlu"drop table if exists servicedockauths", sqlu"drop table if exists servicekeys", sqlu"drop table if exists services",   // no table depends on these
     sqlu"drop table if exists nodemsgs", sqlu"drop table if exists agbotmsgs",     // these depend on both nodes and agbots
-    sqlu"drop table if exists agbotpatterns", sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots",
+    sqlu"drop table if exists agbotbusinesspols", sqlu"drop table if exists agbotpatterns", sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots",
     sqlu"drop table if exists nodeagreements", sqlu"drop table if exists nodestatus", sqlu"drop table if exists nodepolicies",
     sqlu"drop table if exists properties",
     sqlu"drop table if exists nodemicros", sqlu"drop table if exists nodes",
@@ -102,7 +99,7 @@ object ExchangeApiTables {
     else logger.error("ERROR: failure to init or upgrade db: "+upgradeResult.msg)
   }
 
-  /** Returns a db action that queries each table and dumps it to a file in json format - used in /admin/dumptables and /admin/migratedb */
+  /** This is out of date, and we never use it: Returns a db action that queries each table and dumps it to a file in json format - used in /admin/dumptables
   def dump(dumpDir: String, dumpSuffix: String)(implicit logger: Logger): DBIO[_] = {
     // This is a single db action that strings together via flatMap all the table queries and writing each result to a file
     return UsersTQ.rows.result.flatMap({ xs =>
@@ -171,40 +168,11 @@ object ExchangeApiTables {
       new TableIo[OrgRow](filename).dump(xs)
       OrgsTQ.rows.result     // we do not need this redundant query, but flatMap has to return an action
     })
-
-
-    /* previous attempt, but left here as an example of how to wait on multiple futures...
-    val fUsers: Future[Try[String]] = db.run(UsersTQ.rows.result.asTry).map({ xs =>
-      val filename = dir+"/users"+suffix
-      xs match {
-        case Success(v) => new TableIo[UserRow](filename).dump(v)
-          logger.info("dumped "+v.size+" rows to "+filename)
-          Success("dumped "+v.size+" rows to "+filename)
-        case Failure(t) => logger.error("error dumping rows to "+filename)
-          Failure(t)
-      }
-    })
-    val fNodes: Future[Try[String]] = db.run(NodesTQ.rows.result.asTry).map({ xs =>
-      val filename = dir+"/nodes"+suffix
-      xs match {
-        case Success(v) => new TableIo[NodeRow](filename).dump(v)
-          logger.info("dumped "+v.size+" rows to "+filename)
-          Success("dumped "+v.size+" rows to "+filename)
-        case Failure(t) => logger.error("error dumping rows to "+filename)
-          Failure(t)
-      }
-    })
-    val aggFut = for {
-      f1Result <- fUsers
-      f2Result <- fNodes
-    } yield Vector(f1Result, f2Result)
-    aggFut
-    */
   }
 
-  /** Returns a list of db actions for loading the contents of the dumped json files into the tables- used in /admin/loadtables and /admin/migratedb */
-  def load(dumpDir: String, dumpSuffix: String)(implicit logger: Logger): List[DBIO[_]] = {
-    val actions = ListBuffer[DBIO[_]]()
+  // Returns a list of db actions for loading the contents of the dumped json files into the tables- used in /admin/loadtables and /admin/migratedb
+  def load(dumpDir: String, dumpSuffix: String)(implicit logger: Logger): List[DBIO[_] ] = {
+    val actions = ListBuffer[DBIO[_] ]()
 
     // Load the table file and put it on the actions list. Repeating this for each table here, because read[]() needs an explicit type
     // Note: this intentionally does not catch the json parsing exceptions, so they will get thrown to the caller and they can handle them
@@ -249,6 +217,7 @@ object ExchangeApiTables {
 
     return actions.toList
   }
+    */
 }
 
 class TableIo[T](val filename: String) {

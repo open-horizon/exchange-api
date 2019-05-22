@@ -42,7 +42,7 @@ services in the exchange.
 	}
 }
 ```
-
+- If you want to run the `FrontEndSuite` test class `config.json` should also include `"frontEndHeader": "issuer"` directly after `email` under `root`.
 - Set the same exchange root password in your shell environment, for example:
 ```
 export EXCHANGE_ROOTPW=myrootpw
@@ -83,6 +83,7 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 - Run the automated tests in a second shell (with the exchange server still running in the first): `sbt test`
 - Run just 1 of the the automated test suites (with the exchange server still running): `sbt "testOnly exchangeapi.AgbotsSuite"`
 - Run the performance tests: `src/test/bash/scale/test.sh` or `src/test/bash/scale/wrapper.sh 8`
+- Make sure to run `primedb.sh` before running the  `AgbotsSuite` test class to run all of the tests.
 
 ## Building and Running the Container
 
@@ -173,6 +174,10 @@ To build an exchange container with code that is targeted for a git branch:
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 1.83.0
+
+- Add `arch` field to node
 
 ## Changes in 1.82.0
 

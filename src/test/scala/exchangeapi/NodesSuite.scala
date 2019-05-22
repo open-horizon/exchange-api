@@ -433,6 +433,50 @@ class NodesSuite extends FunSuite {
 
   }
 
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId3+" - update arch to test") {
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId3+"-netspeed-amd64", compositePatid, Some(List(RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId3+" netspeed}",List(
+      Prop("arch","amd64","string","in"),
+      Prop("memory","300","int",">="),
+      Prop("version","1.0.0","version","in"),
+      Prop("agreementProtocols",agProto,"list","in"),
+      Prop("dataVerification","true","boolean","="))))), None, None, "", Some("test"))
+    val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId3+" - verify arch updated to test") {
+    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId3).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    val getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId3))
+    val dev = getDevResp.nodes(orgnodeId3)
+    assert(dev.arch === "test")
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId3+" - update arch to None") {
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId3+"-netspeed-amd64", compositePatid, Some(List(RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId3+" netspeed}",List(
+      Prop("arch","amd64","string","in"),
+      Prop("memory","300","int",">="),
+      Prop("version","1.0.0","version","in"),
+      Prop("agreementProtocols",agProto,"list","in"),
+      Prop("dataVerification","true","boolean","="))))), None, None, "", None)
+    val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId3+" - verify arch updated to None") {
+    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId3).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+    val getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId3))
+    val dev = getDevResp.nodes(orgnodeId3)
+    assert(dev.arch === "")
+  }
+
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - invalid config state - should fail") {
     val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "foo")
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

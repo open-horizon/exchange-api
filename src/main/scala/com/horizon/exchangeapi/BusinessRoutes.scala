@@ -22,7 +22,7 @@ case class GetBusinessPoliciesResponse(businessPolicy: Map[String,BusinessPolicy
 case class GetBusinessPolicyAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST/PUT /orgs/{orgid}/business/policies/<bus-pol-id> */
-case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, userInput: Option[List[OneUserInputValue]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(): Unit = {
     // Check the version syntax
@@ -43,15 +43,15 @@ case class PostPutBusinessPolicyRequest(label: String, description: Option[Strin
 
   // Note: write() handles correctly the case where the optional fields are None.
   def getDbInsert(businessPolicy: String, orgid: String, owner: String): DBIO[_] = {
-    BusinessPolicyRow(businessPolicy, orgid, owner, label, description.getOrElse(label), write(defaultNodeHealth(service)), write(properties), write(constraints), ApiTime.nowUTC, ApiTime.nowUTC).insert
+    BusinessPolicyRow(businessPolicy, orgid, owner, label, description.getOrElse(label), write(defaultNodeHealth(service)), write(userInput), write(properties), write(constraints), ApiTime.nowUTC, ApiTime.nowUTC).insert
   }
 
   def getDbUpdate(businessPolicy: String, orgid: String, owner: String): DBIO[_] = {
-    BusinessPolicyRow(businessPolicy, orgid, owner, label, description.getOrElse(label), write(defaultNodeHealth(service)), write(properties), write(constraints), ApiTime.nowUTC, "").update
+    BusinessPolicyRow(businessPolicy, orgid, owner, label, description.getOrElse(label), write(defaultNodeHealth(service)), write(userInput), write(properties), write(constraints), ApiTime.nowUTC, "").update
   }
 }
 
-case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], userInput: Option[List[OneUserInputValue]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the businessPolicy, and the attribute name being updated. */
@@ -62,6 +62,7 @@ case class PatchBusinessPolicyRequest(label: Option[String], description: Option
     label match { case Some(lab) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.label,d.lastUpdated)).update((businessPolicy, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.description,d.lastUpdated)).update((businessPolicy, desc, lastUpdated)), "description"); case _ => ; }
     service match { case Some(svc) => return ((for {d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.service,d.lastUpdated)).update((businessPolicy, write(svc), lastUpdated)), "service"); case _ => ; }
+    userInput match { case Some(input) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.userInput,d.lastUpdated)).update((businessPolicy, write(input), lastUpdated)), "userInput"); case _ => ; }
     properties match { case Some(prop) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.properties,d.lastUpdated)).update((businessPolicy, write(prop), lastUpdated)), "properties"); case _ => ; }
     constraints match { case Some(con) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.constraints,d.lastUpdated)).update((businessPolicy, write(con), lastUpdated)), "constraints"); case _ => ; }
     return (null, null)
@@ -213,6 +214,13 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       "check_agreement_status": 120        // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
     }
   },
+  // Override or set user input variables that are defined in the services used by this pattern.
+  "userInput": [
+    {
+      "name": "foo",
+      "value": "bar"
+    }
+  ],
   "properties": [
     {
       "name": "mypurpose",

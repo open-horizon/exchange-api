@@ -191,7 +191,7 @@ class NodesSuite extends FunSuite {
         PServices(SDRSPEC_URL, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ),
         PServices(NETSPEEDSPEC_URL, orgid, svcarch2, Some(true), List(PServiceVersions(svcversion2, None, None, None, None)), None, None )
       ),
-      None
+      None, None
     )
     val response = Http(URL+"/patterns/"+patid).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -202,7 +202,7 @@ class NodesSuite extends FunSuite {
     val input = PostPutBusinessPolicyRequest(businessPolicySdr, Some("desc"),
       //todo: add testing of arch filtering search once the node has an arch field
       BService(SDRSPEC_URL, orgid, "*", List(BServiceVersions(svcversion, None, None)), None ),
-      Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
+      None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicySdr).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -212,7 +212,7 @@ class NodesSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+" - add "+businessPolicyNS+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPolicyNS, Some("desc"),
       BService(NETSPEEDSPEC_URL, orgid, "*", List(BServiceVersions(svcversion, None, None)), None ),
-      Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
+      None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicyNS).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

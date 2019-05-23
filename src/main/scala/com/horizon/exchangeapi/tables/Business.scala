@@ -11,17 +11,25 @@ import scala.collection.mutable.ListBuffer
 case class BService(name: String, org: String, arch: String, serviceVersions: List[BServiceVersions], nodeHealth: Option[Map[String,Int]])
 case class BServiceVersions(version: String, priority: Option[Map[String,Int]], upgradePolicy: Option[Map[String,String]])
 
-case class BusinessPolicyRow(businessPolicy: String, orgid: String, owner: String, label: String, description: String, service: String, properties: String, constraints: String, lastUpdated: String, created: String) {
+// This is the businesspolicies table minus the key - used as the data structure to return to the REST clients
+class BusinessPolicy(var owner: String, var label: String, var description: String, var service: BService, var userInput: List[OneUserInputValue], var properties: List[OneProperty], var constraints: List[String], var lastUpdated: String, var created: String) {
+  def copy = new BusinessPolicy(owner, label, description, service, userInput, properties, constraints, lastUpdated, created)
+}
+
+// Note: if you add fields to this, you must also add them the update method below
+case class BusinessPolicyRow(businessPolicy: String, orgid: String, owner: String, label: String, description: String, service: String, userInput: String, properties: String, constraints: String, lastUpdated: String, created: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toBusinessPolicy: BusinessPolicy = {
+    val input = if (userInput != "") read[List[OneUserInputValue]](userInput) else List[OneUserInputValue]()
     val prop = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
     val con = if (constraints != "") read[List[String]](constraints) else List[String]()
-    new BusinessPolicy(owner, label, description, read[BService](service), prop, con, lastUpdated, created)
+    new BusinessPolicy(owner, label, description, read[BService](service), input, prop, con, lastUpdated, created)
   }
 
   // update returns a DB action to update this row
-  def update: DBIO[_] = (for { m <- BusinessPoliciesTQ.rows if m.businessPolicy === businessPolicy } yield (m.businessPolicy,m.orgid,m.owner,m.label,m.description,m.service,m.properties,m.constraints,m.lastUpdated)).update((businessPolicy,orgid,owner,label,description,service,properties,constraints,lastUpdated))
+  //todo: we should not update the 'created' field, but we also don't want to list out all of the other fields, because it is error prone
+  def update: DBIO[_] = (for { m <- BusinessPoliciesTQ.rows if m.businessPolicy === businessPolicy } yield (m.businessPolicy,m.orgid,m.owner,m.label,m.description,m.service,m.userInput,m.properties,m.constraints,m.lastUpdated)).update((businessPolicy,orgid,owner,label,description,service,userInput,properties,constraints,lastUpdated))
 
   // insert returns a DB action to insert this row
   def insert: DBIO[_] = BusinessPoliciesTQ.rows += this
@@ -35,12 +43,13 @@ class BusinessPolicies(tag: Tag) extends Table[BusinessPolicyRow](tag, "business
   def label = column[String]("label")
   def description = column[String]("description")
   def service = column[String]("service")
+  def userInput = column[String]("userinput")
   def properties = column[String]("properties")
   def constraints = column[String]("constraints")
   def lastUpdated = column[String]("lastupdated")
   def created = column[String]("created")
   // this describes what you get back when you return rows from a query
-  def * = (businessPolicy, orgid, owner, label, description, service, properties, constraints, lastUpdated, created) <> (BusinessPolicyRow.tupled, BusinessPolicyRow.unapply)
+  def * = (businessPolicy, orgid, owner, label, description, service, userInput, properties, constraints, lastUpdated, created) <> (BusinessPolicyRow.tupled, BusinessPolicyRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -72,6 +81,7 @@ object BusinessPoliciesTQ {
   def getDescription(businessPolicy: String) = rows.filter(_.businessPolicy === businessPolicy).map(_.description)
   def getService(businessPolicy: String) = rows.filter(_.businessPolicy === businessPolicy).map(_.service)
   def getServiceFromString(service: String) = read[BService](service)
+  def getUserInput(businessPolicy: String) = rows.filter(_.businessPolicy === businessPolicy).map(_.userInput)
   def getLastUpdated(businessPolicy: String) = rows.filter(_.businessPolicy === businessPolicy).map(_.lastUpdated)
 
   /** Returns a query for the specified businessPolicy attribute value. Returns null if an invalid attribute name is given. */
@@ -83,6 +93,7 @@ object BusinessPoliciesTQ {
       case "label" => filter.map(_.label)
       case "description" => filter.map(_.description)
       case "service" => filter.map(_.service)
+      case "userInput" => filter.map(_.userInput)
       case "properties" => filter.map(_.properties)
       case "constraints" => filter.map(_.constraints)
       case "lastUpdated" => filter.map(_.lastUpdated)
@@ -93,9 +104,4 @@ object BusinessPoliciesTQ {
 
   /** Returns the actions to delete the businessPolicy and the blockchains that reference it */
   def getDeleteActions(businessPolicy: String): DBIO[_] = getBusinessPolicy(businessPolicy).delete   // with the foreign keys set up correctly and onDelete=cascade, the db will automatically delete these associated blockchain rows
-}
-
-// This is the businesspolicies table minus the key - used as the data structure to return to the REST clients
-class BusinessPolicy(var owner: String, var label: String, var description: String, var service: BService, var properties: List[OneProperty], var constraints: List[String], var lastUpdated: String, var created: String) {
-  def copy = new BusinessPolicy(owner, label, description, service, properties, constraints, lastUpdated, created)
 }

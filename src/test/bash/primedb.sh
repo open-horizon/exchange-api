@@ -356,6 +356,20 @@ if [[ $rc != 200 ]]; then
       }
     }
   ],
+  "userInput": [
+    {
+      "name": "MSGHUB_API_KEY",
+      "value": "1234ABC"
+    },
+    {
+      "name": "SAMPLE_INTERVAL",
+      "value": 5
+    },
+    {
+      "name": "VERBOSE",
+      "value": true
+    }
+  ],
   "agreementProtocols": [{ "name": "Basic" }] }'
 else
     echo "orgs/$orgid/patterns/$patid exists"
@@ -392,7 +406,24 @@ fi
 rc=$(curlfind $userauthorg2 "orgs/$orgid2/business/policies/$buspol")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauthorg2 "orgs/$orgid2/business/policies/$buspol" '{ "label": "my business policy", "service": { "name": "'$svcurl'", "org": "'$orgid'", "arch": "'$svcarch'", "serviceVersions": [{ "version": "'$svcversion'" }] }, "properties": [{"name":"purpose", "value":"location", "type":"string"}], "constraints":["a == b"] }'
+    curlcreate "POST" $userauthorg2 "orgs/$orgid2/business/policies/$buspol" '{ "label": "my business policy",
+  "service": { "name": "'$svcurl'", "org": "'$orgid'", "arch": "'$svcarch'", "serviceVersions": [{ "version": "'$svcversion'" }] },
+  "userInput": [
+    {
+      "name": "MSGHUB_API_KEY",
+      "value": "1234ABC"
+    },
+    {
+      "name": "SAMPLE_INTERVAL",
+      "value": 5
+    },
+    {
+      "name": "VERBOSE",
+      "value": true
+    }
+  ],
+  "properties": [{"name":"purpose", "value":"location", "type":"string"}],
+  "constraints":["a == b"] }'
 else
     echo "orgs/$orgid2/business/policies/$buspol exists"
 fi

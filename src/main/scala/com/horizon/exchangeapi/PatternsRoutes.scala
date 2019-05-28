@@ -35,6 +35,8 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
         }
       }
     }
+    // SADIYAH - PUT CODE HERE?
+    // make db call to get orgType
   }
 
   // Build a list of db actions to verify that the referenced services exist
@@ -71,6 +73,9 @@ case class PatchPatternRequest(label: Option[String], description: Option[String
     agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "agreementProtocols"); case _ => ; }
     return (null, null)
   }
+
+  // SADIYAH - write validate method here
+  // make db call to get orgType
 }
 
 
@@ -421,6 +426,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val resp = response
     val (action, attrName) = patternReq.getDbUpdate(pattern, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid pattern attribute specified"))
+    // SADIYAH ADD HERE??? probably need to make a validate function
     val (valServiceIdActions, svcRefs) = if (attrName == "services") PatternsTQ.validateServiceIds(patternReq.services.get) else (DBIO.successful(Vector()), Vector())
     db.run(valServiceIdActions.asTry.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" service validation: "+xs.toString)

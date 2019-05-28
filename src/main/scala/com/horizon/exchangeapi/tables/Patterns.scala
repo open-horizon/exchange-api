@@ -11,14 +11,21 @@ import scala.collection.mutable.ListBuffer
 case class PServices(serviceUrl: String, serviceOrgid: String, serviceArch: String, agreementLess: Option[Boolean], serviceVersions: List[PServiceVersions], dataVerification: Option[Map[String,Any]], nodeHealth: Option[Map[String,Int]])
 case class PServiceVersions(version: String, deployment_overrides: Option[String], deployment_overrides_signature: Option[String], priority: Option[Map[String,Int]], upgradePolicy: Option[Map[String,String]])
 case class PDataVerification(enabled: Boolean, URL: String, user: String, password: String, interval: Int, check_rate: Int, metering: Map[String,Any])
+case class OneUserInputValue(name: String, value: Any)
 
-case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, services: String, agreementProtocols: String, lastUpdated: String) {
+// This is the pattern table minus the key - used as the data structure to return to the REST clients
+class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var services: List[PServices], var userInput: List[OneUserInputValue], var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {
+  def copy = new Pattern(owner, label, description, public, services, userInput, agreementProtocols, lastUpdated)
+}
+
+case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, services: String, userInput: String, agreementProtocols: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toPattern: Pattern = {
     val svc = if (services == "") List[PServices]() else read[List[PServices]](services)
+    val input = if (userInput != "") read[List[OneUserInputValue]](userInput) else List[OneUserInputValue]()
     val agproto = if (agreementProtocols != "") read[List[Map[String,String]]](agreementProtocols) else List[Map[String,String]]()
-    new Pattern(owner, label, description, public, svc, agproto, lastUpdated)
+    new Pattern(owner, label, description, public, svc, input, agproto, lastUpdated)
   }
 
   // update returns a DB action to update this row
@@ -37,10 +44,11 @@ class Patterns(tag: Tag) extends Table[PatternRow](tag, "patterns") {
   def description = column[String]("description")
   def public = column[Boolean]("public")
   def services = column[String]("services")
+  def userInput = column[String]("userinput")
   def agreementProtocols = column[String]("agreementProtocols")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (pattern, orgid, owner, label, description, public, services, agreementProtocols, lastUpdated) <> (PatternRow.tupled, PatternRow.unapply)
+  def * = (pattern, orgid, owner, label, description, public, services, userInput, agreementProtocols, lastUpdated) <> (PatternRow.tupled, PatternRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -75,6 +83,7 @@ object PatternsTQ {
   def getPublic(pattern: String) = rows.filter(_.pattern === pattern).map(_.public)
   def getServices(pattern: String) = rows.filter(_.pattern === pattern).map(_.services)
   def getServicesFromString(services: String) = if (services == "") List[PServices]() else read[List[PServices]](services)
+  def getUserInput(pattern: String) = rows.filter(_.pattern === pattern).map(_.userInput)
   def getAgreementProtocols(pattern: String) = rows.filter(_.pattern === pattern).map(_.agreementProtocols)
   def getLastUpdated(pattern: String) = rows.filter(_.pattern === pattern).map(_.lastUpdated)
 
@@ -88,6 +97,7 @@ object PatternsTQ {
       case "description" => filter.map(_.description)
       case "public" => filter.map(_.public)
       case "services" => filter.map(_.services)
+      case "userInput" => filter.map(_.userInput)
       case "agreementProtocols" => filter.map(_.agreementProtocols)
       case "lastUpdated" => filter.map(_.lastUpdated)
       case _ => null
@@ -96,11 +106,6 @@ object PatternsTQ {
 
   /** Returns the actions to delete the pattern and the blockchains that reference it */
   def getDeleteActions(pattern: String): DBIO[_] = getPattern(pattern).delete   // with the foreign keys set up correctly and onDelete=cascade, the db will automatically delete these associated blockchain rows
-}
-
-// This is the pattern table minus the key - used as the data structure to return to the REST clients
-class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var services: List[PServices], var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {
-  def copy = new Pattern(owner, label, description, public, services, agreementProtocols, lastUpdated)
 }
 
 

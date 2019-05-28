@@ -175,6 +175,11 @@ To build an exchange container with code that is targeted for a git branch:
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.84.0
+
+- Added `userInput` section to pattern resource
+- Added `userInput` section to business policy resource
+
 ## Changes in 1.83.0
 
 - Add `arch` field to node

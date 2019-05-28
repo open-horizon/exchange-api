@@ -146,7 +146,7 @@ class FrontEndSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - create "+pattern) {
     val input = PostPutPatternRequest(ptBase, None, None,
       List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
-      None
+      None, None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)

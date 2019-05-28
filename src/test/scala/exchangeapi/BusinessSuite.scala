@@ -146,7 +146,7 @@ class BusinessSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" before service exists - should fail") {
     val input = PostPutBusinessPolicyRequest(businessPolicy, None,
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None ),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -163,7 +163,7 @@ class BusinessSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update business policy that is not there yet - should fail") {
     val input = PostPutBusinessPolicyRequest("Bad BusinessPolicy", None,
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -173,6 +173,7 @@ class BusinessSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPolicy, Some("desc"),
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
+      Some(List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )),
       Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -185,7 +186,7 @@ class BusinessSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" again - should fail") {
     val input = PostPutBusinessPolicyRequest("Bad BusinessPolicy", None,
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -195,6 +196,7 @@ class BusinessSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as same user, w/o priority, upgradePolicy, nodeHealth") {
     val input = PostPutBusinessPolicyRequest(businessPolicy, Some("desc updated"),
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
+      Some(List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )),
       Some(List(OneProperty("purpose",None,"location2"))), Some(List("a == c"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -205,7 +207,7 @@ class BusinessSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as 2nd user - should fail") {
     val input = PostPutBusinessPolicyRequest("Bad BusinessPolicy", Some("desc"),
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -215,7 +217,7 @@ class BusinessSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as agbot - should fail") {
     val input = PostPutBusinessPolicyRequest("Bad BusinessPolicy", None,
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -234,7 +236,7 @@ class BusinessSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - add "+businessPolicy2+" as node - should fail") {
     val input = PostPutBusinessPolicyRequest("Bad BusinessPolicy2", None,
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -244,7 +246,7 @@ class BusinessSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - add "+businessPolicy2+" as 2nd user") {
     val input = PostPutBusinessPolicyRequest(businessPolicy2, None,
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -324,6 +326,13 @@ class BusinessSuite extends FunSuite {
     assert(respObj.businessPolicy.contains(orgBusinessPolicy))
     val pt = respObj.businessPolicy(orgBusinessPolicy)     // the 2nd get turns the Some(val) into val
     assert(pt.label === businessPolicy)
+    val ui = pt.userInput
+    var uiElem = ui.find(u => u.name=="UI_STRING").orNull
+    assert((uiElem !== null) && (uiElem.value === "mystr - updated"))
+    uiElem = ui.find(u => u.name=="UI_INT").orNull
+    assert((uiElem !== null) && (uiElem.value === 5))
+    uiElem = ui.find(u => u.name=="UI_BOOLEAN").orNull
+    assert((uiElem !== null) && (uiElem.value === true))
 
     // Verify the lastUpdated from the PUT above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
     val now: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
@@ -334,9 +343,14 @@ class BusinessSuite extends FunSuite {
 
   //~~~~~ Patch and get (verify) business policies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - the description as user") {
-    val jsonInput = """{ "description": "this is now patched" }"""
-    val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - the description and userInput as user") {
+    var jsonInput = """{ "description": "this is now patched" }"""
+    var response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+
+    jsonInput = """{ "userInput": [{ "name": "UI_INT", "value": 7 }] }"""
+    response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
@@ -350,14 +364,25 @@ class BusinessSuite extends FunSuite {
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
-  test("GET /orgs/"+orgid+"/business/policies/"+businessPolicy+" - as agbot, check patch by getting 1 attr - the description") {
-    val response: HttpResponse[String] = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","description").asString
+  test("GET /orgs/"+orgid+"/business/policies/"+businessPolicy+" - as agbot, check patch by getting 1 attr at a time") {
+    var response: HttpResponse[String] = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","description").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
-    val respObj = parse(response.body).extract[GetBusinessPolicyAttributeResponse]
+    var respObj = parse(response.body).extract[GetBusinessPolicyAttributeResponse]
     assert(respObj.attribute === "description")
     assert(respObj.value === "this is now patched")
+
+    response = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","userInput").asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    respObj = parse(response.body).extract[GetBusinessPolicyAttributeResponse]
+    assert(respObj.attribute === "userInput")
+    val ui = parse(respObj.value).extract[List[OneUserInputValue]]
+    info("ui: "+ui.toString())
+    val uiElem = ui.find(u => u.name=="UI_INT").orNull
+    assert((uiElem !== null) && (uiElem.value === 7))
   }
 
   test("GET /orgs/"+orgid+"/business/policies/"+businessPolicy+"notthere - as user - should fail") {
@@ -425,7 +450,7 @@ class BusinessSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - update "+businessPolicy2+" referencing service in other org") {
     val input = PostPutBusinessPolicyRequest(businessPolicy2, None,
       BService(svcurl2, orgid2, svcarch2, List(BServiceVersions(svcversion2, None, None)), None),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

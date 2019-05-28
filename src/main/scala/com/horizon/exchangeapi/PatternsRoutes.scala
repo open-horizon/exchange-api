@@ -298,12 +298,33 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               break
             }
           } }
-          if (invalidIndex < 0) PatternsTQ.getNumOwned(owner).result.asTry
+          if (invalidIndex < 0) PatternsTQ.getPublic(pattern).result.asTry //getting public field from pattern
           else {
             val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
               else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking public field of "+pattern+": "+xs)
+      xs match {
+        case Success(patternPublic) => val public = patternPublic
+          if (public.head) {    // pattern is public so need to check owner
+            OrgsTQ.getAttribute(orgid, "orgType").result.asTry
+          } else if (!public.head) { // pattern isn't public so skip owner check
+            DBIO.successful(Vector())
+          } else DBIO.failed(new Throwable("Access Denied: only IBM patterns can be made public")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking orgType of "+orgid+": "+xs)
+      xs match {
+        case Success(patternOrg) => val orgType = patternOrg
+          if (patternOrg.toString == "IBM") {    // only patterns of orgType "IBM" can be public
+            PatternsTQ.getNumOwned(owner).result.asTry
+          }
+          else DBIO.failed(new Throwable("Access Denied: only IBM patterns can be made public")).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -377,12 +398,33 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               break
             }
           } }
-          if (invalidIndex < 0) patternReq.toPatternRow(pattern, orgid, owner).update.asTry
+          if (invalidIndex < 0) PatternsTQ.getPublic(pattern).result.asTry //getting public field from pattern
           else {
             val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
               else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking public field of "+pattern+": "+xs)
+      xs match {
+        case Success(patternPublic) => val public = patternPublic
+          if (public.head) {    // pattern is public so need to check owner
+            OrgsTQ.getAttribute(orgid, "orgType").result.asTry
+          } else if (!public.head) { // pattern isn't public so skip owner check
+            DBIO.successful(Vector())
+          } else DBIO.failed(new Throwable("Access Denied: only IBM patterns can be made public")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking orgType of "+orgid+": "+xs)
+      xs match {
+        case Success(patternOrg) => val orgType = patternOrg
+          if (patternOrg.toString == "IBM") {    // only patterns of orgType "IBM" can be public
+            patternReq.toPatternRow(pattern, orgid, owner).update.asTry
+          }
+          else DBIO.failed(new Throwable("Access Denied: only IBM patterns can be made public")).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
@@ -447,12 +489,33 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               break
             }
           } }
-          if (invalidIndex < 0) action.transactionally.asTry
+          if (invalidIndex < 0) PatternsTQ.getPublic(pattern).result.asTry //getting public field from pattern
           else {
             val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
               else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking public field of "+pattern+": "+xs)
+      xs match {
+        case Success(patternPublic) => val public = patternPublic
+          if (public.head) {    // pattern is public so need to check owner
+            OrgsTQ.getAttribute(orgid, "orgType").result.asTry
+          } else if (!public.head) { // pattern isn't public so skip owner check
+            DBIO.successful(Vector())
+          } else DBIO.failed(new Throwable("Access Denied: only IBM patterns can be made public")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking orgType of "+orgid+": "+xs)
+      xs match {
+        case Success(patternOrg) => val orgType = patternOrg
+          if (patternOrg.toString == "IBM") {    // only patterns of orgType "IBM" can be public
+            action.transactionally.asTry
+          }
+          else DBIO.failed(new Throwable("Access Denied: only IBM patterns can be made public")).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>

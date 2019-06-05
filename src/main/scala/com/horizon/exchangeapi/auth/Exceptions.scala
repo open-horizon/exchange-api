@@ -30,6 +30,9 @@ class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BAD
 // The keyword specified was for icp, but not in an icp environment (for vice versa)
 class IamApiErrorException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
 
+// An error occurred while building the SSLSocketFactory with the self-signed cert
+class SelfSignedCertException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
+
 class AuthInternalErrorException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
 
 object AuthErrors {

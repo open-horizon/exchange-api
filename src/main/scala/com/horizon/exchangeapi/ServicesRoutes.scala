@@ -506,6 +506,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     }
 
     // First check that the requiredServices exist (if that is not what they are patching, this is a noop)
+    //todo: add a step to update the owner, if different
     db.run(svcAction.transactionally.asTry.flatMap({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/services requiredServices validation: "+xs.toString)
       xs match {

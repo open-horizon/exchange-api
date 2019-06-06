@@ -29,6 +29,7 @@ EXCHANGE_API_WAR_VERSION ?= 0.1.0
 EXCHANGE_API_DIR ?= /src/github.com/open-horizon/exchange-api
 EXCHANGE_API_PORT ?= 8080
 EXCHANGE_API_HTTPS_PORT ?= 8443
+# Location of config.json and icp/ca.crt in the container
 EXCHANGE_CONFIG_DIR ?= /etc/horizon/exchange
 OS := $(shell uname)
 ifeq ($(OS),Darwin)
@@ -38,13 +39,11 @@ else
   # Assume Linux (could test by test if OS is Linux)
   EXCHANGE_HOST_CONFIG_DIR ?= $(EXCHANGE_CONFIG_DIR)
 endif
-# Location of the ssl key/cert so we can mount it into the container for jetty to access
-#EXCHANGE_HOST_KEYSTORE ?= $(PWD)/keys/keystore.pkcs12
-#EXCHANGE_CONTAINER_KEYSTORE ?= /var/lib/jetty/etc/keystore
-# this need to be fully qualified, so docker can mount it into the container
+# Location of the ssl key/cert that it should use so it can server https routes. This need to be fully qualified, so docker can mount it into the container for jetty to access
 EXCHANGE_HOST_KEYSTORE_DIR ?= $(PWD)/keys/etc
 EXCHANGE_HOST_ALIAS ?= edge-fab-exchange
 EXCHANGE_CONTAINER_KEYSTORE_DIR ?= /var/lib/jetty/etc
+# The public cert we should use to connect to an ibm cloud postgres db
 EXCHANGE_HOST_POSTGRES_CERT_FILE ?= $(EXCHANGE_HOST_CONFIG_DIR)/postres-cert/root.crt
 EXCHANGE_CONTAINER_POSTGRES_CERT_FILE ?= /home/jetty/.postgresql/root.crt
 

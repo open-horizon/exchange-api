@@ -1,10 +1,14 @@
 package com.horizon.exchangeapi.auth
 
+import java.io.{BufferedInputStream, File, FileInputStream}
+import java.security.cert.{Certificate, CertificateFactory}
 import java.util.concurrent.TimeUnit
+import java.security.KeyStore
 
 import com.google.common.cache.CacheBuilder
 import com.horizon.exchangeapi._
 import com.horizon.exchangeapi.tables.{OrgsTQ, UserRow, UsersTQ}
+import javax.net.ssl.{SSLContext, SSLSocketFactory, TrustManagerFactory}
 import javax.security.auth._
 import javax.security.auth.callback._
 import javax.security.auth.spi.LoginModule
@@ -131,6 +135,7 @@ object IbmCloudAuth {
   import scala.concurrent.ExecutionContext.Implicits.global
 
   private var db: Database = _
+  private var sslSocketFactory: SSLSocketFactory = _
 
   private implicit val formats = DefaultFormats
 
@@ -142,8 +147,10 @@ object IbmCloudAuth {
     .build[String, Entry[String]]     // the cache key is org/apikey, and the value is org/username
   implicit val userCache = GuavaCache(guavaCache)
 
+  // Called by ExchangeApiApp
   def init(db: Database): Unit = {
     this.db = db
+    if (isIcp) this.sslSocketFactory = buildSslSocketFactory(getIcpCertFile)
   }
 
   def authenticateUser(authInfo: IamAuthCredentials): Try[String] = {
@@ -172,9 +179,11 @@ object IbmCloudAuth {
     removeAll().map(_ => ())
   }
 
-  private def isIcp = sys.env.get("PLATFORM_IDENTITY_PROVIDER_SERVICE_HOST").nonEmpty   // ICP sets this
+  private def isIcp = sys.env.get("PLATFORM_IDENTITY_PROVIDER_SERVICE_HOST").nonEmpty   // our ICP provisioning sets this
 
   private def getIcpIdentityUrl = "https://" + sys.env.getOrElse("PLATFORM_IDENTITY_PROVIDER_SERVICE_HOST", "") + ":8443"
+
+  private def getIcpCertFile = "/etc/horizon/exchange/icp/ca.crt"   // our ICP provisioning creates this file
 
   // Use the IBM IAM API to authenticate the iamapikey and get an IAM token. See: https://cloud.ibm.com/apidocs/iam-identity-token-api and https://github.ibm.com/IBMPrivateCloud/roadmap/blob/master/feature-specs/security/security-services-apis.md
   private def getIamToken(authInfo: IamAuthCredentials): Try[IamToken] = {
@@ -205,11 +214,12 @@ object IbmCloudAuth {
         val iamUrl = getIcpIdentityUrl + "/iam-token/oidc/introspect"
         logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
         val apiKey = token.accessToken
-        //TODO: need to get the self-signed cert so we don't have to use the allowUnsafeSSL option
-        val response = Http(iamUrl).method("post").option(HttpOptions.allowUnsafeSSL)
+        // Have our http client use the ICP self-signed cert so we don't have to use the allowUnsafeSSL option
+        val response = Http(iamUrl).method("post").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
           .header("Content-Type", "application/x-www-form-urlencoded")
           .postData("apikey="+apiKey)
           .asString
+        // val response = Http(iamUrl).method("post").option(HttpOptions.allowUnsafeSSL).header("Content-Type", "application/x-www-form-urlencoded").postData("apikey="+apiKey).asString
         if (response.code == HttpCode.OK) Success(parse(response.body).extract[IamUserInfo])
         else Failure(new IamApiErrorException(response.body.toString))
       } catch { case e: Exception => Failure(new IamApiErrorException("error authenticating ICP IAM API key: "+e.getMessage)) }
@@ -218,8 +228,7 @@ object IbmCloudAuth {
       try {
         val iamUrl = getIcpIdentityUrl + "/idprovider/v1/auth/userinfo"
         logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
-        //TODO: need to get the self-signed cert so we don't have to use the allowUnsafeSSL option
-        val response = Http(iamUrl).method("post").option(HttpOptions.allowUnsafeSSL)
+        val response = Http(iamUrl).method("post").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
           .header("Authorization", s"BEARER ${token.accessToken}")
           .header("Content-Type", "application/json")
           .asString
@@ -328,5 +337,35 @@ object IbmCloudAuth {
       case reg(_,id) => return ("",id)
       case _ => return ("", compositeId)
     }
+  }
+
+  // Create an SSLSocketFactory that verifies a server using a self-signed cert. Used as example: https://gist.github.com/erickok/7692592
+  def buildSslSocketFactory(filePath: String): SSLSocketFactory = {
+    try {
+      // Load the cert from the file
+      val cf = CertificateFactory.getInstance("X.509")
+      val caInput = new BufferedInputStream(new FileInputStream(new File(filePath)))
+      var ca: Certificate = null
+      try {
+        ca = cf.generateCertificate(caInput)
+        logger.debug("Loading self-signed CA from "+filePath+", type: "+ca.getType)
+      } finally { caInput.close() }
+
+      // Create an in-memory KeyStore containing our self-signed cert
+      val keyStoreType = KeyStore.getDefaultType
+      val keyStore = KeyStore.getInstance(keyStoreType)
+      keyStore.load(null, null)
+      keyStore.setCertificateEntry("ca", ca)
+
+      // Create a TrustManager that trusts the CAs in our KeyStore
+      val alg = TrustManagerFactory.getDefaultAlgorithm
+      val tmf = TrustManagerFactory.getInstance(alg)
+      tmf.init(keyStore)
+
+      // Create an SSLContext that uses our TrustManager
+      val context = SSLContext.getInstance("TLS")
+      context.init(null, tmf.getTrustManagers, null)
+      return context.getSocketFactory
+    } catch { case e: Exception => throw new SelfSignedCertException(e.getMessage) }
   }
 }

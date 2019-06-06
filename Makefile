@@ -56,14 +56,14 @@ clean: clean-exec-image
 clean-exec-image:
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
 	- docker rmi $(image-string):{$(DOCKER_TAG),$(DOCKER_LATEST)} 2> /dev/null || :
-	rm -f .docker-exec .docker-exec-run
+	rm -f .docker-exec*
 
 # Also remove the bld image/container
 clean-all: clean
 	- docker rm -f $(DOCKER_NAME)_bld 2> /dev/null || :
 	- docker rmi $(image-string):bld 2> /dev/null || :
 	- docker network remove $(DOCKER_NETWORK) 2> /dev/null || :
-	rm -f .docker-bld .docker-network
+	rm -f .docker-*
 
 # rem-docker-bld:
 # 	- docker rm -f $(DOCKER_NAME)_bld 2> /dev/null || :

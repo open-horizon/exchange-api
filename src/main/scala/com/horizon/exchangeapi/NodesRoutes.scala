@@ -783,7 +783,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       ]
     }
   ],
-  // Override or set user input variables that are defined in the services used by this pattern.
+  // Override or set user input variables that are defined in the services used by this node.
   "userInput": [
     {
       "serviceOrgid": "IBM",

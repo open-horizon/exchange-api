@@ -214,7 +214,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       "check_agreement_status": 120        // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
     }
   },
-  // Override or set user input variables that are defined in the services used by this pattern.
+  // Override or set user input variables that are defined in the services used by this business policy.
   "userInput": [
     {
       "serviceOrgid": "IBM",
@@ -491,8 +491,8 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   // ======== POST /org/{orgid}/business/policies/{policy}/search ========================
   val postBusinessPolicySearch =
     (apiOperation[PostBusinessPolicySearchResponse]("postBusinessPolicySearch")
-      summary("Returns matching nodes of a particular pattern")
-      description """Returns the matching nodes that are using this pattern and do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node). The **request body** structure:
+      summary("Returns matching nodes for this business policy")
+      description """Returns the matching nodes for this business policy that do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node). The **request body** structure:
 
 ```
 {

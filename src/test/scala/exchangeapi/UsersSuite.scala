@@ -667,8 +667,8 @@ class UsersSuite extends FunSuite {
       assert(response.code === HttpCode.OK)
 
       // authenticate as a cloud user and view this user
-      response = Http(URL+"/users/"+iamEmail).headers(ACCEPT).headers(ROOTAUTH).asString
-      //response = Http(URL+"/users/"+iamEmail).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      //response = Http(URL+"/users/"+iamEmail).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(URL+"/users/"+iamEmail).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.OK)
       var getUserResp = parse(response.body).extract[GetUsersResponse]
@@ -704,7 +704,7 @@ class UsersSuite extends FunSuite {
       assert(response.code === HttpCode.POST_OK)
 
       // ensure we can add a node to check acls to other objects
-      val inputNode = PutNodesRequest("abc", "my node", "", None, None, None, "ABC", None)
+      val inputNode = PutNodesRequest("abc", "my node", "", None, None, None, None, "ABC", None)
       response = Http(URL+"/nodes/n1").postData(write(inputNode)).method("put").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)

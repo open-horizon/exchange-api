@@ -75,3 +75,8 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
 
   // All of the route implementations are in traits called *Routes
 }
+
+class AccessDeniedException(var httpCode: Int, var apiResponse: String, msg: String) extends Exception(msg)
+class BadInputException(var httpCode: Int, var apiResponse: String, msg: String) extends Exception(msg)
+class NotFoundException(var httpCode: Int, var apiResponse: String, msg: String) extends Exception(msg)
+

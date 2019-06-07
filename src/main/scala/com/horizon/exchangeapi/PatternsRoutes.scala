@@ -307,12 +307,13 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking public field of "+pattern+": "+xs)
+      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking public field and orgType of "+pattern+": "+xs)
       xs match {
         case Success(orgName) => val orgType = orgName
-          if ((patternReq.public.contains(true) & orgType.head == "IBM") | patternReq.public.contains(false)) {    // pattern is public and owner is IBM so ok
+          val publicField = patternReq.public.getOrElse(false)
+          if ((publicField & orgType.head == "IBM") | !publicField) {    // pattern is public and owner is IBM so ok, or pattern isn't public at all so ok
             PatternsTQ.getNumOwned(owner).result.asTry
-          } else DBIO.failed(new Throwable("Access Denied: only IBM patterns can be made public")).asTry
+          } else DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, "only IBM patterns can be made public")).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -395,24 +396,37 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking public field of "+pattern+": "+xs)
+      logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" checking public field of "+pattern+": "+xs)
       xs match {
         case Success(patternPublic) => val public = patternPublic
-          if (public.head | patternReq.public.contains(true)) {    // pattern is public so need to check owner
-            OrgsTQ.getAttribute(orgid, "orgType").result.asTry
-          } else if (!public.head & patternReq.public.contains(false)) { // pattern isn't public so skip owner check
-            DBIO.successful(Vector())
-          } else DBIO.failed(new Throwable("Access Denied: only IBM patterns can be made public")).asTry
+          if(public.nonEmpty){
+            if (public.head | patternReq.public.getOrElse(false)) {    // pattern is public so need to check orgType
+              OrgsTQ.getOrgType(orgid).result.asTry // should return a vector of Strings
+            } else { // pattern isn't public so skip orgType check
+              DBIO.successful(Vector("IBM")).asTry
+              //SADIYAH -- add test for this
+            }
+          } else {
+            logger.debug("HIT ELSE FOR public.nonEmpty")
+            logger.debug("HttpCode.NOT_FOUND", HttpCode.NOT_FOUND)
+            logger.debug("ApiResponseType.NOT_FOUND", ApiResponseType.NOT_FOUND)
+            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")).asTry //gives 500 instead of 404
+          }
+
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking orgType of "+orgid+": "+xs)
+      logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" checking orgType of "+orgid+": "+xs)
       xs match {
-        case Success(patternOrg) => val orgType = patternOrg
-          if (patternOrg.toString == "IBM") {    // only patterns of orgType "IBM" can be public
+        case Success(orgTypes) =>
+          logger.debug("PUT -- "+ orgTypes.head)
+          if (orgTypes.head == "IBM") {    // only patterns of orgType "IBM" can be public
+            logger.debug("inside if patternOrg == IBM in PUT")
             patternReq.toPatternRow(pattern, orgid, owner).update.asTry
+          } else {
+            logger.debug("inside else of patternOrg for PUT")
+            DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, "only IBM patterns can be made public")).asTry
           }
-          else DBIO.failed(new Throwable("Access Denied: only IBM patterns can be made public")).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
@@ -430,8 +444,16 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not updated: "+e) }    // the specific exception is NumberFormatException
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+pattern+"' not updated: "+t.getMessage)
+        case Failure(t) =>
+          if(t.getMessage.contains("not found")){
+            logger.debug("INSIDE t.getMessage not found")
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
+          } else {
+            resp.setStatus(HttpCode.BAD_INPUT)
+            ApiResponse(ApiResponseType.BAD_INPUT, "pattern '" + pattern + "' not updated: " + t.getMessage)
+          }
+
       }
     })
   })
@@ -465,10 +487,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val resp = response
     val (action, attrName) = patternReq.getDbUpdate(pattern, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid pattern attribute specified"))
-    // SADIYAH ADD HERE??? probably need to make a validate function
     val (valServiceIdActions, svcRefs) = if (attrName == "services") PatternsTQ.validateServiceIds(patternReq.services.get) else (DBIO.successful(Vector()), Vector())
     db.run(valServiceIdActions.asTry.flatMap({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" service validation: "+xs.toString)
+      logger.debug("PATCH /orgs/"+orgid+"/patterns"+barePattern+" service validation: "+xs.toString)
       xs match {
         case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
           breakable { for ( (len, index) <- v.zipWithIndex) {
@@ -486,24 +507,30 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking public field of "+pattern+": "+xs)
+      logger.debug("PATCH /orgs/"+orgid+"/patterns"+barePattern+" checking public field of "+pattern+": "+xs)
       xs match {
         case Success(patternPublic) => val public = patternPublic
-          if (public.head | patternReq.public.contains(true)) {    // pattern is public so need to check owner
-            OrgsTQ.getAttribute(orgid, "orgType").result.asTry
-          } else if (!public.head& patternReq.public.contains(false)) { // pattern isn't public so skip owner check
-            DBIO.successful(Vector())
-          } else DBIO.failed(new Throwable("Access Denied: only IBM patterns can be made public")).asTry
+          if (public.head | patternReq.public.getOrElse(false)) {    // pattern is public so need to check owner
+            OrgsTQ.getOrgType(orgid).result.asTry
+            //            OrgsTQ.getAttribute(orgid, "orgType").result.asTry
+          } else { // pattern isn't public so skip orgType check
+            DBIO.successful(Vector("IBM")).asTry
+          }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking orgType of "+orgid+": "+xs)
+      logger.debug("PATCH /orgs/"+orgid+"/patterns"+barePattern+" checking orgType of "+orgid+": "+xs)
       xs match {
-        case Success(patternOrg) => val orgType = patternOrg
-          if (patternOrg.toString == "IBM") {    // only patterns of orgType "IBM" can be public
+        case Success(patternOrg) =>
+          logger.debug("PATCH -- "+ patternOrg)
+          logger.debug("PATCH TO STRING -- "+ patternOrg.toString)
+          if (patternOrg.head == "IBM") {    // only patterns of orgType "IBM" can be public
             action.transactionally.asTry
           }
-          else DBIO.failed(new Throwable("Access Denied: only IBM patterns can be made public")).asTry
+          else {
+            logger.debug("inside else of if patternOrg for PATCH")
+            DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, "only IBM patterns can be made public")).asTry
+          }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>

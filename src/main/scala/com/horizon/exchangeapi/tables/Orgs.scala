@@ -43,6 +43,7 @@ object OrgsTQ {
   val rows = TableQuery[Orgs]
 
   def getOrgid(orgid: String) = rows.filter(_.orgid === orgid)
+  def getOrgType(orgid: String) = rows.filter(_.orgid === orgid).map(_.orgType)
   def getLabel(orgid: String) = rows.filter(_.orgid === orgid).map(_.label)
   def getDescription(orgid: String) = rows.filter(_.orgid === orgid).map(_.description)
   def getLastUpdated(orgid: String) = rows.filter(_.orgid === orgid).map(_.lastUpdated)

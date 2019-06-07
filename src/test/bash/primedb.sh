@@ -358,16 +358,24 @@ if [[ $rc != 200 ]]; then
   ],
   "userInput": [
     {
-      "name": "MSGHUB_API_KEY",
-      "value": "1234ABC"
-    },
-    {
-      "name": "SAMPLE_INTERVAL",
-      "value": 5
-    },
-    {
-      "name": "VERBOSE",
-      "value": true
+      "serviceOrgid": "IBM",
+      "serviceUrl": "ibm.cpu2msghub",
+      "serviceArch": "",
+      "serviceVersionRange": "[0.0.0,INFINITY)",
+      "inputs": [
+        {
+          "name": "MSGHUB_API_KEY",
+          "value": "1234ABC"
+        },
+        {
+          "name": "SAMPLE_INTERVAL",
+          "value": 5
+        },
+        {
+          "name": "VERBOSE",
+          "value": true
+        }
+      ]
     }
   ],
   "agreementProtocols": [{ "name": "Basic" }] }'
@@ -410,16 +418,24 @@ if [[ $rc != 200 ]]; then
   "service": { "name": "'$svcurl'", "org": "'$orgid'", "arch": "'$svcarch'", "serviceVersions": [{ "version": "'$svcversion'" }] },
   "userInput": [
     {
-      "name": "MSGHUB_API_KEY",
-      "value": "1234ABC"
-    },
-    {
-      "name": "SAMPLE_INTERVAL",
-      "value": 5
-    },
-    {
-      "name": "VERBOSE",
-      "value": true
+      "serviceOrgid": "IBM",
+      "serviceUrl": "ibm.cpu2msghub",
+      "serviceArch": "",
+      "serviceVersionRange": "[0.0.0,INFINITY)",
+      "inputs": [
+        {
+          "name": "MSGHUB_API_KEY",
+          "value": "1234ABC"
+        },
+        {
+          "name": "SAMPLE_INTERVAL",
+          "value": 5
+        },
+        {
+          "name": "VERBOSE",
+          "value": true
+        }
+      ]
     }
   ],
   "properties": [{"name":"purpose", "value":"location", "type":"string"}],
@@ -457,6 +473,28 @@ if [[ $rc != 200 ]]; then
       "numAgreements": 1,
       "policy": "{json policy for n2 location}",
       "properties": []
+    }
+  ],
+  "userInput": [
+    {
+      "serviceOrgid": "IBM",
+      "serviceUrl": "ibm.cpu2msghub",
+      "serviceArch": "",
+      "serviceVersionRange": "[0.0.0,INFINITY)",
+      "inputs": [
+        {
+          "name": "MSGHUB_API_KEY",
+          "value": "1234ABC"
+        },
+        {
+          "name": "SAMPLE_INTERVAL",
+          "value": 5
+        },
+        {
+          "name": "VERBOSE",
+          "value": true
+        }
+      ]
     }
   ],
   "publicKey": "ABC" }'

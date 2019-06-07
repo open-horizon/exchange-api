@@ -72,6 +72,7 @@ class PatternsSuite extends FunSuite {
   val key = "abcdefghijk"
   val keyId2 = "mykey2.pem"
   val key2 = "lnmopqrstuvwxyz"
+  val ALL_VERSIONS = "[0.0.0,INFINITY)"
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -118,7 +119,7 @@ class PatternsSuite extends FunSuite {
     val devInput = PutNodesRequest(nodeToken, "bc dev test", "", Some(List(RegService("foo", 1, None, "{}", List(
       Prop("arch", "arm", "string", "in"),
       Prop("version", "2.0.0", "version", "in"),
-      Prop("blockchainProtocols", "agProto", "list", "in"))))), None, None, "NODEABC", None)
+      Prop("blockchainProtocols", "agProto", "list", "in"))))), None, None, None, "NODEABC", None)
     val devResponse = Http(URL + "/nodes/" + nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK)
@@ -169,7 +170,7 @@ class PatternsSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as user") {
     val input = PostPutPatternRequest(pattern, Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
-      Some(List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )),
+      Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -192,7 +193,7 @@ class PatternsSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as same user, w/o dataVerification or nodeHealth fields") {
     val input = PostPutPatternRequest(pattern+" amd64", None, None,
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
-      Some(List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )),
+      Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -356,13 +357,18 @@ class PatternsSuite extends FunSuite {
     assert(respObj.patterns.contains(orgpattern))
     val pt = respObj.patterns(orgpattern)     // the 2nd get turns the Some(val) into val
     assert(pt.label === pattern+" amd64")
-    val ui = pt.userInput
-    var uiElem = ui.find(u => u.name=="UI_STRING").orNull
-    assert((uiElem !== null) && (uiElem.value === "mystr - updated"))
-    uiElem = ui.find(u => u.name=="UI_INT").orNull
-    assert((uiElem !== null) && (uiElem.value === 5))
-    uiElem = ui.find(u => u.name=="UI_BOOLEAN").orNull
-    assert((uiElem !== null) && (uiElem.value === true))
+    val uis = pt.userInput
+    val uisElem = uis.head
+    assert(uisElem.serviceUrl === svcurl)
+    assert(uisElem.serviceArch.getOrElse("") === svcarch)
+    assert(uisElem.serviceVersionRange.getOrElse("") === ALL_VERSIONS)
+    val inp = uisElem.inputs
+    var inpElem = inp.find(u => u.name=="UI_STRING").orNull
+    assert((inpElem !== null) && (inpElem.value === "mystr - updated"))
+    inpElem = inp.find(u => u.name=="UI_INT").orNull
+    assert((inpElem !== null) && (inpElem.value === 5))
+    inpElem = inp.find(u => u.name=="UI_BOOLEAN").orNull
+    assert((inpElem !== null) && (inpElem.value === true))
 
     // Verify the lastUpdated from the PUT above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
     val now: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
@@ -378,7 +384,7 @@ class PatternsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
 
-    jsonInput = """{ "userInput": [{ "name": "UI_INT", "value": 7 }] }"""
+    jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": """"+svcarch+"""", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
     response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -408,10 +414,18 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.OK)
     respObj = parse(response.body).extract[GetPatternAttributeResponse]
     assert(respObj.attribute === "userInput")
-    val ui = parse(respObj.value).extract[List[OneUserInputValue]]
-    info("ui: "+ui.toString())
-    val uiElem = ui.find(u => u.name=="UI_INT").orNull
-    assert((uiElem !== null) && (uiElem.value === 7))
+    val uis = parse(respObj.value).extract[List[OneUserInputService]]
+    val uisElem = uis.head
+    assert(uisElem.serviceUrl === svcurl)
+    assert(uisElem.serviceArch.getOrElse("") === svcarch)
+    assert(uisElem.serviceVersionRange.getOrElse("") === ALL_VERSIONS)
+    val inp = uisElem.inputs
+    var inpElem = inp.find(u => u.name=="UI_STRING").orNull
+    assert((inpElem !== null) && (inpElem.value === "mystr - updated"))
+    inpElem = inp.find(u => u.name=="UI_INT").orNull
+    assert((inpElem !== null) && (inpElem.value === 7))
+    inpElem = inp.find(u => u.name=="UI_BOOLEAN").orNull
+    assert((inpElem !== null) && (inpElem.value === true))
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+"notthere - as user - should fail") {

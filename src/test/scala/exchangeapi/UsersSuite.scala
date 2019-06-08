@@ -546,7 +546,7 @@ class UsersSuite extends FunSuite {
     info("code: " + response.code)
     assert(response.code === HttpCode.OK)
     val getOrgsResp = parse(response.body).extract[GetOrgsResponse]
-    assert(getOrgsResp.orgs.size === 2)      // the 1 we created + the standard IBM org
+    assert(getOrgsResp.orgs.size >= 2)      // the 1 we created + the standard IBM org + whatever CatalogSuite created
     assert(getOrgsResp.orgs.contains(orgid))
     assert(getOrgsResp.orgs.contains("IBM"))
   }

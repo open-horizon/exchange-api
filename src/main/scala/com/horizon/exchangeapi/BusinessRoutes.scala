@@ -32,7 +32,7 @@ case class PostPutBusinessPolicyRequest(label: String, description: Option[Strin
   }
 
   // Build a list of db actions to verify that the referenced services exist
-  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { BusinessPoliciesTQ.validateServiceIds(service) }
+  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { BusinessPoliciesTQ.validateServiceIds(service, userInput.getOrElse(List())) }
 
   // The nodeHealth field is optional, so fill in a default in service if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
   def defaultNodeHealth(service: BService): BService = {
@@ -411,7 +411,9 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val resp = response
     val (action, attrName) = policyReq.getDbUpdate(businessPolicy, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid business policy attribute specified"))
-    val (valServiceIdActions, svcRefs) = if (attrName == "service") BusinessPoliciesTQ.validateServiceIds(policyReq.service.get) else (DBIO.successful(Vector()), Vector())
+    val (valServiceIdActions, svcRefs) = if (attrName == "service") BusinessPoliciesTQ.validateServiceIds(policyReq.service.get, List())
+      else if (attrName == "userInput") BusinessPoliciesTQ.validateServiceIds(BService("","","",List(),None), policyReq.userInput.get)
+      else (DBIO.successful(Vector()), Vector())
     db.run(valServiceIdActions.asTry.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/business/policies"+bareBusinessPolicy+" service validation: "+xs.toString)
       xs match {

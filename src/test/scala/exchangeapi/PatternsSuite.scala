@@ -103,6 +103,12 @@ class PatternsSuite extends FunSuite {
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
     }
+    val respOrg2 = Http(URL2+"/users/"+user3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("DELETE "+user3+", code: "+respOrg2.code+", response.body: "+respOrg2.body)
+    assert(respOrg2.code === HttpCode.DELETED || respOrg2.code === HttpCode.NOT_FOUND)
+    val respOrg3 = Http(URL3+"/users/"+user4).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("DELETE "+user4+", code: "+respOrg3.code+", response.body: "+respOrg3.body)
+    assert(respOrg3.code === HttpCode.DELETED || respOrg3.code === HttpCode.NOT_FOUND)
   }
 
   /** Create an org to use for this test */

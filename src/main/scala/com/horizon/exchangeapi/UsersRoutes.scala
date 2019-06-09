@@ -41,7 +41,7 @@ case class PatchUsersRequest(password: Option[String], admin: Option[Boolean], e
   }
 }
 
-case class ResetPwResponse(token: String)
+//case class ResetPwResponse(token: String)
 
 case class ChangePwRequest(newPassword: String) {
 
@@ -352,6 +352,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     ApiResponse(ApiResponseType.OK, "confirmation successful")
   })
 
+  /* Reset as anonymous does not work with orgs...
   // =========== POST /orgs/{orgid}/users/{username}/reset ===============================
   val postUsersReset =
     (apiOperation[ApiResponse]("postUsersReset")
@@ -398,7 +399,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Some(url) => url
         // Local development environment, we get http://localhost:8080/api/v1/users/{user}/reset
         case None => logger.trace("request.uri: "+request.uri)
-          val R = """^(.*)/v\d+/orgs/[^/]*/users/[^/]*/reset$""".r
+          val R = """^(.*)/v\d+/orgs/[^/]* /users/[^/]* /reset$""".r   <- had to separate the * and /
           request.uri.toString match {
             case R(url) => url
             case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "unexpected uri"))
@@ -407,12 +408,13 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       val changePwUrl = requestUrl+"/api?url="+requestUrl+"/api-docs#!/v1/postUsersChangePw"
       logger.trace("changePwUrl: "+changePwUrl)
 
-      //todo: this is broken, get: java.lang.NoClassDefFoundError: com/sun/mail/util/PropUtil
+      //note: this is broken, get: java.lang.NoClassDefFoundError: com/sun/mail/util/PropUtil
       db.run(UsersTQ.getEmail(compositeId).result).map({ xs =>
         logger.debug("POST /orgs/"+orgid+"/users/"+username+"/reset result: "+xs.toString)
         if (xs.nonEmpty) {
           val email = xs.head
           logger.debug("Emailing reset token for user "+compositeId+" to email: "+email)
+          //Note: this used Email.scala, which was removed from our git on 6/9/19
           Email.send(compositeId, email, createToken(compositeId), changePwUrl) match {
             case Success(msg) => resp.setStatus(HttpCode.POST_OK)
               ApiResponse(ApiResponseType.OK, msg)
@@ -426,6 +428,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       })
     }
   })
+  */
 
   // =========== POST /orgs/{orgid}/users/{username}/changepw ===============================
   val postUsersChangePw =

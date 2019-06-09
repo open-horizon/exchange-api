@@ -35,8 +35,6 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
         }
       }
     }
-    // SADIYAH - PUT CODE HERE?
-    // make db call to get orgType
   }
 
   // Build a list of db actions to verify that the referenced services exist
@@ -75,8 +73,6 @@ case class PatchPatternRequest(label: Option[String], description: Option[String
     return (null, null)
   }
 
-  // SADIYAH - write validate method here
-  // make db call to get orgType
 }
 
 
@@ -311,7 +307,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       xs match {
         case Success(orgName) => val orgType = orgName
           val publicField = patternReq.public.getOrElse(false)
-          if ((publicField & orgType.head == "IBM") | !publicField) {    // pattern is public and owner is IBM so ok, or pattern isn't public at all so ok
+          if ((publicField && orgType.head == "IBM") || !publicField) {    // pattern is public and owner is IBM so ok, or pattern isn't public at all so ok
             PatternsTQ.getNumOwned(owner).result.asTry
           } else DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, "only IBM patterns can be made public")).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -400,16 +396,12 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       xs match {
         case Success(patternPublic) => val public = patternPublic
           if(public.nonEmpty){
-            if (public.head | patternReq.public.getOrElse(false)) {    // pattern is public so need to check orgType
+            if (public.head || patternReq.public.getOrElse(false)) {    // pattern is public so need to check orgType
               OrgsTQ.getOrgType(orgid).result.asTry // should return a vector of Strings
             } else { // pattern isn't public so skip orgType check
               DBIO.successful(Vector("IBM")).asTry
-              //SADIYAH -- add test for this
             }
           } else {
-            logger.debug("HIT ELSE FOR public.nonEmpty")
-            logger.debug("HttpCode.NOT_FOUND", HttpCode.NOT_FOUND)
-            logger.debug("ApiResponseType.NOT_FOUND", ApiResponseType.NOT_FOUND)
             DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")).asTry //gives 500 instead of 404
           }
 
@@ -510,9 +502,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("PATCH /orgs/"+orgid+"/patterns"+barePattern+" checking public field of "+pattern+": "+xs)
       xs match {
         case Success(patternPublic) => val public = patternPublic
-          if (public.head | patternReq.public.getOrElse(false)) {    // pattern is public so need to check owner
+          val publicField = patternReq.public.getOrElse(false)
+          if ((public.head && publicField) || publicField) {    // pattern is public so need to check owner
             OrgsTQ.getOrgType(orgid).result.asTry
-            //            OrgsTQ.getAttribute(orgid, "orgType").result.asTry
           } else { // pattern isn't public so skip orgType check
             DBIO.successful(Vector("IBM")).asTry
           }
@@ -522,13 +514,10 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("PATCH /orgs/"+orgid+"/patterns"+barePattern+" checking orgType of "+orgid+": "+xs)
       xs match {
         case Success(patternOrg) =>
-          logger.debug("PATCH -- "+ patternOrg)
-          logger.debug("PATCH TO STRING -- "+ patternOrg.toString)
           if (patternOrg.head == "IBM") {    // only patterns of orgType "IBM" can be public
             action.transactionally.asTry
           }
           else {
-            logger.debug("inside else of if patternOrg for PATCH")
             DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, "only IBM patterns can be made public")).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -782,5 +771,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       }
     })
   })
+
+
 
 }

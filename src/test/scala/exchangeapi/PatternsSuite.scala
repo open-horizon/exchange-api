@@ -33,8 +33,14 @@ class PatternsSuite extends FunSuite {
   val CONTENT = ("Content-Type","application/json")
   val CONTENTTEXT = ("Content-Type","text/plain")
   val orgid = "PatternsSuiteTests"
+  val orgid2 = "PatternsSuiteTests-NotIBM"
+  val orgid3 = "PatternsSuiteTests-IBM"
   val authpref=orgid+"/"
+  val authpref2=orgid2+"/"
+  val authpref3=orgid3+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
+  val URL2 = urlRoot+"/v1/orgs/"+orgid2
+  val URL3 = urlRoot+"/v1/orgs/"+orgid3
   val user = "9999"
   val orguser = authpref+user
   val pw = user+"pw"
@@ -43,6 +49,14 @@ class PatternsSuite extends FunSuite {
   val orguser2 = authpref+user2
   val pw2 = user2+"pw"
   val USER2AUTH = ("Authorization","Basic "+orguser2+":"+pw2)
+  val user3 = "10001"
+  val org2user3 = authpref2+user3
+  val pw3 = user3+"pw"
+  val USER3AUTH = ("Authorization","Basic "+org2user3+":"+pw3)
+  val user4 = "10002"
+  val org3user4 = authpref3+user4
+  val pw4 = user4+"pw"
+  val USER4AUTH = ("Authorization","Basic "+org3user4+":"+pw4)
   val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
@@ -59,6 +73,12 @@ class PatternsSuite extends FunSuite {
   val orgpattern = authpref+pattern
   val pattern2 = "pt9921"
   val orgpattern2 = authpref+pattern2
+  val pattern3 = "pt9922"
+  val org2pattern3 = authpref2+pattern3
+  val pattern4 = "pt9923"
+  val org2pattern4 = authpref2+pattern4
+  val pattern5 = "pt9924"
+  val org3pattern5 = authpref3+pattern5
   val IBMURL = urlRoot+"/v1/orgs/IBM"
   val ibmSvcBase = "service-only-for-pattern-automated-tests"   // needs to be different from the IBM svc created in ServicesSuite
   val ibmSvcUrl = "http://" + ibmSvcBase
@@ -97,6 +117,32 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
   }
 
+  /** Create an non IBM org to use for this test */
+  test("POST /orgs/"+orgid2+" - create org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    var response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+
+    val input = PostPutOrgRequest(None, "My Second Org", "Org of orgType not IBM", None)
+    response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  /** Create a second IBM org to use for this test */
+  test("POST /orgs/"+orgid3+" - create org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    var response = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+
+    val input = PostPutOrgRequest(Some("IBM"), "My Second Org", "Org of orgType not IBM", None)
+    response = Http(URL3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the patterns, because they are deleted when the user is deleted. */
   test("Begin - DELETE all test users") {
     if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
@@ -129,6 +175,20 @@ class PatternsSuite extends FunSuite {
     assert(agbotResponse.code === HttpCode.PUT_OK)
   }
 
+  test("Add users, node, agbot for future tests in non-IBM org") {
+    val userInput = PostPutUsersRequest(pw3, admin = false, user3 + "@hotmail.com")
+    val userResponse = Http(URL2 + "/users/" + user3).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
+    assert(userResponse.code === HttpCode.POST_OK)
+  }
+
+  test("Add users, node, agbot for future tests in second IBM org") {
+    val userInput = PostPutUsersRequest(pw4, admin = false, user4 + "@hotmail.com")
+    val userResponse = Http(URL3 + "/users/" + user4).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
+    assert(userResponse.code === HttpCode.POST_OK)
+  }
+
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" before service exists - should fail") {
     val input = PostPutPatternRequest(pattern, None, None,
       List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
@@ -142,6 +202,20 @@ class PatternsSuite extends FunSuite {
   test("Add service for future tests") {
     val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val svcResponse = Http(URL+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
+    assert(svcResponse.code === HttpCode.POST_OK)
+  }
+
+  test("Add service for future tests -- non IBM org") {
+    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val svcResponse = Http(URL2+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
+    info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
+    assert(svcResponse.code === HttpCode.POST_OK)
+  }
+
+  test("Add service for future tests -- second IBM org") {
+    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val svcResponse = Http(URL3+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
     assert(svcResponse.code === HttpCode.POST_OK)
   }
@@ -177,6 +251,56 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("pattern '"+orgpattern+"' created"))
+  }
+
+  /** This pattern sets up pattern5 used for testing functionality of public field in PUT and PATCH routes **/
+  test("POST /orgs/"+orgid3+"/patterns/"+pattern5+" - add "+pattern5+" as user") {
+    val input = PostPutPatternRequest(pattern5, Some("desc"), Some(true),
+      List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
+      Some(List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )),
+      Some(List(Map("name" -> "Basic")))
+    )
+    val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("pattern '"+org3pattern5+"' created"))
+  }
+
+  test("POST /orgs/"+orgid2+"/patterns/"+pattern3+" - add "+pattern3+" public=false, non IBM org") {
+    val input = PostPutPatternRequest(pattern3, Some("desc"), Some(false),
+      List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
+      Some(List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )),
+      Some(List(Map("name" -> "Basic")))
+    )
+    val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("pattern '"+org2pattern3+"' created"))
+  }
+
+  test("POST /orgs/"+orgid2+"/patterns/"+pattern4+" - add "+pattern4+" public=None, non IBM org") {
+    val input = PostPutPatternRequest(pattern4, Some("desc"), None,
+      List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
+      Some(List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )),
+      Some(List(Map("name" -> "Basic")))
+    )
+    val response = Http(URL2+"/patterns/"+pattern4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("pattern '"+org2pattern4+"' created"))
+  }
+
+  test("POST /orgs/"+orgid2+"/patterns/"+pattern3+" - add "+pattern3+" public=true, non IBM org - should fail") {
+    val input = PostPutPatternRequest("Public Pattern Non IBM", None, Some(true),
+      List( PServices(svcurl, orgid2, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
+      None, None
+    )
+    val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" again - should fail") {
@@ -247,6 +371,68 @@ class PatternsSuite extends FunSuite {
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("PUT /orgs/"+orgid3+"/patterns/"+pattern5+" - update to not public") {
+    val input = PostPutPatternRequest(pattern5, None, Some(false),
+      List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
+      Some(List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )),
+      None
+    )
+    val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid3+"/patterns/"+pattern5+" - update to public") {
+    val input = PostPutPatternRequest(pattern5, None, Some(true),
+      List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
+      Some(List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )),
+      None
+    )
+    val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid3+"/patterns/"+pattern5+" - orgtype changed so pattern can't be updated to public - should fail") {
+    val orgInput = """{ "orgType": "test" }"""
+    val orgResp = Http(URL3).postData(orgInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    assert(orgResp.code === HttpCode.PUT_OK)
+    val jsonInput = """{ "public": true }"""
+    val input = PostPutPatternRequest(pattern5, None, Some(true),
+      List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
+      Some(List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )),
+      None
+    )
+    val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+    val orgInput2 = """{ "orgType": "IBM" }"""
+    val orgResp2 = Http(URL3).postData(orgInput2).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    assert(orgResp2.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid2+"/patterns/"+pattern3+" - update to public, not IBM should fail") {
+    val input = PostPutPatternRequest(pattern3, None, Some(true),
+      List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
+      Some(List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )),
+      None
+    )
+    val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
+  test("PUT /orgs/"+orgid2+"/patterns/"+pattern4+" - update to not public") {
+    val input = PostPutPatternRequest(pattern4, None, Some(false),
+      List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
+      Some(List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )),
+      None
+    )
+    val response = Http(URL2+"/patterns/"+pattern4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
   }
 
   /*todo: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
@@ -440,6 +626,60 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
+  test("PATCH /orgs/"+orgid3+"/patterns/"+pattern5+" - patch the public attribute to false from true") {
+    val jsonInput = """{ "public": false }"""
+    //info("jsonInput: "+jsonInput)
+    val response = Http(URL3+"/patterns/"+pattern5).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PATCH /orgs/"+orgid3+"/patterns/"+pattern5+" - patch the public attribute to false again") {
+    val jsonInput = """{ "public": false }"""
+    //info("jsonInput: "+jsonInput)
+    val response = Http(URL3+"/patterns/"+pattern5).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PATCH /orgs/"+orgid3+"/patterns/"+pattern5+" - patch the public attribute to true from false") {
+    val jsonInput = """{ "public": true }"""
+    //info("jsonInput: "+jsonInput)
+    val response = Http(URL3+"/patterns/"+pattern5).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PATCH /orgs/"+orgid3+"/patterns/"+pattern5+" - patch the public attribute to true again") {
+    val jsonInput = """{ "public": true }"""
+    //info("jsonInput: "+jsonInput)
+    val response = Http(URL3+"/patterns/"+pattern5).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PATCH /orgs/"+orgid2+"/patterns/"+pattern4+" - patch the public attribute to true not IBM - should fail") {
+    val jsonInput = """{ "public": true }"""
+    //info("jsonInput: "+jsonInput)
+    val response = Http(URL2+"/patterns/"+pattern4).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
+  test("PATCH /orgs/"+orgid3+"/patterns/"+pattern5+" - orgtype changed and pattern no longer can be public -- should fail") {
+    val orgInput = """{ "orgType": "test" }"""
+    val orgResp = Http(URL3).postData(orgInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    assert(orgResp.code === HttpCode.PUT_OK)
+    val jsonInput = """{ "public": true }"""
+    //info("jsonInput: "+jsonInput)
+    val response = Http(URL3+"/patterns/"+pattern5).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+    val orgInput2 = """{ "orgType": "IBM" }"""
+    val orgResp2 = Http(URL3).postData(orgInput2).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    assert(orgResp2.code === HttpCode.PUT_OK)
+  }
+
 
   // IBM pattern tests ==============================================
 
@@ -626,6 +866,22 @@ class PatternsSuite extends FunSuite {
   test("POST /orgs/"+orgid+" - delete org") {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  /** Delete the non IBM org we used for this test */
+  test("POST /orgs/"+orgid2+" - delete org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    val response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  /** Delete the second IBM org we used for this test */
+  test("POST /orgs/"+orgid3+" - delete org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    val response = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }

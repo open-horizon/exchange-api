@@ -143,6 +143,7 @@ case class AccessPermission(name: String) extends BasicPermission(name)
 case class PermissionCheck(permission: String) extends PrivilegedAction[Unit] {
   import Access._
 
+  // The actions an admin user is *not* allowed to do
   private val adminNotAllowed = Set(
     CREATE_ORGS.toString,
     READ_OTHER_ORGS.toString,

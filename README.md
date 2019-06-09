@@ -178,6 +178,7 @@ To build an exchange container with code that is targeted for a git branch:
 ## Changes in 1.88.0
 
 - Added checking for valid service references in the userInput sections in patterns, business policies, and nodes
+- Allowed admin user to change pw of other user in org, and allowed root user to change any pw
 
 ## Changes in 1.87.0
 

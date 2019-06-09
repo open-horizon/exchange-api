@@ -175,6 +175,19 @@ To build an exchange container with code that is targeted for a git branch:
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.87.0
+
+- Changed `userInput` field of patterns and business policies to include service info
+- Added `userInput` field to nodes
+
+## Changes in 1.86.0
+
+- Fixed ExchConfigSuites so it works with default config.json for `make test` in travis
+
+## Changes in 1.85.0
+
+- Added use of ICP self-signed cert
+
 ## Changes in 1.84.0
 
 - Added `userInput` section to pattern resource

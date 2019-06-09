@@ -22,7 +22,7 @@ case class GetBusinessPoliciesResponse(businessPolicy: Map[String,BusinessPolicy
 case class GetBusinessPolicyAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST/PUT /orgs/{orgid}/business/policies/<bus-pol-id> */
-case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, userInput: Option[List[OneUserInputValue]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(): Unit = {
     // Check the version syntax
@@ -51,7 +51,7 @@ case class PostPutBusinessPolicyRequest(label: String, description: Option[Strin
   }
 }
 
-case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], userInput: Option[List[OneUserInputValue]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the businessPolicy, and the attribute name being updated. */
@@ -214,11 +214,19 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       "check_agreement_status": 120        // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
     }
   },
-  // Override or set user input variables that are defined in the services used by this pattern.
+  // Override or set user input variables that are defined in the services used by this business policy.
   "userInput": [
     {
-      "name": "foo",
-      "value": "bar"
+      "serviceOrgid": "IBM",
+      "serviceUrl": "ibm.cpu2msghub",
+      "serviceArch": "",        // omit or leave blank to mean all architectures
+      "serviceVersionRange": "[0.0.0,INFINITY)",   // or omit to mean all versions
+      "inputs": [
+        {
+          "name": "foo",
+          "value": "bar"
+        }
+      ]
     }
   ],
   "properties": [
@@ -483,8 +491,8 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   // ======== POST /org/{orgid}/business/policies/{policy}/search ========================
   val postBusinessPolicySearch =
     (apiOperation[PostBusinessPolicySearchResponse]("postBusinessPolicySearch")
-      summary("Returns matching nodes of a particular pattern")
-      description """Returns the matching nodes that are using this pattern and do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node). The **request body** structure:
+      summary("Returns matching nodes for this business policy")
+      description """Returns the matching nodes for this business policy that do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node). The **request body** structure:
 
 ```
 {

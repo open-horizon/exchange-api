@@ -11,10 +11,13 @@ import scala.collection.mutable.ListBuffer
 case class PServices(serviceUrl: String, serviceOrgid: String, serviceArch: String, agreementLess: Option[Boolean], serviceVersions: List[PServiceVersions], dataVerification: Option[Map[String,Any]], nodeHealth: Option[Map[String,Int]])
 case class PServiceVersions(version: String, deployment_overrides: Option[String], deployment_overrides_signature: Option[String], priority: Option[Map[String,Int]], upgradePolicy: Option[Map[String,String]])
 case class PDataVerification(enabled: Boolean, URL: String, user: String, password: String, interval: Int, check_rate: Int, metering: Map[String,Any])
+
+// These classes are also used by business policies and nodes
+case class OneUserInputService(serviceOrgid: String, serviceUrl: String, serviceArch: Option[String], serviceVersionRange: Option[String], inputs: List[OneUserInputValue])
 case class OneUserInputValue(name: String, value: Any)
 
 // This is the pattern table minus the key - used as the data structure to return to the REST clients
-class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var services: List[PServices], var userInput: List[OneUserInputValue], var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {
+class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var services: List[PServices], var userInput: List[OneUserInputService], var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {
   def copy = new Pattern(owner, label, description, public, services, userInput, agreementProtocols, lastUpdated)
 }
 
@@ -23,7 +26,7 @@ case class PatternRow(pattern: String, orgid: String, owner: String, label: Stri
 
   def toPattern: Pattern = {
     val svc = if (services == "") List[PServices]() else read[List[PServices]](services)
-    val input = if (userInput != "") read[List[OneUserInputValue]](userInput) else List[OneUserInputValue]()
+    val input = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
     val agproto = if (agreementProtocols != "") read[List[Map[String,String]]](agreementProtocols) else List[Map[String,String]]()
     new Pattern(owner, label, description, public, svc, input, agproto, lastUpdated)
   }

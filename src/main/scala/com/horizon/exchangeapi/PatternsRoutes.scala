@@ -23,7 +23,7 @@ case class GetPatternsResponse(patterns: Map[String,Pattern], lastIndex: Int)
 case class GetPatternAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
-case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], services: List[PServices], userInput: Option[List[OneUserInputValue]], agreementProtocols: Option[List[Map[String,String]]]) {
+case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], services: List[PServices], userInput: Option[List[OneUserInputService]], agreementProtocols: Option[List[Map[String,String]]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(): Unit = {
     // Check that it is signed and check the version syntax
@@ -56,7 +56,7 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
   }
 }
 
-case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], services: Option[List[PServices]], userInput: Option[List[OneUserInputValue]], agreementProtocols: Option[List[Map[String,String]]]) {
+case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], services: Option[List[PServices]], userInput: Option[List[OneUserInputService]], agreementProtocols: Option[List[Map[String,String]]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the pattern, and the attribute name being updated. */
@@ -246,8 +246,16 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   // Override or set user input variables that are defined in the services used by this pattern.
   "userInput": [
     {
-      "name": "foo",
-      "value": "bar"
+      "serviceOrgid": "IBM",
+      "serviceUrl": "ibm.cpu2msghub",
+      "serviceArch": "",        // omit or leave blank to mean all architectures
+      "serviceVersionRange": "[0.0.0,INFINITY)",   // or omit to mean all versions
+      "inputs": [
+        {
+          "name": "foo",
+          "value": "bar"
+        }
+      ]
     }
   ],
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.

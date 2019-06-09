@@ -12,7 +12,7 @@ case class BService(name: String, org: String, arch: String, serviceVersions: Li
 case class BServiceVersions(version: String, priority: Option[Map[String,Int]], upgradePolicy: Option[Map[String,String]])
 
 // This is the businesspolicies table minus the key - used as the data structure to return to the REST clients
-class BusinessPolicy(var owner: String, var label: String, var description: String, var service: BService, var userInput: List[OneUserInputValue], var properties: List[OneProperty], var constraints: List[String], var lastUpdated: String, var created: String) {
+class BusinessPolicy(var owner: String, var label: String, var description: String, var service: BService, var userInput: List[OneUserInputService], var properties: List[OneProperty], var constraints: List[String], var lastUpdated: String, var created: String) {
   def copy = new BusinessPolicy(owner, label, description, service, userInput, properties, constraints, lastUpdated, created)
 }
 
@@ -21,7 +21,7 @@ case class BusinessPolicyRow(businessPolicy: String, orgid: String, owner: Strin
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toBusinessPolicy: BusinessPolicy = {
-    val input = if (userInput != "") read[List[OneUserInputValue]](userInput) else List[OneUserInputValue]()
+    val input = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
     val prop = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
     val con = if (constraints != "") read[List[String]](constraints) else List[String]()
     new BusinessPolicy(owner, label, description, read[BService](service), input, prop, con, lastUpdated, created)

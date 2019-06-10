@@ -146,14 +146,30 @@ class ServicesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" before the referenced service exists - should fail") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, Some(svcVersion), None, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("POST /orgs/"+orgid+"/services - add service so other services can reference it") {
-    val input = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, reqsvcurl, reqsvcversion, reqsvcarch, "single", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, reqsvcurl, Some(reqsvcversion), None, reqsvcarch, "single", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  //SADIYAH -- this test needs to pass
+  test("POST /orgs/"+orgid+"/services - add service with version and Version Range") {
+    val input = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, reqsvcurl, Some(reqsvcversion), Some(reqsvcversion), reqsvcarch, "single", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  //SADIYAH -- this test needs to pass
+  test("POST /orgs/"+orgid+"/services - add service with no version and Version Range") {
+    val input = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, reqsvcurl, None, Some(reqsvcversion), reqsvcarch, "single", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -161,35 +177,35 @@ class ServicesSuite extends FunSuite {
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update service that is not there yet - should fail") {
     // PostPutServiceRequest(label: String, description: String, serviceUrl: String, version: String, arch: String, downloadUrl: String, apiSpec: List[Map[String,String]], userInput: List[Map[String,String]], services: List[Map[String,String]]) {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, Some(svcVersion), None, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" that is not signed - should fail") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","",None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, Some(svcVersion), None, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" that needs 2 MSes - should fail") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch),ServiceRef(reqsvcurl2,orgid,reqsvcversion2,reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, Some(svcVersion), None, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch),ServiceRef(reqsvcurl2,orgid,reqsvcversion2, "", reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" that requires service of different arch - should fail") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl3,orgid,reqsvcversion3,reqsvcarch3))), None, "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, Some(svcVersion), None, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl3,orgid,reqsvcversion3, "", reqsvcarch3))), None, "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" as user that requires a service") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, Some(svcVersion), None, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -198,63 +214,71 @@ class ServicesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" again - should fail") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, Some(svcVersion), None, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ALREADY_EXISTS)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update to need 2 MSes - should fail") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch),ServiceRef(reqsvcurl2,orgid,reqsvcversion2,reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, Some(svcVersion), None, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch),ServiceRef(reqsvcurl2,orgid,reqsvcversion2, "", reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update changing arch - should fail") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, "amd64", "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch))), None, "", "", None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, Some(svcVersion), None, "amd64", "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch))), None, "", "", None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update with invalid sharable value - should fail") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "foobar", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch))), None, "", "", None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, Some(svcVersion), None, svcArch, "foobar", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch))), None, "", "", None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("POST /orgs/"+orgid+"/services - add 2nd service so services can reference both") {
-    val input = PostPutServiceRequest("testSvc", None, public = false, None, reqsvcurl2, reqsvcversion2, reqsvcarch2, "single", None, None, None, "", "", None)
+    val input = PostPutServiceRequest("testSvc", None, public = false, None, reqsvcurl2, Some(reqsvcversion2), None, reqsvcarch2, "single", None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update to need 2 MSes - this time should succeed") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch),ServiceRef(reqsvcurl2,orgid,reqsvcversion2,reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, Some(svcVersion), None, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch),ServiceRef(reqsvcurl2,orgid,reqsvcversion2, "", reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  // SADIYAH -- This test needs to pass
+  test("PUT /orgs/"+orgid+"/services/"+service+" - update to have versionRange") {
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, Some(svcVersion), Some(svcVersion), svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch),ServiceRef(reqsvcurl2,orgid,reqsvcversion2, "", reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update to need 2 MSes, but 1 version is not in range - should fail") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,"2.0.0",reqsvcarch),ServiceRef(reqsvcurl2,orgid,reqsvcversion2,reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, Some(svcVersion), None, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,"2.0.0", "", reqsvcarch),ServiceRef(reqsvcurl2,orgid,reqsvcversion2, "", reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update as 2nd user - should fail") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, Some(svcVersion), None, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update as agbot - should fail") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, Some(svcVersion), None, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
@@ -270,21 +294,21 @@ class ServicesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service2+" as node - should fail") {
-    val input = PostPutServiceRequest(svcBase2+" arm", None, public = false, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase2+" arm", None, public = false, None, svcUrl2, Some(svcVersion2), None, svcArch2, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service2+" as 2nd user, with no referenced MSes") {
-    val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, Some(svcVersion2), None, svcArch2, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - add "+service2+" as 2nd user, with a referenced MS so future GETs work") {
-    val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, Some(svcVersion2), None, svcArch2, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -424,8 +448,16 @@ class ServicesSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
+  //SADIYAH - THIS NEEDS TO PASS
+  test("PATCH /orgs/"+orgid+"/services/"+service+" - patch versionRange") {
+    val jsonInput = """{ "versionRange": "[1.2.3,INFINITY)" }"""
+    val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch required service") {
-    val jsonInput = write(List(ServiceRef(reqsvcurl,orgid,reqsvcversion,reqsvcarch)))
+    val jsonInput = write(List(ServiceRef(reqsvcurl,orgid,reqsvcversion, "", reqsvcarch)))
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -461,7 +493,7 @@ class ServicesSuite extends FunSuite {
   // IBM service tests ==============================================
 
   test("POST /orgs/IBM/services - add IBM service so other services can reference it") {
-    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, "{\"services\":{}}", "a", None)
+    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, Some(ibmSvcVersion), None, ibmSvcArch, "single", None, None, None, "{\"services\":{}}", "a", None)
     val response = Http(IBMURL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

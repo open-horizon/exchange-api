@@ -30,7 +30,7 @@ object SharableVals extends Enumeration {
 }
 
 /** Input format for POST /orgs/{orgid}/services or PUT /orgs/{orgid}/services/<service-id> */
-case class PostPutServiceRequest(label: String, description: Option[String], public: Boolean, documentation: Option[String], url: String, version: String, versionRange: Option[String], arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: String, deploymentSignature: String, imageStore: Option[Map[String,Any]]) {
+case class PostPutServiceRequest(label: String, description: Option[String], public: Boolean, documentation: Option[String], url: String, version: Option[String], versionRange: Option[String], arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: String, deploymentSignature: String, imageStore: Option[Map[String,Any]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(orgid: String, serviceId: String) = {
     // Ensure that the documentation field is a valid URL

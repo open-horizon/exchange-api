@@ -183,7 +183,6 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   */
 }
 
-// SADIYAH -- here
 case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 

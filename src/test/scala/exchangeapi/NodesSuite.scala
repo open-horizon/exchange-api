@@ -223,6 +223,16 @@ class NodesSuite extends FunSuite {
   //~~~~~ Create nodes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   ExchConfig.load()
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - add node with invalid svc ref in userInput") {
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid, None,
+      Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, Some("[9.9.9,9.9.9]"), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      None, None, "NODEABC", None)
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - add normal node as user") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
       Some(List(
@@ -712,6 +722,13 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.OK)
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === 1)
+  }
+
+  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - userInput with an invalid svc ref") {
+    val jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+SDRSPEC_URL+"""", "serviceArch": "fooarch", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
+    val response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - as node") {

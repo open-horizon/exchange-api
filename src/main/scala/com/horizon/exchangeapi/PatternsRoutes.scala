@@ -38,7 +38,7 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
   }
 
   // Build a list of db actions to verify that the referenced services exist
-  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { PatternsTQ.validateServiceIds(services) }
+  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { PatternsTQ.validateServiceIds(services, userInput.getOrElse(List())) }
 
   // Note: write() handles correctly the case where the optional fields are None.
   def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
@@ -487,7 +487,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val resp = response
     val (action, attrName) = patternReq.getDbUpdate(pattern, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid pattern attribute specified"))
-    val (valServiceIdActions, svcRefs) = if (attrName == "services") PatternsTQ.validateServiceIds(patternReq.services.get) else (DBIO.successful(Vector()), Vector())
+    val (valServiceIdActions, svcRefs) = if (attrName == "services") PatternsTQ.validateServiceIds(patternReq.services.get, List())
+      else if (attrName == "userInput") PatternsTQ.validateServiceIds(List(), patternReq.userInput.get)
+      else (DBIO.successful(Vector()), Vector())
     db.run(valServiceIdActions.asTry.flatMap({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/patterns"+barePattern+" service validation: "+xs.toString)
       xs match {

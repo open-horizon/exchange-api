@@ -216,7 +216,8 @@ case class Version(version: String) {
 
   // the == operator calls equals()
   override def equals(that: Any): Boolean = that match {
-    case that: Version => if (that.isInfinity && isInfinity) return true
+    case that: Version => if (!isValid || !that.isValid) return false
+      else if (that.isInfinity && isInfinity) return true
       else if (that.isInfinity || isInfinity) return false
       else return that.major==major && that.minor==minor && that.mod==mod
     case _ => return false
@@ -235,9 +236,9 @@ case class Version(version: String) {
 
   def >=(that: Version): Boolean = (this > that || this == that)
 
-  def in(range: VersionRange): Boolean = range includes this
+  def in(range: VersionRange): Boolean = if (!isValid || !range.isValid) return false else range includes this
 
-  def notIn(range: VersionRange): Boolean = !(range includes this)
+  def notIn(range: VersionRange): Boolean = if (!isValid || !range.isValid) return true else !(range includes this)
 
   override def toString: String = {
     if (isInfinity) "infinity"
@@ -286,6 +287,12 @@ case class VersionRange(range: String) {
     if (ceilingInclusive) { if (version > ceiling) return false }
     else { if (version >= ceiling) return false }
     return true
+  }
+
+  // If this range is a single version (e.g. [1.2.3,1.2.3] ) return that version, otherwise None
+  def singleVersion: Option[Version] = {
+    if (floor == ceiling) Some(floor)
+    else None
   }
 
   override def toString: String = {

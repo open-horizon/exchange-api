@@ -130,6 +130,9 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
     }
   }
 
+  // Build a list of db actions to verify that the referenced services exist
+  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { NodesTQ.validateServiceIds(userInput.getOrElse(List())) }
+
   /** Get the db actions to insert or update all parts of the node */
   def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = {
     // default new field configState in registeredServices
@@ -829,11 +832,30 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
     val patValidateAction = if (node.pattern != "") PatternsTQ.getPattern(node.pattern).length.result else DBIO.successful(1)
+    val (valServiceIdActions, svcRefs) = node.validateServiceIds  // to check that the services referenced in userInput exist
     db.run(patValidateAction.asTry.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
       xs match {
-        case Success(num) => if (num > 0) NodesTQ.getNumOwned(owner).result.asTry
+        case Success(num) => if (num > 0) valServiceIdActions.asTry
           else DBIO.failed(new Throwable("the referenced pattern does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/nodes"+bareId+" service validation: "+xs.toString)
+      xs match {
+        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
+          breakable { for ( (len, index) <- v.zipWithIndex) {
+            if (len <= 0) {
+              invalidIndex = index
+              break
+            }
+          } }
+          if (invalidIndex < 0) NodesTQ.getNumOwned(owner).result.asTry
+          else {
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            DBIO.failed(new Throwable(errStr)).asTry
+          }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -893,11 +915,31 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val (action, attrName) = node.getDbUpdate(id)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid node attribute specified"))
     val patValidateAction = if (attrName == "pattern" && node.pattern.get != "") PatternsTQ.getPattern(node.pattern.get).length.result else DBIO.successful(1)
+    val (valServiceIdActions, svcRefs) = if (attrName == "userInput") NodesTQ.validateServiceIds(node.userInput.get)
+      else (DBIO.successful(Vector()), Vector())
     db.run(patValidateAction.asTry.flatMap({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
       xs match {
-        case Success(num) => if (num > 0) action.transactionally.asTry
+        case Success(num) => if (num > 0) valServiceIdActions.asTry
           else DBIO.failed(new Throwable("the referenced pattern does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("PATCH /orgs/"+orgid+"/nodes"+bareId+" service validation: "+xs.toString)
+      xs match {
+        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
+          breakable { for ( (len, index) <- v.zipWithIndex) {
+            if (len <= 0) {
+              invalidIndex = index
+              break
+            }
+          } }
+          if (invalidIndex < 0) action.transactionally.asTry
+          else {
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            DBIO.failed(new Throwable(errStr)).asTry
+          }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>

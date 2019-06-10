@@ -312,17 +312,20 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
       try {
         identity match {
           case IUser(_) => if (target.getId == "iamapikey" || target.getId == "iamtoken") {
+              // This is a cloud user
               val authenticatedIdentity = subject.getPrivateCredentials(classOf[IUser]).asScala.head.creds
               logger.debug("authenticatedIdentity=" + authenticatedIdentity.id)
               requiredAccess = identity.authorizeTo(TUser(authenticatedIdentity.id), access)
               requiredAccess.as(subject)
               IUser(authenticatedIdentity)
             } else {
+              // This is a local exchange user
               requiredAccess = identity.authorizeTo(target, access)
               requiredAccess.as(subject)
               identity
             }
           case _ =>
+            // This is an exchange node or agbot
             requiredAccess = identity.authorizeTo(target, access)
             requiredAccess.as(subject)
             identity
@@ -358,7 +361,7 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
       if (creds.isAnonymous) return toIAnonymous
       if (hint == "token") {
         if (isTokenValid(creds.token, creds.id)) return toIUser
-        else throw new InvalidCredentialsException("invalid token")
+        //else throw new InvalidCredentialsException("invalid token")  <- hint==token means it *could* be a token, not that it *must* be
       }
       //for ((k, v) <- AuthCache.users.things) { logger.debug("users cache entry: "+k+" "+v) }
       //logger.trace("calling AuthCache.users.isValid(creds)")

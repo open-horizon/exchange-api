@@ -182,7 +182,6 @@ class BusinessSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
-
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPolicy, Some("desc"),
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),

@@ -545,6 +545,7 @@ class UsersSuite extends FunSuite {
     val response = Http(NOORGURL + "/orgs").headers(ACCEPT).headers(ORG2USERAUTH).param("orgtype","IBM").asString
     info("code: " + response.code)
     assert(response.code === HttpCode.OK)
+    info("RESPONSE BODY: " + response.body)
     val getOrgsResp = parse(response.body).extract[GetOrgsResponse]
     assert(getOrgsResp.orgs.size === 2)      // the 1 we created + the standard IBM org
     assert(getOrgsResp.orgs.contains(orgid))

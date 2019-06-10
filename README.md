@@ -178,6 +178,7 @@ To build an exchange container with code that is targeted for a git branch:
 ## Changes in 1.89.0
 
 - Disallow public patterns in non-IBM orgs in the exchange
+- Add date to exchange logging
 
 ## Changes in 1.88.0
 

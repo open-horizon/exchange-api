@@ -541,7 +541,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         /*
           Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
           In english, the join gets: n.id, n.msgEndPoint, n.publicKey, a.serviceUrl, a.state
-          The filters are: n is in the given list of node orgs, n.pattern is not set, the node is not stale (the filter a.state=="" is applied later in our code below)
+          The filters are: n is in the given list of node orgs, n.pattern is not set, the node is not stale, the node arch matches the service arch (the filter a.state=="" is applied later in our code below)
           After this we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
           Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
         */

@@ -201,7 +201,6 @@ class NodesSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+" - add "+businessPolicySdr+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPolicySdr, Some("desc"),
-      //todo: add testing of arch filtering search once the node has an arch field
       BService(SDRSPEC_URL, orgid, "*", List(BServiceVersions(svcversion, None, None)), None ),
       None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
@@ -212,7 +211,7 @@ class NodesSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+" - add "+businessPolicyNS+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPolicyNS, Some("desc"),
-      BService(NETSPEEDSPEC_URL, orgid, "*", List(BServiceVersions(svcversion, None, None)), None ),
+      BService(NETSPEEDSPEC_URL, orgid, "amd64", List(BServiceVersions(svcversion, None, None)), None ),
       None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicyNS).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -296,7 +295,7 @@ class NodesSuite extends FunSuite {
           Prop("version","1.0.0","version","in")))
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(""), Some(Map("horizon"->"3.2.1")), "NODEABC", None) //setting the value of arch to test later
+      Some(""), Some(Map("horizon"->"3.2.1")), "NODEABC", Some("amd64"))
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -308,7 +307,7 @@ class NodesSuite extends FunSuite {
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", None)
+      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", Some("amd64"))
     val response = Http(URL+"/nodes/"+nodeId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -401,7 +400,7 @@ class NodesSuite extends FunSuite {
     assert(dev.softwareVersions.size === 1)
     assert(dev.softwareVersions.contains("horizon"))
     assert(dev.softwareVersions("horizon") === "3.2.1")
-    assert(dev.arch === "")
+    assert(dev.arch === "amd64")
     assert(dev.registeredServices.length === 2)
     // sdr reg svc
     var svc: RegService = dev.registeredServices.find(m => m.url == SDRSPEC).orNull
@@ -447,7 +446,7 @@ class NodesSuite extends FunSuite {
     memProp = svc.properties.find(p => p.name=="version").get
     assert(memProp.value === "2.0.0")
     assert(dev.softwareVersions.size === 0)
-    assert(dev.arch === "")
+    assert(dev.arch === "amd64")
 
     assert(getDevResp.nodes.contains(orgnodeId3))
     dev = getDevResp.nodes(orgnodeId3)
@@ -483,26 +482,26 @@ class NodesSuite extends FunSuite {
     assert(dev.arch === "test")
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId3+" - update arch to None") {
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId3+" - update arch to amd64") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId3+"-netspeed-amd64", compositePatid, Some(List(RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId3+" netspeed}",List(
       Prop("arch","amd64","string","in"),
       Prop("memory","300","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "", None)
+      Prop("dataVerification","true","boolean","="))))), None, None, None, "", Some("amd64"))
     val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("GET /orgs/"+orgid+"/nodes/"+nodeId3+" - verify arch updated to None") {
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId3+" - verify arch updated to amd64") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId3).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK)
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.contains(orgnodeId3))
     val dev = getDevResp.nodes(orgnodeId3)
-    assert(dev.arch === "")
+    assert(dev.arch === "amd64")
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - invalid config state - should fail") {
@@ -845,7 +844,7 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 4)     // we created 3 nodes
+    assert(nodes.length === 4)     // we created 4 nodes in this org
     assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
     val dev = nodes.find(d => d.id == orgnodeId).get
     assert(dev.publicKey === "NODEABC")
@@ -858,10 +857,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 4)     // we created 3 nodes
+    assert(nodes.length === 3)     // we created 4 nodes in this org, but nodeId4 is arm
   }
-
-  //todo: add a search test with a bus pol that has a service with a non-wildcarded arch
 
   //~~~~~ Node health search ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1042,7 +1039,7 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3)     // we created 3 nodes
+    assert(nodes.length === 3)
     assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
   }
 
@@ -1053,8 +1050,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 4)     // we created 3 nodes
-    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
+    assert(nodes.length === 3)
+    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3) === 3)
   }
 
   test("POST /orgs/"+orgid+"/search/nodehealth - as agbot, with blank time - should find all nodes and 1 agreement for "+nodeId) {
@@ -1138,7 +1135,7 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3)     // we created 3 nodes
+    assert(nodes.length === 3)
     assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
   }
 
@@ -1190,8 +1187,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3)     // we created 3 nodes
-    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
+    assert(nodes.length === 2)
+    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3) === 2)
   }
 
   //~~~~~ Staleness tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1275,15 +1272,22 @@ class NodesSuite extends FunSuite {
     assert(devResp.code === ApiResponseType.OK)
   }
 
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - now 1 node not stale") {
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - so this node won't be stale either") {
+    val input = PutNodePolicyRequest(Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")))
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - now 2 nodes not stales") {
     val input = PostBusinessPolicySearchRequest(None, changedSinceAgo(1), None, None)
     val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 1)
-    assert(nodes.count(d => d.id==orgnodeId2) === 1)
+    assert(nodes.length === 2)
+    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2) === 2)
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId3+" - explicit delete of "+nodeId3) {

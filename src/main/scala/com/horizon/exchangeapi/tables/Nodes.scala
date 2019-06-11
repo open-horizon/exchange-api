@@ -151,6 +151,8 @@ object NodesTQ {
   def getPublicKey(id: String) = rows.filter(_.id === id).map(_.publicKey)
   def getArch(id: String) = rows.filter(_.id === id).map(_.arch)
 
+  def setLastHeartbeat(id: String, lastHeartbeat: String) = rows.filter(_.id === id).map(_.lastHeartbeat).update(lastHeartbeat)
+
 
   /** Returns a query for the specified node attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(id: String, attrName: String): Query[_,_,Seq] = {

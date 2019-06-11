@@ -1299,11 +1299,25 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     policy.validate()
     val resp = response
-    db.run(policy.toNodePolicyRow(id).upsert.asTry).map({ xs =>
+    db.run(policy.toNodePolicyRow(id).upsert.asTry.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/policy result: "+xs.toString)
       xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "policy added or updated")
+        case Success(_) => NodesTQ.setLastHeartbeat(id, ApiTime.nowUTC).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastHeartbeat result: "+xs.toString)
+      xs match {
+        case Success(n) => try {
+            val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
+            if (numUpdated > 0) {
+              resp.setStatus(HttpCode.PUT_OK)
+              ApiResponse(ApiResponseType.OK, "policy added or updated")
+            } else {
+              resp.setStatus(HttpCode.NOT_FOUND)
+              ApiResponse(ApiResponseType.NOT_FOUND, "node '"+id+"' not found")
+            }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "policy for node '"+id+"' not updated: "+e) }    // the specific exception is NumberFormatException
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
           ApiResponse(ApiResponseType.ACCESS_DENIED, "policy for node '"+id+"' not inserted or updated: "+t.getMessage)
@@ -1462,11 +1476,25 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         agreement.toNodeAgreementRow(id, agId).upsert.asTry
       }
       else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxAgreements+ " agreements for this node")).asTry
-    })).map({ xs =>
+    }).flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+xs.toString)
       xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "agreement added or updated")
+        case Success(_) => NodesTQ.setLastHeartbeat(id, ApiTime.nowUTC).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastHeartbeat result: "+xs.toString)
+      xs match {
+        case Success(n) => try {
+            val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
+            if (numUpdated > 0) {
+              resp.setStatus(HttpCode.PUT_OK)
+              ApiResponse(ApiResponseType.OK, "agreement added or updated")
+            } else {
+              resp.setStatus(HttpCode.NOT_FOUND)
+              ApiResponse(ApiResponseType.NOT_FOUND, "node '"+id+"' not found")
+            }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement for node '"+id+"' not updated: "+e) }    // the specific exception is NumberFormatException
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, "agreement '"+agId+"' for node '"+id+"' not inserted or updated: "+t.getMessage)

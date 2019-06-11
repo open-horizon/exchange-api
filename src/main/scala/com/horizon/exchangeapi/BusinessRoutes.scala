@@ -190,7 +190,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   "service": {
     "name": "mydomain.com.weather",
     "org": "myorg",
-    "arch": "amd64",   // can be set to "*" to mean all architectures
+    "arch": "amd64",   // can be set to "*" or "" to mean all architectures
     // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
     "serviceVersions": [
       {
@@ -530,33 +530,34 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
     var searchSvcUrl = ""    // a composite value (org/url), will be set later in the db.run()
     val resp = response
-    /*
-      Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
-      In english, the join gets: n.id, n.msgEndPoint, n.publicKey, a.serviceUrl, a.state
-      The filters are: n is in the given list of node orgs, n.pattern is not set, the node is not stale (the filter a.state=="" is applied later in our code below)
-      After this we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
-      Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
-    */
-    val oldestTime = if (searchProps.changedSince > 0) ApiTime.thenUTC(searchProps.changedSince) else ApiTime.beginningUTC
-    val nodeQuery =
-      for {
-        //todo: also check for update time of node agreement and node policy
-        (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-      } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
 
     // First get the service out of the business policy
     db.run(BusinessPoliciesTQ.getService(businessPolicy).result.flatMap({ list =>
       logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search getService size: "+list.size)
       if (list.nonEmpty) {
+        // Finding the service was successful, form the query for the nodes for the next step
         val service = BusinessPoliciesTQ.getServiceFromString(list.head)    // we should have found only 1 business pol service string, now parse it to get service list
         searchSvcUrl = OrgAndId(service.org, service.name).toString
+        /*
+          Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
+          In english, the join gets: n.id, n.msgEndPoint, n.publicKey, a.serviceUrl, a.state
+          The filters are: n is in the given list of node orgs, n.pattern is not set, the node is not stale, the node arch matches the service arch (the filter a.state=="" is applied later in our code below)
+          After this we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
+          Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
+        */
+        val oldestTime = if (searchProps.changedSince > 0) ApiTime.thenUTC(searchProps.changedSince) else ApiTime.beginningUTC
+        val nodeQuery =
+          for {
+            //todo: also check for update time of node agreement and node policy
+            (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(n => {n.arch === service.arch || service.arch == "" || service.arch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+          } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
         nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
       }
       else DBIO.failed(new Throwable("business policy '"+businessPolicy+"' not found")).asTry
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search result size: "+xs.getOrElse(Vector()).size)
       //logger.trace("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search result: "+xs.toString)
-      logger.trace("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search: looking for service '"+searchSvcUrl)
+      logger.trace("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search: looking for nodes w/o agreement for '"+searchSvcUrl)
       xs match {
         case Success(list) => if (list.nonEmpty) {
           // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service

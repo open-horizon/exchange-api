@@ -1,28 +1,18 @@
 package com.horizon.exchangeapi
 
-//import java.util.Base64
+//import java.time.Clock
 
-import com.horizon.exchangeapi.auth.{AuthErrors, ExchCallbackHandler /* , PermissionCheck */}
-//import com.horizon.exchangeapi.tables._
-//import javax.security.auth.Subject
+import com.horizon.exchangeapi.auth.{AuthErrors, ExchCallbackHandler}
 import javax.security.auth.login.LoginContext
-//import javax.servlet.http.HttpServletRequest
 import org.mindrot.jbcrypt.BCrypt
 //import org.scalatra.servlet.ServletApiImplicits
-//import org.scalatra.{Control, Params, ScalatraBase}
 import org.scalatra.ScalatraBase
-//import org.slf4j.{Logger, LoggerFactory}
 import org.slf4j.Logger
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.JavaConverters._
-//import scala.collection.mutable.{HashMap => MutableHashMap, Set => MutableSet}
-//import scala.concurrent.Await
-//import scala.concurrent.ExecutionContext.Implicits.global
-//import scala.concurrent.duration._
 import scala.util._
-//import scala.util.control.NonFatal
 
 /* Used by all routes classes to Authenticates the client credentials and then checks the ACLs for authorization.
 The main authenticate/authorization flow is:
@@ -161,7 +151,11 @@ object Token {
   val algorithm = JwtAlgorithm.HS256
 
   /** Returns a temporary pw reset token. */
-  def create(secret: String, expiration: Int = defaultExpiration): String = { Jwt.encode(JwtClaim({"""{"user":1}"""}).issuedNow.expiresIn(defaultExpiration), secret, algorithm) }
+  def create(secret: String, expiration: Int = defaultExpiration): String = {
+    //implicit val clock: Clock = Clock.systemUTC()
+    //Jwt.encode(JwtClaim({"""{"user":1}"""}).issuedNow.expiresIn(defaultExpiration), secret, algorithm)
+    Jwt.encode(JwtClaim({"""{"user":1}"""}).expiresAt(ApiTime.nowSeconds+expiration), secret, algorithm)
+  }
 
   /** Returns true if the token is correct for this secret and not expired */
   def isValid(token: String, secret: String): Boolean = { Jwt.isValid(token, secret, Seq(algorithm)) }

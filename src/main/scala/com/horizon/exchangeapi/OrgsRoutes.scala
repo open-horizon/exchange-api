@@ -229,10 +229,11 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
   put("/orgs/:orgid", operation(putOrgs)) ({
     val orgId = params("orgid")
-    authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
     val orgReq = try { parse(request.body).extract[PostPutOrgRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
     orgReq.validate()
+    val access = if (orgReq.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
+    authenticate().authorizeTo(TOrg(orgId),access)
     val resp = response
     db.run(orgReq.toOrgRow(orgId).update.asTry).map({ xs =>
       logger.debug("PUT /orgs/"+orgId+" result: "+xs.toString)
@@ -272,9 +273,10 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
   patch("/orgs/:orgid", operation(patchOrgs)) ({
     val orgId = params("orgid")
-    authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
     val orgReq = try { parse(request.body).extract[PatchOrgRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    val access = if (orgReq.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
+    authenticate().authorizeTo(TOrg(orgId),access)
     //logger.trace("PATCH /orgs/"+orgId+" input: "+orgReq.toString)
     val resp = response
     val (action, attrName) = orgReq.getDbUpdate(orgId)

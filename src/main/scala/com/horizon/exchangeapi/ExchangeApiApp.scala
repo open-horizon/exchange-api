@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory
  *  @param swagger the ExchangeApiSwagger instance, created in ScalatraBootstrap
  */
 class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends ScalatraServlet
-    with FutureSupport with NativeJsonSupport with SwaggerSupport with CorsSupport with AuthenticationSupport with NodesRoutes with AgbotsRoutes with UsersRoutes with AdminRoutes with ServiceRoutes with PatternRoutes with OrgRoutes with BusinessRoutes {
+    with FutureSupport with NativeJsonSupport with SwaggerSupport with CorsSupport with AuthenticationSupport with NodesRoutes with AgbotsRoutes with UsersRoutes with AdminRoutes with ServiceRoutes with PatternRoutes with OrgRoutes with BusinessRoutes with CatalogRoutes {
 
   /** Sets up automatic case class to JSON output serialization, required by the JValueResult trait. */
   protected implicit val jsonFormats: Formats = DefaultFormats
@@ -75,3 +75,8 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
 
   // All of the route implementations are in traits called *Routes
 }
+
+class AccessDeniedException(var httpCode: Int, var apiResponse: String, msg: String) extends Exception(msg)
+class BadInputException(var httpCode: Int, var apiResponse: String, msg: String) extends Exception(msg)
+class NotFoundException(var httpCode: Int, var apiResponse: String, msg: String) extends Exception(msg)
+

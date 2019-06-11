@@ -130,6 +130,9 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
     }
   }
 
+  // Build a list of db actions to verify that the referenced services exist
+  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { NodesTQ.validateServiceIds(userInput.getOrElse(List())) }
+
   /** Get the db actions to insert or update all parts of the node */
   def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = {
     // default new field configState in registeredServices
@@ -180,7 +183,6 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   */
 }
 
-// SADIYAH -- here
 case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
@@ -342,8 +344,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("token", DataType.String, Option[String]("Password of exchange user or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("idfilter", DataType.String, Option[String]("Filter results to only include nodes with this id (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("name", DataType.String, Option[String]("Filter results to only include nodes with this name (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        Parameter("owner", DataType.String, Option[String]("Filter results to only include nodes with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
-        )
+        Parameter("owner", DataType.String, Option[String]("Filter results to only include nodes with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
+        Parameter("arch", DataType.String, Option[String]("Filter results to only include nodes with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
+    )
       // this does not work, because scalatra will not give me the request.body on a GET
       // parameters(Parameter("body", DataType[GetNodeRequest], Option[String]("Node search criteria"), paramType = ParamType.Body))
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
@@ -829,11 +832,30 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
     val patValidateAction = if (node.pattern != "") PatternsTQ.getPattern(node.pattern).length.result else DBIO.successful(1)
+    val (valServiceIdActions, svcRefs) = node.validateServiceIds  // to check that the services referenced in userInput exist
     db.run(patValidateAction.asTry.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
       xs match {
-        case Success(num) => if (num > 0) NodesTQ.getNumOwned(owner).result.asTry
+        case Success(num) => if (num > 0) valServiceIdActions.asTry
           else DBIO.failed(new Throwable("the referenced pattern does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/nodes"+bareId+" service validation: "+xs.toString)
+      xs match {
+        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
+          breakable { for ( (len, index) <- v.zipWithIndex) {
+            if (len <= 0) {
+              invalidIndex = index
+              break
+            }
+          } }
+          if (invalidIndex < 0) NodesTQ.getNumOwned(owner).result.asTry
+          else {
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            DBIO.failed(new Throwable(errStr)).asTry
+          }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -893,11 +915,31 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val (action, attrName) = node.getDbUpdate(id)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid node attribute specified"))
     val patValidateAction = if (attrName == "pattern" && node.pattern.get != "") PatternsTQ.getPattern(node.pattern.get).length.result else DBIO.successful(1)
+    val (valServiceIdActions, svcRefs) = if (attrName == "userInput") NodesTQ.validateServiceIds(node.userInput.get)
+      else (DBIO.successful(Vector()), Vector())
     db.run(patValidateAction.asTry.flatMap({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
       xs match {
-        case Success(num) => if (num > 0) action.transactionally.asTry
+        case Success(num) => if (num > 0) valServiceIdActions.asTry
           else DBIO.failed(new Throwable("the referenced pattern does not exist in the exchange")).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("PATCH /orgs/"+orgid+"/nodes"+bareId+" service validation: "+xs.toString)
+      xs match {
+        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
+          breakable { for ( (len, index) <- v.zipWithIndex) {
+            if (len <= 0) {
+              invalidIndex = index
+              break
+            }
+          } }
+          if (invalidIndex < 0) action.transactionally.asTry
+          else {
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            DBIO.failed(new Throwable(errStr)).asTry
+          }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
@@ -1257,11 +1299,25 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     policy.validate()
     val resp = response
-    db.run(policy.toNodePolicyRow(id).upsert.asTry).map({ xs =>
+    db.run(policy.toNodePolicyRow(id).upsert.asTry.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/policy result: "+xs.toString)
       xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "policy added or updated")
+        case Success(_) => NodesTQ.setLastHeartbeat(id, ApiTime.nowUTC).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastHeartbeat result: "+xs.toString)
+      xs match {
+        case Success(n) => try {
+            val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
+            if (numUpdated > 0) {
+              resp.setStatus(HttpCode.PUT_OK)
+              ApiResponse(ApiResponseType.OK, "policy added or updated")
+            } else {
+              resp.setStatus(HttpCode.NOT_FOUND)
+              ApiResponse(ApiResponseType.NOT_FOUND, "node '"+id+"' not found")
+            }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "policy for node '"+id+"' not updated: "+e) }    // the specific exception is NumberFormatException
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
           ApiResponse(ApiResponseType.ACCESS_DENIED, "policy for node '"+id+"' not inserted or updated: "+t.getMessage)
@@ -1420,11 +1476,25 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         agreement.toNodeAgreementRow(id, agId).upsert.asTry
       }
       else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxAgreements+ " agreements for this node")).asTry
-    })).map({ xs =>
+    }).flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+xs.toString)
       xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "agreement added or updated")
+        case Success(_) => NodesTQ.setLastHeartbeat(id, ApiTime.nowUTC).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastHeartbeat result: "+xs.toString)
+      xs match {
+        case Success(n) => try {
+            val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
+            if (numUpdated > 0) {
+              resp.setStatus(HttpCode.PUT_OK)
+              ApiResponse(ApiResponseType.OK, "agreement added or updated")
+            } else {
+              resp.setStatus(HttpCode.NOT_FOUND)
+              ApiResponse(ApiResponseType.NOT_FOUND, "node '"+id+"' not found")
+            }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement for node '"+id+"' not updated: "+e) }    // the specific exception is NumberFormatException
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, "agreement '"+agId+"' for node '"+id+"' not inserted or updated: "+t.getMessage)

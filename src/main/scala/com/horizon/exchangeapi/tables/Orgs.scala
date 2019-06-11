@@ -43,10 +43,12 @@ object OrgsTQ {
   val rows = TableQuery[Orgs]
 
   def getOrgid(orgid: String) = rows.filter(_.orgid === orgid)
+  def getOrgType(orgid: String) = rows.filter(_.orgid === orgid).map(_.orgType)
   def getLabel(orgid: String) = rows.filter(_.orgid === orgid).map(_.label)
   def getDescription(orgid: String) = rows.filter(_.orgid === orgid).map(_.description)
   def getLastUpdated(orgid: String) = rows.filter(_.orgid === orgid).map(_.lastUpdated)
   def getTag(orgid: String, tag: String) = rows.filter(_.orgid === orgid).map(_.tags.map(tags => tags +>> tag))
+  def getOrgidsOfType(orgType: String) = rows.filter(_.orgType === orgType).map(_.orgid)
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(orgid: String, attrName: String): Query[_,_,Seq] = {

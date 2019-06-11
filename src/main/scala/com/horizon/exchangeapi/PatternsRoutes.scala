@@ -38,7 +38,7 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
   }
 
   // Build a list of db actions to verify that the referenced services exist
-  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { PatternsTQ.validateServiceIds(services) }
+  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { PatternsTQ.validateServiceIds(services, userInput.getOrElse(List())) }
 
   // Note: write() handles correctly the case where the optional fields are None.
   def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
@@ -72,6 +72,7 @@ case class PatchPatternRequest(label: Option[String], description: Option[String
     agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "agreementProtocols"); case _ => ; }
     return (null, null)
   }
+
 }
 
 
@@ -301,12 +302,22 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               break
             }
           } }
-          if (invalidIndex < 0) PatternsTQ.getNumOwned(owner).result.asTry
+          if (invalidIndex < 0) OrgsTQ.getAttribute(orgid, "orgType").result.asTry //getting orgType from orgid
           else {
             val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
               else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns"+barePattern+" checking public field and orgType of "+pattern+": "+xs)
+      xs match {
+        case Success(orgName) => val orgType = orgName
+          val publicField = patternReq.public.getOrElse(false)
+          if ((publicField && orgType.head == "IBM") || !publicField) {    // pattern is public and owner is IBM so ok, or pattern isn't public at all so ok
+            PatternsTQ.getNumOwned(owner).result.asTry
+          } else DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, "only IBM patterns can be made public")).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -380,11 +391,41 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               break
             }
           } }
-          if (invalidIndex < 0) patternReq.toPatternRow(pattern, orgid, owner).update.asTry
+          if (invalidIndex < 0) PatternsTQ.getPublic(pattern).result.asTry //getting public field from pattern
           else {
             val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
               else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
+          }
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" checking public field of "+pattern+": "+xs)
+      xs match {
+        case Success(patternPublic) => val public = patternPublic
+          if(public.nonEmpty){
+            if (public.head || patternReq.public.getOrElse(false)) {    // pattern is public so need to check orgType
+              OrgsTQ.getOrgType(orgid).result.asTry // should return a vector of Strings
+            } else { // pattern isn't public so skip orgType check
+              DBIO.successful(Vector("IBM")).asTry
+            }
+          } else {
+            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")).asTry //gives 500 instead of 404
+          }
+
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" checking orgType of "+orgid+": "+xs)
+      xs match {
+        case Success(orgTypes) =>
+          logger.debug("PUT -- "+ orgTypes.head)
+          if (orgTypes.head == "IBM") {    // only patterns of orgType "IBM" can be public
+            logger.debug("inside if patternOrg == IBM in PUT")
+            patternReq.toPatternRow(pattern, orgid, owner).update.asTry
+          } else {
+            logger.debug("inside else of patternOrg for PUT")
+            DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, "only IBM patterns can be made public")).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
@@ -403,8 +444,16 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not updated: "+e) }    // the specific exception is NumberFormatException
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+pattern+"' not updated: "+t.getMessage)
+        case Failure(t) =>
+          if(t.getMessage.contains("not found")){
+            logger.debug("INSIDE t.getMessage not found")
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
+          } else {
+            resp.setStatus(HttpCode.BAD_INPUT)
+            ApiResponse(ApiResponseType.BAD_INPUT, "pattern '" + pattern + "' not updated: " + t.getMessage)
+          }
+
       }
     })
   })
@@ -438,9 +487,11 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val resp = response
     val (action, attrName) = patternReq.getDbUpdate(pattern, orgid)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid pattern attribute specified"))
-    val (valServiceIdActions, svcRefs) = if (attrName == "services") PatternsTQ.validateServiceIds(patternReq.services.get) else (DBIO.successful(Vector()), Vector())
+    val (valServiceIdActions, svcRefs) = if (attrName == "services") PatternsTQ.validateServiceIds(patternReq.services.get, List())
+      else if (attrName == "userInput") PatternsTQ.validateServiceIds(List(), patternReq.userInput.get)
+      else (DBIO.successful(Vector()), Vector())
     db.run(valServiceIdActions.asTry.flatMap({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" service validation: "+xs.toString)
+      logger.debug("PATCH /orgs/"+orgid+"/patterns"+barePattern+" service validation: "+xs.toString)
       xs match {
         case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
           breakable { for ( (len, index) <- v.zipWithIndex) {
@@ -449,11 +500,35 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               break
             }
           } }
-          if (invalidIndex < 0) action.transactionally.asTry
+          if (invalidIndex < 0) PatternsTQ.getPublic(pattern).result.asTry //getting public field from pattern
           else {
             val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
               else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
+          }
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("PATCH /orgs/"+orgid+"/patterns"+barePattern+" checking public field of "+pattern+": "+xs)
+      xs match {
+        case Success(patternPublic) => val public = patternPublic
+          val publicField = patternReq.public.getOrElse(false)
+          if ((public.head && publicField) || publicField) {    // pattern is public so need to check owner
+            OrgsTQ.getOrgType(orgid).result.asTry
+          } else { // pattern isn't public so skip orgType check
+            DBIO.successful(Vector("IBM")).asTry
+          }
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      logger.debug("PATCH /orgs/"+orgid+"/patterns"+barePattern+" checking orgType of "+orgid+": "+xs)
+      xs match {
+        case Success(patternOrg) =>
+          if (patternOrg.head == "IBM") {    // only patterns of orgType "IBM" can be public
+            action.transactionally.asTry
+          }
+          else {
+            DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, "only IBM patterns can be made public")).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
@@ -706,5 +781,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       }
     })
   })
+
+
 
 }

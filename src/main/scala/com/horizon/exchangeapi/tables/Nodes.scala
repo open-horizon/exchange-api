@@ -4,7 +4,8 @@ import com.horizon.exchangeapi._
 import org.json4s._
 import org.json4s.jackson.Serialization.read
 import slick.jdbc.PostgresProfile.api._
-import scala.collection.mutable.{HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
+
+import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
 
 /** We define this trait because services in the DB and in the search criteria need the same methods, but have slightly different constructor args */
 trait RegServiceTrait {
@@ -115,6 +116,28 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
 object NodesTQ {
   val rows = TableQuery[Nodes]
 
+  // Build a list of db actions to verify that the referenced services exist
+  // Note: this currently doesn't check the registeredServices because only the agent creates that, and its content might be changing
+  def validateServiceIds(userInput: List[OneUserInputService]): (DBIO[Vector[Int]], Vector[ServiceRef]) = {
+    val actions = ListBuffer[DBIO[Int]]()
+    val svcRefs = ListBuffer[ServiceRef]()
+    // Go thru the services referenced in the userInput section
+    for (s <- userInput) {
+      svcRefs += ServiceRef(s.serviceUrl, s.serviceOrgid, s.serviceVersionRange.getOrElse("[0.0.0,INFINITY)"), s.serviceArch.getOrElse(""))  // the service ref is just for reporting bad input errors
+      val arch = if (s.serviceArch.isEmpty || s.serviceArch.get == "") "%" else s.serviceArch.get
+      //todo: the best we can do is use the version if the range is a single version, otherwise use %
+      val svc = if (s.serviceVersionRange.getOrElse("") == "") "%"
+      else {
+        val singleVer = VersionRange(s.serviceVersionRange.get).singleVersion
+        if (singleVer.isDefined) singleVer.toString
+        else "%"
+      }
+      val svcId = ServicesTQ.formId(s.serviceOrgid, s.serviceUrl, svc, arch)
+      actions += ServicesTQ.getService(svcId).length.result
+    }
+    return (DBIO.sequence(actions.toVector), svcRefs.toVector)      // convert the list of actions to a DBIO sequence
+  }
+
   def getAllNodes(orgid: String) = rows.filter(_.orgid === orgid)
   def getNonPatternNodes(orgid: String) = rows.filter(r => {r.orgid === orgid && r.pattern === ""})
   def getNode(id: String) = rows.filter(_.id === id)
@@ -127,6 +150,8 @@ object NodesTQ {
   def getLastHeartbeat(id: String) = rows.filter(_.id === id).map(_.lastHeartbeat)
   def getPublicKey(id: String) = rows.filter(_.id === id).map(_.publicKey)
   def getArch(id: String) = rows.filter(_.id === id).map(_.arch)
+
+  def setLastHeartbeat(id: String, lastHeartbeat: String) = rows.filter(_.id === id).map(_.lastHeartbeat).update(lastHeartbeat)
 
 
   /** Returns a query for the specified node attribute value. Returns null if an invalid attribute name is given. */

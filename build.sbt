@@ -43,7 +43,7 @@ lazy val root = (project in file(".")).
       "org.scalaj" %% "scalaj-http" % "latest.release",
       "com.typesafe" % "config" % "latest.release",
       "org.mindrot" % "jbcrypt" % "latest.release",
-      "com.pauldijou" %% "jwt-core" % "latest.release",
+      "com.pauldijou" %% "jwt-core" % "2.1.0",
       //"com.github.cb372" %% "scalacache-guava" % "0.26.0",
       "com.github.cb372" %% "scalacache-guava" % "latest.release",
       //"org.joda" % "joda-convert" % "2.1.2",

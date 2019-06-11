@@ -391,6 +391,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
+    assert(response.body.contains("arch"))
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === 4)
 

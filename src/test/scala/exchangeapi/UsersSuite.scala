@@ -597,6 +597,10 @@ class UsersSuite extends FunSuite {
     assert(getOrgsResp.orgs.size >= 2)      // the 1 we created + the standard IBM org + whatever CatalogSuite created
     assert(getOrgsResp.orgs.contains(orgid))
     assert(getOrgsResp.orgs.contains("IBM"))
+    assert(getOrgsResp.orgs.contains("UsersSuiteTests"))
+    for(org <- getOrgsResp.orgs){
+      assert(org._2.orgType == "IBM")
+    }
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" as not public in 1st org") {

@@ -195,7 +195,7 @@ class CatalogSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
 
-    input = PostPutPatternRequest(pattern3, Some(pattern3), Some(true), List( PServices(svcUrl3, orgid3, svcArch3, None, List(PServiceVersions(svcVersion3, None, None, None, None)), None, None )), None, None)
+    input = PostPutPatternRequest(pattern3, Some(pattern3), Some(false), List( PServices(svcUrl3, orgid3, svcArch3, None, List(PServiceVersions(svcVersion3, None, None, None, None)), None, None )), None, None)
     response = Http(URL3+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH3).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

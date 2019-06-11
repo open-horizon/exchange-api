@@ -183,7 +183,6 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   */
 }
 
-// SADIYAH -- here
 case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
@@ -345,8 +344,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         Parameter("token", DataType.String, Option[String]("Password of exchange user or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("idfilter", DataType.String, Option[String]("Filter results to only include nodes with this id (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("name", DataType.String, Option[String]("Filter results to only include nodes with this name (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        Parameter("owner", DataType.String, Option[String]("Filter results to only include nodes with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
-        )
+        Parameter("owner", DataType.String, Option[String]("Filter results to only include nodes with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
+        Parameter("arch", DataType.String, Option[String]("Filter results to only include nodes with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
+    )
       // this does not work, because scalatra will not give me the request.body on a GET
       // parameters(Parameter("body", DataType[GetNodeRequest], Option[String]("Node search criteria"), paramType = ParamType.Body))
       responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))

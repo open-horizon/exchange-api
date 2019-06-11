@@ -7,22 +7,29 @@ import slick.jdbc.PostgresProfile.api._
 
 
 /** Contains the object representations of the DB tables related to services. */
-case class ServiceRef(url: String, org: String, version: String, versionRange: String, arch: String)
+case class ServiceRef(url: String, org: String, version: Option[String], versionRange: Option[String], arch: String)
 
 // This is the service table minus the key - used as the data structure to return to the REST clients
-class Service(var owner: String, var label: String, var description: String, var public: Boolean, var documentation: String, var url: String, var version: String, var versionRange: String, var arch: String, var sharable: String, var matchHardware: Map[String,Any], var requiredServices: List[ServiceRef], var userInput: List[Map[String,String]], var deployment: String, var deploymentSignature: String, var imageStore: Map[String,Any], var lastUpdated: String) {
-  def copy = new Service(owner, label, description, public, documentation, url, version, versionRange, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, imageStore, lastUpdated)
+class Service(var owner: String, var label: String, var description: String, var public: Boolean, var documentation: String, var url: String, var version: String, var arch: String, var sharable: String, var matchHardware: Map[String,Any], var requiredServices: List[ServiceRef], var userInput: List[Map[String,String]], var deployment: String, var deploymentSignature: String, var imageStore: Map[String,Any], var lastUpdated: String) {
+  def copy = new Service(owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, imageStore, lastUpdated)
 }
 
-case class ServiceRow(service: String, orgid: String, owner: String, label: String, description: String, public: Boolean, documentation: String, url: String, version: String, versionRange: String, arch: String, sharable: String, matchHardware: String, requiredServices: String, userInput: String, deployment: String, deploymentSignature: String, imageStore: String, lastUpdated: String) {
+case class ServiceRow(service: String, orgid: String, owner: String, label: String, description: String, public: Boolean, documentation: String, url: String, version: String, arch: String, sharable: String, matchHardware: String, requiredServices: String, userInput: String, deployment: String, deploymentSignature: String, imageStore: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toService: Service = {
     val mh = if (matchHardware != "") read[Map[String,Any]](matchHardware) else Map[String,Any]()
     val rs = if (requiredServices != "") read[List[ServiceRef]](requiredServices) else List[ServiceRef]()
+
+    val rs2 = rs.map(sr => {
+      var vr = ""
+      if(sr.versionRange.isEmpty){ vr = sr.version.getOrElse("")}
+      ServiceRef(sr.url, sr.org, Some(vr), Some(vr), sr.arch)
+    })
+
     val input = if (userInput != "") read[List[Map[String,String]]](userInput) else List[Map[String,String]]()
     val p = if (imageStore != "") read[Map[String,Any]](imageStore) else Map[String,Any]()
-    new Service(owner, label, description, public, documentation, url, version, versionRange, arch, sharable, mh, rs, input, deployment, deploymentSignature, p, lastUpdated)
+    new Service(owner, label, description, public, documentation, url, version, arch, sharable, mh, rs2, input, deployment, deploymentSignature, p, lastUpdated)
   }
 
   // update returns a DB action to update this row
@@ -43,7 +50,6 @@ class Services(tag: Tag) extends Table[ServiceRow](tag, "services") {
   def documentation = column[String]("documentation")
   def url = column[String]("serviceurl")
   def version = column[String]("version")
-  def versionRange = column[String]("versionRange")
   def arch = column[String]("arch")
   def sharable = column[String]("sharable")
   def matchHardware = column[String]("matchhardware")
@@ -63,7 +69,7 @@ class Services(tag: Tag) extends Table[ServiceRow](tag, "services") {
 object ServicesTQ {
   val rows = TableQuery[Services]
 
-  def formId(orgid: String, url: String, version: String, versionRange: String, arch: String): String = {
+  def formId(orgid: String, url: String, version: String, arch: String): String = {
     // Remove the https:// from the beginning of serviceUrl and replace troublesome chars with a dash. It has already been checked as a valid URL in validate().
     val serviceUrl2 = """^[A-Za-z0-9+.-]*?://""".r replaceFirstIn (url, "")
     val serviceUrl3 = """[$!*,;/?@&~=%]""".r replaceAllIn (serviceUrl2, "-")     // I think possible chars in valid urls are: $_.+!*,;/?:@&~=%-
@@ -80,7 +86,6 @@ object ServicesTQ {
   def getDocumentation(service: String) = rows.filter(_.service === service).map(_.documentation)
   def getUrl(service: String) = rows.filter(_.service === service).map(_.url)
   def getVersion(service: String) = rows.filter(_.service === service).map(_.version)
-  def getVersionRange(service: String) = rows.filter(_.service === service).map(_.versionRange)
   def getArch(service: String) = rows.filter(_.service === service).map(_.arch)
   def getSharable(service: String) = rows.filter(_.service === service).map(_.sharable)
   def getMatchHardware(service: String) = rows.filter(_.service === service).map(_.matchHardware)
@@ -103,7 +108,6 @@ object ServicesTQ {
       case "documentation" => filter.map(_.documentation)
       case "url" => filter.map(_.url)
       case "version" => filter.map(_.version)
-      case "versionRange" => filter.map(_.versionRange)
       case "arch" => filter.map(_.arch)
       case "sharable" => filter.map(_.sharable)
       case "matchHardware" => filter.map(_.matchHardware)

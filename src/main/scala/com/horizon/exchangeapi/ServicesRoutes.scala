@@ -30,7 +30,7 @@ object SharableVals extends Enumeration {
 }
 
 /** Input format for POST /orgs/{orgid}/services or PUT /orgs/{orgid}/services/<service-id> */
-case class PostPutServiceRequest(label: String, description: Option[String], public: Boolean, documentation: Option[String], url: String, version: Option[String], versionRange: Option[String], arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: String, deploymentSignature: String, imageStore: Option[Map[String,Any]]) {
+case class PostPutServiceRequest(label: String, description: Option[String], public: Boolean, documentation: Option[String], url: String, version: String, arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: String, deploymentSignature: String, imageStore: Option[Map[String,Any]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(orgid: String, serviceId: String) = {
     // Ensure that the documentation field is a valid URL
@@ -39,7 +39,6 @@ case class PostPutServiceRequest(label: String, description: Option[String], pub
       catch { case _: MalformedURLException => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the 'documentation' field is not valid URL format.")) }
     }
 
-    //SADIYAH -- alter .isValid to use versionRange????
     if (!Version(version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '"+version+"' is not valid version format."))
     if (arch == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "arch can not be empty."))
 
@@ -51,7 +50,11 @@ case class PostPutServiceRequest(label: String, description: Option[String], pub
 
     // Check for requiring a service that is a different arch than this service
     for (rs <- requiredServices.getOrElse(List())) {
-      if (rs.arch != arch) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "required service '"+rs.url+"' has arch '"+rs.arch+"', which is different than this service's arch '"+arch+"'"))
+      // SADIYAH -- put versionRange check here
+      if(rs.versionRange.isEmpty && rs.version.isEmpty){
+        halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "required service '"+rs.url+"' has arch '"+rs.arch+"', which is different than this service's arch '"+arch+"'"))
+      }
+      if (rs.arch != arch) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "required service '"+rs.url+"' needs to specify a version range"))
     }
 
     // Check that it is signed
@@ -63,18 +66,22 @@ case class PostPutServiceRequest(label: String, description: Option[String], pub
     if (requiredServices.isEmpty || requiredServices.get.isEmpty) return DBIO.successful(Vector())
     val actions = ListBuffer[DBIO[Int]]()
     for (m <- requiredServices.get) {
-      val svcId = ServicesTQ.formId(m.org, m.url, m.version, m.versionRange, m.arch)     // need to wildcard version, because it is an osgi version range
+      var finalVersionRange = ""
+      if(m.versionRange.isEmpty){
+        finalVersionRange = m.version.getOrElse("")
+      } else {finalVersionRange = m.versionRange.getOrElse("")}
+      val svcId = ServicesTQ.formId(m.org, m.url, finalVersionRange, m.arch)     // need to wildcard version, because it is an osgi version range
       actions += ServicesTQ.getService(svcId).length.result
     }
     return DBIO.sequence(actions.toVector)      // convert the list of actions to a DBIO sequence because that returns query values
   }
 
-  def formId(orgid: String) = ServicesTQ.formId(orgid, url, version, versionRange.getOrElse(""), arch)
+  def formId(orgid: String) = ServicesTQ.formId(orgid, url, version, arch)
 
-  def toServiceRow(service: String, orgid: String, owner: String) = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, documentation.getOrElse(""), url, version, versionRange.getOrElse(""), arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment, deploymentSignature, write(imageStore), ApiTime.nowUTC)
+  def toServiceRow(service: String, orgid: String, owner: String) = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, documentation.getOrElse(""), url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment, deploymentSignature, write(imageStore), ApiTime.nowUTC)
 }
 
-case class PatchServiceRequest(label: Option[String], description: Option[String], public: Option[Boolean], documentation: Option[String], url: Option[String], versionRange: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
+case class PatchServiceRequest(label: Option[String], description: Option[String], public: Option[Boolean], documentation: Option[String], url: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the service, and the attribute name being updated. */
@@ -87,7 +94,6 @@ case class PatchServiceRequest(label: Option[String], description: Option[String
     documentation match { case Some(doc) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.documentation,d.lastUpdated)).update((service, doc, lastUpdated)), "documentation"); case _ => ; }
     url match { case Some(u) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.url,d.lastUpdated)).update((service, u, lastUpdated)), "url"); case _ => ; }
     version match { case Some(ver) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.version,d.lastUpdated)).update((service, ver, lastUpdated)), "version"); case _ => ; }
-    versionRange match { case Some(verRange) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.versionRange,d.lastUpdated)).update((service, verRange, lastUpdated)), "versionRange"); case _ => ; }
     arch match { case Some(ar) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.arch,d.lastUpdated)).update((service, ar, lastUpdated)), "arch"); case _ => ; }
     sharable match { case Some(share) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.sharable,d.lastUpdated)).update((service, share, lastUpdated)), "sharable"); case _ => ; }
     matchHardware match { case Some(mh) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.matchHardware,d.lastUpdated)).update((service, write(mh), lastUpdated)), "matchHardware"); case _ => ; }
@@ -157,7 +163,6 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("public", DataType.String, Option[String]("Filter results to only include services with this public setting"), paramType=ParamType.Query, required=false),
         Parameter("url", DataType.String, Option[String]("Filter results to only include services with this url (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("version", DataType.String, Option[String]("Filter results to only include services with this version (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        Parameter("versionRange", DataType.String, Option[String]("Filter results to only include services with this versionRange (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("arch", DataType.String, Option[String]("Filter results to only include services with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("requiredurl", DataType.String, Option[String]("Filter results to only include services that use this service with this url (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
@@ -174,7 +179,6 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     params.get("public").foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
     params.get("url").foreach(url => { if (url.contains("%")) q = q.filter(_.url like url) else q = q.filter(_.url === url) })
     params.get("version").foreach(version => { if (version.contains("%")) q = q.filter(_.version like version) else q = q.filter(_.version === version) })
-    params.get("versionRange").foreach(versionRange => { if (versionRange.contains("%")) q = q.filter(_.versionRange like versionRange) else q = q.filter(_.versionRange === versionRange) })
     params.get("arch").foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
 
     // We are cheating a little on this one because the whole requiredServices structure is serialized into a json string when put in the db, so it has a string value like
@@ -322,17 +326,24 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("POST /orgs/"+orgid+"/services requiredServices validation: "+xs.toString)
       xs match {
         case Success(rows) => var invalidIndex = -1
-          var invalidSvcRef = ServiceRef("","","","","")
+          var invalidSvcRef = ServiceRef("","",Some(""),Some(""),"")
           // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
           // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
           breakable { for ( (svcRef, index) <- serviceReq.requiredServices.getOrElse(List()).zipWithIndex) {
             breakable {
               for ( (orgid,url,version,arch) <- rows ) {
                 //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(svcRef.version)) ) break  // we satisfied this requiredService so move on to the next
+                // SADIYAH -- do check for which to use version or versionRange
+                var finalVersionRange = ""
+                if(svcRef.versionRange.isEmpty){
+                  finalVersionRange = svcRef.version.getOrElse("")
+                } else {
+                  finalVersionRange = svcRef.versionRange.getOrElse("")
+                }
+                if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange)) ) break  // we satisfied this requiredService so move on to the next
               }
               invalidIndex = index    // we finished the inner loop but did not find a service that satisfied the requirement
-              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.versionRange,svcRef.arch)
+              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.versionRange, svcRef.arch)
             }     //  if we found a service that satisfies the requirement, it breaks to this line
             if (invalidIndex >= 0) break    // a requiredService was not satisfied, so break out of the outer loop and return an error
           } }
@@ -418,17 +429,23 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("POST /orgs/"+orgid+"/services requiredServices validation: "+xs.toString)
       xs match {
         case Success(rows) => var invalidIndex = -1
-          var invalidSvcRef = ServiceRef("","","","")
+          var invalidSvcRef = ServiceRef("","",Some(""),Some(""),"")
           // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
           // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
           breakable { for ( (svcRef, index) <- serviceReq.requiredServices.getOrElse(List()).zipWithIndex) {
             breakable {
               for ( (orgid,specRef,version,arch) <- rows ) {
                 //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                if (specRef == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(svcRef.version)) ) break  // we satisfied this apiSpec requirement so move on to the next
+                var finalVersionRange = ""
+                if(svcRef.versionRange.isEmpty){
+                  finalVersionRange = svcRef.version.getOrElse("")
+                } else {
+                  finalVersionRange = svcRef.versionRange.getOrElse("")
+                }
+                if (specRef == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange)) ) break  // we satisfied this apiSpec requirement so move on to the next
               }
               invalidIndex = index    // we finished the inner loop but did not find a service that satisfied the requirement
-              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.arch)
+              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.versionRange, svcRef.arch)
             }     //  if we found a service that satisfies the requirment, it breaks to this line
             if (invalidIndex >= 0) break    // an requiredService was not satisfied, so break out and return an error
           } }
@@ -515,17 +532,23 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("PATCH /orgs/"+orgid+"/services requiredServices validation: "+xs.toString)
       xs match {
         case Success(rows) => var invalidIndex = -1
-          var invalidSvcRef = ServiceRef("","","","")
+          var invalidSvcRef = ServiceRef("","",Some(""),Some(""),"")
           // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
           // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
           breakable { for ( (svcRef, index) <- serviceReq.requiredServices.getOrElse(List()).zipWithIndex) {
             breakable {
               for ( (orgid,url,version,arch) <- rows ) {
                 //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(svcRef.version)) ) break  // we satisfied this requiredService so move on to the next
+                var finalVersionRange = ""
+                if(svcRef.versionRange.isEmpty){
+                  finalVersionRange = svcRef.version.getOrElse("")
+                } else {
+                  finalVersionRange = svcRef.versionRange.getOrElse("")
+                }
+                if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange)) ) break  // we satisfied this requiredService so move on to the next
               }
               invalidIndex = index    // we finished the inner loop but did not find a service that satisfied the requirement
-              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.arch)
+              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version,svcRef.versionRange, svcRef.arch)
             }     //  if we found a service that satisfies the requirement, it breaks to this line
             if (invalidIndex >= 0) break    // a requiredService was not satisfied, so break out of the outer loop and return an error
           } }

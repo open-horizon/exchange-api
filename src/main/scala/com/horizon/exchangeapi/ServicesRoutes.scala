@@ -63,10 +63,7 @@ case class PostPutServiceRequest(label: String, description: Option[String], pub
     if (requiredServices.isEmpty || requiredServices.get.isEmpty) return DBIO.successful(Vector())
     val actions = ListBuffer[DBIO[Int]]()
     for (m <- requiredServices.get) {
-      var finalVersionRange = ""
-      if(m.versionRange.isEmpty){
-        finalVersionRange = m.version.getOrElse("")
-      } else {finalVersionRange = m.versionRange.getOrElse("")}
+      val finalVersionRange = if(m.versionRange.isEmpty) m.version.getOrElse("") else m.versionRange.getOrElse("")
       val svcId = ServicesTQ.formId(m.org, m.url, finalVersionRange, m.arch)     // need to wildcard version, because it is an osgi version range
       actions += ServicesTQ.getService(svcId).length.result
     }

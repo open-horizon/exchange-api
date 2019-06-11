@@ -32,7 +32,7 @@ case class PostPutBusinessPolicyRequest(label: String, description: Option[Strin
   }
 
   // Build a list of db actions to verify that the referenced services exist
-  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { BusinessPoliciesTQ.validateServiceIds(service, userInput.getOrElse(List())) }
+  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { BusinessPoliciesTQ.validateServiceIds(service, userInput.getOrElse(List())) }
 
   // The nodeHealth field is optional, so fill in a default in service if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
   def defaultNodeHealth(service: BService): BService = {
@@ -276,7 +276,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           } }
           if (invalidIndex < 0) BusinessPoliciesTQ.getNumOwned(owner).result.asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
               else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }
@@ -355,7 +355,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           } }
           if (invalidIndex < 0) policyReq.getDbUpdate(businessPolicy, orgid, owner).asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
               else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }
@@ -426,7 +426,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           } }
           if (invalidIndex < 0) action.transactionally.asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
               else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }

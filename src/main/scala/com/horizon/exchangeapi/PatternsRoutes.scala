@@ -38,7 +38,7 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
   }
 
   // Build a list of db actions to verify that the referenced services exist
-  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { PatternsTQ.validateServiceIds(services, userInput.getOrElse(List())) }
+  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { PatternsTQ.validateServiceIds(services, userInput.getOrElse(List())) }
 
   // Note: write() handles correctly the case where the optional fields are None.
   def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
@@ -304,7 +304,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           } }
           if (invalidIndex < 0) OrgsTQ.getAttribute(orgid, "orgType").result.asTry //getting orgType from orgid
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
               else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }
@@ -393,7 +393,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           } }
           if (invalidIndex < 0) PatternsTQ.getPublic(pattern).result.asTry //getting public field from pattern
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
               else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }
@@ -502,7 +502,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           } }
           if (invalidIndex < 0) PatternsTQ.getPublic(pattern).result.asTry //getting public field from pattern
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
               else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }

@@ -131,7 +131,7 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   }
 
   // Build a list of db actions to verify that the referenced services exist
-  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { NodesTQ.validateServiceIds(userInput.getOrElse(List())) }
+  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { NodesTQ.validateServiceIds(userInput.getOrElse(List())) }
 
   /** Get the db actions to insert or update all parts of the node */
   def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = {
@@ -852,7 +852,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           } }
           if (invalidIndex < 0) NodesTQ.getNumOwned(owner).result.asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
             else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }
@@ -936,7 +936,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           } }
           if (invalidIndex < 0) action.transactionally.asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
             else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }

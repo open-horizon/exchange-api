@@ -8,6 +8,7 @@ import slick.jdbc.PostgresProfile.api._
 
 /** Contains the object representations of the DB tables related to services. */
 case class ServiceRef(url: String, org: String, version: Option[String], versionRange: Option[String], arch: String)
+case class ServiceRef2(url: String, org: String, versionRange: String, arch: String)
 
 // This is the service table minus the key - used as the data structure to return to the REST clients
 class Service(var owner: String, var label: String, var description: String, var public: Boolean, var documentation: String, var url: String, var version: String, var arch: String, var sharable: String, var matchHardware: Map[String,Any], var requiredServices: List[ServiceRef], var userInput: List[Map[String,String]], var deployment: String, var deploymentSignature: String, var imageStore: Map[String,Any], var lastUpdated: String) {
@@ -22,9 +23,8 @@ case class ServiceRow(service: String, orgid: String, owner: String, label: Stri
     val rs = if (requiredServices != "") read[List[ServiceRef]](requiredServices) else List[ServiceRef]()
 
     val rs2 = rs.map(sr => {
-      var vr = ""
-      if(sr.versionRange.isEmpty){ vr = sr.version.getOrElse("")}
-      ServiceRef(sr.url, sr.org, Some(vr), Some(vr), sr.arch)
+      val vr = if(sr.versionRange.isEmpty) sr.version else sr.versionRange
+      ServiceRef(sr.url, sr.org, sr.version, vr, sr.arch)
     })
 
     val input = if (userInput != "") read[List[Map[String,String]]](userInput) else List[Map[String,String]]()

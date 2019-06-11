@@ -50,11 +50,8 @@ case class PostPutServiceRequest(label: String, description: Option[String], pub
 
     // Check for requiring a service that is a different arch than this service
     for (rs <- requiredServices.getOrElse(List())) {
-      // SADIYAH -- put versionRange check here
-      if(rs.versionRange.isEmpty && rs.version.isEmpty){
-        halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "required service '"+rs.url+"' has arch '"+rs.arch+"', which is different than this service's arch '"+arch+"'"))
-      }
-      if (rs.arch != arch) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "required service '"+rs.url+"' needs to specify a version range"))
+      if(rs.versionRange.isEmpty && rs.version.isEmpty){halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "required service '"+rs.url+"' does not contain a versionRange"))}
+      if (rs.arch != arch) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "required service '"+rs.url+"' has arch '"+rs.arch+"', which is different than this service's arch '"+arch+"'"))
     }
 
     // Check that it is signed
@@ -333,13 +330,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             breakable {
               for ( (orgid,url,version,arch) <- rows ) {
                 //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                // SADIYAH -- do check for which to use version or versionRange
-                var finalVersionRange = ""
-                if(svcRef.versionRange.isEmpty){
-                  finalVersionRange = svcRef.version.getOrElse("")
-                } else {
-                  finalVersionRange = svcRef.versionRange.getOrElse("")
-                }
+                val finalVersionRange = if(svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
                 if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange)) ) break  // we satisfied this requiredService so move on to the next
               }
               invalidIndex = index    // we finished the inner loop but did not find a service that satisfied the requirement
@@ -436,12 +427,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             breakable {
               for ( (orgid,specRef,version,arch) <- rows ) {
                 //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                var finalVersionRange = ""
-                if(svcRef.versionRange.isEmpty){
-                  finalVersionRange = svcRef.version.getOrElse("")
-                } else {
-                  finalVersionRange = svcRef.versionRange.getOrElse("")
-                }
+                val finalVersionRange = if(svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
                 if (specRef == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange)) ) break  // we satisfied this apiSpec requirement so move on to the next
               }
               invalidIndex = index    // we finished the inner loop but did not find a service that satisfied the requirement
@@ -539,12 +525,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             breakable {
               for ( (orgid,url,version,arch) <- rows ) {
                 //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                var finalVersionRange = ""
-                if(svcRef.versionRange.isEmpty){
-                  finalVersionRange = svcRef.version.getOrElse("")
-                } else {
-                  finalVersionRange = svcRef.versionRange.getOrElse("")
-                }
+                val finalVersionRange = if(svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
                 if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange)) ) break  // we satisfied this requiredService so move on to the next
               }
               invalidIndex = index    // we finished the inner loop but did not find a service that satisfied the requirement

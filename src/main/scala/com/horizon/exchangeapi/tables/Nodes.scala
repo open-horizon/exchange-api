@@ -118,12 +118,12 @@ object NodesTQ {
 
   // Build a list of db actions to verify that the referenced services exist
   // Note: this currently doesn't check the registeredServices because only the agent creates that, and its content might be changing
-  def validateServiceIds(userInput: List[OneUserInputService]): (DBIO[Vector[Int]], Vector[ServiceRef]) = {
+  def validateServiceIds(userInput: List[OneUserInputService]): (DBIO[Vector[Int]], Vector[ServiceRef2]) = {
     val actions = ListBuffer[DBIO[Int]]()
-    val svcRefs = ListBuffer[ServiceRef]()
+    val svcRefs = ListBuffer[ServiceRef2]()
     // Go thru the services referenced in the userInput section
     for (s <- userInput) {
-      svcRefs += ServiceRef(s.serviceUrl, s.serviceOrgid, s.serviceVersionRange.getOrElse("[0.0.0,INFINITY)"), s.serviceArch.getOrElse(""))  // the service ref is just for reporting bad input errors
+      svcRefs += ServiceRef2(s.serviceUrl, s.serviceOrgid, s.serviceVersionRange.getOrElse("[0.0.0,INFINITY)"), s.serviceArch.getOrElse(""))  // the service ref is just for reporting bad input errors
       val arch = if (s.serviceArch.isEmpty || s.serviceArch.get == "") "%" else s.serviceArch.get
       //todo: the best we can do is use the version if the range is a single version, otherwise use %
       val svc = if (s.serviceVersionRange.getOrElse("") == "") "%"

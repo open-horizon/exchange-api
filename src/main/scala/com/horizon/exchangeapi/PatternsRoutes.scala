@@ -419,12 +419,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" checking orgType of "+orgid+": "+xs)
       xs match {
         case Success(orgTypes) =>
-          logger.debug("PUT -- "+ orgTypes.head)
           if (orgTypes.head == "IBM") {    // only patterns of orgType "IBM" can be public
-            logger.debug("inside if patternOrg == IBM in PUT")
             patternReq.toPatternRow(pattern, orgid, owner).update.asTry
           } else {
-            logger.debug("inside else of patternOrg for PUT")
             DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, "only IBM patterns can be made public")).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -446,7 +443,6 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not updated: "+e) }    // the specific exception is NumberFormatException
         case Failure(t) =>
           if(t.getMessage.contains("not found")){
-            logger.debug("INSIDE t.getMessage not found")
             resp.setStatus(HttpCode.NOT_FOUND)
             ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
           } else {

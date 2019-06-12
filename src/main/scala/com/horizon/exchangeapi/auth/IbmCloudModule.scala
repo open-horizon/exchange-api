@@ -323,7 +323,8 @@ object IbmCloudAuth {
       "",
       admin = false,
       userInfo.sub,
-      ApiTime.nowUTC
+      ApiTime.nowUTC,
+      s"$org/${userInfo.sub}"
     )
     (UsersTQ.rows += user).asTry.map(count => count.map(_ => user))
   }

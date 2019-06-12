@@ -125,7 +125,7 @@ object SchemaTQ {
       case 25 => DBIO.seq(   // version 1.87.0
         sqlu"alter table nodes add column userinput character varying not null default ''"
       )
-      case 26 => DBIO.seq(   // version 1.87.0
+      case 26 => DBIO.seq(   // version 1.92.0
         sqlu"alter table users add column updatedBy character varying not null default ''"
       )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB

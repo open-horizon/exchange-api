@@ -10,7 +10,7 @@ import slick.jdbc.PostgresProfile.api._
 case class UserRow(username: String, orgid: String, password: String, admin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
   def insertUser(): DBIO[_] = {
     val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
-    UsersTQ.rows += (UserRow(username, orgid, pw, admin, email, lastUpdated, updatedBy))
+    UsersTQ.rows += UserRow(username, orgid, pw, admin, email, lastUpdated, updatedBy)
   }
 
   def upsertUser: DBIO[_] = {
@@ -42,7 +42,7 @@ class Users(tag: Tag) extends Table[UserRow](tag, "users") {
   def email = column[String]("email")
   // def lastUpdated = column[Timestamp]("lastupdated")    //todo: need this is UTC, not local time zone
   def lastUpdated = column[String]("lastupdated")
-  def updatedBy = column[String]("lastupdated")
+  def updatedBy = column[String]("updatedby")
   def * = (username, orgid, password, admin, email, lastUpdated, updatedBy) <> (UserRow.tupled, UserRow.unapply)
   //def primKey = primaryKey("pk_pk", (username, orgid))
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)

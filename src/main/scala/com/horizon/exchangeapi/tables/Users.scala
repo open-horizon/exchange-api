@@ -7,20 +7,20 @@ import slick.jdbc.PostgresProfile.api._
 
 //future: figure out how to use the slick type Timestamp, but have it stored in UTC
 // case class UserRow(username: String, password: String, email: String, lastUpdated: Timestamp) {
-case class UserRow(username: String, orgid: String, password: String, admin: Boolean, email: String, lastUpdated: String) {
+case class UserRow(username: String, orgid: String, password: String, admin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
   def insertUser(): DBIO[_] = {
     val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
-    UsersTQ.rows += (UserRow(username, orgid, pw, admin, email, lastUpdated))
+    UsersTQ.rows += (UserRow(username, orgid, pw, admin, email, lastUpdated, updatedBy))
   }
 
   def upsertUser: DBIO[_] = {
     val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
-    UsersTQ.rows.insertOrUpdate(UserRow(username, orgid, pw, admin, email, lastUpdated))
+    UsersTQ.rows.insertOrUpdate(UserRow(username, orgid, pw, admin, email, lastUpdated, updatedBy))
   }
 
   def updateUser(): DBIO[_] = {
     val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
-    return (for { u <- UsersTQ.rows if u.username === username } yield u).update(UserRow(username, orgid, pw, admin, email, lastUpdated))
+    return (for { u <- UsersTQ.rows if u.username === username } yield u).update(UserRow(username, orgid, pw, admin, email, lastUpdated, updatedBy))
     /*
     // if password and/or email are blank, it means they should not be updated <- not supporting this anymore
     (pw, email) match {
@@ -42,7 +42,8 @@ class Users(tag: Tag) extends Table[UserRow](tag, "users") {
   def email = column[String]("email")
   // def lastUpdated = column[Timestamp]("lastupdated")    //todo: need this is UTC, not local time zone
   def lastUpdated = column[String]("lastupdated")
-  def * = (username, orgid, password, admin, email, lastUpdated) <> (UserRow.tupled, UserRow.unapply)
+  def updatedBy = column[String]("lastupdated")
+  def * = (username, orgid, password, admin, email, lastUpdated, updatedBy) <> (UserRow.tupled, UserRow.unapply)
   //def primKey = primaryKey("pk_pk", (username, orgid))
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -58,8 +59,9 @@ object UsersTQ {
   def getAdmin(username: String) = rows.filter(_.username === username).map(_.admin)
   //def getAdminAsString(username: String) = rows.filter(_.username === username).map(u => if (u.admin === Boolean(true)) "admin" else "")
   def getEmail(username: String) = rows.filter(_.username === username).map(_.email)
+  def getUpdatedBy(username: String) = rows.filter(_.username === username).map(_.updatedBy)
 }
 
-case class User(password: String, admin: Boolean, email: String, lastUpdated: String) {
-  def hidePassword = User(StrConstants.hiddenPw, admin, email, lastUpdated)
+case class User(password: String, admin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
+  def hidePassword = User(StrConstants.hiddenPw, admin, email, lastUpdated, updatedBy)
 }

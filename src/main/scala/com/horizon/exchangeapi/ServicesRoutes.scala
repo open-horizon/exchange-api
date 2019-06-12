@@ -50,6 +50,7 @@ case class PostPutServiceRequest(label: String, description: Option[String], pub
 
     // Check for requiring a service that is a different arch than this service
     for (rs <- requiredServices.getOrElse(List())) {
+      if(rs.versionRange.isEmpty && rs.version.isEmpty){halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "required service '"+rs.url+"' does not contain a versionRange"))}
       if (rs.arch != arch) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "required service '"+rs.url+"' has arch '"+rs.arch+"', which is different than this service's arch '"+arch+"'"))
     }
 
@@ -62,7 +63,8 @@ case class PostPutServiceRequest(label: String, description: Option[String], pub
     if (requiredServices.isEmpty || requiredServices.get.isEmpty) return DBIO.successful(Vector())
     val actions = ListBuffer[DBIO[Int]]()
     for (m <- requiredServices.get) {
-      val svcId = ServicesTQ.formId(m.org, m.url, m.version, m.arch)     // need to wildcard version, because it is an osgi version range
+      val finalVersionRange = if(m.versionRange.isEmpty) m.version.getOrElse("") else m.versionRange.getOrElse("")
+      val svcId = ServicesTQ.formId(m.org, m.url, finalVersionRange, m.arch)     // need to wildcard version, because it is an osgi version range
       actions += ServicesTQ.getService(svcId).length.result
     }
     return DBIO.sequence(actions.toVector)      // convert the list of actions to a DBIO sequence because that returns query values
@@ -318,17 +320,18 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("POST /orgs/"+orgid+"/services requiredServices validation: "+xs.toString)
       xs match {
         case Success(rows) => var invalidIndex = -1
-          var invalidSvcRef = ServiceRef("","","","")
+          var invalidSvcRef = ServiceRef("","",Some(""),Some(""),"")
           // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
           // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
           breakable { for ( (svcRef, index) <- serviceReq.requiredServices.getOrElse(List()).zipWithIndex) {
             breakable {
               for ( (orgid,url,version,arch) <- rows ) {
                 //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(svcRef.version)) ) break  // we satisfied this requiredService so move on to the next
+                val finalVersionRange = if(svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
+                if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange)) ) break  // we satisfied this requiredService so move on to the next
               }
               invalidIndex = index    // we finished the inner loop but did not find a service that satisfied the requirement
-              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.arch)
+              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.versionRange, svcRef.arch)
             }     //  if we found a service that satisfies the requirement, it breaks to this line
             if (invalidIndex >= 0) break    // a requiredService was not satisfied, so break out of the outer loop and return an error
           } }
@@ -414,17 +417,18 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("POST /orgs/"+orgid+"/services requiredServices validation: "+xs.toString)
       xs match {
         case Success(rows) => var invalidIndex = -1
-          var invalidSvcRef = ServiceRef("","","","")
+          var invalidSvcRef = ServiceRef("","",Some(""),Some(""),"")
           // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
           // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
           breakable { for ( (svcRef, index) <- serviceReq.requiredServices.getOrElse(List()).zipWithIndex) {
             breakable {
               for ( (orgid,specRef,version,arch) <- rows ) {
                 //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                if (specRef == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(svcRef.version)) ) break  // we satisfied this apiSpec requirement so move on to the next
+                val finalVersionRange = if(svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
+                if (specRef == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange)) ) break  // we satisfied this apiSpec requirement so move on to the next
               }
               invalidIndex = index    // we finished the inner loop but did not find a service that satisfied the requirement
-              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.arch)
+              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.versionRange, svcRef.arch)
             }     //  if we found a service that satisfies the requirment, it breaks to this line
             if (invalidIndex >= 0) break    // an requiredService was not satisfied, so break out and return an error
           } }
@@ -511,17 +515,18 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("PATCH /orgs/"+orgid+"/services requiredServices validation: "+xs.toString)
       xs match {
         case Success(rows) => var invalidIndex = -1
-          var invalidSvcRef = ServiceRef("","","","")
+          var invalidSvcRef = ServiceRef("","",Some(""),Some(""),"")
           // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
           // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
           breakable { for ( (svcRef, index) <- serviceReq.requiredServices.getOrElse(List()).zipWithIndex) {
             breakable {
               for ( (orgid,url,version,arch) <- rows ) {
                 //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(svcRef.version)) ) break  // we satisfied this requiredService so move on to the next
+                val finalVersionRange = if(svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
+                if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange)) ) break  // we satisfied this requiredService so move on to the next
               }
               invalidIndex = index    // we finished the inner loop but did not find a service that satisfied the requirement
-              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.arch)
+              invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version,svcRef.versionRange, svcRef.arch)
             }     //  if we found a service that satisfies the requirement, it breaks to this line
             if (invalidIndex >= 0) break    // a requiredService was not satisfied, so break out of the outer loop and return an error
           } }

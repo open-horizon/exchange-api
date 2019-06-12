@@ -131,7 +131,7 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   }
 
   // Build a list of db actions to verify that the referenced services exist
-  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef]) = { NodesTQ.validateServiceIds(userInput.getOrElse(List())) }
+  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { NodesTQ.validateServiceIds(userInput.getOrElse(List())) }
 
   /** Get the db actions to insert or update all parts of the node */
   def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = {
@@ -212,7 +212,7 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
     userInput match { case Some(input) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.userInput,d.lastHeartbeat)).update((id, write(input), lastHeartbeat)), "userInput"); case _ => ; }
     msgEndPoint match { case Some(msgEndPoint2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint2, lastHeartbeat)), "msgEndPoint"); case _ => ; }
     publicKey match { case Some(publicKey2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey2, lastHeartbeat)), "publicKey"); case _ => ; }
-    arch match { case Some(arch2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.arch,d.lastHeartbeat)).update((id, arch2, lastHeartbeat)), "msgEndPoint"); case _ => ; }
+    arch match { case Some(arch2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.arch,d.lastHeartbeat)).update((id, arch2, lastHeartbeat)), "arch"); case _ => ; }
     return (null, null)
   }
 }
@@ -852,7 +852,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           } }
           if (invalidIndex < 0) NodesTQ.getNumOwned(owner).result.asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
             else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }
@@ -936,7 +936,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           } }
           if (invalidIndex < 0) action.transactionally.asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).version+", arch="+svcRefs(invalidIndex).arch
+            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
             else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
             DBIO.failed(new Throwable(errStr)).asTry
           }

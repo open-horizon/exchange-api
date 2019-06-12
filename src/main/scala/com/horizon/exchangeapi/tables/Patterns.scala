@@ -64,21 +64,21 @@ object PatternsTQ {
   val rows = TableQuery[Patterns]
 
   // Build a list of db actions to verify that the referenced services exist
-  def validateServiceIds(services: List[PServices], userInput: List[OneUserInputService]): (DBIO[Vector[Int]], Vector[ServiceRef]) = {
+  def validateServiceIds(services: List[PServices], userInput: List[OneUserInputService]): (DBIO[Vector[Int]], Vector[ServiceRef2]) = {
     // Currently, anax does not support a pattern with no services, so do not support that here
     val actions = ListBuffer[DBIO[Int]]()
-    val svcRefs = ListBuffer[ServiceRef]()
+    val svcRefs = ListBuffer[ServiceRef2]()
     // First go thru the services the pattern deploys
     for (s <- services) {
       for (sv <- s.serviceVersions) {
-        svcRefs += ServiceRef(s.serviceUrl, s.serviceOrgid, sv.version, s.serviceArch)   // the service ref is just for reporting bad input errors
+        svcRefs += ServiceRef2(s.serviceUrl, s.serviceOrgid, sv.version, s.serviceArch)   // the service ref is just for reporting bad input errors
         val svcId = ServicesTQ.formId(s.serviceOrgid, s.serviceUrl, sv.version, s.serviceArch)
         actions += ServicesTQ.getService(svcId).length.result
       }
     }
     // Now go thru the services referenced in the userInput section
     for (s <- userInput) {
-      svcRefs += ServiceRef(s.serviceUrl, s.serviceOrgid, s.serviceVersionRange.getOrElse("[0.0.0,INFINITY)"), s.serviceArch.getOrElse(""))  // the service ref is just for reporting bad input errors
+      svcRefs += ServiceRef2(s.serviceUrl, s.serviceOrgid, s.serviceVersionRange.getOrElse("[0.0.0,INFINITY)"), s.serviceArch.getOrElse(""))  // the service ref is just for reporting bad input errors
       val arch = if (s.serviceArch.isEmpty || s.serviceArch.get == "") "%" else s.serviceArch.get
       //todo: the best we can do is use the version if the range is a single version, otherwise use %
       val svc = if (s.serviceVersionRange.getOrElse("") == "") "%"

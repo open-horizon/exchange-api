@@ -5,26 +5,20 @@ jdk: openjdk8
 scala: 2.12.7
 notifications:
   slack:
-    secure: vSzVllY4Vmt6Nf6Yl+5QDMKTEQ4jIbP/bC/LSzZFmQNlYWlDEzG1gQcPb4prh7/efjUFt+vM2lTFP7jLEkib+XiR8n4LShCl+IeRyBpiONXII4KN7O9IPTMMOpGvN/FhZFgyzRFwEvkCSuSBpOYoRGGij/wzo/mPzfJYEyGxpaRmQKEmD7xmtxXMAVWpK2L5fL6XbglEPKD7pMYUvM/WyzAMJg4JgDxOGeX7QLGdSQrTOOkUtJjiEs8WtB/fR9Gev+vwX22KrnMwZpmT9KPPi+kzwFYnfzKxHdjdsmydmBBlBS4XM8rvJL1eMyrQB2LOOW8xWUeOF03t5PfKAC6cY2h01Jdl/rx3L6Pc99ABItS3OvYcwL0HY20bz+hNI0seRMVftz7eRzMHGdQsfYXfU6hOxkovGutRoyVkS7f+m66nBaOfRh6DAlOt/H6us4WEq1zJb8SyP+S7Xm38grh+xEDIMaz8AeavhDRWyH6RQfrpxvcGbcWhURXiY7clJLgjmauGJw9H/jxkuuoIINIFjkrziRHDGj9ZxNp3JbtJfprrramMCLtHl5Ziz5Pjmcf46iZxFzNlRlW/aC5ZqQbHm5EgcNuHXHMHvzTQcnkFDrQBGaXI3sLXfaYt+1LeRwfQXGOsWSgc8lmgfcGn1Fvbj/8ykq/q1ReQFAbCvT62ZR8=
+    secure: nPoYZ8FqRziV5+rQAc9GXFWtNsThBbOdxYOY8HpPwNWsWHtC2ZyPJBnNE6XIkmzR7+D5U8yOYqlk2CiqYLlSwa1+bqKuAyOBBhz51pDi8z+YXsjvgTpkxVmKv8N6jntAqo5eBFbVUW+/FPhKBD6qZIkbfRyThZSNZTSTv9oZ02Ynfb4NKuXgZeuinSotOaICiCvzfY4kYoe7EKss/XY6ON8qHUOcIQBsckDHrFEYwF270qNEIccZIkrOr3PKg3mXz2n+65T5i/UDNw3Z8RKDc32Y+TCfyAc3kyuQQYhKhL6/TLwAW/IPNGaFkUfR+2FH+C1VlLJpm1/mBj6uDvHBVRHSEL3ZofYFd5TTzUqkQRINATRQNpFNfjlMT3ifJrSyopKXyMsiea2y3EvM4/D3I5pHRvX2/BqidjJV3b5UIllirq/jk4PrCKshkKEZtC0CBNj4T8ewa9Qr3IxlKTFVHwnW1RWQmAXgFDFpbDzJ4vuLbUDhAKDXukWqoiwxTC3egMPQVnEFvxHVDAqdQUztsUjtg3LVXagLLl6+tYTwY53124aUXSkQMbANL+2ISZuRmg4dheTtaK/bE8L4dCQyyy7HFh03IbZGnGz3bhpDGxTBFAhnEQ4XWzYNpz8rEr0unvQTfBt2dUq4AH5bh1QseFh77lpBYWj9jxndZMbP9Pw=
 branches:
   only:
   - master
 before_install:
-- sudo apt-get update
-- sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
-before_cache:
-- find ${HOME}/.ivy2/cache -name "ivydata-*.properties" -print -delete
-- find ${HOME}/.sbt        -name "*.lock"               -print -delete
-cache:
-  directories:
-  - "${HOME}/.ivy2/cache"
-  - "${HOME}/.sbt"
+- sudo apt-get -y update
+- sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce || true
 env:
-- DOCKER_REGISTRY=openhorizon POSTGRES_PORT=5432 EXCHANGE_ROOTPW=ci-password
-  POSTGRES_DB=exchange POSTGRES_USER=admin EXCHANGE_FE_HEADER=issuer
+- DOCKER_REGISTRY=openhorizon POSTGRES_PORT=5432 EXCHANGE_ROOTPW=ci-password POSTGRES_DB=exchange
+  POSTGRES_USER=admin EXCHANGE_FE_HEADER=issuer DOCKER_NETWORK=exchange-api-network
 before_script:
-- docker run -d -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER --name
-  postgres postgres
+- make .docker-network
+- docker run -d -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER --network
+  $DOCKER_NETWORK --name postgres postgres
 - export POSTGRES_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
   postgres)
 - sudo mkdir -p /etc/horizon/exchange
@@ -33,7 +27,7 @@ before_script:
   \"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" } } }'' > /etc/horizon/exchange/config.json"'
 - cat /etc/horizon/exchange/config.json
 - unset SBT_OPTS
-- make
+- make .docker-exec-run-no-https
 - docker logs exchange-api
 script:
 - make test

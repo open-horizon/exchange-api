@@ -118,7 +118,7 @@ object ExchConfig {
       db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None).upsert.asTry.flatMap({ xs =>
         logger.debug("Upsert /orgs/root result: "+xs.toString)
         xs match {
-          case Success(_) => UserRow(Role.superUser, "root", rootpw, admin = true, rootemail, ApiTime.nowUTC).upsertUser.asTry    // next action
+          case Success(_) => UserRow(Role.superUser, "root", rootpw, admin = true, rootemail, ApiTime.nowUTC, Role.superUser).upsertUser.asTry    // next action
           case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
         }
       }).flatMap({ xs =>

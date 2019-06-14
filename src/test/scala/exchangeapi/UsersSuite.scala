@@ -55,6 +55,14 @@ class UsersSuite extends FunSuite {
   val USERAUTH2NEW = ("Authorization","Basic "+creds2new)
   val user3 = "u3"
   val pw3 = user3+"pw"
+  val user4 = "u4"       // this is NOT an admin user
+  val orguser4 = orgid+"/"+user4
+  val pw4 = user4+" pw"   // intentionally adding a space in the pw
+  val creds4 = orguser4+":"+pw4
+  val USERAUTH4 = ("Authorization","Basic "+creds4)
+  val pw4new = user4+"pwnew"
+  val creds4new = orguser4+":"+pw4new
+  val USERAUTH4NEW = ("Authorization","Basic "+creds4new)
   val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this same root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
@@ -552,6 +560,113 @@ class UsersSuite extends FunSuite {
     val response = Http(URL+"/users/"+user3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).asString    // as anonymous
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
+  }
+
+  // Tests on updatedBy field added to user resource
+  test("POST /orgs/"+orgid+"/users/"+user4+" - adding new user for testing updatedBy field") {
+    val input = PostPutUsersRequest(pw4, admin = false, user4+"@hotmail.com")
+    val response = Http(URL+"/users/"+user4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/users - as admin user to verify updatedBy there") {
+    val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getUserResp = parse(response.body).extract[GetUsersResponse]
+
+    assert(getUserResp.users.contains(orguser4))
+    val u = getUserResp.users(orguser4) // the 2nd get turns the Some(val) into val
+    assert(u.email === user4+"@hotmail.com")
+    assert(!u.updatedBy.isEmpty)
+    assert(u.updatedBy.contentEquals("root/root"))
+  }
+
+  test("PUT /orgs/"+orgid+"/users/"+user4+" - update email - to test updatedBy") {
+    val input = PostPutUsersRequest(pw4, admin = false, user4+"@gmail.com")
+    val response = Http(URL+"/users/"+user4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH4).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/users - as admin user to verify updatedBy changed after PUT email") {
+    val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getUserResp = parse(response.body).extract[GetUsersResponse]
+
+    assert(getUserResp.users.contains(orguser4))
+    val u = getUserResp.users(orguser4) // the 2nd get turns the Some(val) into val
+    assert(u.email === user4+"@gmail.com")
+    assert(u.updatedBy.contentEquals("UsersSuiteTests/u4"))
+  }
+
+  test("PATCH /orgs/"+orgid+"/users/"+user4+" - update email via patch - to test updatedBy") {
+    val input = PatchUsersRequest(None, None, Some(user4+"@hotmail.com"))
+    val response = Http(URL+"/users/"+user4).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/users - as admin user to verify updatedBy changed after PATCH email") {
+    val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getUserResp = parse(response.body).extract[GetUsersResponse]
+
+    assert(getUserResp.users.contains(orguser4))
+    val u = getUserResp.users(orguser4) // the 2nd get turns the Some(val) into val
+    assert(u.email === user4+"@hotmail.com")
+    assert(!u.updatedBy.isEmpty)
+    assert(!u.updatedBy.contentEquals("UsersSuiteTests/u4"))
+    assert(u.updatedBy.contentEquals("UsersSuiteTests/u1"))
+  }
+
+  test("PUT /orgs/"+orgid+"/users/"+user4+" - update email - to test updatedBy via PUT again") {
+    val input = PostPutUsersRequest(pw4, admin = false, user4+"@gmail.com")
+    val response = Http(URL+"/users/"+user4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH4).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/users - as admin user to verify updatedBy changed after PUT email the second time") {
+    val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getUserResp = parse(response.body).extract[GetUsersResponse]
+
+    assert(getUserResp.users.contains(orguser4))
+    val u = getUserResp.users(orguser4) // the 2nd get turns the Some(val) into val
+    assert(u.email === user4+"@gmail.com")
+    assert(!u.updatedBy.contentEquals("UsersSuiteTests/u1"))
+    assert(u.updatedBy.contentEquals("UsersSuiteTests/u4"))
+  }
+
+  test("PATCH /orgs/"+orgid+"/users/"+user4+" - update email via patch - to test updatedBy via PATCH again") {
+    val input = PatchUsersRequest(None, None, Some(user4+"@hotmail.com"))
+    val response = Http(URL+"/users/"+user4).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/users - as admin user to verify updatedBy changed after PATCH email the second time") {
+    val response: HttpResponse[String] = Http(URL+"/users").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getUserResp = parse(response.body).extract[GetUsersResponse]
+
+    assert(getUserResp.users.contains(orguser4))
+    val u = getUserResp.users(orguser4) // the 2nd get turns the Some(val) into val
+    assert(u.email === user4+"@hotmail.com")
+    assert(!u.updatedBy.isEmpty)
+    assert(!u.updatedBy.contentEquals("UsersSuiteTests/u4"))
+    assert(u.updatedBy.contentEquals("UsersSuiteTests/u1"))
   }
 
   /* not supported anymore...

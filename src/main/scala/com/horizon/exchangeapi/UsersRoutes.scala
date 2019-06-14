@@ -116,9 +116,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     logger.debug("GET /orgs/"+orgid+"/users/"+username+" ident: "+ident)
     val superUser = ident.isSuperUser
     val resp = response     // needed so the db.run() future has this context
-    // logger.debug("using postgres")
     db.run(UsersTQ.getUser(compositeId).result).map({ xs =>
-      logger.debug("GET /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
+      //logger.debug("GET /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)  <- can not log because it contains the pw
+      logger.debug("GET /orgs/"+orgid+"/users/"+username+" result size: "+xs.size)
       if (xs.nonEmpty) {
         val pw = if (superUser) xs.head.password else StrConstants.hiddenPw
         val user = User(pw, xs.head.admin, xs.head.email, xs.head.lastUpdated, xs.head.updatedBy)
@@ -166,7 +166,6 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val ident = authenticate(anonymousOk = true).authorizeTo(TUser(compositeId),Access.CREATE)
     val user = try { parse(request.body).extract[PostPutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    logger.debug(user.toString)
     val owner = if (user.admin) "admin" else ""
     val resp = response
     if (user.password == "" || user.email == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "both password and email must be non-blank when creating a user"))
@@ -209,7 +208,6 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val isRoot = ident.isSuperUser
     val user = try { parse(request.body).extract[PostPutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    logger.debug(user.toString)
     val resp = response
     if (isRoot) {     // update or create of a (usually non-root) user by root
       //if (user.password == "" || (user.email == "" && !Role.isSuperUser(username))) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "both password and email must be non-blank when creating a user"))
@@ -270,7 +268,6 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val ident = authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
     val user = try { parse(request.body).extract[PatchUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    logger.debug(user.toString)
     val resp = response
     val updatedBy = ident match { case IUser(creds) => creds.id; case _ => "" }
     val (action, attrName) = user.getDbUpdate(compositeId, orgid, updatedBy)

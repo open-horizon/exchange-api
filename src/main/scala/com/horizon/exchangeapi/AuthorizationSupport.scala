@@ -315,12 +315,13 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
           case IUser(_) => if (target.getId == "iamapikey" || target.getId == "iamtoken") {
               // This is a cloud user
               val authenticatedIdentity = subject.getPrivateCredentials(classOf[IUser]).asScala.head.creds
-              logger.debug("authenticatedIdentity=" + authenticatedIdentity.id)
+              //logger.debug("authenticatedIdentity=" + authenticatedIdentity.id)
               requiredAccess = identity.authorizeTo(TUser(authenticatedIdentity.id), access)
               requiredAccess.as(subject)
               IUser(authenticatedIdentity)
             } else {
               // This is a local exchange user
+              //logger.debug("authorizeTo(): creds.id=" + identity.creds.id)
               requiredAccess = identity.authorizeTo(target, access)
               requiredAccess.as(subject)
               identity

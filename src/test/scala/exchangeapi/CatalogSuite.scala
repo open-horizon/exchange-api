@@ -224,6 +224,7 @@ class CatalogSuite extends FunSuite {
     assert(!respObj.patterns.contains(orgpattern3))
   }
 
-  // Clean up
-  deleteAllOrgs()
+  test("DELETE all orgs to clean up") {
+    deleteAllOrgs()
+  }
 }

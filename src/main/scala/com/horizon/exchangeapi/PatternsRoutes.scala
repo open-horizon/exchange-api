@@ -28,6 +28,7 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
   def validate(): Unit = {
     // Check that it is signed and check the version syntax
     for (s <- services) {
+      if (s.serviceVersions.isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no versions specified for service '"+s.serviceOrgid+"', '"+s.serviceUrl+"', '"+s.serviceArch+"'"))
       for (sv <- s.serviceVersions) {
         if (!Version(sv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '" + sv.version + "' is not valid version format."))
         if (sv.deployment_overrides.getOrElse("") != "" && sv.deployment_overrides_signature.getOrElse("") == "") {
@@ -508,11 +509,15 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("PATCH /orgs/"+orgid+"/patterns"+barePattern+" checking public field of "+pattern+": "+xs)
       xs match {
         case Success(patternPublic) => val public = patternPublic
-          val publicField = patternReq.public.getOrElse(false)
-          if ((public.head && publicField) || publicField) {    // pattern is public so need to check owner
-            OrgsTQ.getOrgType(orgid).result.asTry
-          } else { // pattern isn't public so skip orgType check
-            DBIO.successful(Vector("IBM")).asTry
+          if(public.nonEmpty) {
+            val publicField = patternReq.public.getOrElse(false)
+            if ((public.head && publicField) || publicField) { // pattern is public so need to check owner
+              OrgsTQ.getOrgType(orgid).result.asTry
+            } else { // pattern isn't public so skip orgType check
+              DBIO.successful(Vector("IBM")).asTry
+            }
+          } else {
+            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
@@ -542,8 +547,14 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+pattern+"' not updated: "+t.getMessage)
+        case Failure(t) =>
+          if(t.getMessage.contains("not found")){
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
+          } else {
+            resp.setStatus(HttpCode.BAD_INPUT)
+            ApiResponse(ApiResponseType.BAD_INPUT, "pattern '" + pattern + "' not updated: " + t.getMessage)
+          }
       }
     })
   })

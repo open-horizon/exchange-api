@@ -37,12 +37,13 @@ object ExchangeApiTables {
   // Note: doing this with raw sql stmts because a foreign key constraint not existing was causing slick's drops to fail. As long as we are not removing contraints (only adding), we should be ok with the drops below?
   //val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
   val dropDB = DBIO.seq(
+    /* these are no longer used, but just in case they are still here */ sqlu"drop table if exists resourcekeys", sqlu"drop table if exists resourceauths", sqlu"drop table if exists resources",
     sqlu"drop table if exists businesspolicies", sqlu"drop table if exists patternkeys", sqlu"drop table if exists patterns", sqlu"drop table if exists servicepolicies", sqlu"drop table if exists servicedockauths", sqlu"drop table if exists servicekeys", sqlu"drop table if exists services",   // no table depends on these
     sqlu"drop table if exists nodemsgs", sqlu"drop table if exists agbotmsgs",     // these depend on both nodes and agbots
     sqlu"drop table if exists agbotbusinesspols", sqlu"drop table if exists agbotpatterns", sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots",
     sqlu"drop table if exists nodeagreements", sqlu"drop table if exists nodestatus", sqlu"drop table if exists nodepolicies",
-    sqlu"drop table if exists properties",
-    sqlu"drop table if exists nodemicros", sqlu"drop table if exists nodes",
+    /* these are no longer used, but just in case they are still there */ sqlu"drop table if exists properties", sqlu"drop table if exists nodemicros",
+    sqlu"drop table if exists nodes",
     sqlu"drop table if exists users", sqlu"drop table if exists orgs", sqlu"drop table if exists schema",
     // these are no longer used, but here just in case they are still hanging around
     sqlu"drop table if exists microservicekeys", sqlu"drop table if exists microservices", sqlu"drop table if exists workloadkeys", sqlu"drop table if exists workloads", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes"

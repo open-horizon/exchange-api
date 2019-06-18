@@ -177,6 +177,10 @@ To build an exchange container with code that is targeted for a git branch:
 
 ## Changes in 1.93.0
 
+- Added verification of org during ICP IAM authentication
+
+## Changes in 1.93.0
+
 - Added check in pattern POST/PUT for service version not being set (anax issue 932)
 - Removed user pw from debug level logging
 - Added old tables to table drop list for /admin/dropdb, in case they were running with an old db

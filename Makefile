@@ -39,7 +39,7 @@ else
   # Assume Linux (could test by test if OS is Linux)
   EXCHANGE_HOST_CONFIG_DIR ?= $(EXCHANGE_CONFIG_DIR)
 endif
-# Location of the ssl key/cert that it should use so it can server https routes. This need to be fully qualified, so docker can mount it into the container for jetty to access
+# Location of the ssl key/cert that it should use so it can serve https routes. This need to be fully qualified, so docker can mount it into the container for jetty to access
 EXCHANGE_HOST_KEYSTORE_DIR ?= $(PWD)/keys/etc
 EXCHANGE_HOST_ALIAS ?= edge-fab-exchange
 EXCHANGE_CONTAINER_KEYSTORE_DIR ?= /var/lib/jetty/etc

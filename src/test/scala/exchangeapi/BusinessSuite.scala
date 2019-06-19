@@ -64,6 +64,10 @@ class BusinessSuite extends FunSuite {
   val orgBusinessPolicy = authpref+businessPolicy
   val businessPolicy2 = "mybuspol2"
   val orgBusinessPolicy2 = authpref+businessPolicy2
+  val businessPolicy3 = "mybuspol3"
+  val orgBusinessPolicy3 = authpref+businessPolicy3
+  val businessPolicy4 = "mybuspol4"
+  val orgBusinessPolicy4 = authpref+businessPolicy4
   val svcurl2 = "ibm.pws"
   val svcversion2 = "9.7.5"
   val svcarch2 = "arm"
@@ -193,6 +197,44 @@ class BusinessSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("business policy '"+orgBusinessPolicy+"' created"))
+  }
+
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy3+" - add "+businessPolicy3+" as user with service.arch=\"\"") {
+    val input = PostPutBusinessPolicyRequest(businessPolicy3, Some("desc"),
+      BService(svcurl, orgid, "", List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
+      Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
+    )
+    val response = Http(URL+"/business/policies/"+businessPolicy3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("business policy '"+orgBusinessPolicy3+"' created"))
+  }
+
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy4+" - add "+businessPolicy4+" as user with service.arch=\"*\"") {
+    val input = PostPutBusinessPolicyRequest(businessPolicy4, Some("desc"),
+      BService(svcurl, orgid, "*", List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
+      Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
+    )
+    val response = Http(URL+"/business/policies/"+businessPolicy4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("business policy '"+orgBusinessPolicy4+"' created"))
+  }
+
+  test("DELETE /orgs/"+orgid+"/business/policies/"+businessPolicy3) {
+    val response = Http(URL+"/business/policies/"+businessPolicy3).method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("DELETE /orgs/"+orgid+"/business/policies/"+businessPolicy4) {
+    val response = Http(URL+"/business/policies/"+businessPolicy4).method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" again - should fail") {

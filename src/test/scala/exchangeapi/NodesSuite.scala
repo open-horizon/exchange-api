@@ -74,6 +74,7 @@ class NodesSuite extends FunSuite {
   val orgnodeId5 = authpref+nodeId5
   val patid = "p1"
   val businessPolicySdr = "mybuspolsdr"
+  val businessPolicySdr2 = "mybuspolsdr2"
   val businessPolicyNS = "mybuspolnetspeed"
   val compositePatid = orgid+"/"+patid
   val svcid = "bluehorizon.network-services-sdr_1.0.0_amd64"
@@ -207,6 +208,22 @@ class NodesSuite extends FunSuite {
     val response = Http(URL+"/business/policies/"+businessPolicySdr).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr2+" - add "+businessPolicySdr2+" as user") {
+    val input = PostPutBusinessPolicyRequest(businessPolicySdr2, Some("desc"),
+      BService(SDRSPEC_URL, orgid, "", List(BServiceVersions(svcversion, None, None)), None ),
+      None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
+    )
+    val response = Http(URL+"/business/policies/"+businessPolicySdr2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("DELETE /orgs/"+orgid+"/business/policies/"+businessPolicySdr2+" - delete "+businessPolicySdr2+" to not interfere with tests") {
+    val response = Http(URL+"/business/policies/"+businessPolicySdr2).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+" - add "+businessPolicyNS+" as user") {

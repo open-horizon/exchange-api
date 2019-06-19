@@ -177,10 +177,11 @@ function curldelete {
 	start=`date +%s`
 	auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
     for (( i=1 ; i<=$numtimes ; i++ )) ; do
-        # echo curl -X DELETE $curlBasicArgs $auth $EX_URL_ROOT/v1/$urlbase$i
+        echo curl -X DELETE $curlBasicArgs $auth $EX_URL_ROOT/v1/$urlbase$i
         rc=$(curl -X DELETE $curlBasicArgs $auth $EX_URL_ROOT/v1/$urlbase$i)
         checkrc $rc 204 $secondcode
         echo -n .
+        echo rc
         bignum=$(($bignum+1))
     done
 	total=$(($(date +%s)-start))
@@ -216,7 +217,7 @@ bigstart=`date +%s`
 
 # Get rid of anything left over from a previous run and then create the org
 curldelete 1 "$rootauth" "orgs/$orgbase" "NOT_FOUND_OK"
-curlcreate "POST" 1 "$rootauth" "orgs/$orgbase" '{"label": "perf test org", "description": "blah blah"}'
+curlcreate "POST" 1 "$rootauth" "orgs/$orgbase" '{"label": "perf test org", "description": "blah blah", "orgType":"IBM"}'
 
 # Users =================================================
 

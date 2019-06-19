@@ -25,18 +25,18 @@ case class PatchUsersRequest(password: Option[String], admin: Option[Boolean], e
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the user, and the attribute name being updated. */
-  def getDbUpdate(username: String, orgid: String): (DBIO[_],String) = {
+  def getDbUpdate(username: String, orgid: String, updatedBy: String): (DBIO[_],String) = {
     val lastUpdated = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
     password match {
       case Some(password2) => if (password2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the password can not be set to the empty string"))
         println("password2="+password2+".")
         val pw = if (Password.isHashed(password2)) password2 else Password.hash(password2)
-        return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated)).update((username, pw, lastUpdated)), "password")
+        return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated, u.updatedBy)).update((username, pw, lastUpdated, updatedBy)), "password")
       case _ => ;
     }
-    admin match { case Some(admin2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.admin,u.lastUpdated)).update((username, admin2, lastUpdated)), "admin"); case _ => ; }
-    email match { case Some(email2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.email,u.lastUpdated)).update((username, email2, lastUpdated)), "email"); case _ => ; }
+    admin match { case Some(admin2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.admin,u.lastUpdated, u.updatedBy)).update((username, admin2, lastUpdated, updatedBy)), "admin"); case _ => ; }
+    email match { case Some(email2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.email,u.lastUpdated, u.updatedBy)).update((username, email2, lastUpdated, updatedBy)), "email"); case _ => ; }
     return (null, null)
   }
 }
@@ -82,7 +82,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       val users = new MutableHashMap[String, User]
       if (list.nonEmpty) for (e <- list) {
           val pw = if (superUser) e.password else StrConstants.hiddenPw
-          users.put(e.username, User(pw, e.admin, e.email, e.lastUpdated))
+          users.put(e.username, User(pw, e.admin, e.email, e.lastUpdated, e.updatedBy))
         }
       if (users.nonEmpty) resp.setStatus(HttpCode.OK)
       else resp.setStatus(HttpCode.NOT_FOUND)
@@ -116,12 +116,12 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     logger.debug("GET /orgs/"+orgid+"/users/"+username+" ident: "+ident)
     val superUser = ident.isSuperUser
     val resp = response     // needed so the db.run() future has this context
-    // logger.debug("using postgres")
     db.run(UsersTQ.getUser(compositeId).result).map({ xs =>
-      logger.debug("GET /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
+      //logger.debug("GET /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)  <- can not log because it contains the pw
+      logger.debug("GET /orgs/"+orgid+"/users/"+username+" result size: "+xs.size)
       if (xs.nonEmpty) {
         val pw = if (superUser) xs.head.password else StrConstants.hiddenPw
-        val user = User(pw, xs.head.admin, xs.head.email, xs.head.lastUpdated)
+        val user = User(pw, xs.head.admin, xs.head.email, xs.head.lastUpdated, xs.head.updatedBy)
         val users = HashMap[String,User](xs.head.username -> user)
         resp.setStatus(HttpCode.OK)
         GetUsersResponse(users, 0)
@@ -166,12 +166,12 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val ident = authenticate(anonymousOk = true).authorizeTo(TUser(compositeId),Access.CREATE)
     val user = try { parse(request.body).extract[PostPutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    logger.debug(user.toString)
     val owner = if (user.admin) "admin" else ""
     val resp = response
     if (user.password == "" || user.email == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "both password and email must be non-blank when creating a user"))
     if (ident.isAnonymous && user.admin) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "an anonymous client can not create a user with admin authority"))
-    db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC).insertUser().asTry).map({ xs =>
+    val updatedBy = ident match { case IUser(creds) => creds.id; case _ => "" }
+    db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC, updatedBy).insertUser().asTry).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
       xs match {
         case Success(v) => AuthCache.users.putBoth(Creds(compositeId, user.password), owner)    // the password passed in to the cache should be the non-hashed one
@@ -208,12 +208,12 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val isRoot = ident.isSuperUser
     val user = try { parse(request.body).extract[PostPutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    logger.debug(user.toString)
     val resp = response
     if (isRoot) {     // update or create of a (usually non-root) user by root
       //if (user.password == "" || (user.email == "" && !Role.isSuperUser(username))) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "both password and email must be non-blank when creating a user"))
       if (user.password == "" || (user.email == "")) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "both password and email must be non-blank when creating a user"))
-      db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC).upsertUser.asTry).map({ xs =>
+      val updatedBy = ident match { case IUser(creds) => creds.id; case _ => "" }
+      db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC, updatedBy).upsertUser.asTry).map({ xs =>
         logger.debug("PUT /orgs/"+orgid+"/users/"+username+" (root) result: "+xs.toString)
         xs match {
           case Success(v) => AuthCache.users.put(Creds(compositeId, user.password))    // the password passed in to the cache should be the non-hashed one
@@ -225,7 +225,8 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       })
     } else {      // update by existing user
       if (user.admin && !ident.isAdmin) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "a user without admin privilege can not give admin privilege")) // ensure that a user can't elevate himself to an admin user
-      db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC).updateUser()).map({ xs =>     // updateUser() handles the case where pw or email is blank (i.e. do not update those fields)
+      val updatedBy = ident match { case IUser(creds) => creds.id; case _ => "" }
+      db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC, updatedBy).updateUser()).map({ xs =>     // updateUser() handles the case where pw or email is blank (i.e. do not update those fields)
         logger.debug("PUT /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
         try {
           val numUpdated = xs.toString.toInt
@@ -267,9 +268,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val ident = authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
     val user = try { parse(request.body).extract[PatchUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    logger.debug(user.toString)
     val resp = response
-    val (action, attrName) = user.getDbUpdate(compositeId, orgid)
+    val updatedBy = ident match { case IUser(creds) => creds.id; case _ => "" }
+    val (action, attrName) = user.getDbUpdate(compositeId, orgid, updatedBy)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid agbot attribute specified"))
     if (attrName == "admin" && user.admin.getOrElse(false) && !ident.isAdmin) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "a user without admin privilege can not give admin privilege")) // ensure that a user can't elevate himself to an admin user
     db.run(action.transactionally.asTry).map({ xs =>

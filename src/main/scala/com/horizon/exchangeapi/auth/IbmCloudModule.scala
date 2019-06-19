@@ -30,16 +30,22 @@ case class IamAuthCredentials(org: String, keyType: String, key: String) {
 case class IamToken(accessToken: String, tokenType: Option[String] = None)
 
 // For both IBM Cloud and ICP. All the rest apis that use this must be able to parse their results into this class
-case class IamUserInfo(account: Option[IamAccount], sub: String) {   // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
+// account is set when using IBM Cloud, iss is set when using ICP.
+case class IamUserInfo(account: Option[IamAccount], sub: String, iss: Option[String]) {   // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
   def accountId = if (account.isDefined) account.get.bss else ""
 }
 case class IamAccount(bss: String)
+
+// Response from ICP IAM /idmgmt/identity/api/v1/account
+case class TokenAccountResponse(id: String, name: String, description: String)
 
 // These error msgs are matched by UsersSuite.scala, so change them there if you change them here
 case class OrgNotFound(authInfo: IamAuthCredentials)
   extends UserFacingError(s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for ${authInfo.org}")
 case class IncorrectOrgFound(orgAcctId: String, userInfo: IamUserInfo)
   extends UserFacingError(s"IAM authentication succeeded, but the cloud account id of the org ($orgAcctId) does not match that of the cloud account credentials (${userInfo.accountId})")
+case class IncorrectIcpOrgFound(requestOrg: String, userCredsOrg: String)
+  extends UserFacingError(s"ICP IAM authentication succeeded, but the org specified in the request ($requestOrg) does not match the org associated with the ICP credentials ($userCredsOrg)")
 
 /** JAAS module to authenticate to the IBM cloud. Called from AuthenticationSupport:authenticate() because JAAS.config references this module.
   */
@@ -154,7 +160,7 @@ object IbmCloudAuth {
   }
 
   def authenticateUser(authInfo: IamAuthCredentials): Try[String] = {
-    logger.info("authenticateUser(): attempting to authenticate with IBM Cloud with "+authInfo)
+    logger.info("authenticateUser(): attempting to authenticate with IBM Cloud with "+authInfo.org+"/"+authInfo.keyType)
     /*
      * The caching library provides several functions that work on
      * the cache defined above. The caching function takes a key and tries
@@ -185,7 +191,7 @@ object IbmCloudAuth {
 
   private def getIcpCertFile = "/etc/horizon/exchange/icp/ca.crt"   // our ICP provisioning creates this file
 
-  // Use the IBM IAM API to authenticate the iamapikey and get an IAM token. See: https://cloud.ibm.com/apidocs/iam-identity-token-api and https://github.ibm.com/IBMPrivateCloud/roadmap/blob/master/feature-specs/security/security-services-apis.md
+  // Use the IBM IAM API to authenticate the iamapikey and get an IAM token. See: https://cloud.ibm.com/apidocs/iam-identity-token-api
   private def getIamToken(authInfo: IamAuthCredentials): Try[IamToken] = {
     if (authInfo.keyType == "iamapikey") {
       try {
@@ -206,6 +212,7 @@ object IbmCloudAuth {
   }
 
   // Using the IAM token get the ibm cloud account id (which we'll use to verify the exchange org) and users email (which we'll use as the exchange user)
+  // For ICP IAM see: https://github.ibm.com/IBMPrivateCloud/roadmap/blob/master/feature-specs/security/security-services-apis.md
   private def getUserInfo(token: IamToken): Try[IamUserInfo] = {
     if (isIcp && token.tokenType.getOrElse("") == "iamapikey") {
       // An icp platform apikey that we can use directly to authenticate and get the username
@@ -227,6 +234,7 @@ object IbmCloudAuth {
       // An icp token from the UI
       try {
         val iamUrl = getIcpIdentityUrl + "/idprovider/v1/auth/userinfo"
+        //logger.debug("Retrieving ICP IAM userinfo from " + iamUrl + ", token: " + token.accessToken)
         logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
         val response = Http(iamUrl).method("post").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
           .header("Authorization", s"BEARER ${token.accessToken}")
@@ -289,20 +297,51 @@ object IbmCloudAuth {
   // Verify that the cloud acct id of the cloud api key and the exchange org entry match
   // authInfo is the creds they passed in, userInfo is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db
   private def verifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, orgAcctId: Option[String]) = {
-    logger.trace("Verifying org: "+authInfo+", "+userInfo+", "+orgAcctId)
-    if (userInfo.account.isEmpty) {
-      DBIO.successful(authInfo.org)    // this method does not apply to ICP
-    } else if (orgAcctId.isEmpty) {
-      logger.error(s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for ${authInfo.org}")
-      DBIO.failed(OrgNotFound(authInfo))
-    } else if (authInfo.keyType == "iamtoken" && userInfo.accountId == "") {
-      // This is the case with tokens from the edge mgmt ui, and this is ok
-      DBIO.successful(authInfo.org)
-    } else if (orgAcctId.getOrElse("") != userInfo.accountId) {
-      logger.error(s"IAM authentication succeeded, but the cloud account id of the org $orgAcctId does not match that of the cloud account ${userInfo.accountId}")
-      DBIO.failed(IncorrectOrgFound(orgAcctId.getOrElse(""), userInfo))
+    //logger.trace("Verifying org: "+authInfo+", "+userInfo+", "+orgAcctId)
+    if (isIcp) {
+      if (authInfo.keyType == "iamtoken") {
+        try {
+          val iamUrl = getIcpIdentityUrl + "/idmgmt/identity/api/v1/account"
+          val token = IamToken(authInfo.key)
+          //logger.debug("Retrieving ICP IAM cluster name from " + iamUrl + ", token: " + token.accessToken)
+          logger.debug("Retrieving ICP IAM cluster name from " + iamUrl)
+          val response = Http(iamUrl).method("get").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
+            .header("Authorization", s"bearer ${token.accessToken}")   // Note: bearer MUST be lowercase for this rest api!!!
+            .asString
+          if (response.code == HttpCode.OK) {
+            val resp = parse(response.body).extract[List[TokenAccountResponse]]
+            val tokenOrg = if (resp.nonEmpty) extractICPTokenOrg(resp.head.id) else ""
+            logger.trace("Org of ICP creds: "+tokenOrg+", org of request: "+authInfo.org)
+            if (tokenOrg == authInfo.org) DBIO.successful(authInfo.org)
+            else DBIO.failed(IncorrectIcpOrgFound(authInfo.org, tokenOrg))
+          }
+          else {
+            logger.debug("Org verification http code: "+response.code)
+            DBIO.failed(new IamApiErrorException(response.body.toString))
+          }
+        } catch { case e: Exception => DBIO.failed(new IamApiErrorException("error authenticating ICP IAM token: "+e.getMessage)) }
+      } else {
+        // An ICP platform api key, the iss field contains a url that includes the cluster name
+        val issOrg = extractICPOrg(userInfo.iss.getOrElse(""))
+        logger.trace("Org of ICP creds: "+issOrg+", org of request: "+authInfo.org)
+        if (issOrg == authInfo.org) DBIO.successful(authInfo.org)
+        else DBIO.failed(IncorrectIcpOrgFound(authInfo.org, issOrg))
+      }
     } else {
-      DBIO.successful(authInfo.org)
+      // IBM Cloud
+      if (orgAcctId.isEmpty) {
+        logger.error(s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for ${authInfo.org}")
+        DBIO.failed(OrgNotFound(authInfo))
+      } else if (authInfo.keyType == "iamtoken" && userInfo.accountId == "") {
+        //todo: this is the case with tokens from the edge mgmt ui, the ui already verified the org and is using the right none, but we still need to
+        //      verify the org in case someone is spoofing being the ui
+        DBIO.successful(authInfo.org)
+      } else if (orgAcctId.getOrElse("") != userInfo.accountId) {
+        logger.error(s"IAM authentication succeeded, but the cloud account id of the org $orgAcctId does not match that of the cloud account ${userInfo.accountId}")
+        DBIO.failed(IncorrectOrgFound(orgAcctId.getOrElse(""), userInfo))
+      } else {
+        DBIO.successful(authInfo.org)
+      }
     }
   }
 
@@ -315,6 +354,24 @@ object IbmCloudAuth {
       .headOption
   }
 
+  private def extractICPTokenOrg(id: String) = {
+    // ICP id field is like: id-major-peacock-icp-cluster-account
+    val R = """id-(.+)-account""".r
+    id match {
+      case R(clusterName) => clusterName
+      case _ => ""
+    }
+  }
+
+  private def extractICPOrg(iss: String) = {
+    // ICP iss value looks like: https://major-peacock-icp-cluster.icp:9443/oidc/token
+    val R = """https://(.+)\.icp:.+""".r
+    iss match {
+      case R(clusterName) => clusterName
+      case _ => ""
+    }
+  }
+
   private def createUser(org: String, userInfo: IamUserInfo) = {
     logger.trace("Creating user: org="+org+", "+userInfo)
     val user = UserRow(
@@ -323,7 +380,8 @@ object IbmCloudAuth {
       "",
       admin = false,
       userInfo.sub,
-      ApiTime.nowUTC
+      ApiTime.nowUTC,
+      s"$org/${userInfo.sub}"
     )
     (UsersTQ.rows += user).asTry.map(count => count.map(_ => user))
   }

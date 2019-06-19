@@ -175,6 +175,21 @@ To build an exchange container with code that is targeted for a git branch:
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.94.0
+
+- Added verification of org during ICP IAM authentication
+
+## Changes in 1.93.0
+
+- Added check in pattern POST/PUT for service version not being set (anax issue 932)
+- Removed user pw from debug level logging
+- Added old tables to table drop list for /admin/dropdb, in case they were running with an old db
+- Merged in fixes to exchange travis test (issue 88)
+
+## Changes in 1.92.0
+
+- Added updatedBy field to user resource in exchange
+
 ## Changes in 1.91.0
 
 - Change requiredServices.version to requiredServices.versionRange

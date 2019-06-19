@@ -631,6 +631,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
+  //todo: remove this once anax 2.23.7 hits prod
   // ======== POST /orgs/{orgid}/search/nodes ========================
   val postSearchNodes =
     (apiOperation[PostSearchNodesResponse]("postSearchNodes")

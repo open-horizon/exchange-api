@@ -1282,7 +1282,8 @@ class NodesSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - now 2 nodes not stales") {
     val input = PostBusinessPolicySearchRequest(None, changedSinceAgo(1), None, None)
     val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
+    info("code: "+response.code+", response.body: "+response.body)
+    //info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes

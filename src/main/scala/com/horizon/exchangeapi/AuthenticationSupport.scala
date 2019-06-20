@@ -58,12 +58,17 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
     )
     for (err <- Try(loginCtx.login()).failed) {
       // An auth exception, log it, then halt
-      val creds = getCredentials(request, params, anonymousOk)
-      val clientIp = request.header("X-Forwarded-For").orElse(Option(request.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
-      //logger.trace("in AuthenticationSupport.authenticate: err="+err)
-      val (httpCode, apiResponse, msg) = AuthErrors.message(err)
-      logger.error("User or id " + creds.id + " from " + clientIp + " running " + request.getMethod + " " + request.getPathInfo + ": " + apiResponse + ": " + msg)
-      halt(httpCode, ApiResponse(apiResponse, msg))
+      try {
+        val creds = getCredentials(request, params, anonymousOk)   // can throw InvalidCredentialsException
+        val clientIp = request.header("X-Forwarded-For").orElse(Option(request.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
+        //logger.trace("in AuthenticationSupport.authenticate: err="+err)
+        val (httpCode, apiResponse, msg) = AuthErrors.message(err)
+        logger.error("User or id " + creds.id + " from " + clientIp + " running " + request.getMethod + " " + request.getPathInfo + ": " + apiResponse + ": " + msg)
+        halt(httpCode, ApiResponse(apiResponse, msg))
+      } catch {
+        case e: Exception => val (httpCode, apiResponse, msg) = AuthErrors.message(e)
+          halt(httpCode, ApiResponse(apiResponse, msg))
+      }
     }
     val subject = loginCtx.getSubject
     AuthenticatedIdentity(subject.getPrivateCredentials(classOf[Identity]).asScala.head, subject)

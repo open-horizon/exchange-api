@@ -70,6 +70,10 @@ export EXCHANGE_PW=<my-pw-in-IBM-org>
 src/test/bash/primedb.sh
 ```
 - `primedb.sh` will only create what doesn't already exist, so it can be run again to restore some resources you have deleted.
+- To locally test the exchange against an existing ICP cluster:
+```
+export ICP_EXTERNAL_MGMT_INGRESS=<icp-external-host>:8443
+```
 
 ## Running the Automated Tests in Local Sandbox
 
@@ -174,6 +178,11 @@ To build an exchange container with code that is targeted for a git branch:
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 1.96.0
+
+- Switched to use internal ICP authentication endpoints
+- Caught exception when no auth provided
 
 ## Changes in 1.95.0
 

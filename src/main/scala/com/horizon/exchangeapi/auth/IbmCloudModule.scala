@@ -36,7 +36,7 @@ case class IamUserInfo(account: Option[IamAccount], sub: String, iss: Option[Str
 }
 case class IamAccount(bss: String)
 
-// Response from ICP IAM /idmgmt/identity/api/v1/account
+// Response from ICP IAM /identity/api/v1/account
 case class TokenAccountResponse(id: String, name: String, description: String)
 
 // These error msgs are matched by UsersSuite.scala, so change them there if you change them here
@@ -185,9 +185,46 @@ object IbmCloudAuth {
     removeAll().map(_ => ())
   }
 
-  private def isIcp = sys.env.get("PLATFORM_IDENTITY_PROVIDER_SERVICE_HOST").nonEmpty   // our ICP provisioning sets this
+  private def isIcp = {
+    // ICP kube automatically sets the 1st one, our development environment sets the 2nd one when locally testing
+    sys.env.get("PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT").nonEmpty || sys.env.get("ICP_EXTERNAL_MGMT_INGRESS").nonEmpty
+  }
 
-  private def getIcpIdentityUrl = "https://" + sys.env.getOrElse("PLATFORM_IDENTITY_PROVIDER_SERVICE_HOST", "") + ":8443"
+  private def getIcpIdentityProviderUrl = {
+    // https://$ICP_EXTERNAL_MGMT_INGRESS/idprovider  or  https://platform-identity-provider:$PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT
+    if (sys.env.get("ICP_EXTERNAL_MGMT_INGRESS").nonEmpty) {
+      val ICP_EXTERNAL_MGMT_INGRESS = sys.env.getOrElse("ICP_EXTERNAL_MGMT_INGRESS", "")
+      s"https://$ICP_EXTERNAL_MGMT_INGRESS/idprovider"
+    } else {
+      // ICP kube automatically sets this env var and hostname
+      val PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT = sys.env.getOrElse("PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT", "4300")
+      s"https://platform-identity-provider:$PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT"
+    }
+  }
+
+  private def getIcpIdentityMgmtUrl = {
+    // https://$ICP_EXTERNAL_MGMT_INGRESS/idmgmt  or  https://platform-identity-management:$PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT
+    if (sys.env.get("ICP_EXTERNAL_MGMT_INGRESS").nonEmpty) {
+      val ICP_EXTERNAL_MGMT_INGRESS = sys.env.getOrElse("ICP_EXTERNAL_MGMT_INGRESS", "")
+      s"https://$ICP_EXTERNAL_MGMT_INGRESS/idmgmt"
+    } else {
+      // ICP kube automatically sets this env var and hostname
+      val PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT = sys.env.getOrElse("PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT", "4500")
+      s"https://platform-identity-management:$PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT"
+    }
+  }
+
+  private def getIcpMgmtIngressUrl = {
+    // https://$ICP_EXTERNAL_MGMT_INGRESS  or  https://icp-management-ingress:$ICP_MANAGEMENT_INGRESS_SERVICE_PORT
+    if (sys.env.get("ICP_EXTERNAL_MGMT_INGRESS").nonEmpty) {
+      val ICP_EXTERNAL_MGMT_INGRESS = sys.env.getOrElse("ICP_EXTERNAL_MGMT_INGRESS", "")
+      s"https://$ICP_EXTERNAL_MGMT_INGRESS"
+    } else {
+      // ICP kube automatically sets this env var and hostname
+      val ICP_MANAGEMENT_INGRESS_SERVICE_PORT = sys.env.getOrElse("ICP_MANAGEMENT_INGRESS_SERVICE_PORT", "8443")
+      s"https://icp-management-ingress:$ICP_MANAGEMENT_INGRESS_SERVICE_PORT"
+    }
+  }
 
   private def getIcpCertFile = "/etc/horizon/exchange/icp/ca.crt"   // our ICP provisioning creates this file
 
@@ -216,9 +253,8 @@ object IbmCloudAuth {
   private def getUserInfo(token: IamToken): Try[IamUserInfo] = {
     if (isIcp && token.tokenType.getOrElse("") == "iamapikey") {
       // An icp platform apikey that we can use directly to authenticate and get the username
-      //crl -k -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d "apikey=$ICP_PLATFORM_KEY" $ICP_IAM_URL/iam-token/oidc/introspect
       try {
-        val iamUrl = getIcpIdentityUrl + "/iam-token/oidc/introspect"
+        val iamUrl = getIcpMgmtIngressUrl + "/iam-token/oidc/introspect"
         logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
         val apiKey = token.accessToken
         // Have our http client use the ICP self-signed cert so we don't have to use the allowUnsafeSSL option
@@ -233,7 +269,7 @@ object IbmCloudAuth {
     } else if (isIcp) {
       // An icp token from the UI
       try {
-        val iamUrl = getIcpIdentityUrl + "/idprovider/v1/auth/userinfo"
+        val iamUrl = getIcpIdentityProviderUrl + "/v1/auth/userinfo"
         //logger.debug("Retrieving ICP IAM userinfo from " + iamUrl + ", token: " + token.accessToken)
         logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
         val response = Http(iamUrl).method("post").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
@@ -301,7 +337,7 @@ object IbmCloudAuth {
     if (isIcp) {
       if (authInfo.keyType == "iamtoken") {
         try {
-          val iamUrl = getIcpIdentityUrl + "/idmgmt/identity/api/v1/account"
+          val iamUrl = getIcpIdentityMgmtUrl + "/identity/api/v1/account"
           val token = IamToken(authInfo.key)
           //logger.debug("Retrieving ICP IAM cluster name from " + iamUrl + ", token: " + token.accessToken)
           logger.debug("Retrieving ICP IAM cluster name from " + iamUrl)

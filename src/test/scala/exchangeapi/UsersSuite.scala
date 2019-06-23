@@ -895,9 +895,9 @@ class UsersSuite extends FunSuite {
       assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
 
       // clear auth cache
-      response = Http(NOORGURL+"/admin/clearAuthCaches").method("post").headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/clearauthcaches").method("post").headers(ACCEPT).headers(ROOTAUTH).asString
       info("CLEAR CACHE code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.OK)
+      assert(response.code === HttpCode.POST_OK)
 
       // add ibmcloud_id to different org
       tagInput = s"""{ "tags": {"ibmcloud_id": "$iamAccount"} }"""

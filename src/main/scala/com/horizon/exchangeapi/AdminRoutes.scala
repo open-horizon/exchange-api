@@ -565,7 +565,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     AuthCache.patterns.removeAll()
     AuthCache.services.removeAll()
     AuthCache.users.removeAll()
-    response.setStatus(HttpCode.PUT_OK)
+    response.setStatus(HttpCode.POST_OK)
     ApiResponse(ApiResponseType.OK, "cache cleared")
   })
 

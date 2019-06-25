@@ -829,16 +829,15 @@ class UsersSuite extends FunSuite {
     // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY, EXCHANGE_IAM_EMAIL, and EXCHANGE_IAM_ACCOUNT_ID
     if (!iamKey.isEmpty && !iamEmail.isEmpty && !iamAccount.isEmpty && !iamOtherKey.isEmpty && !iamOtherAccount.isEmpty) {
       // add ibmcloud_id to org
-      //todo: the normal usage is to add an org with the same name as the ibm account email, so we should probably test that,
-      //      rather than adding ibmcloud_id to a different org
       var tagInput = s"""{ "tags": {"ibmcloud_id": "$iamAccount"} }"""
       var response = Http(URL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
       // authenticate as a cloud user and view org (action they are authorized for)
+      info("authenticating to ibm cloud with "+IAMAUTH(orgid)+" and GETing "+URL)
       response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
-      info("code: "+response.code)
+      info("GET "+URL+" code: "+response.code)
       assert(response.code === HttpCode.OK)
 
       // authenticate as a cloud user and view org, ensuring cached user works

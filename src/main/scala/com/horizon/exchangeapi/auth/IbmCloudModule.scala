@@ -31,7 +31,7 @@ case class IamToken(accessToken: String, tokenType: Option[String] = None)
 
 // For both IBM Cloud and ICP. All the rest apis that use this must be able to parse their results into this class
 // account is set when using IBM Cloud, iss is set when using ICP.
-case class IamUserInfo(account: Option[IamAccount], sub: String, iss: Option[String]) {   // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
+case class IamUserInfo(account: Option[IamAccount], sub: String, iss: Option[String], active: Option[Boolean]) {   // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
   def accountId = if (account.isDefined) account.get.bss else ""
 }
 case class IamAccount(bss: String)
@@ -160,7 +160,7 @@ object IbmCloudAuth {
   }
 
   def authenticateUser(authInfo: IamAuthCredentials): Try[String] = {
-    logger.info("authenticateUser(): attempting to authenticate with IBM Cloud with "+authInfo.org+"/"+authInfo.keyType)
+    logger.debug("authenticateUser(): attempting to authenticate with IBM Cloud with "+authInfo.org+"/"+authInfo.keyType)
     /*
      * The caching library provides several functions that work on the cache defined above. The caching function takes a key and tries
      * to retrieve from the cache, and if it is not there runs the block of code provided, adds the result to the cache, and then returns it.
@@ -171,7 +171,7 @@ object IbmCloudAuth {
         token <- if (authInfo.keyType == "iamtoken") Success(IamToken(authInfo.key))
           else if (isIcp && authInfo.keyType == "iamapikey") Success(IamToken(authInfo.key, Some(authInfo.keyType)))  // this is an apikey we are putting in IamToken, but it can be used like a token in the next step
           else getIamToken(authInfo)
-        userInfo <- getUserInfo(token)
+        userInfo <- getUserInfo(token, authInfo)
         user <- getOrCreateUser(authInfo, userInfo)
       } yield user.username   // this is the composite org/username
     }
@@ -224,22 +224,35 @@ object IbmCloudAuth {
   }
 
   private def getIcpCertFile = "/etc/horizon/exchange/icp/ca.crt"   // our ICP provisioning creates this file
+  private def iamRetryNum = 5
 
   // Use the IBM IAM API to authenticate the iamapikey and get an IAM token. See: https://cloud.ibm.com/apidocs/iam-identity-token-api
   private def getIamToken(authInfo: IamAuthCredentials): Try[IamToken] = {
     if (authInfo.keyType == "iamapikey") {
-      try {
-        logger.debug("Retrieving IBM Cloud IAM token using API key")
-        val response = Http("https://iam.cloud.ibm.com/identity/token")
-          .header("Accept", "application/json")
-          .postForm(Seq(
-            "grant_type" -> "urn:ibm:params:oauth:grant-type:apikey",
-            "apikey" -> authInfo.key
-          ))
-          .asString
-        if (response.code == HttpCode.OK) Success(parse(response.body).camelizeKeys.extract[IamToken])
-        else Failure(new IamApiErrorException(response.body.toString))
-      } catch { case e: Exception => Failure(new IamApiErrorException("error getting IAM token from API key: "+e.getMessage)) }
+      // An IBM Cloud IAM platform api key
+      var delayedReturn: Try[IamToken] = Failure(new AuthInternalErrorException("IAM return value not set in retry loop"))
+      for (i <- 1 to iamRetryNum) {
+        try {
+          val iamUrl = "https://iam.cloud.ibm.com/identity/token"
+          logger.info("Attempt "+i+" retrieving IBM Cloud IAM token for "+authInfo.org+"/iamapikey from " + iamUrl)
+          val response = Http(iamUrl)
+            .header("Accept", "application/json")
+            .postForm(Seq(
+              "grant_type" -> "urn:ibm:params:oauth:grant-type:apikey",
+              "apikey" -> authInfo.key
+            ))
+            .asString
+          if (response.code == HttpCode.OK) return Success(parse(response.body).camelizeKeys.extract[IamToken])
+          else if (response.code == HttpCode.BAD_INPUT || response.code == HttpCode.BADCREDS || response.code == HttpCode.ACCESS_DENIED || response.code == HttpCode.NOT_FOUND) {
+            // This IAM API returns BAD_INPUT (400) when the mechanics of the api call were successful, but the api key was invalid
+            return Failure(new IamApiErrorException(response.body.toString))
+          }
+          else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
+        } catch {
+          case e: Exception => delayedReturn = Failure(new IamApiErrorException("error getting IAM token from API key: " + e.getMessage))
+        }
+      }
+      delayedReturn  // if we tried the max times and never got a successful positive or negative, return what we last got
     } else {
       Failure(new AuthInternalErrorException("the user is not a valid IAM keyword"))
     }
@@ -247,47 +260,78 @@ object IbmCloudAuth {
 
   // Using the IAM token get the ibm cloud account id (which we'll use to verify the exchange org) and users email (which we'll use as the exchange user)
   // For ICP IAM see: https://github.ibm.com/IBMPrivateCloud/roadmap/blob/master/feature-specs/security/security-services-apis.md
-  private def getUserInfo(token: IamToken): Try[IamUserInfo] = {
+  private def getUserInfo(token: IamToken, authInfo: IamAuthCredentials): Try[IamUserInfo] = {
     if (isIcp && token.tokenType.getOrElse("") == "iamapikey") {
       // An icp platform apikey that we can use directly to authenticate and get the username
-      try {
-        val iamUrl = getIcpMgmtIngressUrl + "/iam-token/oidc/introspect"
-        logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
-        val apiKey = token.accessToken
-        // Have our http client use the ICP self-signed cert so we don't have to use the allowUnsafeSSL option
-        val response = Http(iamUrl).method("post").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
-          .header("Content-Type", "application/x-www-form-urlencoded")
-          .postData("apikey="+apiKey)
-          .asString
-        // val response = Http(iamUrl).method("post").option(HttpOptions.allowUnsafeSSL).header("Content-Type", "application/x-www-form-urlencoded").postData("apikey="+apiKey).asString
-        if (response.code == HttpCode.OK) Success(parse(response.body).extract[IamUserInfo])
-        else Failure(new IamApiErrorException(response.body.toString))
-      } catch { case e: Exception => Failure(new IamApiErrorException("error authenticating ICP IAM API key: "+e.getMessage)) }
+      var delayedReturn: Try[IamUserInfo] = Failure(new AuthInternalErrorException("IAM return value not set in retry loop"))
+      for (i <- 1 to iamRetryNum) {
+        try {
+          val iamUrl = getIcpMgmtIngressUrl + "/iam-token/oidc/introspect"
+          logger.info("Attempt "+i+" retrieving ICP IAM userinfo for "+authInfo.org+"/iamapikey from " + iamUrl)
+          val apiKey = token.accessToken
+          // Have our http client use the ICP self-signed cert so we don't have to use the allowUnsafeSSL option
+          val response = Http(iamUrl).method("post").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .postData("apikey=" + apiKey)
+            .asString
+          if (response.code == HttpCode.OK) {
+            // This api returns 200 even for an invalid token. Have to determine its validity via the 'active' field
+            val userInfo = parse(response.body).extract[IamUserInfo]
+            if (userInfo.active.getOrElse(false)) return Success(userInfo)
+            else return Failure(new IamApiErrorException("invalid token"))
+          }
+          else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
+        } catch {
+          case e: Exception => delayedReturn = Failure(new IamApiErrorException("error authenticating ICP IAM API key: " + e.getMessage))
+        }
+      }
+      delayedReturn  // if we tried the max times and never got a successful positive or negative, return what we last got
     } else if (isIcp) {
       // An icp token from the UI
-      try {
-        val iamUrl = getIcpIdentityProviderUrl + "/v1/auth/userinfo"
-        //logger.debug("Retrieving ICP IAM userinfo from " + iamUrl + ", token: " + token.accessToken)
-        logger.debug("Retrieving ICP IAM userinfo from " + iamUrl)
-        val response = Http(iamUrl).method("post").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
-          .header("Authorization", s"BEARER ${token.accessToken}")
-          .header("Content-Type", "application/json")
-          .asString
-        if (response.code == HttpCode.OK) Success(parse(response.body).extract[IamUserInfo])
-        else Failure(new IamApiErrorException(response.body.toString))
-      } catch { case e: Exception => Failure(new IamApiErrorException("error authenticating ICP IAM token: "+e.getMessage)) }
+      var delayedReturn: Try[IamUserInfo] = Failure(new AuthInternalErrorException("IAM return value not set in retry loop"))
+      for (i <- 1 to iamRetryNum) {
+        try {
+          val iamUrl = getIcpIdentityProviderUrl + "/v1/auth/userinfo"
+          //logger.debug("Retrieving ICP IAM userinfo from " + iamUrl + ", token: " + token.accessToken)
+          logger.info("Attempt "+i+" retrieving ICP IAM userinfo for "+authInfo.org+"/iamtoken from " + iamUrl)
+          val response = Http(iamUrl).method("post").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
+            .header("Authorization", s"BEARER ${token.accessToken}")
+            .header("Content-Type", "application/json")
+            .asString
+          if (response.code == HttpCode.OK) return Success(parse(response.body).extract[IamUserInfo])
+          else if (response.code == HttpCode.BAD_INPUT || response.code == HttpCode.BADCREDS || response.code == HttpCode.ACCESS_DENIED || response.code == HttpCode.NOT_FOUND) {
+            // This IAM API returns BAD_INPUT (400) when the mechanics of the api call were successful, but the api key was invalid
+            return Failure(new IamApiErrorException(response.body.toString))
+          }
+          else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
+        } catch {
+          case e: Exception => delayedReturn = Failure(new IamApiErrorException("error authenticating ICP IAM token: " + e.getMessage))
+        }
+      }
+      delayedReturn  // if we tried the max times and never got a successful positive or negative, return what we last got
     } else {
       // An ibm public cloud token, either from the UI or from the platform apikey we were given
-      try {
-        val iamUrl = "https://iam.cloud.ibm.com/identity/userinfo"
-        logger.debug("Retrieving IBM Cloud IAM userinfo from " + iamUrl)
-        val response = Http(iamUrl)
-          .header("Authorization", s"BEARER ${token.accessToken}")
-          .header("Content-Type", "application/json")
-          .asString
-        if (response.code == HttpCode.OK) Success(parse(response.body).extract[IamUserInfo])
-        else Failure(new IamApiErrorException(response.body.toString))
-      } catch { case e: Exception => Failure(new IamApiErrorException("error authenticating IAM token: "+e.getMessage)) }
+      var delayedReturn: Try[IamUserInfo] = Failure(new AuthInternalErrorException("IAM return value not set in retry loop"))
+      for (i <- 1 to iamRetryNum) {
+        try {
+          val iamUrl = "https://iam.cloud.ibm.com/identity/userinfo"
+          logger.info("Attempt "+i+" retrieving IBM Cloud IAM userinfo for "+authInfo.org+"/iamtoken from " + iamUrl)
+          val response = Http(iamUrl)
+            .header("Authorization", s"BEARER ${token.accessToken}")
+            .header("Content-Type", "application/json")
+            .asString
+          if (response.code == HttpCode.OK) {
+            // This api returns 200 even for an invalid token. Have to determine its validity via the 'active' field
+            val userInfo = parse(response.body).extract[IamUserInfo]
+            if (userInfo.active.getOrElse(false)) return Success(userInfo)
+            else return Failure(new IamApiErrorException("invalid token"))
+          }
+          else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
+        } catch {
+          case e: Exception => delayedReturn = Failure(new IamApiErrorException("error authenticating IAM token: " + e.getMessage))
+        }
+      }
+      delayedReturn  // if we tried the max times and never got a successful positive or negative, return what we last got
     }
   }
 
@@ -329,30 +373,41 @@ object IbmCloudAuth {
 
   // Verify that the cloud acct id of the cloud api key and the exchange org entry match
   // authInfo is the creds they passed in, userInfo is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db
-  private def verifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, orgAcctId: Option[String]) = {
+  private def verifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, orgAcctId: Option[String]): DBIOAction[String, NoStream, Effect] = {
     //logger.trace("Verifying org: "+authInfo+", "+userInfo+", "+orgAcctId)
     if (isIcp) {
       if (authInfo.keyType == "iamtoken") {
-        try {
-          val iamUrl = getIcpIdentityMgmtUrl + "/identity/api/v1/account"
-          val token = IamToken(authInfo.key)
-          //logger.debug("Retrieving ICP IAM cluster name from " + iamUrl + ", token: " + token.accessToken)
-          logger.debug("Retrieving ICP IAM cluster name from " + iamUrl)
-          val response = Http(iamUrl).method("get").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
-            .header("Authorization", s"bearer ${token.accessToken}")   // Note: bearer MUST be lowercase for this rest api!!!
-            .asString
-          if (response.code == HttpCode.OK) {
-            val resp = parse(response.body).extract[List[TokenAccountResponse]]
-            val tokenOrg = if (resp.nonEmpty) extractICPTokenOrg(resp.head.id) else ""
-            logger.trace("Org of ICP creds: "+tokenOrg+", org of request: "+authInfo.org)
-            if (tokenOrg == authInfo.org) DBIO.successful(authInfo.org)
-            else DBIO.failed(IncorrectIcpOrgFound(authInfo.org, tokenOrg))
+        // An ICP token, we don't have the org of the creds yet, need to get it
+        var delayedReturn: DBIOAction[String, NoStream, Effect] = DBIO.failed(new AuthInternalErrorException("IAM return value not set in retry loop"))
+        for (i <- 1 to iamRetryNum) {
+          try {
+            val iamUrl = getIcpIdentityMgmtUrl + "/identity/api/v1/account"
+            val token = IamToken(authInfo.key)
+            //logger.debug("Retrieving ICP IAM cluster name from " + iamUrl + ", token: " + token.accessToken)
+            logger.info("Attempt "+i+" retrieving ICP IAM cluster name for "+authInfo.org+"/iamtoken from " + iamUrl)
+            val response = Http(iamUrl).method("get").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
+              .header("Authorization", s"bearer ${token.accessToken}") // Note: bearer MUST be lowercase for this rest api!!!
+              .asString
+            if (response.code == HttpCode.OK) {
+              val resp = parse(response.body).extract[List[TokenAccountResponse]]
+              val tokenOrg = if (resp.nonEmpty) extractICPTokenOrg(resp.head.id) else ""
+              logger.trace("Org of ICP creds: " + tokenOrg + ", org of request: " + authInfo.org)
+              if (tokenOrg == authInfo.org) return DBIO.successful(authInfo.org)
+              else return DBIO.failed(IncorrectIcpOrgFound(authInfo.org, tokenOrg))
+            }
+            else if (response.code == HttpCode.BAD_INPUT || response.code == HttpCode.BADCREDS || response.code == HttpCode.ACCESS_DENIED || response.code == HttpCode.NOT_FOUND) {
+              // This IAM API returns ACCESS_DENIED (403) when the mechanics of the api call were successful, but the token was invalid
+              return DBIO.failed(new IamApiErrorException(response.body.toString))
+            }
+            else {
+              logger.debug("Org verification http code: " + response.code)
+              delayedReturn = DBIO.failed(new IamApiErrorException(response.body.toString))
+            }
+          } catch {
+            case e: Exception => delayedReturn = DBIO.failed(new IamApiErrorException("error authenticating ICP IAM token: " + e.getMessage))
           }
-          else {
-            logger.debug("Org verification http code: "+response.code)
-            DBIO.failed(new IamApiErrorException(response.body.toString))
-          }
-        } catch { case e: Exception => DBIO.failed(new IamApiErrorException("error authenticating ICP IAM token: "+e.getMessage)) }
+        }
+        delayedReturn  // if we tried the max times and never got a successful positive or negative, return what we last got
       } else {
         // An ICP platform api key, the iss field contains a url that includes the cluster name
         val issOrg = extractICPOrg(userInfo.iss.getOrElse(""))
@@ -361,7 +416,7 @@ object IbmCloudAuth {
         else DBIO.failed(IncorrectIcpOrgFound(authInfo.org, issOrg))
       }
     } else {
-      // IBM Cloud
+      // IBM Cloud - we already have the account id from iam from the creds, and the account id of the exchange org
       if (orgAcctId.isEmpty) {
         logger.error(s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for ${authInfo.org}")
         DBIO.failed(OrgNotFound(authInfo))

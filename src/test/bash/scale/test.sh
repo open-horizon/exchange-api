@@ -7,21 +7,25 @@ if [[ $1 == "-h" || $1 == "--help" ]]; then
 	exit 0
 fi
 
-if [[ -n $1 ]]; then
-	namebase=$1
-else
-	namebase="1"
-fi
+namebase="${1:-1}"
 
 # These env vars are required
-if [[ -z "$EXCHANGE_IAM_ACCOUNT_ID" || -z "$EXCHANGE_IAM_KEY" ]]; then
-    echo "Error: environment variables EXCHANGE_IAM_ACCOUNT_ID (id of your cloud account) and EXCHANGE_IAM_KEY (platform API key for your cloud user) must both be set."
+if [[ -z "$EXCHANGE_ROOTPW" || -z "$EXCHANGE_IAM_ACCOUNT_ID" || -z "$EXCHANGE_IAM_KEY" ]]; then
+    echo "Error: environment variables EXCHANGE_ROOTPW, EXCHANGE_IAM_ACCOUNT_ID (id of your cloud account), and EXCHANGE_IAM_KEY (platform API key for your cloud user) must both be set."
     exit 1
 fi
 
+scriptName="$(basename $0)"
+
 # Test configuration. You can override these before invoking the script, if you want.
-EX_PERF_REPORT_FILE="${EX_PERF_REPORT_FILE:-/tmp/exchangePerf/$namebase.summary}"
-EX_PERF_DEBUG_FILE="${EX_PERF_DEBUG_FILE:-/tmp/exchangePerf/debug/$namebase.lastmsg}"
+HZN_EXCHANGE_URL="${HZN_EXCHANGE_URL:-http://localhost:8080/v1}"
+EX_PERF_ORG="${EX_PERF_ORG:-performance${scriptName%%.*}}"
+# default of where to write the summary or error msgs. Can be overridden
+EX_PERF_REPORT_DIR="${EX_PERF_REPORT_DIR:-/tmp/exchangePerf}"
+reportDir="$EX_PERF_REPORT_DIR/$scriptName"
+EX_PERF_REPORT_FILE="${EX_PERF_REPORT_FILE:-$reportDir/$namebase.summary}"
+# this file holds the output of the most recent curl cmd, which is useful when the script errors out
+EX_PERF_DEBUG_FILE="${EX_PERF_DEBUG_FILE:-$reportDir/debug/$namebase.lastmsg}"
 EX_PERF_SCALE="${EX_PERF_SCALE:-10}"
 EX_NUM_USERS="${EX_NUM_USERS:-$((2 * $EX_PERF_SCALE))}"
 EX_NUM_NODES="${EX_NUM_NODES:-$((4 * $EX_PERF_SCALE))}"
@@ -33,17 +37,15 @@ EX_NUM_PATTERNS="${EX_NUM_PATTERNS:-$((2 * $EX_PERF_SCALE))}"
 EX_NUM_BUSINESSPOLICIES="${EX_NUM_BUSINESSPOLICIES:-$((2 * $EX_PERF_SCALE))}"
 EX_PERF_REPEAT="${EX_PERF_REPEAT:-$((3 * $EX_PERF_SCALE))}"
 EX_PERF_ORG="${EX_PERF_ORG:-PerformanceTest}"
-EX_URL_ROOT="${EXCHANGE_URL_ROOT:-http://localhost:8080}"
-EX_ROOT_PW="${EXCHANGE_ROOTPW:-rootpw}"	# this has to match what is in the exchange config.json
 
-echo mkdir -p $(dirname $EX_PERF_REPORT_FILE) $(dirname $EX_PERF_DEBUG_FILE)
-mkdir -p $(dirname $EX_PERF_REPORT_FILE) $(dirname $EX_PERF_DEBUG_FILE)
+echo mkdir -p "$reportDir" "$(dirname $EX_PERF_DEBUG_FILE)"
+mkdir -p "$reportDir" "$(dirname $EX_PERF_DEBUG_FILE)"
 
 appjson="application/json"
 accept="-H Accept:$appjson"
 content="-H Content-Type:$appjson"
 
-rootauth="root/root:$EX_ROOT_PW"
+rootauth="root/root:$EXCHANGE_ROOTPW"
 
 # This script will create just 1 org and put everything else under that. If you use wrapper.sh to drive this,
 # each instance of this script will use a different org.
@@ -125,7 +127,7 @@ function curlget {
 	echo "Running GET ($auth) $url $numtimes times:"
 	start=`date +%s`
 	for (( i=1 ; i<=$numtimes ; i++ )) ; do
-		rc=$(curl -X GET $curlBasicArgs -H "Authorization:Basic $auth" $EX_URL_ROOT/v1/$url)
+		rc=$(curl -X GET $curlBasicArgs -H "Authorization:Basic $auth" $HZN_EXCHANGE_URL/$url)
 		checkrc $rc 200 '' "GET $url"
 		echo -n .
 		bignum=$(($bignum+1))
@@ -148,11 +150,11 @@ function curlcreate {
 	for (( i=1 ; i<=$numtimes ; i++ )) ; do
 	    if [[ "$urlbase" =~ /services$ ]]; then
 	        # special case for creating services, because the body needs to be incremented
-            # echo curl -X $method $curlBasicArgs $content $auth -d "${body}$i\"}" $EX_URL_ROOT/v1/$urlbase
-            rc=$(curl -X $method $curlBasicArgs $content $auth -d "${body}$i\"}" $EX_URL_ROOT/v1/$urlbase)
+            # echo curl -X $method $curlBasicArgs $content $auth -d "${body}$i\"}" $HZN_EXCHANGE_URL/$urlbase
+            rc=$(curl -X $method $curlBasicArgs $content $auth -d "${body}$i\"}" $HZN_EXCHANGE_URL/$urlbase)
         else
-            # echo curl -X $method $curlBasicArgs $content $auth -d "$body" $EX_URL_ROOT/v1/$urlbase$i
-            rc=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $EX_URL_ROOT/v1/$urlbase$i)
+            # echo curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$urlbase$i
+            rc=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$urlbase$i)
         fi
 		checkrc $rc 201 '' "$method $urlbase$i"
 		echo -n .
@@ -174,10 +176,10 @@ function curlputpost {
 	auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
 	for (( i=1 ; i<=$numtimes ; i++ )) ; do
 		if [[ $body == "" ]]; then
-			rc=$(curl -X $method $curlBasicArgs $auth $EX_URL_ROOT/v1/$url)
+			rc=$(curl -X $method $curlBasicArgs $auth $HZN_EXCHANGE_URL/$url)
 		else
-			# echo curl -X $method $curlBasicArgs $content $auth -d "$body" $EX_URL_ROOT/v1/$url
-			rc=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $EX_URL_ROOT/v1/$url)
+			# echo curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url
+			rc=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url)
 		fi
 		checkrc $rc 201 '' "$method $url"
 		echo -n .
@@ -200,8 +202,8 @@ function curldelete {
 	start=`date +%s`
 	auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
     for (( i=1 ; i<=$numtimes ; i++ )) ; do
-        echo curl -X DELETE $curlBasicArgs $auth $EX_URL_ROOT/v1/$urlbase$i
-        rc=$(curl -X DELETE $curlBasicArgs $auth $EX_URL_ROOT/v1/$urlbase$i)
+        echo curl -X DELETE $curlBasicArgs $auth $HZN_EXCHANGE_URL/$urlbase$i
+        rc=$(curl -X DELETE $curlBasicArgs $auth $HZN_EXCHANGE_URL/$urlbase$i)
         checkrc $rc 204 $secondcode "DELETE $urlbase$i"
         echo -n .
         #echo $rc
@@ -218,15 +220,15 @@ function deletemsgs {
 	echo "Deleting ($auth) $urlbase..."
 	start=`date +%s`
 	msgNums='1 2'
-	msgNums=$(curl -X GET -sS $accept -H "Authorization:Basic $auth" $EX_URL_ROOT/v1/$urlbase | jq '.messages[].msgId')
+	msgNums=$(curl -X GET -sS $accept -H "Authorization:Basic $auth" $HZN_EXCHANGE_URL/$urlbase | jq '.messages[].msgId')
 	# echo "msgNums: $msgNums"
     checkexitcode $? "GET msg numbers"
     if [[ msgNums == "" ]]; then echo "=======================================> GET msgs returned no output."; fi
     bignum=$(($bignum+1))
 
 	for i in $msgNums; do
-		# echo curl -X DELETE $curlBasicArgs -H "Authorization:Basic $auth" $EX_URL_ROOT/v1/$urlbase/$i
-		rc=$(curl -X DELETE $curlBasicArgs -H "Authorization:Basic $auth" $EX_URL_ROOT/v1/$urlbase/$i)
+		# echo curl -X DELETE $curlBasicArgs -H "Authorization:Basic $auth" $HZN_EXCHANGE_URL/$urlbase/$i
+		rc=$(curl -X DELETE $curlBasicArgs -H "Authorization:Basic $auth" $HZN_EXCHANGE_URL/$urlbase/$i)
 		checkrc $rc 204 '' "DELETE $urlbase/$i"
 		echo -n .
 		bignum=$(($bignum+1))
@@ -243,7 +245,7 @@ function curladmin {
 	echo "Running $method ($auth) $url:"
 	start=`date +%s`
 	auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
-    rc=$(curl -X $method $curlBasicArgs $auth $EX_URL_ROOT/v1/$url)
+    rc=$(curl -X $method $curlBasicArgs $auth $HZN_EXCHANGE_URL/$url)
     checkrc $rc 201 '' "$method $url"
     bignum=$(($bignum+1))
 	total=$(($(date +%s)-start))

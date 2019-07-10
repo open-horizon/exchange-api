@@ -20,10 +20,6 @@ grant principal com.horizon.exchangeapi.auth.ExchangeRole "User" {
   permission com.horizon.exchangeapi.auth.AccessPermission "DATA_HEARTBEAT_MY_AGBOTS";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_AGBOTS";
   permission com.horizon.exchangeapi.auth.AccessPermission "STATUS";
-  permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_RESOURCES";
-  permission com.horizon.exchangeapi.auth.AccessPermission "WRITE_MY_RESOURCES";
-  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_RESOURCES";
-  permission com.horizon.exchangeapi.auth.AccessPermission "CREATE_RESOURCES";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_SERVICES";
   permission com.horizon.exchangeapi.auth.AccessPermission "WRITE_MY_SERVICES";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_SERVICES";
@@ -46,7 +42,6 @@ grant principal com.horizon.exchangeapi.auth.ExchangeRole "Node" {
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_MY_NODES";
   permission com.horizon.exchangeapi.auth.AccessPermission "SEND_MSG_TO_AGBOT";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_AGBOTS";
-  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_RESOURCES";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_SERVICES";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_PATTERNS";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_BUSINESS";
@@ -61,7 +56,6 @@ grant principal com.horizon.exchangeapi.auth.ExchangeRole "Agbot" {
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_AGBOTS";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_NODES";
   permission com.horizon.exchangeapi.auth.AccessPermission "SEND_MSG_TO_NODE";
-  permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_RESOURCES";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_SERVICES";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_PATTERNS";
   permission com.horizon.exchangeapi.auth.AccessPermission "READ_ALL_BUSINESS";

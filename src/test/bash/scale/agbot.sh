@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Performance test simulating many nodes making calls to the exchange. For scale testing, run many instances of this using wrapper.sh
-#todo: add optional registration exchange calls
+# Performance test simulating many agbots making calls to the exchange. For scale testing, run many instances of this using wrapper.sh
 
 if [[ $1 == "-h" || $1 == "--help" ]]; then
 	echo "Usage: $0 [<name base>]"
@@ -20,8 +19,8 @@ scriptName="$(basename $0)"
 
 # Test configuration. You can override these before invoking the script, if you want.
 HZN_EXCHANGE_URL="${HZN_EXCHANGE_URL:-http://localhost:8080/v1}"
-#EX_PERF_ORG="${EX_PERF_ORG:-performance${scriptName%%.*}}"
-EX_PERF_ORG="${EX_PERF_ORG:-performancenodeagbot}"
+# Note: the namebase will be prepended to this value
+EX_PERF_ORG="${EX_PERF_ORG:-performance${scriptName%%.*}}"
 
 # default of where to write the summary or error msgs. Can be overridden
 EX_PERF_REPORT_DIR="${EX_PERF_REPORT_DIR:-/tmp/exchangePerf}"
@@ -30,22 +29,25 @@ EX_PERF_REPORT_FILE="${EX_PERF_REPORT_FILE:-$reportDir/$namebase.summary}"
 # this file holds the output of the most recent curl cmd, which is useful when the script errors out
 EX_PERF_DEBUG_FILE="${EX_PERF_DEBUG_FILE:-$reportDir/debug/$namebase.lastmsg}"
 
-# The length of the performance test, measured in the number of times each node heartbeats
+# The length of the performance test, measured in the number of times each agbot heartbeats
 numHeartbeats="${EX_PERF_NUM_HEARTBEATS:-50}"
-# On average each rest api takes 0.4 seconds, which means a node's 4 repeated apis would take 1.6 seconds, so this script can do that 37.5 times in the 60 s interval,
-# thereby representing the load on the exchange of about 35 nodes
-numNodes="${EX_PERF_NUM_NODES:-35}"
-# An estimate of the average number of msgs a node will have in flight at 1 time
+# On average each rest api takes 0.4 seconds, which means an agbot's repeated apis would take ???? seconds, so this script can do that ??? times in the 60 s interval,
+# thereby representing the load on the exchange of about ?? agbots
+numAgbots="${EX_PERF_NUM_AGBOTS:-5}"
+# An estimate of the average number of msgs a agbot will have in flight at 1 time
 numMsgs="${EX_PERF_NUM_MSGS:-10}"
-# create multiple svcs so the nodes and patterns have to search thru them, but we will just use the 1st one for the pattern this group of nodes will use
-numSvcs="${EX_PERF_NUM_SVCS:-4}"
-# create multiple patterns so the agbot has to serve them all, but we will just use the 1st one for this group of nodes
-numPatterns="${EX_PERF_NUM_PATTERNS:-2}"
 
 # These defaults are taken from /etc/horizon/anax.json
-nodeHbInterval="${EX_NODE_HB_INTERVAL:-60}"
-svcCheckInterval="${EX_NODE_SVC_CHECK_INTERVAL:-300}"
-versionCheckInterval="${EX_NODE_VERSION_CHECK_INTERVAL:-720}"
+# "NewContractIntervalS": 10,
+# "ProcessGovernanceIntervalS": 10,
+# "ExchangeVersionCheckIntervalM": 1, (60 sec)
+# "ExchangeHeartbeat": 60,
+# "ActiveDeviceTimeoutS": 180,
+newAgreementInterval="${EX_AGBOT_NEW_AGR_INTERVAL:-10}"
+processGovInterval="${EX_AGBOT_PROC_GOV_INTERVAL:-10}"
+agbotHbInterval="${EX_AGBOT_HB_INTERVAL:-60}"
+activeNodeTimeout="${EX_AGBOT_ACTIVE_NODE_CHECK:-180}"
+versionCheckInterval="${EX_AGBOT_VERSION_CHECK_INTERVAL:-60}"
 
 if [[ -n "$EX_PERF_CERT_FILE" ]]; then
     certFile="--cacert $EX_PERF_CERT_FILE"
@@ -59,9 +61,9 @@ content="-H Content-Type:$appjson"
 
 rootauth="root/root:$EXCHANGE_ROOTPW"
 
-# This script will create just 1 org and put everything else under that. If you use wrapper.sh, all instances of this script and agbot.sh should use the same org.
-#orgbase="${namebase}$EX_PERF_ORG"
-orgbase="$EX_PERF_ORG"
+# This script will create just 1 org and put everything else under that. If you use wrapper.sh to drive this, each instance of this script will use a different org.
+#todo: we really should test all of the agbots being in the same org, but then we would have to coordinate objects from different script instances
+orgbase="${namebase}$EX_PERF_ORG"
 org="${orgbase}1"
 
 # We test with both a local exchange user, and a cloud user.
@@ -71,27 +73,27 @@ org="${orgbase}1"
 #locuserauth="$org/$locuser:$pw"
 userauth="$org/iamapikey:$EXCHANGE_IAM_KEY"
 
-# since the objects from all instances of this script are in the same org, their names need to be unique by starting with namebase
-nodebase="${namebase}n"
-nodeid="${nodebase}1"
-nodetoken=abc123
-nodeauth="$org/$nodeid:$nodetoken"
+agbotbase="n"
+agbotid="${agbotbase}1"
+agbottoken=abc123
+agbotauth="$org/$agbotid:$agbottoken"
 
-agbotbase="${namebase}a"
+agbotbase="a"
 agbotid="${agbotbase}1"
 agbottoken=abcdef
 agbotauth="$org/$agbotid:$agbottoken"
 
-svcurlbase="${namebase}svcurl"
-svcurl="${svcurlbase}1"
+svcurl="svcurl"
 svcversion="1.2.3"
-svcarch="amd64"
-svcid="${svcurl}_${svcversion}_$svcarch"
+svcarchbase="arch"  # needed because we increment the arch because its the last thing in the svc id and we have to increment that
+svcarch="${svcarchbase}1"
+svcidbase="${svcurl}_${svcversion}_$svcarchbase"
+svcid="${svcidbase}1"
 
-patternbase="${namebase}p"
+patternbase="p"
 patternid="${patternbase}1"
 
-buspolbase="${namebase}bp"
+buspolbase="bp"
 buspolid="${buspolbase}1"
 
 curlBasicArgs="-sS -w %{http_code} --output $EX_PERF_DEBUG_FILE $accept $certFile"
@@ -149,7 +151,6 @@ function curlcreate {
     auth="$3"
     urlbase=$4
     body=$5
-    otherRc=$6
 	start=`date +%s`
 	if [[ $auth != "" ]]; then
 		auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
@@ -165,33 +166,12 @@ function curlcreate {
             # echo curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$urlbase$i
             rc=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$urlbase$i)
         fi
-		checkrc $rc 201 "$otherRc" "$method $urlbase$i"
+		checkrc $rc 201 '' "$method $urlbase$i"
 		echo -n .
 		bignum=$(($bignum+1))
 	done
 	total=$(($(date +%s)-start))
 	echo " total=${total}s, num=$numtimes, each=$(divide $total $numtimes)s"
-}
-
-# Create just 1 object in the case in which the call needs to increment something in the body (e.g. w/services)
-function curlcreateone {
-    method=$1
-    auth="$2"
-    url=$3
-    body=$4
-    otherRc=$5
-	#start=`date +%s`
-	if [[ $auth != "" ]]; then
-		auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
-	fi
-	echo "Running $method/create ($auth) $url"
-    # echo curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url
-    rc=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url)
-    checkrc $rc 201 "$otherRc" "$method $url"
-    #echo -n .
-    bignum=$(($bignum+1))
-	#total=$(($(date +%s)-start))
-	#echo " total=${total}s, num=$numtimes, each=$(divide $total $numtimes)s"
 }
 
 # Args: PUT/POST/PATCH, auth, url, body
@@ -221,7 +201,7 @@ function curlputpost {
 }
 
 # Args: PUT/POST/PATCH, numtimes, auth, url, body
-function curlputpostmulti {
+function curlmultiputpost {
     method=$1
     numtimes=$2
     auth=$3
@@ -271,23 +251,7 @@ function curldelete {
 	echo " total=${total}s, num=$numtimes, each=$(divide $total $numtimes)s"
 }
 
-function curldeleteone {
-    auth=$1
-    url=$2
-    if [[ $3 == "NOT_FOUND_OK" ]]; then
-        secondcode=404
-    else
-        secondcode=''
-    fi
-	echo "Running DELETE ($auth) $url"
-	auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
-    echo curl -X DELETE $curlBasicArgs $auth $HZN_EXCHANGE_URL/$url
-    rc=$(curl -X DELETE $curlBasicArgs $auth $HZN_EXCHANGE_URL/$url)
-    checkrc $rc 204 "$secondcode" "DELETE $url"
-    bignum=$(($bignum+1))
-}
-
-# Get all the msgs for this node and delete them 1 by 1
+# Get all the msgs for this agbot and delete them 1 by 1
 function deletemsgs {
     auth=$1
     urlbase=$2
@@ -338,43 +302,40 @@ echo "Initializing test:"
 echo mkdir -p "$reportDir" "$(dirname $EX_PERF_DEBUG_FILE)"
 mkdir -p "$reportDir" "$(dirname $EX_PERF_DEBUG_FILE)"
 
-# Can not delete the org in case other instances of this script are using it. Whoever calls this script must delete it.
-#curldelete 1 "$rootauth" "orgs/$orgbase" "NOT_FOUND_OK"
+# Get rid of anything left over from a previous run and then create the org
+curldelete 1 "$rootauth" "orgs/$orgbase" "NOT_FOUND_OK"
 curladmin "POST" "$rootauth" "admin/clearauthcaches"  # needed to avoid an obscure bug: in the prev run the ibm auth cache was populated and user created, but this run when the org and user are deleted, if the cache entry has not expired the user will not get recreated
-# this is tolerant of the org already existing
-curlcreate "POST" 1 "$rootauth" "orgs/$orgbase" '{ "label": "perf test org", "description": "blah blah", "orgType":"IBM", "tags": { "ibmcloud_id": "'$EXCHANGE_IAM_ACCOUNT_ID'" } }' 403
+curlcreate "POST" 1 "$rootauth" "orgs/$orgbase" '{ "label": "perf test org", "description": "blah blah", "orgType":"IBM", "tags": { "ibmcloud_id": "'$EXCHANGE_IAM_ACCOUNT_ID'" } }'
 
 # Get cloud user to verify it is valid
 curlget $userauth "orgs/$org/users/iamapikey"
 
-# Create services
-for (( i=1 ; i<=$numSvcs ; i++ )) ; do
-    curlcreateone "POST" $userauth "orgs/$org/services" '{"label": "svc", "public": true, "url": "'$svcurlbase$i'", "version": "'$svcversion'", "sharable": "singleton",
-      "deployment": "{\"services\":{\"svc\":{\"image\":\"openhorizon/gps:1.2.3\"}}}", "deploymentSignature": "a", "arch": "'$svcarch'" }'
-done
+# Create services, 1 for each agbot
+curlcreate "POST" $numAgbots $userauth "orgs/$org/services" '{"label": "svc", "public": true, "url": "'$svcurl'", "version": "'$svcversion'", "sharable": "singleton",
+  "deployment": "{\"services\":{\"svc\":{\"image\":\"openhorizon/gps:1.2.3\"}}}", "deploymentSignature": "a", "arch": "'$svcarchbase    # the ending '" }' will be added by curlcreate
 
-# Post (create) patterns p*, that all use the 1st service
-curlcreate "POST" $numPatterns $userauth "orgs/$org/patterns/$patternbase" '{"label": "pat", "public": true, "services": [{ "serviceUrl": "'$svcurl'", "serviceOrgid": "'$org'", "serviceArch": "'$svcarch'", "serviceVersions": [{ "version": "'$svcversion'" }] }],
+# Post (create) patterns p*, 1 for each agbot, that all use the same service
+curlcreate "POST" $numAgbots $userauth "orgs/$org/patterns/$patternbase" '{"label": "pat", "public": true, "services": [{ "serviceUrl": "'$svcurl'", "serviceOrgid": "'$org'", "serviceArch": "'$svcarch'", "serviceVersions": [{ "version": "'$svcversion'" }] }],
   "userInput": [{
       "serviceOrgid": "'$org'", "serviceUrl": "'$svcurl'", "serviceArch": "", "serviceVersionRange": "[0.0.0,INFINITY)",
       "inputs": [{ "name": "VERBOSE", "value": true }]
   }]
 }'
 
-# Put (create) nodes n*
-curlcreate "PUT" $numNodes $userauth "orgs/$org/nodes/$nodebase" '{"token": "'$nodetoken'", "name": "pi", "pattern": "'$org'/'$patternid'", "arch": "'$svcarch'", "registeredServices": [{"url": "'$org'/'$svcurl'", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "'$svcarch'", "propType": "string", "op": "in"},{"name": "version", "value": "1.0.0", "propType": "version", "op": "in"}]}], "publicKey": "ABC"}'
+# Put (create) agbots n*
+curlcreate "PUT" $numAgbots $userauth "orgs/$org/agbots/$agbotbase" '{"token": "'$agbottoken'", "name": "pi", "pattern": "'$org'/'$patternid'", "arch": "'$svcarch'", "registeredServices": [{"url": "'$org'/'$svcurl'", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "'$svcarch'", "propType": "string", "op": "in"},{"name": "version", "value": "1.0.0", "propType": "version", "op": "in"}]}], "publicKey": "ABC"}'
 
-# Put (create) node/n*/policy
-for (( i=1 ; i<=$numNodes ; i++ )) ; do
-    curlputpost "PUT" $userauth "orgs/$org/nodes/$nodebase$i/policy" '{ "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
+# Put (create) agbot/n*/policy
+for (( i=1 ; i<=$numAgbots ; i++ )) ; do
+    curlputpost "PUT" $userauth "orgs/$org/agbots/$agbotbase$i/policy" '{ "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
 done
 
-# Put (create) agbot a1 to be able to create node msgs
+# Put (create) agbot a1 to be able to create agbot msgs
 curlcreate "PUT" 1 $userauth "orgs/$org/agbots/$agbotbase" '{"token": "'$agbottoken'", "name": "agbot", "publicKey": "ABC"}'
 
-# Post (create) node n* msgs
-for (( i=1 ; i<=$numNodes ; i++ )) ; do
-    curlputpostmulti "POST" $numMsgs $agbotauth "orgs/$org/nodes/$nodebase$i/msgs" '{"message": "hey there", "ttl": 8640000}'   # ttl is 2400 hours
+# Post (create) agbot n* msgs
+for (( i=1 ; i<=$numAgbots ; i++ )) ; do
+    curlmultiputpost "POST" $numMsgs $agbotauth "orgs/$org/agbots/$agbotbase$i/msgs" '{"message": "hey there", "ttl": 8640000}'   # ttl is 2400 hours
 done
 
 # Put (update) services/${svdid}1/policy
@@ -391,68 +352,82 @@ done
 #}'
 
 
-#=========== Registration =================================================
-
-# Put (create) node n*
-#curlcreate "PUT" $numNodes $userauth "orgs/$org/nodes/$nodebase" '{"token": "'$nodetoken'", "name": "pi", "pattern": "'$org'/'$patternid'", "arch": "'$svcarch'", "registeredServices": [{"url": "'$org'/'$svcurl'", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "'$svcarch'", "propType": "string", "op": "in"},{"name": "version", "value": "1.0.0", "propType": "version", "op": "in"}]}], "publicKey": "ABC"}'
-
-# Put (update) node/n1/policy
-#curlputpost "PUT" $nodeauth "orgs/$org/nodes/$nodeid/policy" '{ "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
-
-
 #=========== Loop thru repeated exchange calls =================================================
 
-# The repeated rest apis a node runs are:
-#   GET /orgs/<org>/nodes/<node> (these 4 every 60 seconds)
-#   GET /orgs/<org>/nodes/<node>/msgs
-#   POST /orgs/<org>/nodes/<node>/heartbeat
-#   GET /orgs/<org>/nodes/<node>/policy
+# The repeated rest apis a agbot runs are:
+#   GET /orgs/<org>/agbots/<agbot>/msgs
+#   POST /orgs/<org>/patterns/<pattern>/search
+#   POST /orgs/<org>/business/policies/<policy>/search
+#   GET /orgs/<org>/agbots/<agbot>/patterns
+#   GET /orgs/<org>
+#   GET /orgs/<org>/business/policies
+#   GET /orgs/<org>/services/<service>/policy
+#   GET /orgs/<org>/patterns
+#   GET /orgs/<org>/nodes/<node>
+#   POST /orgs/<org>/business/policies/<policy>/search
+#   GET /orgs/<org>/services
+#   GET /orgs/<org>/services/<service>/policy
+#   POST /orgs/<org>/business/policies/<policy>/search
+#   GET /orgs/<org>/services/<service>/policy
+#   GET /orgs/<org>/services
+#   GET /orgs/<org>/nodes/<node>
+#   POST /orgs/<org>/patterns/<pattern>/nodehealth
+#   POST /orgs/<org>/patterns/<pattern>/search
+#   GET /orgs/<org>/agbots/<agbot>/patterns
+#   GET /orgs/<org>
+#   GET /orgs/<org>/agbots/<agbot>/businesspols
+#   GET /orgs/<org>/business/policies
+#   GET /orgs/<org>/services/<service>/policy
+#   GET /orgs/<org>/agbots/<agbot>/patterns
+#   GET /orgs/<org>/patterns
+#   GET /orgs/<org>/agbots/<agbot>/businesspols
+#   GET /orgs/<org>/business/policies
+#   GET /admin/version
+#   POST /orgs/<org>/agbots/<agbot>/heartbeat
+#   GET /orgs/<org>/agbots/<agbot>/msgs
+#   GET /orgs/<org>/agbots/<agbot>
 
-#   GET /orgs/<org>/services (every 300 seconds)
-
-#   GET /admin/version (every 720 seconds)
-
-printf "\nRunning $numHeartbeats heartbeats for $numNodes nodes:\n"
+printf "\nRunning $numHeartbeats heartbeats for $numAgbots agbots:\n"
 svcCheckCount=0
 versionCheckCount=0
 
 for (( h=1 ; h<=$numHeartbeats ; h++ )) ; do
-    echo "Node heartbeat $h"
-    # We assume 1 hb of all the nodes takes nodeHbInterval seconds, so increment our other counts by that much
-    svcCheckCount=$(( $svcCheckCount + $nodeHbInterval ))
-    versionCheckCount=$(( $versionCheckCount + $nodeHbInterval ))
+    echo "Agbot heartbeat $h"
+    # We assume 1 hb of all the agbots takes agbotHbInterval seconds, so increment our other counts by that much
+    svcCheckCount=$(( $svcCheckCount + $agbotHbInterval ))
+    versionCheckCount=$(( $versionCheckCount + $agbotHbInterval ))
 
-    for (( n=1 ; n<=$numNodes ; n++ )) ; do
-        echo "Node $n"
-        mynodeauth="$org/$nodebase$n:$nodetoken"
+    for (( n=1 ; n<=$numAgbots ; n++ )) ; do
+        echo "Agbot $n"
+        myagbotauth="$org/$agbotbase$n:$agbottoken"
 
         # These api methods are run every hb:
-        # Get my node
-        curlget $mynodeauth "orgs/$org/nodes/$nodebase$n"
+        # Get my agbot
+        curlget $myagbotauth "orgs/$org/agbots/$agbotbase$n"
 
-        # Get my node msgs
-        curlget $mynodeauth "orgs/$org/nodes/$nodebase$n/msgs"
+        # Get my agbot msgs
+        curlget $myagbotauth "orgs/$org/agbots/$agbotbase$n/msgs"
 
-        # Post node/n1/heartbeat
-        curlputpost "POST" $mynodeauth "orgs/$org/nodes/$nodebase$n/heartbeat"
+        # Post agbot/n1/heartbeat
+        curlputpost "POST" $myagbotauth "orgs/$org/agbots/$agbotbase$n/heartbeat"
 
-        # Get my node policy
-        curlget $mynodeauth "orgs/$org/nodes/$nodebase$n/policy"
+        # Get my agbot policy
+        curlget $myagbotauth "orgs/$org/agbots/$agbotbase$n/policy"
 
         # If it is time to do a service check, do that
         if [[ $svcCheckCount -ge $svcCheckInterval ]]; then
             # Get all services
-            curlget $mynodeauth "orgs/$org/services"
+            curlget $myagbotauth "orgs/$org/services"
         fi
 
         # If it is time to do a version check, do that
         if [[ $versionCheckCount -ge $versionCheckInterval ]]; then
             # Post admin/version
-            curlget $mynodeauth admin/version
+            curlget $myagbotauth admin/version
         fi
 
-        # Put (update) node/n1/status
-        #curlputpost "PUT" $nodeauth "orgs/$org/nodes/$nodeid/status" '{ "connectivity": {"firmware.bluehorizon.network": true}, "services": [] }'
+        # Put (update) agbot/n1/status
+        #curlputpost "PUT" $agbotauth "orgs/$org/agbots/$agbotid/status" '{ "connectivity": {"firmware.bluehorizon.network": true}, "services": [] }'
 
     done
 
@@ -469,28 +444,8 @@ done
 
 printf "\nCleaning up from test:\n"
 
-# Delete node n* msgs
-for (( i=1 ; i<=$numNodes ; i++ )) ; do
-    deletemsgs $userauth "orgs/$org/nodes/$nodebase$i/msgs"
-done
-
-# Delete patterns p*
-curldelete $numPatterns $userauth "orgs/$org/patterns/$patternbase"
-
-# Delete services
-for (( i=1 ; i<=$numSvcs ; i++ )) ; do
-    mysvcid="${svcurlbase}${i}_${svcversion}_$svcarch"
-    curldeleteone $userauth "orgs/$org/services/$mysvcid"
-done
-
-# Delete node n*
-curldelete $numNodes $userauth "orgs/$org/nodes/$nodebase"
-
-# Delete agbot a*
-curldelete 1 $userauth "orgs/$org/agbots/$agbotbase"
-
-# Can not delete the org in case other instances of this script are still using it. Whoever calls this script must delete it.
-#curldelete 1 $rootauth "orgs/$orgbase"
+# Delete org to make sure everything is completely gone
+curldelete 1 $rootauth "orgs/$orgbase"
 
 bigtotal=$(($(date +%s)-bigstart))
 sumMsg="Overall: total=${bigtotal}s, num=$bignum, each=$(divide $bigtotal $bignum)s"

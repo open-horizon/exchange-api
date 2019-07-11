@@ -4,7 +4,7 @@
 # For true scale testing use a higher level script (not supplied) to run wrapper.sh on multiple systems.
 
 if [[ -z $1 ]]; then
-	echo "Usage: $0 <num instances of test.sh> [test-script]"
+	echo "Usage: $0 <num instances of test-script> [test-script]"
 	exit 1
 fi
 
@@ -25,7 +25,7 @@ function checkrc {
 }
 
 # Clear out all of the summaries (in case we are running with a lower number than previous)
-rm -rf "$EX_PERF_REPORT_DIR/*"
+rm -rf $EX_PERF_REPORT_DIR/*
 
 for (( i=1 ; i<=$numInstances ; i++ )) ; do
 	$dir/$script $i &

@@ -29,10 +29,11 @@ case class IamAuthCredentials(org: String, keyType: String, key: String) {
 }
 case class IamToken(accessToken: String, tokenType: Option[String] = None)
 
-// For both IBM Cloud and ICP. All the rest apis that use this must be able to parse their results into this class
-// account is set when using IBM Cloud, iss is set when using ICP.
+// For both IBM Cloud and ICP. All the rest apis that use this must be able to parse their results into this class.
+// The account field is set when using IBM Cloud, iss is set when using ICP.
 case class IamUserInfo(account: Option[IamAccount], sub: String, iss: Option[String], active: Option[Boolean]) {   // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
   def accountId = if (account.isDefined) account.get.bss else ""
+  def user = sub
 }
 case class IamAccount(bss: String)
 
@@ -347,9 +348,21 @@ object IbmCloudAuth {
       userRow <- fetchUser(orgId, userInfo)
       userAction <- {
         if (userRow.isEmpty) createUser(orgId, userInfo)
-        else DBIO.successful(Success(userRow.get))
+        else DBIO.successful(Success(userRow.get))    // to produce error case below, instead use: createUser(orgId, userInfo)
       }
-    } yield userAction
+      // This is to just handle errors from createUser
+      userAction2 <- userAction match {
+        case Success(v) => DBIO.successful(Success(v))
+        case Failure(t) => if (t.getMessage.contains("duplicate key")) {
+            // This is the case in which between the call to fetchUser and createUser another client created the user, so this is a duplicate that is not needed.
+            // Instead of returning an error just create an artificial response in which the username is correct (that's the only field used from this).
+            // (We don't want to do an upsert in createUser in case the user has changed it since it was created, e.g. set admin true)
+            DBIO.successful(Success(UserRow(authInfo.org+"/"+userInfo.user, "", "", admin = false, "", "", "")))
+          } else {
+            DBIO.failed(new UserCreateException("error creating user " + authInfo.org+"/"+userInfo.user + ": " + t.getMessage))
+          }
+      }
+    } yield userAction2
     //todo: getOrCreateUser() is only called if this is not already in the cache, so its a problem if we cant get it in the db
     //logger.trace("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.email+"...")
     // Note: exceptions from this get caught in login() above
@@ -442,6 +455,20 @@ object IbmCloudAuth {
       .headOption
   }
 
+  private def createUser(org: String, userInfo: IamUserInfo) = {
+    logger.trace("Creating user: org="+org+", "+userInfo)
+    val user = UserRow(
+      s"$org/${userInfo.sub}",
+      org,
+      "",
+      admin = false,
+      userInfo.sub,
+      ApiTime.nowUTC,
+      s"$org/${userInfo.sub}"
+    )
+    (UsersTQ.rows += user).asTry.map(count => count.map(_ => user))
+  }
+
   private def extractICPTokenOrg(id: String) = {
     // ICP id field is like: id-major-peacock-icp-cluster-account
     val R = """id-(.+)-account""".r
@@ -458,20 +485,6 @@ object IbmCloudAuth {
       case R(clusterName) => clusterName
       case _ => ""
     }
-  }
-
-  private def createUser(org: String, userInfo: IamUserInfo) = {
-    logger.trace("Creating user: org="+org+", "+userInfo)
-    val user = UserRow(
-      s"$org/${userInfo.sub}",
-      org,
-      "",
-      admin = false,
-      userInfo.sub,
-      ApiTime.nowUTC,
-      s"$org/${userInfo.sub}"
-    )
-    (UsersTQ.rows += user).asTry.map(count => count.map(_ => user))
   }
 
   // Split an id in the form org/id and return both parts. If there is no / we assume it is an id without the org.

@@ -10,8 +10,8 @@ fi
 namebase="${1:-1}-agbot"
 
 # These env vars are required
-if [[ -z "$EXCHANGE_ROOTPW" || -z "$EXCHANGE_IAM_ACCOUNT_ID" || -z "$EXCHANGE_IAM_KEY" ]]; then
-    echo "Error: environment variables EXCHANGE_ROOTPW, EXCHANGE_IAM_ACCOUNT_ID (id of your cloud account), and EXCHANGE_IAM_KEY (platform API key for your cloud user) must all be set."
+if [[ -z "$EXCHANGE_ROOTPW" || -z "$EXCHANGE_IAM_ACCOUNT_ID" || -z "$EXCHANGE_IAM_KEY" || -z "$EXCHANGE_IAM_EMAIL" ]]; then
+    echo "Error: environment variables EXCHANGE_ROOTPW, EXCHANGE_IAM_ACCOUNT_ID (id of your cloud account), EXCHANGE_IAM_KEY (platform API key for your cloud user), EXCHANGE_IAM_EMAIL must all be set."
     exit 1
 fi
 
@@ -96,24 +96,36 @@ curlBasicArgs="-sS -w %{http_code} --output $EX_PERF_DEBUG_FILE $accept $certFil
 # curlBasicArgs="-s -w %{http_code} $accept"
 # set -x
 
-# Check the http code returned by curl. Args: returned rc, good rc, second good rc (optional)
+# Check the http code returned by curl.
 # Most of the curl invocations use --output, so the only thing that comes to stdout is the http code.
 function checkhttpcode {
-    if [[ $1 != $2 && ( -z $3 ||  $1 != $3 ) ]]; then
-	    #httpcode="${1:0:3}"     # when an error occurs with curl the rest method output comes in stderr with the http code
-	    # write error msg to both the summary file and stderr
-		errMsg="=======================================> curl $4 failed with: $1, exiting."
-		echo "$errMsg" >> $EX_PERF_REPORT_FILE
-		echo "$errMsg" >&2
-		if [[ "$5" != 'continue' ]]; then exit $1; fi
-	fi
+    httpcode=$1
+    okcodes=$2
+    msg="$3"
+    cont=$4
+    if [[ $okcodes =~ $httpcode ]]; then return; fi
+    if [[ "$cont" == 'continue' ]]; then
+        nextAction='continuing'
+    else
+        nextAction='exiting'
+    fi
+    # write error msg to both the summary file and stderr
+    errMsg="===============> curl $msg failed with: $httpcode, $nextAction"
+    echo "$errMsg" >> $EX_PERF_REPORT_FILE
+    echo "$errMsg" >&2
+    if [[ "$cont" != 'continue' ]]; then exit $httpcode; fi
 }
 
 # Check the exit code of the cmd that was run
 function checkexitcode {
 	if [[ $1 != 0 ]]; then
 	    # write error msg to both the summary file and stderr
-		errMsg="=======================================> command $2 failed with exit code $1, exiting."
+		if [[ "$5" == 'continue' ]]; then
+		    nextAction='continuing'
+		else
+		    nextAction='exiting'
+		fi
+		errMsg="===============> command $2 failed with exit code $1, $nextAction."
 		echo "$errMsg" >> $EX_PERF_REPORT_FILE
 		echo "$errMsg" >&2
 		if [[ "$3" != 'continue' ]]; then exit $1; fi
@@ -152,13 +164,13 @@ function curlget {
     #numtimes=$1
     auth=$1
     url=$2
-    otherRc=$3
+    otherRcs=$3
 	if [[ -n "$VERBOSE" ]]; then echo "Running GET ($auth) $url"; fi
 	#start=`date +%s`
 	#local i
 	#for (( i=1 ; i<=$numtimes ; i++ )) ; do
 		httpcode=$(curl -X GET $curlBasicArgs -H "Authorization:Basic $auth" $HZN_EXCHANGE_URL/$url)
-		checkhttpcode $httpcode 200 "$otherRc" "GET $url"
+		checkhttpcode $httpcode "200 $otherRcs" "GET $url"
 		#echo -n .
 		bignum=$(($bignum+1))
 	#done
@@ -172,7 +184,7 @@ function curlcreate {
     auth="$3"
     urlbase=$4
     body=$5
-    otherRc=$6
+    otherRcs=$6
 	start=`date +%s`
 	if [[ $auth != "" ]]; then
 		auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
@@ -182,7 +194,7 @@ function curlcreate {
 	for (( i=1 ; i<=$numtimes ; i++ )) ; do
         # echo curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$urlbase$i
         httpcode=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$urlbase$i)
-		checkhttpcode $httpcode 201 "$otherRc" "$method $urlbase$i"
+		checkhttpcode $httpcode "201 $otherRcs" "$method $urlbase$i"
 		if [[ -n "$VERBOSE" ]]; then echo -n .; fi
 		bignum=$(($bignum+1))
 	done
@@ -196,14 +208,14 @@ function curlcreateone {
     auth="$2"
     url=$3
     body=$4
-    otherRc=$5
+    otherRcs=$5
 	if [[ $auth != "" ]]; then
 		auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
 	fi
 	if [[ -n "$VERBOSE" ]]; then echo "Running $method/create ($auth) $url"; fi
     # echo curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url
     httpcode=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url)
-    checkhttpcode $httpcode 201 "$otherRc" "$method $url"
+    checkhttpcode $httpcode "201 $otherRcs" "$method $url"
     bignum=$(($bignum+1))
 }
 
@@ -214,7 +226,7 @@ function curlputpost {
     auth=$2
     url=$3
     body="$4"
-    otherRc=$5
+    otherRcs=$5
 	if [[ -n "$VERBOSE" ]]; then echo "Running $method ($auth) $url"; fi
 	#start=`date +%s`
 	auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
@@ -226,7 +238,7 @@ function curlputpost {
 			# echo curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url
 			httpcode=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url)
 		fi
-		checkhttpcode $httpcode 201 "$otherRc" "$method $url"
+		checkhttpcode $httpcode "201 $otherRcs" "$method $url"
 		#echo -n .
 		bignum=$(($bignum+1))
 	#done
@@ -252,7 +264,7 @@ function curlputpostmulti {
 			# echo curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url
 			httpcode=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url)
 		fi
-		checkhttpcode $httpcode 201 '' "$method $url"
+		checkhttpcode $httpcode 201 "$method $url"
 		if [[ -n "$VERBOSE" ]]; then echo -n .; fi
 		bignum=$(($bignum+1))
 	done
@@ -264,7 +276,7 @@ function curldelete {
     numtimes="$1"
     auth=$2
     urlbase=$3
-    otherRc=$4
+    otherRcs=$4
 	if [[ -n "$VERBOSE" ]]; then echo "Running DELETE ($auth) $urlbase $numtimes times:"; fi
 	start=`date +%s`
 	auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
@@ -272,7 +284,7 @@ function curldelete {
     for (( i=1 ; i<=$numtimes ; i++ )) ; do
         #echo curl -X DELETE $curlBasicArgs $auth $HZN_EXCHANGE_URL/$urlbase$i
         httpcode=$(curl -X DELETE $curlBasicArgs $auth $HZN_EXCHANGE_URL/$urlbase$i)
-        checkhttpcode $httpcode 204 "$otherRc" "DELETE $urlbase$i"
+        checkhttpcode $httpcode "204 $otherRcs" "DELETE $urlbase$i"
         if [[ -n "$VERBOSE" ]]; then echo -n .; fi
         #echo $rc
         bignum=$(($bignum+1))
@@ -284,12 +296,12 @@ function curldelete {
 function curldeleteone {
     auth=$1
     url=$2
-    otherRc=$3
+    otherRcs=$3
 	if [[ -n "$VERBOSE" ]]; then echo "Running DELETE ($auth) $url"; fi
 	auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
     #echo curl -X DELETE $curlBasicArgs $auth $HZN_EXCHANGE_URL/$url
     httpcode=$(curl -X DELETE $curlBasicArgs $auth $HZN_EXCHANGE_URL/$url)
-    checkhttpcode $httpcode 204 "$otherRc" "DELETE $url"
+    checkhttpcode $httpcode "204 $otherRcs" "DELETE $url"
     bignum=$(($bignum+1))
 }
 
@@ -302,7 +314,7 @@ function curladmin {
 	start=`date +%s`
 	auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
     httpcode=$(curl -X $method $curlBasicArgs $auth $HZN_EXCHANGE_URL/$url)
-    checkhttpcode $httpcode 201 '' "$method $url"
+    checkhttpcode $httpcode 201 "$method $url"
     bignum=$(($bignum+1))
 	total=$(($(date +%s)-start))
 	if [[ -n "$VERBOSE" ]]; then echo " total=${total}s, num=1, each=${total}s"; fi
@@ -318,19 +330,20 @@ echo "Initializing test:"
 
 echo "Using exchange $HZN_EXCHANGE_URL"
 
-echo mkdir -p "$reportDir" "$(dirname $EX_PERF_DEBUG_FILE)"
+#echo mkdir -p "$reportDir" "$(dirname $EX_PERF_DEBUG_FILE)"
 mkdir -p "$reportDir" "$(dirname $EX_PERF_DEBUG_FILE)"
 rm -f $EX_PERF_REPORT_FILE    # do not need to delete the debug file, because every cmd overwrites it
 
 # Can not delete the org in case other instances of this script are using it. Whoever calls this script must delete it.
 #curldelete 1 "$rootauth" "orgs/$orgbase" 404
-curladmin "POST" "$rootauth" "admin/clearauthcaches"  # needed to avoid an obscure bug: in the prev run the ibm auth cache was populated and user created, but this run when the org and user are deleted, if the cache entry has not expired the user will not get recreated
+# /admin/clearauthcaches is causing an unusual problem and it is not worth debug, because the cache implementation will be changing, and issue 176 will address the problem clearauthcaches is trying to solve in this case.
+#curladmin "POST" "$rootauth" "admin/clearauthcaches"  # to avoid an obscure bug: in the prev run the ibm auth cache was populated and user created, but then the org (and user) is deleted and then recreated, the user will not get recreated until the cache entry expires
 # this is tolerant of the org already existing
-#curlcreateone "POST" "$rootauth" "orgs/$org" '{ "label": "perf test org", "description": "blah blah", "orgType":"IBM", "tags": { "ibmcloud_id": "'$EXCHANGE_IAM_ACCOUNT_ID'" } }' 403
 curlcreateone "POST" "$rootauth" "orgs/$org" '{ "label": "perf test org", "description": "blah blah", "tags": { "ibmcloud_id": "'$EXCHANGE_IAM_ACCOUNT_ID'" } }' 403
 
 # Get cloud user to verify it is valid
-curlget $userauth "orgs/$org/users/iamapikey"
+curlcreateone "PUT" "$rootauth" "orgs/$org/users/$EXCHANGE_IAM_EMAIL" '{"password": "foobar", "admin": false, "email": "'$EXCHANGE_IAM_EMAIL'"}'  # needed until issue 176 is fixed
+curlget $userauth "orgs/$org/users/iamapikey" 504   #todo: remove 504 once exchange 1.78.0 is deployed everywhere
 
 # let node.sh create the services, patterns, and business policies
 
@@ -429,7 +442,7 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
         httpcode=${output:$((${#output}-3))}    # the last 3 chars are the http code
         patterns="${output%[0-9][0-9][0-9]}"   # for the output, get all but the 3 digits of http code
         #echo "DEBUG: httpcode: $httpcode, patterns: $patterns."
-		checkhttpcode $httpcode 200 404 "GET $url" 'continue'
+		checkhttpcode $httpcode '200 404' "GET $url, output: $patterns" 'continue'
         if [[ "$httpcode" == "200" ]]; then
             patterns=$(jq -r '.patterns | keys[]' <<< "$patterns")
             #echo "DEBUG: patterns: $patterns."
@@ -451,11 +464,11 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
                     searchBody='{ "serviceUrl": "'$org'/'$svcurl'", "secondsStale": 0, "startIndex": 0, "numEntries": 0 }'
                     url="orgs/$org/patterns/$pat/search"
                     if [[ -n "$VERBOSE" ]]; then echo "Running POST ($myagbotauth) $url"; fi
-                    #nodes=$(curl -X POST -sS $accept -H "Authorization:Basic $myagbotauth" $certFile $content -d "$searchBody" $HZN_EXCHANGE_URL/orgs/$org/patterns/$pat/search | jq -r '.nodes[].id')
                     output=$(curl -X POST -sS -w '%{http_code}' $accept -H "Authorization:Basic $myagbotauth" $certFile $content -d "$searchBody" $HZN_EXCHANGE_URL/$url)
                     httpcode=${output:$((${#output}-3))}    # the last 3 chars are the http code
                     nodes="${output%[0-9][0-9][0-9]}"   # for the output, get all but the 3 digits of http code
-                    checkhttpcode $httpcode 201 404 "POST $url" 'continue'
+                    # http code 400 can occur when a pattern or service was deleted between the time of calling /patterns and /search
+                    checkhttpcode $httpcode '201 404 400' "POST $url, output: $nodes" 'continue'
                     #echo "DEBUG: nodes=$nodes."
                     if [[ "$httpcode" == "201" ]]; then
                         nodes=$(jq -r '.nodes[].id' <<< "$nodes")
@@ -516,7 +529,7 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
 	iterDelta=$(( $newAgreementInterval - $iterTime ))
 	iterDeltaTotal=$(( $iterDeltaTotal + $iterDelta ))
 	if [[ $iterDelta -gt 0 ]]; then
-	    echo "Sleeping for $iterDelta seconds at the end of agbot agreement check $h because loop iteration finished early"
+	    echo "Sleeping for $iterDelta seconds at the end of agbot agreement check $h of $numAgrChecks because loop iteration finished early"
 	    sleep $iterDelta
 	fi
 

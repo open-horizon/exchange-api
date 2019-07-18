@@ -4,12 +4,11 @@
 # This can not be done inside the scripts running the perf test, because if multiple instances are run on multiple machines they can't know when
 # they are all done with the org.
 
-if [[ -z $1 ]]; then
-	echo "Usage: $0 <perf-org>"
-	exit 1
-fi
-
-perfOrg=$1
+#if [[ -z $1 ]]; then
+#	echo "Usage: $0 <perf-org>"
+#	exit 1
+#fi
+#perfOrg=$1
 
 # These env vars are required
 if [[ -z "$EXCHANGE_ROOTPW" || -z "$HZN_EXCHANGE_URL" ]]; then
@@ -17,10 +16,11 @@ if [[ -z "$EXCHANGE_ROOTPW" || -z "$HZN_EXCHANGE_URL" ]]; then
     exit 1
 fi
 
-url="orgs/$perfOrg"
+EX_PERF_ORG="${EX_PERF_ORG:-performancenodeagbot}"
+url="orgs/$EX_PERF_ORG"
 rootauth="root/root:$EXCHANGE_ROOTPW"
 auth="$rootauth"
-echo "Running DELETE $url ..."
+#echo "Running DELETE $url ..."
 auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
 
 

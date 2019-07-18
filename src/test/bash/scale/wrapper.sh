@@ -26,12 +26,22 @@ function checkrc {
 	fi
 }
 
+# Clean up our children
+trapHandler() {
+    kill $pids
+    exit
+}
+
 # Clear out all of the summaries (in case we are running with a lower number than previous)
 rm -rf $EX_PERF_REPORT_DIR/$script/*
 
 for (( i=1 ; i<=$numInstances ; i++ )) ; do
 	$dir/$script "${namebase}-$i" &
+	pids="$pids $!"
 done
 
-#todo: if we gathered a list of the pids and specified them here, would wait give us the highest exit code?
-wait
+trap trapHandler SIGINT
+
+# I think by specifying the list of pids wait return a non-zero exit code if any of the children do
+wait $pids
+exit $?

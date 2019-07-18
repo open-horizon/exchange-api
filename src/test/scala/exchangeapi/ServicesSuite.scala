@@ -465,7 +465,7 @@ class ServicesSuite extends FunSuite {
     // Verify the lastUpdated from the PUT above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
     val now: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
     val lastUp = ZonedDateTime.parse(wk.lastUpdated).toEpochSecond
-    assert(now - lastUp <= 5)    // should not be more than 3 seconds from the time the put was done above
+    assert(now - lastUp <= 9)    // should not be more than 3 seconds from the time the put was done above
     val rsMap = respObj.services(orgservice).requiredServices
     assert(rsMap.head.versionRange.isDefined)
   }

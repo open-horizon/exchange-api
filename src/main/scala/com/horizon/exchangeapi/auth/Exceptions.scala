@@ -20,9 +20,11 @@ class IsDbMigrationException(msg: String = "access denied - in the process of DB
 
 // Exceptions for handling DB connection errors
 class DbTimeoutException(msg: String) extends AuthException(HttpCode.GW_TIMEOUT, ApiResponseType.GW_TIMEOUT, msg)
-class DbConnectionException(msg: String) extends AuthException(HttpCode.GW_TIMEOUT, ApiResponseType.GW_TIMEOUT, msg)
+class DbConnectionException(msg: String) extends AuthException(HttpCode.BAD_GW, ApiResponseType.BAD_GW, msg)
 
 class InvalidCredentialsException(msg: String = "invalid credentials") extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
+
+class UserCreateException(msg: String = "error creating user") extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
 
 // The IAM token we were given was expired, or some similar problem
 class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)

@@ -7,12 +7,14 @@ lazy val root = (project in file(".")).
     version := "0.1.0",
     scalaVersion := "2.12.7",
     resolvers += Classpaths.typesafeReleases,
+    // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
     libraryDependencies ++= Seq(
-      "org.scalatra" %% "scalatra" % "latest.release",
-      "org.scalatra" %% "scalatra-auth" % "latest.release",
-      "org.scalatra" %% "scalatra-specs2" % "latest.release" % "test",
-      "org.scalatra" %% "scalatra-json" % "latest.release",
-      "org.scalatra" %% "scalatra-swagger"  % "latest.release",
+      "org.scalatra" %% "scalatra" % "2.6.5",
+      "org.scalatra" %% "scalatra-auth" % "2.6.5",
+      "org.scalatra" %% "scalatra-specs2" % "2.6.5" % "test",
+      "org.scalatra" %% "scalatra-json" % "2.6.5",
+      //"org.scalatra" %% "scalatra-swagger"  % "latest.release",  <- the new 2.7.x release requires some swagger changes in our code, see issue 173
+      "org.scalatra" %% "scalatra-swagger"  % "2.6.5",
       "com.typesafe.slick" %% "slick" % "latest.release",
       "com.typesafe.slick" %% "slick-hikaricp" % "latest.release",
       //"com.github.tminglei" %% "slick-pg" % "0.16.3",

@@ -20,7 +20,7 @@ object Access extends Enumeration {
   val READ_MYSELF = Value("READ_MYSELF")      // is used for users, nodes, agbots
   val WRITE_MYSELF = Value("WRITE_MYSELF")
   val CREATE_NODE = Value("CREATE_NODE")       // we use WRITE_MY_NODES instead of this
-  val READ_MY_NODES = Value("READ_MY_NODES")     // when an node tries to do this it means other node owned by the same user
+  val READ_MY_NODES = Value("READ_MY_NODES")     // when an node tries to do this it means other node owned by the same user, but i do not think this works
   val WRITE_MY_NODES = Value("WRITE_MY_NODES")
   val READ_ALL_NODES = Value("READ_ALL_NODES")
   val WRITE_ALL_NODES = Value("WRITE_ALL_NODES")
@@ -37,11 +37,6 @@ object Access extends Enumeration {
   val READ_ALL_USERS = Value("READ_ALL_USERS")
   val WRITE_ALL_USERS = Value("WRITE_ALL_USERS")
   val RESET_USER_PW = Value("RESET_USER_PW")
-  val READ_MY_RESOURCES = Value("READ_MY_RESOURCES")
-  val WRITE_MY_RESOURCES = Value("WRITE_MY_RESOURCES")
-  val READ_ALL_RESOURCES = Value("READ_ALL_RESOURCES")
-  val WRITE_ALL_RESOURCES = Value("WRITE_ALL_RESOURCES")
-  val CREATE_RESOURCES = Value("CREATE_RESOURCES")
   val READ_MY_SERVICES = Value("READ_MY_SERVICES")
   val WRITE_MY_SERVICES = Value("WRITE_MY_SERVICES")
   val READ_ALL_SERVICES = Value("READ_ALL_SERVICES")

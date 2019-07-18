@@ -37,6 +37,7 @@ object HttpCode {
   val NOT_FOUND = 404   // resource not found
   val INTERNAL_ERROR = 500
   val NOT_IMPLEMENTED = 501
+  val BAD_GW = 502   // bad gateway, which for us means db connection error
   val GW_TIMEOUT = 504   // gateway timeout, which for us means db timeout
 }
 
@@ -50,6 +51,7 @@ object ApiResponseType {
   val NOT_FOUND = "not-found"
   val INTERNAL_ERROR = "internal_error"
   val NOT_IMPLEMENTED = "not-implemented"
+  val BAD_GW = "database-connection-error"
   val GW_TIMEOUT = "database-timeout"
   val ERROR = "error"
   val WARNING = "warning"

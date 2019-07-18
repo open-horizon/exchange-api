@@ -182,6 +182,7 @@ To build an exchange container with code that is targeted for a git branch:
 ## Changes in 1.98.0
 
 - Fixed timing problem in public cloud api key authentication
+- Added `scale/node.sh` and `scale/agbot.sh` performance/scale test drivers
 
 ## Changes in 1.97.0
 

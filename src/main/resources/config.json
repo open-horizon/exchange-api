@@ -17,6 +17,10 @@
 			"pattern": {
 				"missing_heartbeat_interval": 1800,   // used if the services.nodeHealth section is omitted
 				"check_agreement_status": 1800
+			},
+			"businessPolicy": {
+				"missing_heartbeat_interval": 1800,   // used if the service.nodeHealth section is omitted
+				"check_agreement_status": 1800
 			}
 		},
 		"db": {

@@ -13,6 +13,12 @@
 			"maxPatterns": 1000,		// maximum number of patterns 1 user is allowed to create, 0 for unlimited
 			"maxBusinessPolicies": 5000		// maximum number of business policies 1 user is allowed to create, 0 for unlimited
 		},
+		"defaults": {
+			"pattern": {
+				"missing_heartbeat_interval": 1800,   // used if the services.nodeHealth section is omitted
+				"check_agreement_status": 1800
+			}
+		},
 		"db": {
 			"driverClass": "org.postgresql.Driver",
 			"jdbcUrl": "",		// the back-end db the exchange uses

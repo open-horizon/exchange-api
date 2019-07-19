@@ -37,11 +37,13 @@ numAgbots="${EX_PERF_NUM_AGBOTS:-1}"
 numMsgs="${EX_PERF_NUM_MSGS:-10}"
 
 # These defaults are taken from /etc/horizon/anax.json
-# "NewContractIntervalS": 10,
-# "ProcessGovernanceIntervalS": 10,
+# "NewContractIntervalS": 10, (gets patterns and policies, and do both /search apis)
+# "ProcessGovernanceIntervalS": 10, (decide if existing agreements should continue, nodehealth, etc.)
 # "ExchangeVersionCheckIntervalM": 1, (60 sec)
 # "ExchangeHeartbeat": 60,
 # "ActiveDeviceTimeoutS": 180, <- maybe not relevant
+# AgreementBot.CheckUpdatedPolicyS: 15 (check for updated policies)
+# AgreementTimeoutS
 newAgreementInterval="${EX_AGBOT_NEW_AGR_INTERVAL:-10}"
 processGovInterval="${EX_AGBOT_PROC_GOV_INTERVAL:-10}"
 agbotHbInterval="${EX_AGBOT_HB_INTERVAL:-60}"
@@ -485,7 +487,7 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
                                 if [[ -n "$VERBOSE" ]]; then echo "Node $nid"; fi
 
                                 curlget $myagbotauth "orgs/$org/nodes/$nid"
-                                curlputpost "POST" $myagbotauth "orgs/$org/nodes/$nid/msgs" '{"message": "hey there", "ttl": 300}'
+                                curlputpost "POST" $myagbotauth "orgs/$org/nodes/$nid/msgs" '{"message": "hey there", "ttl": 3000}'
                             done
                         else
                             nodesMinProcessed=0

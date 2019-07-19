@@ -44,9 +44,11 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
   // Note: write() handles correctly the case where the optional fields are None.
   def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
     // The nodeHealth field is optional, so fill in a default in each element of services if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
+    val hbDefault = ExchConfig.getInt("api.defaults.pattern.missing_heartbeat_interval")
+    val agrChkDefault = ExchConfig.getInt("api.defaults.pattern.check_agreement_status")
     val services2 = if (services.nonEmpty) {
       services.map({ s =>
-        val nodeHealth2 = s.nodeHealth.orElse(Some(Map("missing_heartbeat_interval" -> 600, "check_agreement_status" -> 120)))
+        val nodeHealth2 = s.nodeHealth.orElse(Some(Map("missing_heartbeat_interval" -> hbDefault, "check_agreement_status" -> agrChkDefault)))
         PServices(s.serviceUrl, s.serviceOrgid, s.serviceArch, s.agreementLess, s.serviceVersions, s.dataVerification, nodeHealth2)
       })
     } else {

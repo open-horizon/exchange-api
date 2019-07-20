@@ -37,7 +37,9 @@ case class PostPutBusinessPolicyRequest(label: String, description: Option[Strin
   // The nodeHealth field is optional, so fill in a default in service if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
   def defaultNodeHealth(service: BService): BService = {
     if (service.nodeHealth.nonEmpty) return service
-    val nodeHealth2 = Some(Map("missing_heartbeat_interval" -> 600, "check_agreement_status" -> 120)) // provide defaults for node health
+    val hbDefault = ExchConfig.getInt("api.defaults.businessPolicy.missing_heartbeat_interval")
+    val agrChkDefault = ExchConfig.getInt("api.defaults.businessPolicy.check_agreement_status")
+    val nodeHealth2 = Some(Map("missing_heartbeat_interval" -> hbDefault, "check_agreement_status" -> agrChkDefault)) // provide defaults for node health
     return BService(service.name, service.org, service.arch, service.serviceVersions, nodeHealth2)
   }
 

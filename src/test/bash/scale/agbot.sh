@@ -10,10 +10,11 @@ fi
 namebase="${1:-1}-agbot"
 
 # These env vars are required
-if [[ -z "$EXCHANGE_ROOTPW" || -z "$EXCHANGE_IAM_ACCOUNT_ID" || -z "$EXCHANGE_IAM_KEY" || -z "$EXCHANGE_IAM_EMAIL" ]]; then
-    echo "Error: environment variables EXCHANGE_ROOTPW, EXCHANGE_IAM_ACCOUNT_ID (id of your cloud account), EXCHANGE_IAM_KEY (platform API key for your cloud user), EXCHANGE_IAM_EMAIL must all be set."
+if [[ -z "$EXCHANGE_ROOTPW" || -z "$EXCHANGE_IAM_KEY" || -z "$EXCHANGE_IAM_EMAIL" ]]; then
+    echo "Error: environment variables EXCHANGE_ROOTPW, EXCHANGE_IAM_KEY (platform API key for your cloud user), EXCHANGE_IAM_EMAIL must all be set."
     exit 1
 fi
+# Setting EXCHANGE_IAM_ACCOUNT_ID (id of your cloud account) distinguishes this as an ibm public cloud environment, instead of ICP
 
 scriptName="$(basename $0)"
 
@@ -37,22 +38,20 @@ numAgbots="${EX_PERF_NUM_AGBOTS:-1}"
 numMsgs="${EX_PERF_NUM_MSGS:-10}"
 
 # These defaults are taken from /etc/horizon/anax.json
-# "NewContractIntervalS": 10,
-# "ProcessGovernanceIntervalS": 10,
+# "NewContractIntervalS": 10, (gets patterns and policies, and do both /search apis)
+# "ProcessGovernanceIntervalS": 10, (decide if existing agreements should continue, nodehealth, etc.)
 # "ExchangeVersionCheckIntervalM": 1, (60 sec)
 # "ExchangeHeartbeat": 60,
 # "ActiveDeviceTimeoutS": 180, <- maybe not relevant
+# AgreementBot.CheckUpdatedPolicyS: 15 (check for updated policies)
+# AgreementTimeoutS
 newAgreementInterval="${EX_AGBOT_NEW_AGR_INTERVAL:-10}"
 processGovInterval="${EX_AGBOT_PROC_GOV_INTERVAL:-10}"
 agbotHbInterval="${EX_AGBOT_HB_INTERVAL:-60}"
 versionCheckInterval="${EX_AGBOT_VERSION_CHECK_INTERVAL:-60}"
 #activeNodeTimeout="${EX_AGBOT_ACTIVE_NODE_CHECK:-180}"
 
-if [[ -n "$EX_PERF_CERT_FILE" ]]; then
-    certFile="--cacert $EX_PERF_CERT_FILE"
-else
-    certFile="-k"
-fi
+# CURL_CA_BUNDLE can be exported in our parent if a self-signed cert is needed.
 
 appjson="application/json"
 accept="-H Accept:$appjson"
@@ -66,7 +65,12 @@ orgbase="$EX_PERF_ORG"
 org="${orgbase}"
 
 # Test with a cloud user.
-userauth="$org/iamapikey:$EXCHANGE_IAM_KEY"
+if [[ -n "$EXCHANGE_IAM_ACCOUNT_ID" ]]; then
+    userauth="$org/iamapikey:$EXCHANGE_IAM_KEY"
+else
+    # for ICP we can't play the game of having our own org, but associating it with another account, so we have to use a local exchange user
+    userauth="$org/$EXCHANGE_IAM_EMAIL:$EXCHANGE_IAM_KEY"
+fi
 
 # this node id can not conflict with the nodes that node.sh creates
 nodebase="${namebase}-n"
@@ -91,7 +95,7 @@ patternid="${patternbase}1"
 buspolbase="${namebase}-bp"
 buspolid="${buspolbase}1"
 
-curlBasicArgs="-sS -w %{http_code} --output $EX_PERF_DEBUG_FILE $accept $certFile"
+curlBasicArgs="-sS -w %{http_code} --output $EX_PERF_DEBUG_FILE $accept"
 #curlBasicArgs="-sS -w %{http_code} --output /dev/null $accept"
 # curlBasicArgs="-s -w %{http_code} $accept"
 # set -x
@@ -339,11 +343,18 @@ rm -f $EX_PERF_REPORT_FILE    # do not need to delete the debug file, because ev
 # /admin/clearauthcaches is causing an unusual problem and it is not worth debug, because the cache implementation will be changing, and issue 176 will address the problem clearauthcaches is trying to solve in this case.
 #curladmin "POST" "$rootauth" "admin/clearauthcaches"  # to avoid an obscure bug: in the prev run the ibm auth cache was populated and user created, but then the org (and user) is deleted and then recreated, the user will not get recreated until the cache entry expires
 # this is tolerant of the org already existing
-curlcreateone "POST" "$rootauth" "orgs/$org" '{ "label": "perf test org", "description": "blah blah", "tags": { "ibmcloud_id": "'$EXCHANGE_IAM_ACCOUNT_ID'" } }' 403
+if [[ -n "$EXCHANGE_IAM_ACCOUNT_ID" ]]; then
+    # this is an IBM public cloud instance
+    curlcreateone "POST" "$rootauth" "orgs/$org" '{ "label": "perf test org", "description": "blah blah", "tags": { "ibmcloud_id": "'$EXCHANGE_IAM_ACCOUNT_ID'" } }' 403
+    curlcreateone "PUT" "$rootauth" "orgs/$org/users/$EXCHANGE_IAM_EMAIL" '{"password": "foobar", "admin": false, "email": "'$EXCHANGE_IAM_EMAIL'"}'  # needed until issue 176 is fixed
+    curlget $userauth "orgs/$org/users/iamapikey" 504   #todo: remove 504 once exchange 1.78.0 is deployed everywhere
+else
+    # ICP
+    curlcreateone "POST" "$rootauth" "orgs/$org" '{ "label": "perf test org", "description": "blah blah" }' 403
+    curlcreateone "PUT" "$rootauth" "orgs/$org/users/$EXCHANGE_IAM_EMAIL" '{"password": "'$EXCHANGE_IAM_KEY'", "admin": false, "email": "'$EXCHANGE_IAM_EMAIL'"}'  # needed until issue 176 is fixed
+    curlget $userauth "orgs/$org/users/$EXCHANGE_IAM_EMAIL"
+fi
 
-# Get cloud user to verify it is valid
-curlcreateone "PUT" "$rootauth" "orgs/$org/users/$EXCHANGE_IAM_EMAIL" '{"password": "foobar", "admin": false, "email": "'$EXCHANGE_IAM_EMAIL'"}'  # needed until issue 176 is fixed
-curlget $userauth "orgs/$org/users/iamapikey" 504   #todo: remove 504 once exchange 1.78.0 is deployed everywhere
 
 # let node.sh create the services, patterns, and business policies
 
@@ -485,7 +496,7 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
                                 if [[ -n "$VERBOSE" ]]; then echo "Node $nid"; fi
 
                                 curlget $myagbotauth "orgs/$org/nodes/$nid"
-                                curlputpost "POST" $myagbotauth "orgs/$org/nodes/$nid/msgs" '{"message": "hey there", "ttl": 300}'
+                                curlputpost "POST" $myagbotauth "orgs/$org/nodes/$nid/msgs" '{"message": "hey there", "ttl": 3000}'
                             done
                         else
                             nodesMinProcessed=0

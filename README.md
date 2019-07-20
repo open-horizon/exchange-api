@@ -179,6 +179,15 @@ To build an exchange container with code that is targeted for a git branch:
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.100.0
+
+- Moved business policy nodehealth defaults to config.json and made them longer
+- Modified perf/scaling scripts to work with ICP
+
+## Changes in 1.99.0
+
+- Moved pattern nodehealth defaults to config.json and made them longer
+
 ## Changes in 1.98.0
 
 - Fixed timing problem in public cloud api key authentication

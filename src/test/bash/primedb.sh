@@ -336,44 +336,19 @@ if [[ $rc != 200 ]]; then
             "time": "01:00AM"
           }
         }
-      ],
-      "dataVerification": {
-        "enabled": true,
-        "URL": "",
-        "user": "",
-        "password": "",
-        "interval": 240,
-        "check_rate": 15,
-        "metering": {
-          "tokens": 1,
-          "per_time_unit": "min",
-          "notification_interval": 30
-        }
-      },
-      "nodeHealth": {
-        "missing_heartbeat_interval": 600,
-        "check_agreement_status": 120
-      }
+      ]
     }
   ],
   "userInput": [
     {
-      "serviceOrgid": "IBM",
-      "serviceUrl": "ibm.cpu2msghub",
+      "serviceOrgid": "'$orgid'",
+      "serviceUrl": "'$svc2url'",
       "serviceArch": "",
       "serviceVersionRange": "[0.0.0,INFINITY)",
       "inputs": [
         {
-          "name": "MSGHUB_API_KEY",
+          "name": "foo",
           "value": "1234ABC"
-        },
-        {
-          "name": "SAMPLE_INTERVAL",
-          "value": 5
-        },
-        {
-          "name": "VERBOSE",
-          "value": true
         }
       ]
     }
@@ -418,22 +393,14 @@ if [[ $rc != 200 ]]; then
   "service": { "name": "'$svcurl'", "org": "'$orgid'", "arch": "'$svcarch'", "serviceVersions": [{ "version": "'$svcversion'" }] },
   "userInput": [
     {
-      "serviceOrgid": "IBM",
-      "serviceUrl": "ibm.cpu2msghub",
+      "serviceOrgid": "'$orgid'",
+      "serviceUrl": "'$svc2url'",
       "serviceArch": "",
       "serviceVersionRange": "[0.0.0,INFINITY)",
       "inputs": [
         {
-          "name": "MSGHUB_API_KEY",
+          "name": "foo",
           "value": "1234ABC"
-        },
-        {
-          "name": "SAMPLE_INTERVAL",
-          "value": 5
-        },
-        {
-          "name": "VERBOSE",
-          "value": true
         }
       ]
     }

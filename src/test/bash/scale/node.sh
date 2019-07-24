@@ -20,7 +20,22 @@ fi
 scriptName="$(basename $0)"
 
 # Test configuration. You can override these before invoking the script, if you want.
-HZN_EXCHANGE_URL="${HZN_EXCHANGE_URL:-http://localhost:8080/v1}"
+#HZN_EXCHANGE_URL="${HZN_EXCHANGE_URL:-http://localhost:8080/v1}"  # <- do not default this to localhost
+if [[ -z "$HZN_EXCHANGE_URL" ]]; then
+    # try to get it from /etc/default/horizon
+    if [[ -f '/etc/default/horizon' ]]; then
+        source /etc/default/horizon
+        if [[ -z "$HZN_EXCHANGE_URL" ]]; then
+            echo "Error: HZN_EXCHANGE_URL must be set in the environment or in /etc/default/horizon"
+            exit 1
+        fi
+        export HZN_EXCHANGE_URL
+    else
+        echo "Error: HZN_EXCHANGE_URL must be set in the environment or in /etc/default/horizon"
+        exit 1
+    fi
+fi
+
 #EX_PERF_ORG="${EX_PERF_ORG:-performance${scriptName%%.*}}"
 EX_PERF_ORG="${EX_PERF_ORG:-performancenodeagbot}"
 
@@ -49,6 +64,7 @@ numPatterns="${EX_PERF_NUM_PATTERNS:-2}"
 nodeHbInterval="${EX_NODE_HB_INTERVAL:-60}"
 svcCheckInterval="${EX_NODE_SVC_CHECK_INTERVAL:-300}"
 versionCheckInterval="${EX_NODE_VERSION_CHECK_INTERVAL:-720}"
+# EX_PERF_NO_SLEEP can be set to disable sleep if it finishes an interval early
 
 # CURL_CA_BUNDLE can be exported in our parent if a self-signed cert is needed.
 
@@ -342,7 +358,7 @@ if [[ -n "$EXCHANGE_IAM_ACCOUNT_ID" ]]; then
     # this is an IBM public cloud instance
     curlcreateone "POST" "$rootauth" "orgs/$org" '{ "label": "perf test org", "description": "blah blah", "tags": { "ibmcloud_id": "'$EXCHANGE_IAM_ACCOUNT_ID'" } }' 403
     curlcreateone "PUT" "$rootauth" "orgs/$org/users/$EXCHANGE_IAM_EMAIL" '{"password": "foobar", "admin": false, "email": "'$EXCHANGE_IAM_EMAIL'"}'  # needed until issue 176 is fixed
-    curlget $userauth "orgs/$org/users/iamapikey" 504   #todo: remove 504 once exchange 1.78.0 is deployed everywhere
+    curlget $userauth "orgs/$org/users/iamapikey" 504   #todo: remove 504 once exchange 1.98.0 is deployed everywhere
 else
     # ICP
     curlcreateone "POST" "$rootauth" "orgs/$org" '{ "label": "perf test org", "description": "blah blah" }' 403
@@ -369,21 +385,8 @@ curlcreate "POST" $numPatterns $userauth "orgs/$org/patterns/$patternbase" '{"la
   }]
 }'
 
-# Put (create) nodes n*
-curlcreate "PUT" $numNodes $userauth "orgs/$org/nodes/$nodebase" '{"token": "'$nodetoken'", "name": "pi", "pattern": "'$org'/'$patternid'", "arch": "'$svcarch'", "registeredServices": [{"url": "'$org'/'$svcurl'", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "'$svcarch'", "propType": "string", "op": "in"},{"name": "version", "value": "1.0.0", "propType": "version", "op": "in"}]}], "publicKey": "ABC"}'
-
-# Put (create) node/n*/policy
-for (( i=1 ; i<=$numNodes ; i++ )) ; do
-    curlputpost "PUT" $userauth "orgs/$org/nodes/$nodebase$i/policy" '{ "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
-done
-
 # Put (create) 1 agbot to be able to create node msgs
 curlcreateone "PUT" $userauth "orgs/$org/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "publicKey": "ABC"}'
-
-# Post (create) node n* msgs
-for (( i=1 ; i<=$numNodes ; i++ )) ; do
-    curlputpostmulti "POST" $numMsgs $agbotauth "orgs/$org/nodes/$nodebase$i/msgs" '{"message": "hey there", "ttl": 8640000}'   # ttl is 2400 hours
-done
 
 #todo: add policy calls
 # Put (update) services/${svdid}1/policy
@@ -400,13 +403,28 @@ done
 #}'
 
 
-#=========== Registration =================================================
+#=========== Node Creation and Registration =================================================
 
-# Put (create) node n*
-#curlcreate "PUT" $numNodes $userauth "orgs/$org/nodes/$nodebase" '{"token": "'$nodetoken'", "name": "pi", "pattern": "'$org'/'$patternid'", "arch": "'$svcarch'", "registeredServices": [{"url": "'$org'/'$svcurl'", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "'$svcarch'", "propType": "string", "op": "in"},{"name": "version", "value": "1.0.0", "propType": "version", "op": "in"}]}], "publicKey": "ABC"}'
+# Put (create) nodes n*
+curlcreate "PUT" $numNodes $userauth "orgs/$org/nodes/$nodebase" '{"token": "'$nodetoken'", "name": "pi", "pattern": "'$org'/'$patternid'", "arch": "'$svcarch'", "publicKey": "ABC"}'
 
-# Put (update) node/n1/policy
-#curlputpost "PUT" $nodeauth "orgs/$org/nodes/$nodeid/policy" '{ "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
+for (( n=1 ; n<=$numNodes ; n++ )) ; do
+    mynodeid="$nodebase$n"
+    mynodeauth="$org/$mynodeid:$nodetoken"
+    curlget $mynodeauth admin/version
+    curlget $mynodeauth "orgs/$org/nodes/$mynodeid"
+    curlget $mynodeauth "orgs/$org"
+    curlget $mynodeauth "orgs/$org/patterns/$patternid"
+    curlputpost "PATCH" $mynodeauth "orgs/$org/nodes/$mynodeid" '{ "registeredServices": [{"url": "'$org'/'$svcurl'", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "'$svcarch'", "propType": "string", "op": "in"},{"name": "version", "value": "1.0.0", "propType": "version", "op": "in"}]}] }'
+    curlget $mynodeauth "orgs/$org/patterns/$patternid"
+    curlget $mynodeauth "orgs/$org/services"
+
+    # Put (create) node/n*/policy
+    curlputpost "PUT" $userauth "orgs/$org/nodes/$mynodeid/policy" '{ "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
+
+    # Post (create) node n* msgs to simulate agreement negotiation (agbot.sh will do the same for the agbots)
+    curlputpostmulti "POST" $numMsgs $agbotauth "orgs/$org/nodes/$mynodeid/msgs" '{"message": "hey there", "ttl": 8640000}'   # ttl is 2400 hours
+done
 
 
 #=========== Loop thru repeated exchange calls =================================================
@@ -436,20 +454,21 @@ for (( h=1 ; h<=$numHeartbeats ; h++ )) ; do
 
     for (( n=1 ; n<=$numNodes ; n++ )) ; do
         echo "Node $n"
-        mynodeauth="$org/$nodebase$n:$nodetoken"
+        mynodeid="$nodebase$n"
+        mynodeauth="$org/$mynodeid:$nodetoken"
 
         # These api methods are run every hb:
         # Get my node
-        curlget $mynodeauth "orgs/$org/nodes/$nodebase$n"
+        curlget $mynodeauth "orgs/$org/nodes/$mynodeid"
 
         # Get my node msgs
-        curlget $mynodeauth "orgs/$org/nodes/$nodebase$n/msgs"
+        curlget $mynodeauth "orgs/$org/nodes/$mynodeid/msgs"
 
         # Post node/n1/heartbeat
-        curlputpost "POST" $mynodeauth "orgs/$org/nodes/$nodebase$n/heartbeat"
+        curlputpost "POST" $mynodeauth "orgs/$org/nodes/$mynodeid/heartbeat"
 
         # Get my node policy
-        curlget $mynodeauth "orgs/$org/nodes/$nodebase$n/policy"
+        curlget $mynodeauth "orgs/$org/nodes/$mynodeid/policy"
 
         # If it is time to do a service check, do that
         if [[ $svcCheckCount -ge $svcCheckInterval ]]; then
@@ -488,7 +507,7 @@ for (( h=1 ; h<=$numHeartbeats ; h++ )) ; do
 	iterTime=$(($(date +%s)-startIteration))
 	iterDelta=$(( $nodeHbInterval - $iterTime ))
 	iterDeltaTotal=$(( $iterDeltaTotal + $iterDelta ))
-	if [[ $iterDelta -gt 0 ]]; then
+	if [[ $iterDelta -gt 0 && -z "$EX_PERF_NO_SLEEP" ]]; then
 	    echo "Sleeping for $iterDelta seconds at the end of node heartbeat $h of $numHeartbeats because loop iteration finished early"
 	    sleep $iterDelta
 	fi

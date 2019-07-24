@@ -19,7 +19,22 @@ fi
 scriptName="$(basename $0)"
 
 # Test configuration. You can override these before invoking the script, if you want.
-HZN_EXCHANGE_URL="${HZN_EXCHANGE_URL:-http://localhost:8080/v1}"
+#HZN_EXCHANGE_URL="${HZN_EXCHANGE_URL:-http://localhost:8080/v1}"  # <- do not default this to localhost
+if [[ -z "$HZN_EXCHANGE_URL" ]]; then
+    # try to get it from /etc/default/horizon
+    if [[ -f '/etc/default/horizon' ]]; then
+        source /etc/default/horizon
+        if [[ -z "$HZN_EXCHANGE_URL" ]]; then
+            echo "Error: HZN_EXCHANGE_URL must be set in the environment or in /etc/default/horizon"
+            exit 1
+        fi
+        export HZN_EXCHANGE_URL
+    else
+        echo "Error: HZN_EXCHANGE_URL must be set in the environment or in /etc/default/horizon"
+        exit 1
+    fi
+fi
+
 EX_PERF_ORG="${EX_PERF_ORG:-performancenodeagbot}"
 
 # default of where to write the summary or error msgs. Can be overridden
@@ -50,6 +65,7 @@ processGovInterval="${EX_AGBOT_PROC_GOV_INTERVAL:-10}"
 agbotHbInterval="${EX_AGBOT_HB_INTERVAL:-60}"
 versionCheckInterval="${EX_AGBOT_VERSION_CHECK_INTERVAL:-60}"
 #activeNodeTimeout="${EX_AGBOT_ACTIVE_NODE_CHECK:-180}"
+# EX_PERF_NO_SLEEP can be set to disable sleep if it finishes an interval early
 
 # CURL_CA_BUNDLE can be exported in our parent if a self-signed cert is needed.
 
@@ -68,7 +84,7 @@ org="${orgbase}"
 if [[ -n "$EXCHANGE_IAM_ACCOUNT_ID" ]]; then
     userauth="$org/iamapikey:$EXCHANGE_IAM_KEY"
 else
-    # for ICP we can't play the game of having our own org, but associating it with another account, so we have to use a local exchange user
+    # for ICP we can't play the game of having our own org, but associating it with another account, so we have to create and use a local exchange user
     userauth="$org/$EXCHANGE_IAM_EMAIL:$EXCHANGE_IAM_KEY"
 fi
 
@@ -442,7 +458,6 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
         curlget $myagbotauth "orgs/$org/agbots/$agbotbase$a/patterns"
         curlget $myagbotauth "orgs/$org"
         curlget $rootauth "orgs/IBM"
-        #curlget $myagbotauth "orgs/$org/services" 404
 
         # These api methods are run every agreement check and process governance:
         # Get the patterns in the org and do a search for each one. Note: we are only getting the patterns in our org, because the number of patterns in the IBM org will be small in comparison.
@@ -470,6 +485,7 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
                     # run nodehealth for this pattern. Not sure yet what to do with this result yet
                     curlputpost "POST" $myagbotauth "orgs/$org/patterns/$pat/nodehealth" '{ "lastTime": "" }' 404   # empty string for lastTime will return all nodes
                     curlget $myagbotauth "orgs/$org/services" 404
+                    curlget $myagbotauth "orgs/$org/services/$svcid" 404   # not sure why both of these are called, but they are
 
                     # Search for nodes with this pattern
                     searchBody='{ "serviceUrl": "'$org'/'$svcurl'", "secondsStale": 0, "startIndex": 0, "numEntries": 0 }'
@@ -503,6 +519,7 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
                         fi
                     fi
                 done
+                #todo: query agbot businesspols orgs and business policies and do a search for each, and query service policy
                 echo "Processed $numAgrChkNodes nodes"
             fi
         fi
@@ -539,7 +556,7 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
 	iterTime=$(($(date +%s)-startIteration))
 	iterDelta=$(( $newAgreementInterval - $iterTime ))
 	iterDeltaTotal=$(( $iterDeltaTotal + $iterDelta ))
-	if [[ $iterDelta -gt 0 ]]; then
+	if [[ $iterDelta -gt 0 && -z "$EX_PERF_NO_SLEEP" ]]; then
 	    echo "Sleeping for $iterDelta seconds at the end of agbot agreement check $h of $numAgrChecks because loop iteration finished early"
 	    sleep $iterDelta
 	fi

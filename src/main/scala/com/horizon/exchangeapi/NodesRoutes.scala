@@ -486,10 +486,10 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
     */
     val oldestTime = if (searchProps.secondsStale > 0) ApiTime.pastUTC(searchProps.secondsStale) else ApiTime.beginningUTC
-    val nodeQuery =
-      for {
-        (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-      } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+//    val nodeQuery =
+//      for {
+//        (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+//      } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
 
     def isEqualUrl(agrSvcUrl: String, searchSvcUrl: String): Boolean = {
       if (agrSvcUrl == searchSvcUrl) return true    // this is the relevant check when both agbot and agent are recent enough to use composite urls (org/org)
@@ -507,13 +507,21 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       if (list.nonEmpty) {
         val services = PatternsTQ.getServicesFromString(list.head)    // we should have found only 1 pattern services string, now parse it to get service list
         var found = false
+        var svcArch = ""
         breakable { for ( svc <- services) {
           if (svc.serviceOrgid+"/"+svc.serviceUrl == searchSvcUrl || svc.serviceUrl == searchSvcUrl) {
             found = true
+            svcArch = svc.serviceArch
             break
           }
         } }
-        if (found) nodeQuery.result.asTry
+        if (found) {
+          val nodeQuery =
+            for {
+              (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(n => {n.arch.toString()==""}).filter(n => {n.arch === svcArch || svcArch == "" || svcArch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+            } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+          nodeQuery.result.asTry
+        }
         else DBIO.failed(new Throwable("the serviceUrl '"+searchSvcUrl+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
       }
       else DBIO.failed(new Throwable("pattern '"+compositePat+"' not found")).asTry

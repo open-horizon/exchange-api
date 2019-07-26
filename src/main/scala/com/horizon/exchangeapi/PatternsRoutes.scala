@@ -11,7 +11,7 @@ import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
-import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.util._
 //import java.net._
 import scala.util.control.Breaks._
@@ -560,6 +560,127 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       }
     })
   })
+
+  // ======== POST /org/{orgid}/patterns/{pat-id}/search ========================
+  val postPatternSearch =
+    (apiOperation[PostPatternSearchResponse]("postPatternSearch")
+      summary("Returns matching nodes of a particular pattern")
+      description """Returns the matching nodes that are using this pattern and do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node). The **request body** structure:
+
+```
+{
+  "serviceUrl": "myorg/mydomain.com.sdr",   // The service that the node does not have an agreement with yet. Composite svc url (org/svc)
+  "nodeOrgids": [ "org1", "org2", "..." ],   // if not specified, defaults to the same org the pattern is in
+  "secondsStale": 60,     // max number of seconds since the exchange has heard from the node, 0 if you do not care
+  "startIndex": 0,    // for pagination, ignored right now
+  "numEntries": 0    // ignored right now
+}
+```"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PostPatternSearchRequest],
+        Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+  val postPatternSearch2 = (apiOperation[PostPatternSearchRequest]("postPatternSearch2") summary("a") description("a"))
+
+  /** Normally called by the agbot to search for available nodes. */
+  post("/orgs/:orgid/patterns/:pattern/search", operation(postPatternSearch)) ({
+    val orgid = params("orgid")
+    val pattern = params("pattern")
+    val compositePat = OrgAndId(orgid,pattern).toString
+    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
+    val searchProps = try { parse(request.body).extract[PostPatternSearchRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    searchProps.validate()
+    val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
+    logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+searchProps.toString)
+    val searchSvcUrl = searchProps.serviceUrl   // this now is a composite value (org/url), but plain url is supported for backward compat
+    val resp = response
+    /*
+      Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
+      In english, the join gets: n.id, n.msgEndPoint, n.publicKey, a.serviceUrl, a.state
+      The filters are: n is in the given list of node orgs, n.pattern==ourpattern, the node is not stale, there is an agreement for this node (the filter a.state=="" is applied later in our code below)
+      Then we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
+      Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
+    */
+    val oldestTime = if (searchProps.secondsStale > 0) ApiTime.pastUTC(searchProps.secondsStale) else ApiTime.beginningUTC
+    //    val nodeQuery =
+    //      for {
+    //        (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+    //      } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+
+    def isEqualUrl(agrSvcUrl: String, searchSvcUrl: String): Boolean = {
+      if (agrSvcUrl == searchSvcUrl) return true    // this is the relevant check when both agbot and agent are recent enough to use composite urls (org/org)
+      // Assume searchSvcUrl is the new composite format (because the agbot is at least as high version as the agent) and strip off the org
+      val reg = """^\S+?/(\S+)$""".r
+      searchSvcUrl match {
+        case reg(url) => return agrSvcUrl == url
+        case _ => return false    // searchSvcUrl was not composite, so the urls are not equal
+      }
+    }
+
+    db.run(PatternsTQ.getServices(compositePat).result.flatMap({ list =>
+      logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search getServices size: "+list.size)
+      logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search: looking for '"+searchSvcUrl+"', searching getServices: "+list.toString())
+      if (list.nonEmpty) {
+        val services = PatternsTQ.getServicesFromString(list.head)    // we should have found only 1 pattern services string, now parse it to get service list
+        var found = false
+        var svcArch = ""
+        breakable { for ( svc <- services) {
+          if (svc.serviceOrgid+"/"+svc.serviceUrl == searchSvcUrl || svc.serviceUrl == searchSvcUrl) {
+            found = true
+            svcArch = svc.serviceArch
+            break
+          }
+        } }
+        if (found) {
+          val nodeQuery =
+            for {
+              (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(n => {n.arch.toString()==""}).filter(n => {n.arch === svcArch || svcArch == "" || svcArch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+            } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+          nodeQuery.result.asTry
+        }
+        else DBIO.failed(new Throwable("the serviceUrl '"+searchSvcUrl+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
+      }
+      else DBIO.failed(new Throwable("pattern '"+compositePat+"' not found")).asTry
+    })).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result size: "+xs.getOrElse(Vector()).size)
+      //logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result: "+xs.toString)
+      xs match {
+        case Success(list) => if (list.nonEmpty) {
+          // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
+          val nodeHash = new MutableHashMap[String,PatternSearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
+          for ( (nodeid, msgEndPoint, publicKey, agrSvcUrlOpt, stateOpt) <- list ) {
+            //logger.trace("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
+            nodeHash.get(nodeid) match {
+              case Some(_) => if (isEqualUrl(agrSvcUrlOpt.getOrElse(""), searchSvcUrl) && stateOpt.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(nodeid, PatternSearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
+              case None => val noAgr = if (isEqualUrl(agrSvcUrlOpt.getOrElse(""), searchSvcUrl) && stateOpt.getOrElse("") != "") false else true
+                nodeHash.put(nodeid, PatternSearchHashElement(msgEndPoint, publicKey, noAgr))   // this node nodeid not in the hash yet, add it
+            }
+          }
+          // Convert our hash to the list response of the rest api
+          //val respList = list.map( x => PatternNodeResponse(x._1, x._2, x._3)).toList
+          val respList = new ListBuffer[PatternNodeResponse]
+          for ( (k, v) <- nodeHash) if (v.noAgreementYet) respList += PatternNodeResponse(k, v.msgEndPoint, v.publicKey)
+          if (respList.nonEmpty) resp.setStatus(HttpCode.POST_OK)
+          else resp.setStatus(HttpCode.NOT_FOUND)
+          PostPatternSearchResponse(respList.toList, 0)
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          PostPatternSearchResponse(List[PatternNodeResponse](), 0)
+        }
+        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, "invalid input: "+t.getMessage)
+      }
+    })
+  })
+
 
   // =========== DELETE /orgs/{orgid}/patterns/{pattern} ===============================
   val deletePatterns =

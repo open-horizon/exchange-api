@@ -11,6 +11,7 @@ import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
+import scala.collection.mutable
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.util._
 //import java.net._
@@ -21,6 +22,11 @@ import scala.util.control.Breaks._
 /** Output format for GET /orgs/{orgid}/patterns */
 case class GetPatternsResponse(patterns: Map[String,Pattern], lastIndex: Int)
 case class GetPatternAttributeResponse(attribute: String, value: String)
+
+/** Input for pattern-based search for nodes to make agreements with. */
+case class PostPatternSearchRequest(serviceUrl: String, nodeOrgids: Option[List[String]], secondsStale: Int, startIndex: Int, numEntries: Int) {
+  def validate() = { }
+}
 
 /** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
 case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], services: List[PServices], userInput: Option[List[OneUserInputService]], agreementProtocols: Option[List[Map[String,String]]]) {
@@ -610,10 +616,6 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
     */
     val oldestTime = if (searchProps.secondsStale > 0) ApiTime.pastUTC(searchProps.secondsStale) else ApiTime.beginningUTC
-    //    val nodeQuery =
-    //      for {
-    //        (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-    //      } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
 
     def isEqualUrl(agrSvcUrl: String, searchSvcUrl: String): Boolean = {
       if (agrSvcUrl == searchSvcUrl) return true    // this is the relevant check when both agbot and agent are recent enough to use composite urls (org/org)
@@ -639,12 +641,24 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             break
           }
         } }
+        val archList = new ListBuffer[String]()
+        for ( svc <- services) {
+          archList += svc.serviceArch
+        }
         if (found) {
-          val nodeQuery =
-            for {
-              (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(n => {n.arch.toString()==""}).filter(n => {n.arch === svcArch || svcArch == "" || svcArch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-            } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
-          nodeQuery.result.asTry
+          if (svcArch == "" || svcArch == "*" || archList.contains("") || archList.contains("*")){
+            val nodeQuery =
+              for {
+                (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+              } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+            nodeQuery.result.asTry
+          } else {
+            val nodeQuery =
+              for {
+                (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(n => {n.arch === svcArch || n.arch === "" || archList.contains(n.arch.toString())}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+              } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+            nodeQuery.result.asTry
+          }
         }
         else DBIO.failed(new Throwable("the serviceUrl '"+searchSvcUrl+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
       }

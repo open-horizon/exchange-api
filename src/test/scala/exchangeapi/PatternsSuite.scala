@@ -93,6 +93,38 @@ class PatternsSuite extends FunSuite {
   val keyId2 = "mykey2.pem"
   val key2 = "lnmopqrstuvwxyz"
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
+  val patid = "p-searchtest1"
+  val compositePatid = orgid+"/"+patid
+  val patid2 = "p-searchtest2"
+  val compositePatid2 = orgid+"/"+patid2
+  val PWSSPEC_URL = "bluehorizon.network.pws"
+  val PWSSPEC = orgid+"/"+PWSSPEC_URL
+  val agProto = "ExchangeAutomatedTest"    // using this to avoid db entries from real users and predefined ones
+  val NETSPEEDSPEC_URL = "bluehorizon.network.netspeed"
+  val NETSPEEDSPEC = orgid+"/"+NETSPEEDSPEC_URL
+  val SDRSPEC_URL = "bluehorizon.network.sdr"
+  val SDRSPEC = orgid+"/"+SDRSPEC_URL
+  val svcid2 = "bluehorizon.network-services-sdr_1.0.0_amd64"
+  val svcarch2 = "amd64"
+  val svcversion2 = "1.0.0"
+  val svcid3 = "bluehorizon.network-services-netspeed_1.0.0_amd64"
+  val svcarch3 = "amd64"
+  val svcversion3 = "1.0.0"
+  val nodeIdSearchTest1 = "n1"     // the 1st node created, that i will use to run some rest methods
+  val orgnodeIdSearchTest1= authpref+nodeIdSearchTest1
+  val nodeTokenSearchTest1 = "mytok"
+  val nodeId2SearchTest2 = "n2"
+  val orgnodeId2SearchTest2 = authpref+nodeId2SearchTest2
+  val nodeToken2SearchTest2 = "my tok"   // intentionally adding a space in the token
+  val nodeId3SearchTest3 = "n3"
+  val orgnodeId3SearchTest3 = authpref+nodeId3SearchTest3
+  val nodeToken3SearchTest3 = "mytok"
+  val nodeId4SearchTest4 = "n4"
+  val orgnodeId4SearchTest4 = authpref+nodeId4SearchTest4
+  val nodeToken4SearchTest4 = "my tok"
+  val svcid4 = "bluehorizon.network-services-pws_1.0.0"
+  val svcarch4 = "*"
+  val svcversion4 = "1.0.0"
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -767,6 +799,183 @@ class PatternsSuite extends FunSuite {
   }
 
   // the test to try to get an IBM pattern that doesnt exist is at the end when we are cleaning up
+
+  test("POST /orgs/"+orgid+"/services - add "+svcid2+" so pattern can reference it") {
+    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, "", "", None)
+    val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/services - add "+svcid3+" so pattern can reference it") {
+    val input = PostPutServiceRequest("test-service", None, public = false, None, NETSPEEDSPEC_URL, svcversion3, svcarch3, "multiple", None, None, None, "", "", None)
+    val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/services - add "+svcid4+" so pattern can reference it") {
+    val input = PostPutServiceRequest("test-service", None, public = false, None, PWSSPEC_URL, svcversion4, svcarch4, "multiple", None, None, None, "", "", None)
+    val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/"+patid+" - adding pattern so nodes can reference it") {
+    val input = PostPutPatternRequest(patid, None, None,
+      List(
+        // Reference both services in the pattern so we can search on both later on
+        PServices(SDRSPEC_URL, orgid, svcarch2, None, List(PServiceVersions(svcversion2, None, None, None, None)), None, None ),
+        PServices(NETSPEEDSPEC_URL, orgid, svcarch3, Some(true), List(PServiceVersions(svcversion3, None, None, None, None)), None, None )
+      ),
+      None, None
+    )
+    val response = Http(URL+"/patterns/"+patid).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/"+patid2+" - adding pattern so nodes can reference it") {
+    val input = PostPutPatternRequest(patid2, None, None,
+      List(
+        // Reference both services in the pattern so we can search on both later on
+        PServices(SDRSPEC_URL, orgid, svcarch2, None, List(PServiceVersions(svcversion2, None, None, None, None)), None, None ),
+        PServices(NETSPEEDSPEC_URL, orgid, svcarch3, Some(true), List(PServiceVersions(svcversion3, None, None, None, None)), None, None ),
+        PServices(PWSSPEC_URL, orgid, svcarch4, None, List(PServiceVersions(svcversion4, None, None, None, None)), None, None ),
+      ),
+      None, None
+    )
+    val response = Http(URL+"/patterns/"+patid2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeIdSearchTest1+" - add normal node as user") {
+    val input = PutNodesRequest(nodeTokenSearchTest1, "rpi"+nodeIdSearchTest1+"-norm", compositePatid,
+      Some(List(
+        RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeIdSearchTest1+" pws}",List(
+          Prop("arch","arm","string","in"),
+          Prop("version","1.0.0","version","in"),
+          Prop("agreementProtocols",agProto,"list","in"),
+          Prop("dataVerification","true","boolean","="))),
+        RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeIdSearchTest1+" netspeed}",List(
+          Prop("arch","arm","string","in"),
+          Prop("cpus","2","int",">="),
+          Prop("version","1.0.0","version","in")))
+      )),
+      Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      None, Some(Map("horizon"->"3.2.3")), "NODEABC", None)
+    val response = Http(URL+"/nodes/"+nodeIdSearchTest1).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId2SearchTest2+" - node with higher memory 400, and version 2.0.0") {
+    val input = PutNodesRequest(nodeToken2SearchTest2, "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
+      Prop("arch","arm","string","in"),
+      Prop("memory","400","int",">="),
+      Prop("version","2.0.0","version","in"),
+      Prop("agreementProtocols",agProto,"list","in"),
+      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", Some("amd64"))
+    val response = Http(URL+"/nodes/"+nodeId2SearchTest2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId2SearchTest2+" - node with no arch") {
+    val input = PutNodesRequest(nodeToken2SearchTest2, "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
+      Prop("arch","arm","string","in"),
+      Prop("memory","400","int",">="),
+      Prop("version","2.0.0","version","in"),
+      Prop("agreementProtocols",agProto,"list","in"),
+      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", Some("amd64"))
+    val response = Http(URL+"/nodes/"+nodeId2SearchTest2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - as agbot") {
+    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0)
+    val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
+    val nodes = postSearchDevResp.nodes
+    assert(nodes.length === 2)
+    info(nodes.count(d => d.id==orgnodeIdSearchTest1 || d.id==orgnodeId2SearchTest2).toString())
+    assert(nodes.count(d => d.id==orgnodeIdSearchTest1 || d.id==orgnodeId2SearchTest2) === 2)
+    val dev = nodes.find(d => d.id == orgnodeIdSearchTest1).get // the 2nd get turns the Some(val) into val
+    val dev2 = nodes.find(d => d.id == orgnodeId2SearchTest2).get // the 2nd get turns the Some(val) into val
+    assert(dev.publicKey === "NODEABC")
+    assert(dev2.publicKey === "NODE2ABC")
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId3SearchTest3+" - node with no arch") {
+    val input = PutNodesRequest(nodeToken3SearchTest3, "rpi"+nodeId3SearchTest3+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId3SearchTest3+" sdr}",List(
+      Prop("arch","arm","string","in"),
+      Prop("memory","400","int",">="),
+      Prop("version","2.0.0","version","in"),
+      Prop("agreementProtocols",agProto,"list","in"),
+      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE3ABC", None)
+    val response = Http(URL+"/nodes/"+nodeId3SearchTest3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+
+  test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - agbot should find node with no arch") {
+    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0)
+    val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
+    val nodes = postSearchDevResp.nodes
+    assert(nodes.length === 3)
+    assert(nodes.count(d => d.id==orgnodeIdSearchTest1 || d.id==orgnodeId2SearchTest2 || d.id==orgnodeId3SearchTest3) === 3)
+    val dev = nodes.find(d => d.id == orgnodeIdSearchTest1).get // the 2nd get turns the Some(val) into val
+    val dev2 = nodes.find(d => d.id == orgnodeId2SearchTest2).get // the 2nd get turns the Some(val) into val
+    val dev3 = nodes.find(d => d.id == orgnodeId3SearchTest3).get // the 2nd get turns the Some(val) into val
+    assert(dev.publicKey === "NODEABC")
+    assert(dev2.publicKey === "NODE2ABC")
+    assert(dev3.publicKey === "NODE3ABC")
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId4SearchTest4+" - node with "+PWSSPEC+" Service") {
+    val input = PutNodesRequest(nodeToken4SearchTest4, "rpi"+nodeId4SearchTest4+"-mem-400-vers-2", compositePatid2, Some(List(RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId4SearchTest4+" sdr}",List(
+      Prop("arch","arm","string","in"),
+      Prop("memory","400","int",">="),
+      Prop("version","1.0.0","version","in"),
+      Prop("agreementProtocols",agProto,"list","in"),
+      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE4ABC", None)
+    val response = Http(URL+"/nodes/"+nodeId4SearchTest4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId4SearchTest4+" - by agbot just to see what the node is") {
+    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId4SearchTest4).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+  }
+
+  test("GET /orgs/"+orgid+"/patterns/"+patid2+" - by agbot just to see what the pattern is") {
+    val response: HttpResponse[String] = Http(URL+"/patterns/"+patid2).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK)
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/"+patid2+"/search - as agbot for "+PWSSPEC+" with no arch") {
+    val input = PostPatternSearchRequest(PWSSPEC, Some(List(orgid,orgid2)), 86400, 0, 0)
+    val response = Http(URL+"/patterns/"+patid2+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
+    val nodes = postSearchDevResp.nodes
+    assert(nodes.length === 1)
+    assert(nodes.count(d => d.id==orgnodeId4SearchTest4) === 1)
+    val dev = nodes.find(d => d.id == orgnodeId4SearchTest4).get // the 2nd get turns the Some(val) into val
+    assert(dev.publicKey === "NODE4ABC")
+  }
 
 
   // Key tests ==============================================

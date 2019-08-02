@@ -21,11 +21,6 @@ import scala.util.control.Breaks._
 case class GetNodesResponse(nodes: Map[String,Node], lastIndex: Int)
 case class GetNodeAttributeResponse(attribute: String, value: String)
 
-///** Input for pattern-based search for nodes to make agreements with. */
-//case class PostPatternSearchRequest(serviceUrl: String, nodeOrgids: Option[List[String]], secondsStale: Int, startIndex: Int, numEntries: Int) {
-//  def validate() = { }
-//}
-
 // Tried this to have names on the tuple returned from the db, but didn't work...
 case class PatternSearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
 

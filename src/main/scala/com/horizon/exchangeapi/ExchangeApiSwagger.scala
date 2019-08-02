@@ -13,4 +13,4 @@ class ResourcesApp(implicit val swagger: Swagger) extends ScalatraServlet with N
 // }
 
 /** Exchange API swagger instance, passed implicitly to ResourcesApp in ScalatraBootstrap. */
-//class ExchangeApiSwagger extends Swagger(Swagger.SpecVersion, "1", ApiInfo("The Data Exchange API","Docs for the data exchange","https://termsofservice.bluehorizon.network/","ibm","apache2","http://www.apache.org/licenses/LICENSE-2.0"))
+class ExchangeApiSwagger extends Swagger(Swagger.SpecVersion, "1", ApiInfo("The Data Exchange API","Docs for the data exchange","https://termsofservice.bluehorizon.network/","ibm","apache2","http://www.apache.org/licenses/LICENSE-2.0"))

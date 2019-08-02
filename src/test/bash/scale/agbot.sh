@@ -398,40 +398,6 @@ done
 
 #=========== Loop thru repeated exchange calls =================================================
 
-# The repeated rest apis a agbot runs are:
-#   GET /orgs/<org>/agbots/<agbot>/msgs
-#   POST /orgs/<org>/patterns/<pattern>/search (for each pattern)
-#   POST /orgs/<org>/business/policies/<policy>/search
-#   GET /orgs/<org>/agbots/<agbot>/patterns
-#   GET /orgs/<org>
-#   GET /orgs/<org>/business/policies
-#   GET /orgs/<org>/services/<service>/policy
-#   GET /orgs/<org>/patterns
-#   GET /orgs/<org>/nodes/<node>
-#   POST /orgs/<org>/business/policies/<policy>/search
-#   GET /orgs/<org>/services
-#   GET /orgs/<org>/services/<service>/policy
-#   POST /orgs/<org>/business/policies/<policy>/search
-#   GET /orgs/<org>/services/<service>/policy
-#   GET /orgs/<org>/services
-#   GET /orgs/<org>/nodes/<node>
-#   POST /orgs/<org>/patterns/<pattern>/nodehealth
-#   POST /orgs/<org>/patterns/<pattern>/search
-#   GET /orgs/<org>/agbots/<agbot>/patterns
-#   GET /orgs/<org>
-#   GET /orgs/<org>/agbots/<agbot>/businesspols
-#   GET /orgs/<org>/business/policies
-#   GET /orgs/<org>/services/<service>/policy
-#   GET /orgs/<org>/agbots/<agbot>/patterns
-#   GET /orgs/<org>/patterns
-#   GET /orgs/<org>/agbots/<agbot>/businesspols
-#   GET /orgs/<org>/business/policies
-
-#   GET /admin/version (every 60 s)
-
-#   POST /orgs/<org>/agbots/<agbot>/heartbeat (every 60 s)
-#   GET /orgs/<org>/agbots/<agbot>
-
 printf "\nRunning $numAgrChecks agreement checks for $numAgbots agbots:\n"
 agbotHbCount=0
 versionCheckCount=0

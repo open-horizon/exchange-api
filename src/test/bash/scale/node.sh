@@ -424,20 +424,13 @@ for (( n=1 ; n<=$numNodes ; n++ )) ; do
 
     # Post (create) node n* msgs to simulate agreement negotiation (agbot.sh will do the same for the agbots)
     curlputpostmulti "POST" $numMsgs $agbotauth "orgs/$org/nodes/$mynodeid/msgs" '{"message": "hey there", "ttl": 8640000}'   # ttl is 2400 hours
+
+    # Update node status when the services start running
+    curlputpost "PUT" $mynodeauth "orgs/$org/nodes/$mynodeid/status" '{ "connectivity": {"firmware.bluehorizon.network": true}, "services": [] }'
 done
 
 
 #=========== Loop thru repeated exchange calls =================================================
-
-# The repeated rest apis a node runs are:
-#   GET /orgs/<org>/nodes/<node> (these 4 every 60 seconds)
-#   GET /orgs/<org>/nodes/<node>/msgs
-#   POST /orgs/<org>/nodes/<node>/heartbeat
-#   GET /orgs/<org>/nodes/<node>/policy
-
-#   GET /orgs/<org>/services (every 300 seconds)
-
-#   GET /admin/version (every 720 seconds)
 
 printf "\nRunning $numHeartbeats heartbeats for $numNodes nodes:\n"
 svcCheckCount=0
@@ -482,9 +475,6 @@ for (( h=1 ; h<=$numHeartbeats ; h++ )) ; do
             curlget $mynodeauth admin/version
         fi
 
-        # Put (update) node/n1/status
-        #curlputpost "PUT" $nodeauth "orgs/$org/nodes/$nodeid/status" '{ "connectivity": {"firmware.bluehorizon.network": true}, "services": [] }'
-
     done
 
     # Give numNodeAgreements nodes an agreement
@@ -514,7 +504,15 @@ for (( h=1 ; h<=$numHeartbeats ; h++ )) ; do
 
 done
 
-#=========== Clean up ===========================================
+#=========== Unregistration and Clean up ===========================================
+
+for (( n=1 ; n<=$numNodes ; n++ )) ; do
+    mynodeid="$nodebase$n"
+    mynodeauth="$org/$mynodeid:$nodetoken"
+
+    # Update node status when the services stop running
+    curlputpost "PUT" $mynodeauth "orgs/$org/nodes/$mynodeid/status" '{ "connectivity": {"firmware.bluehorizon.network": true}, "services": [] }'
+done
 
 printf "\nCleaning up from test:\n"
 

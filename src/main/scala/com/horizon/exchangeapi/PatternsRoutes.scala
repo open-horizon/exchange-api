@@ -643,10 +643,17 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         } }
         val archList = new ListBuffer[String]()
         for ( svc <- services) {
-          archList += svc.serviceArch
+          if(svc.serviceOrgid+"/"+svc.serviceUrl == searchSvcUrl){
+            archList += svc.serviceArch
+          }
         }
+        archList += svcArch
+        archList += ""
+        archList += "*"
+        val archSet = archList.toSet
+        // archList.contains(n.arch.toString()
         if (found) {
-          if (svcArch == "" || svcArch == "*" || archList.contains("") || archList.contains("*")){
+          if (svcArch == "" || svcArch == "*" || archSet("") || archSet("*")){
             val nodeQuery =
               for {
                 (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
@@ -655,7 +662,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           } else {
             val nodeQuery =
               for {
-                (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(n => {n.arch === svcArch || n.arch === "" || archList.contains(n.arch.toString())}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+                (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(_.arch inSet(archSet)) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
               } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
             nodeQuery.result.asTry
           }

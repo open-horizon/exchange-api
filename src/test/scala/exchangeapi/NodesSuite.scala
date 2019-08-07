@@ -1137,6 +1137,7 @@ class NodesSuite extends FunSuite {
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
+    info(response.body)
     assert(response.code === HttpCode.POST_OK)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
@@ -1271,7 +1272,7 @@ class NodesSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - with a sleep, so all nodes are stale") {
     patchNodePattern("")      // remove pattern from nodes so we can search for services
-    Thread.sleep(1100)    // delay 1.1 seconds so all nodes will be stale
+    Thread.sleep(2100)    // delay 2.1 seconds so all nodes will be stale
     val input = PostBusinessPolicySearchRequest(None, ApiTime.nowSeconds, None, None)
     val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -1297,7 +1298,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - now 2 nodes not stales") {
-    val input = PostBusinessPolicySearchRequest(None, changedSinceAgo(1), None, None)
+    val input = PostBusinessPolicySearchRequest(None, changedSinceAgo(2), None, None)
     val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     //info("code: "+response.code)

@@ -1272,7 +1272,7 @@ class NodesSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - with a sleep, so all nodes are stale") {
     patchNodePattern("")      // remove pattern from nodes so we can search for services
-    Thread.sleep(2100)    // delay 1.1 seconds so all nodes will be stale
+    Thread.sleep(2100)    // delay 2.1 seconds so all nodes will be stale
     val input = PostBusinessPolicySearchRequest(None, ApiTime.nowSeconds, None, None)
     val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)

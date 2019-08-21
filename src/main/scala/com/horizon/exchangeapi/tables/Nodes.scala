@@ -360,7 +360,7 @@ case class Prop(name: String, value: String, propType: String, op: String) {
 
   /** Returns an error msg if the user input is invalid. */
   def validate: Option[String] = {
-    implicit val userLang = Lang("en")
+    implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
     if (!PropType.contains(propType)) return Option[String](Messages("invalid.proptype.for.name", propType, name))
     if (!Op.contains(op)) return Option[String](Messages("invalid.op.for.name", op, name))
     if (propType==PropType.BOOLEAN) {

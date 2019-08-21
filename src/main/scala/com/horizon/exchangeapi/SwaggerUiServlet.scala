@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory
 class SwaggerUiServlet extends ScalatraServlet {
   val logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
   val sortParams = "apisSorter=alpha&operationsSorter=alpha"
-  implicit val userLang = Lang("en")
+  implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
 	/** Returns the swagger-ui index page. This route is so users can browse, e.g., https://exchange.bluehorizon.network/api/api and will be redirected to the swagger page. */
 	get("/") {

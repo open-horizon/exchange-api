@@ -28,7 +28,7 @@ object ExchangeApiTables {
     ).create,
     SchemaTQ.getSetVersionAction)
 
-  implicit val userLang = Lang("en")
+  implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   // Alter the schema of existing tables - used to be used in /admin/upgradedb
   // Note: the compose/bluemix version of postgresql does not support the 'if not exists' option

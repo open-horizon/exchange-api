@@ -38,7 +38,7 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
 
   def db: Database      // get access to the db object in ExchangeApiApp
   implicit def logger: Logger    // get access to the logger object in ExchangeApiApp
-  override implicit val userLang = Lang("en")
+  override implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   var migratingDb = false     // used to lock everyone out during db migration
   def isDbMigration = migratingDb

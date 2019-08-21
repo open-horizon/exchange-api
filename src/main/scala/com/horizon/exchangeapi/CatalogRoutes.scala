@@ -16,7 +16,7 @@ trait CatalogRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   def db: Database      // get access to the db object in ExchangeApiApp
   def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
-  override implicit val userLang = Lang("en")
+  override implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   // ====== GET /catalog/services ================================
   val getCatalogServices =

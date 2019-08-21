@@ -35,7 +35,7 @@ object SharableVals extends Enumeration {
 /** Input format for POST /orgs/{orgid}/services or PUT /orgs/{orgid}/services/<service-id> */
 case class PostPutServiceRequest(label: String, description: Option[String], public: Boolean, documentation: Option[String], url: String, version: String, arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: String, deploymentSignature: String, imageStore: Option[Map[String,Any]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  implicit val userLang = Lang("en")
+  implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
   def validate(orgid: String, serviceId: String) = {
     // Ensure that the documentation field is a valid URL
     if (documentation.getOrElse("") != "") {
@@ -111,7 +111,7 @@ case class PutServicePolicyRequest(properties: Option[List[OneProperty]], constr
     val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of string", "version")
     for (p <- properties.getOrElse(List())) {
       if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
-        halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("property.type.must.be", p.`type`.get, validTypes.mkString(", "))(Lang("en"))))
+        halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("property.type.must.be", p.`type`.get, validTypes.mkString(", "))(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en")))))
       }
     }
   }
@@ -147,7 +147,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   def db: Database      // get access to the db object in ExchangeApiApp
   def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
-  override implicit val userLang = Lang("en")
+  override implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   // ====== GET /orgs/{orgid}/services ================================
   val getServices =

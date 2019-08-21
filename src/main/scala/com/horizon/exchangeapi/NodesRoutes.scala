@@ -110,7 +110,7 @@ case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
 case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  implicit val userLang = Lang("en")
+  implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
   /** Halts the request with an error msg if the user input is invalid. */
   def validate() = {
     // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
@@ -181,7 +181,7 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
 
 case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  implicit val userLang = Lang("en")
+  implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
   def getDbUpdate(id: String): (DBIO[_],String) = {
@@ -217,7 +217,7 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
 case class PostNodeConfigStateRequest(org: String, url: String, configState: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   //def logger: Logger    // get access to the logger object in ExchangeApiApp
-  implicit val userLang = Lang("en")
+  implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   def validate() = {
     if (configState != "suspended" && configState != "active") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("configstate.must.be.suspended.or.active")))
@@ -282,7 +282,7 @@ case class PutNodePolicyRequest(properties: Option[List[OneProperty]], constrain
     val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of string", "version")
       for (p <- properties.getOrElse(List())) {
         if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
-          halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("property.type.must.be", p.`type`.get, validTypes.mkString(", "))(Lang("en"))))
+          halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("property.type.must.be", p.`type`.get, validTypes.mkString(", "))(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en")))))
         }
       }
   }
@@ -299,7 +299,7 @@ case class PutNodeAgreementRequest(services: Option[List[NAService]], agreementS
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
     if (services.isEmpty && agreementService.isEmpty) {
-      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("must.specify.service.or.agreementservice")(Lang("en"))))
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("must.specify.service.or.agreementservice")(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en")))))
     }
   }
 
@@ -323,7 +323,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   implicit def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
   // implicit def formats: org.json4s.Formats{val dateFormat: org.json4s.DateFormat; val typeHints: org.json4s.TypeHints}
-  override implicit val userLang = Lang("en")
+  override implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   /* ====== GET /orgs/{orgid}/nodes ================================
     This is of type org.scalatra.swagger.SwaggerOperation

@@ -222,7 +222,7 @@ It contains several authentication utilities:
  */
 trait AuthorizationSupport extends Control with ServletApiImplicits {
   implicit def logger: Logger
-  implicit val userLang = Lang("en")
+  implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   /** Returns true if the token is correct for this user and not expired */
   def isTokenValid(token: String, username: String): Boolean = {

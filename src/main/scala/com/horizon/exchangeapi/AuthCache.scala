@@ -34,7 +34,7 @@ object AuthCache extends Control with ServletApiImplicits {
 
     var db: Database = _       // filled in my init() below
 
-    implicit val userLang = Lang("en")
+    implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
     /** Initializes the cache with all of the things currently in the persistent db */
     def init(db: Database): Unit = {

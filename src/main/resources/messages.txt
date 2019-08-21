@@ -16,7 +16,6 @@ in.process.db.migration=access denied - in the process of DB migration
 invalid.credentials=invalid credentials
 error.creating.user=error creating user
 unknown.error.invalid.creds=unknown error or invalid credentials
-
 invalid.proptype.for.name=invalid propType '{0}' specified for {1}
 invalid.op.for.name=invalid op '{0}' specified for {1}
 invalid.op.for.name.opequal=invalid op '{0}' specified for {1} (only '{2}' is supported for propType '{3}')
@@ -41,9 +40,7 @@ db.downgrade.success=db table schemas downgraded successfully
 db.table.schemas.not.downgraded=db table schemas not downgraded: {0}
 config.value.set=Config value set successfully
 cache.cleared=cache cleared
-
 service.not.in.pattern=the serviceUrl '{0}' specified in search body does not exist in pattern '{1}'
-
 token.specified.cannot.be.blank=the token specified must not be blank
 token.cannot.be.empty.string=the token can not be set to the empty string
 node.org.must.equal.bus.pol.org=Currently nodeOrgid must be the same as businessPolOrgid, because business policies can only be used within the organization they are defined in

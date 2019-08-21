@@ -25,7 +25,7 @@ case class GetAgbotAttributeResponse(attribute: String, value: String)
 case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Option[String], publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(): Unit = {
-    if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("token.specified.cannot.be.blank")(Lang("en"))))
+    if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("token.specified.cannot.be.blank")(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en")))))
   }
 
   /** Get the db queries to insert or update the agbot */
@@ -44,7 +44,7 @@ case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEn
     //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
     token match {
-      case Some(token2) => if (token2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("token.cannot.be.empty.string")(Lang("en"))))
+      case Some(token2) => if (token2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("token.cannot.be.empty.string")(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en")))))
         val tok = if (Password.isHashed(token2)) token2 else Password.hash(token2)
         return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, tok, lastHeartbeat)), "token")
       case _ => ;
@@ -79,7 +79,7 @@ case class PostAgbotBusinessPolRequest(businessPolOrgid: String, businessPol: St
   def formId = businessPolOrgid + "_" + businessPol + "_" + nodeOrgid.getOrElse(businessPolOrgid)
   def validate() = {
     val nodeOrg = nodeOrgid.getOrElse(businessPolOrgid)
-    if (nodeOrg != businessPolOrgid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("node.org.must.equal.bus.pol.org")(Lang("en"))))
+    if (nodeOrg != businessPolOrgid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("node.org.must.equal.bus.pol.org")(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en")))))
   }
 }
 
@@ -113,7 +113,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
   def db: Database      // get access to the db object in ExchangeApiApp
   def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
-  override implicit val userLang = Lang("en")
+  override implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   /* ====== GET /orgs/{orgid}/agbots ================================ */
   val getAgbots =

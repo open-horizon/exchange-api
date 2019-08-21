@@ -21,6 +21,7 @@ class Module extends LoginModule with AuthorizationSupport {
   private var identity: Identity = _
   private var succeeded = false
   lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
+  override implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
 
   override def initialize(
@@ -49,7 +50,7 @@ class Module extends LoginModule with AuthorizationSupport {
       handler.handle(Array(reqCallback))
       if (reqCallback.request.isEmpty) {
         logger.debug("Unable to get HTTP request while authenticating")
-        throw new AuthInternalErrorException(Messages("unable.to.get.http.request.when.authenticating")(Lang("en")))
+        throw new AuthInternalErrorException(Messages("unable.to.get.http.request.when.authenticating"))
       }
       val reqInfo = reqCallback.request.get
       val RequestInfo(req, _, isDbMigration, _, hint) = reqInfo
@@ -64,7 +65,7 @@ class Module extends LoginModule with AuthorizationSupport {
         val creds = credentials(reqInfo)
         val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
         val (_, id) = IbmCloudAuth.compositeIdSplit(userOrId)
-        if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException(Messages("creds.not.local.exchange.creds")(Lang("en")))
+        if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException(Messages("creds.not.local.exchange.creds"))
         logger.info("User or id " + userOrId + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
         if (isDbMigration && !Role.isSuperUser(creds.id)) throw new IsDbMigrationException()
         identity = IIdentity(creds).authenticate(hint)
@@ -156,7 +157,7 @@ case class PermissionCheck(permission: String) extends PrivilegedAction[Unit] {
 
   private def isAdminAllowed(permission: String) = {
     if (adminNotAllowed.contains(permission)) {
-      Failure(new Exception(Messages("admins.not.given.permission", permission)(Lang("en"))))
+      Failure(new Exception(Messages("admins.not.given.permission", permission)(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en")))))
     } else {
       Success(())
     }

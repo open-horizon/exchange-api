@@ -45,7 +45,7 @@ object HttpCode {
 /** These are used as the response structure for most PUTs, POSTs, and DELETEs. */
 case class ApiResponse(code: String, msg: String)
 object ApiResponseType {
-  implicit val userLang = Lang("en")
+  implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
   val BADCREDS = Messages("api.bad.creds")
   val ACCESS_DENIED = Messages("api.access.denied")
   val ALREADY_EXISTS = Messages("api.already.exists")

@@ -30,7 +30,7 @@ case class PatchUsersRequest(password: Option[String], admin: Option[Boolean], e
     val lastUpdated = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
     password match {
-      case Some(password2) => if (password2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("password.cannot.be.set.to.empty.string")(Lang("en"))))
+      case Some(password2) => if (password2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("password.cannot.be.set.to.empty.string")(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en")))))
         println("password2="+password2+".")
         val pw = if (Password.isHashed(password2)) password2 else Password.hash(password2)
         return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated, u.updatedBy)).update((username, pw, lastUpdated, updatedBy)), "password")
@@ -48,7 +48,7 @@ case class ChangePwRequest(newPassword: String) {
 
   def getDbUpdate(username: String, orgid: String): DBIO[_] = {
     val lastUpdated = ApiTime.nowUTC
-    if (newPassword == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("password.cannot.be.set.to.empty.string")(Lang("en"))))
+    if (newPassword == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("password.cannot.be.set.to.empty.string")(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en")))))
     val pw = if (Password.isHashed(newPassword)) newPassword else Password.hash(newPassword)
     return (for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated)).update((username, pw, lastUpdated))
   }
@@ -59,7 +59,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   def db: Database      // get access to the db object in ExchangeApiApp
   def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
-  override implicit val userLang = Lang("en")
+  override implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   /* ====== GET /orgs/{orgid}/users ================================ */
   val getUsers =

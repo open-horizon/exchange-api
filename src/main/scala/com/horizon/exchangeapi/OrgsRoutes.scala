@@ -9,6 +9,7 @@ import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
 import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
+import com.osinka.i18n.{Lang, Messages}
 
 import scala.collection.immutable._
 import scala.collection.mutable.{HashMap => MutableHashMap}
@@ -69,6 +70,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   def db: Database      // get access to the db object in ExchangeApiApp
   def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
+  override implicit val userLang = Lang("en")
 
   /* ====== GET /orgs ================================ */
   val getOrgs =
@@ -81,7 +83,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
         Parameter("orgtype", DataType.String, Option[String]("Filter results to only include orgs with this org type. A common org type is 'IBM'."), paramType=ParamType.Query, required=false),
         Parameter("label", DataType.String, Option[String]("Filter results to only include orgs with this label (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED, Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs", operation(getOrgs)) ({
@@ -123,7 +125,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire org resource will be returned."), paramType=ParamType.Query, required=false)
         )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid", operation(getOneOrg)) ({
@@ -133,7 +135,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the org
         val q = OrgsTQ.getAttribute(orgId, attribute)       // get the proper db query for this attribute
-        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Org attribute name '"+attribute+"' is not an attribute of the org resource."))
+        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("org.attr.not.part.of.org")))
         db.run(q.result).map({ list =>
           //logger.trace("GET /orgs/"+orgId+" attribute result: "+list.toString)
           if (list.nonEmpty) {
@@ -141,7 +143,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
             GetOrgAttributeResponse(attribute, renderAttribute(list))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, Messages("not.found"))
           }
         })
 
@@ -180,7 +182,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
           Option[String]("Org object that needs to be updated in the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val postOrgs2 = (apiOperation[PostPutOrgRequest]("postOrgs2") summary("a") description("a"))  // for some bizarre reason, the PostOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -188,23 +190,23 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
     val orgId = params("orgid")
     authenticate().authorizeTo(TOrg(""),Access.CREATE)
     val orgReq = try { parse(request.body).extract[PostPutOrgRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }
     orgReq.validate()
     val resp = response
     db.run(orgReq.toOrgRow(orgId).insert.asTry).map({ xs =>
       logger.debug("POST /orgs result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "org '"+orgId+"' created")
+          ApiResponse(ApiResponseType.OK, Messages("org.created", orgId))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "org '"+orgId+"' not created: "+t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("org.not.created", orgId, t.getMessage))
         } else if (t.getMessage.contains("duplicate key value violates unique constraint")) {
           resp.setStatus(HttpCode.ALREADY_EXISTS)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, "org '"+orgId+"' already exists: " + t.getMessage)
+          ApiResponse(ApiResponseType.ALREADY_EXISTS, Messages("org.already.exists", orgId, t.getMessage))
         } else {
           resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "org '"+orgId+"' not created: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("org.not.created", orgId, t.toString))
         }
       }
     })
@@ -223,14 +225,14 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
           Option[String]("Org object that needs to be updated in the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val putOrgs2 = (apiOperation[PostPutOrgRequest]("putOrgs2") summary("a") description("a"))  // for some bizarre reason, the PutOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid", operation(putOrgs)) ({
     val orgId = params("orgid")
     val orgReq = try { parse(request.body).extract[PostPutOrgRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }
     orgReq.validate()
     val access = if (orgReq.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
     authenticate().authorizeTo(TOrg(orgId),access)
@@ -242,14 +244,14 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
             if (numUpdated > 0) {
               resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, "org updated")
+              ApiResponse(ApiResponseType.OK, Messages("org.updated"))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "org '"+orgId+"' not found")
+              ApiResponse(ApiResponseType.NOT_FOUND, Messages("org.not.found", orgId))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "org '"+orgId+"' not updated: "+e) }    // the specific exception is NumberFormatException
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("org.not.updated", orgId, e)) }    // the specific exception is NumberFormatException
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "org '"+orgId+"' not updated: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("org.not.updated", orgId, t.toString))
       }
     })
   })
@@ -267,20 +269,20 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
           Option[String]("Partial org object that contains an attribute to be updated in this org. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val patchOrgs2 = (apiOperation[PatchOrgRequest]("patchOrgs2") summary("a") description("a"))  // for some bizarre reason, the PatchOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid", operation(patchOrgs)) ({
     val orgId = params("orgid")
     val orgReq = try { parse(request.body).extract[PatchOrgRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }    // the specific exception is MappingException
     val access = if (orgReq.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
     authenticate().authorizeTo(TOrg(orgId),access)
     //logger.trace("PATCH /orgs/"+orgId+" input: "+orgReq.toString)
     val resp = response
     val (action, attrName) = orgReq.getDbUpdate(orgId)
-    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid org attribute specified"))
+    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("no.valid.org.attr.specified")))
     db.run(action.transactionally.asTry).map({ xs =>
       logger.debug("PATCH /orgs/"+orgId+" result: "+xs.toString)
       xs match {
@@ -288,14 +290,14 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
             val numUpdated = v.toString.toInt     // v comes to us as type Any
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
               resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of org '"+orgId+"' updated")
+              ApiResponse(ApiResponseType.OK, Messages("org.attr.updated", attrName, orgId))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "org '"+orgId+"' not found")
+              ApiResponse(ApiResponseType.NOT_FOUND, Messages("org.not.found", orgId))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("unexpected.result.from.update", e)) }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "org '"+orgId+"' not updated: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("org.not.updated", orgId, t.toString))
       }
     })
   })
@@ -310,7 +312,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.DELETED,Messages("deleted")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   delete("/orgs/:orgid", operation(deleteOrgs)) ({
@@ -323,13 +325,13 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
             resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, "org deleted")
+            ApiResponse(ApiResponseType.OK, Messages("org.deleted"))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "org '"+orgId+"' not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, Messages("org.not.found", orgId))
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "org '"+orgId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("org.not.deleted", orgId, t.toString))
       }
     })
   })

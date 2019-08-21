@@ -16,6 +16,7 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.util._
 //import java.net._
 import scala.util.control.Breaks._
+import com.osinka.i18n.{Lang, Messages}
 
 //====== These are the input and output structures for /orgs/{orgid}/patterns routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -31,14 +32,15 @@ case class PostPatternSearchRequest(serviceUrl: String, nodeOrgids: Option[List[
 /** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
 case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], services: List[PServices], userInput: Option[List[OneUserInputService]], agreementProtocols: Option[List[Map[String,String]]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
+  implicit val userLang = Lang("en")
   def validate(): Unit = {
     // Check that it is signed and check the version syntax
     for (s <- services) {
-      if (s.serviceVersions.isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no versions specified for service '"+s.serviceOrgid+"', '"+s.serviceUrl+"', '"+s.serviceArch+"'"))
+      if (s.serviceVersions.isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("no.version.specified.for.service", s.serviceOrgid, s.serviceUrl, s.serviceArch)))
       for (sv <- s.serviceVersions) {
-        if (!Version(sv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '" + sv.version + "' is not valid version format."))
+        if (!Version(sv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("not.a.valid.version.format", sv.version)))
         if (sv.deployment_overrides.getOrElse("") != "" && sv.deployment_overrides_signature.getOrElse("") == "") {
-          halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this pattern definition does not appear to be signed."))
+          halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("pattern.definition.not.signed")))
         }
       }
     }
@@ -101,6 +103,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   def db: Database      // get access to the db object in ExchangeApiApp
   def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
+  override implicit val userLang = Lang("en")
 
   /* ====== GET /orgs/{orgid}/patterns ================================ */
   val getPatterns =
@@ -117,7 +120,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("label", DataType.String, Option[String]("Filter results to only include patterns with this label (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("description", DataType.String, Option[String]("Filter results to only include patterns with this description (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/patterns", operation(getPatterns)) ({
@@ -155,7 +158,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire pattern resource will be returned."), paramType=ParamType.Query, required=false)
         )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/patterns/:pattern", operation(getOnePattern)) ({
@@ -167,7 +170,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the pattern
         val q = PatternsTQ.getAttribute(pattern, attribute)       // get the proper db query for this attribute
-        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Pattern attribute name '"+attribute+"' is not an attribute of the pattern resource."))
+        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("pattern.attr.not.in.pattern", attribute)))
         db.run(q.result).map({ list =>
           logger.trace("GET /orgs/"+orgid+"/patterns/"+barePattern+" attribute result: "+list.toString)
           if (list.nonEmpty) {
@@ -175,7 +178,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             GetPatternAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, Messages("not.found"))
           }
         })
 
@@ -294,7 +297,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val pattern = OrgAndId(orgid,barePattern).toString
     val ident = authenticate().authorizeTo(TPattern(OrgAndId(orgid,"").toString),Access.CREATE)
     val patternReq = try { parse(request.body).extract[PostPutPatternRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }
     patternReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     // Get optional agbots that should be updated with this new pattern
@@ -313,8 +316,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           } }
           if (invalidIndex < 0) OrgsTQ.getAttribute(orgid, "orgType").result.asTry //getting orgType from orgid
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
-              else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            val errStr = if (invalidIndex < svcRefs.length) Messages("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+            else Messages("service.not.in.exchange.index", Nth(invalidIndex+1))
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -326,7 +329,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           val publicField = patternReq.public.getOrElse(false)
           if ((publicField && orgType.head == "IBM") || !publicField) {    // pattern is public and owner is IBM so ok, or pattern isn't public at all so ok
             PatternsTQ.getNumOwned(owner).result.asTry
-          } else DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, "only IBM patterns can be made public")).asTry
+          } else DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, Messages("only.ibm.patterns.can.be.public"))).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -337,7 +340,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           if (maxPatterns == 0 || numOwned <= maxPatterns) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
             patternReq.toPatternRow(pattern, orgid, owner).insert.asTry
           }
-          else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxPatterns+ " patterns")).asTry
+          else DBIO.failed(new Throwable(Messages("over.limit.of.max.patterns", maxPatterns))).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
@@ -346,16 +349,16 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Success(_) => if (owner != "") AuthCache.patterns.putOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
           AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
           resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "pattern '"+pattern+"' created")
+          ApiResponse(ApiResponseType.OK, Messages("pattern.created", pattern))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "pattern '" + pattern + "' not created: " + t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("pattern.not.created", pattern, t.getMessage))
         } else if (t.getMessage.contains("duplicate key value violates unique constraint")) {
           resp.setStatus(HttpCode.ALREADY_EXISTS)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, "pattern '" + pattern + "' already exists: " + t.getMessage)
+          ApiResponse(ApiResponseType.ALREADY_EXISTS, Messages("pattern.already.exists", pattern, t.getMessage))
         } else {
           resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+pattern+"' not created: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, Messages("pattern.not.created", pattern, t.getMessage))
         }
       }
     })
@@ -375,7 +378,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           Option[String]("Pattern object that needs to be updated in the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val putPatterns2 = (apiOperation[PostPutPatternRequest]("putPatterns2") summary("a") description("a"))  // for some bizarre reason, the PutPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -385,7 +388,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val pattern = OrgAndId(orgid,barePattern).toString
     val ident = authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
     val patternReq = try { parse(request.body).extract[PostPutPatternRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }
     patternReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
@@ -402,8 +405,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           } }
           if (invalidIndex < 0) PatternsTQ.getPublic(pattern).result.asTry //getting public field from pattern
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
-              else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            val errStr = if (invalidIndex < svcRefs.length) Messages("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+            else Messages("service.not.in.exchange.index", Nth(invalidIndex+1))
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -419,7 +422,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               DBIO.successful(Vector("IBM")).asTry
             }
           } else {
-            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")).asTry //gives 500 instead of 404
+            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, Messages("pattern.id.not.found", pattern))).asTry //gives 500 instead of 404
           }
 
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -431,7 +434,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           if (orgTypes.head == "IBM") {    // only patterns of orgType "IBM" can be public
             patternReq.toPatternRow(pattern, orgid, owner).update.asTry
           } else {
-            DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, "only IBM patterns can be made public")).asTry
+            DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, Messages("only.ibm.patterns.can.be.public"))).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
@@ -444,19 +447,19 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               if (owner != "") AuthCache.patterns.putOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
               AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
               resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, "pattern updated")
+              ApiResponse(ApiResponseType.OK, Messages("pattern.updated"))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
+              ApiResponse(ApiResponseType.NOT_FOUND, Messages("pattern.id.not.found", pattern))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not updated: "+e) }    // the specific exception is NumberFormatException
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("pattern.not.updated", pattern, e)) }    // the specific exception is NumberFormatException
         case Failure(t) =>
           if(t.getMessage.contains("not found")){
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, Messages("pattern.id.not.found", pattern))
           } else {
             resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, "pattern '" + pattern + "' not updated: " + t.getMessage)
+            ApiResponse(ApiResponseType.BAD_INPUT, Messages("pattern.not.updated", pattern, t.getMessage))
           }
 
       }
@@ -477,7 +480,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           Option[String]("Partial pattern object that contains an attribute to be updated in this pattern. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val patchPatterns2 = (apiOperation[PatchPatternRequest]("patchPatterns2") summary("a") description("a"))  // for some bizarre reason, the PatchPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -487,11 +490,11 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val pattern = OrgAndId(orgid,barePattern).toString
     authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
     val patternReq = try { parse(request.body).extract[PatchPatternRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }    // the specific exception is MappingException
     logger.trace("PATCH /orgs/"+orgid+"/patterns/"+barePattern+" input: "+patternReq.toString)
     val resp = response
     val (action, attrName) = patternReq.getDbUpdate(pattern, orgid)
-    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid pattern attribute specified"))
+    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("no.valid.pattern.attribute.specified")))
     val (valServiceIdActions, svcRefs) = if (attrName == "services") PatternsTQ.validateServiceIds(patternReq.services.get, List())
       else if (attrName == "userInput") PatternsTQ.validateServiceIds(List(), patternReq.userInput.get)
       else (DBIO.successful(Vector()), Vector())
@@ -507,8 +510,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           } }
           if (invalidIndex < 0) PatternsTQ.getPublic(pattern).result.asTry //getting public field from pattern
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
-              else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            val errStr = if (invalidIndex < svcRefs.length) Messages("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+            else Messages("service.not.in.exchange.index", Nth(invalidIndex+1))
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -525,7 +528,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               DBIO.successful(Vector("IBM")).asTry
             }
           } else {
-            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")).asTry
+            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, Messages("pattern.id.not.found", pattern))).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
@@ -537,7 +540,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             action.transactionally.asTry
           }
           else {
-            DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, "only IBM patterns can be made public")).asTry
+            DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, Messages("only.ibm.patterns.can.be.public"))).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
@@ -549,19 +552,19 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
               if (attrName == "public") AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
               resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of pattern '"+pattern+"' updated")
+              ApiResponse(ApiResponseType.OK, Messages("pattern.attribute.not.update", attrName, pattern))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
+              ApiResponse(ApiResponseType.NOT_FOUND, Messages("pattern.id.not.found", pattern))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("unexpected.result.from.update", e)) }
         case Failure(t) =>
           if(t.getMessage.contains("not found")){
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, Messages("pattern.id.not.found", pattern))
           } else {
             resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, "pattern '" + pattern + "' not updated: " + t.getMessage)
+            ApiResponse(ApiResponseType.BAD_INPUT, Messages("pattern.not.updated", pattern, t.getMessage))
           }
       }
     })
@@ -591,7 +594,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
         paramType = ParamType.Body)
     )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val postPatternSearch2 = (apiOperation[PostPatternSearchRequest]("postPatternSearch2") summary("a") description("a"))
 
@@ -602,7 +605,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val compositePat = OrgAndId(orgid,pattern).toString
     authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostPatternSearchRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }    // the specific exception is MappingException
     searchProps.validate()
     val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
     logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+searchProps.toString)
@@ -667,9 +670,11 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             nodeQuery.result.asTry
           }
         }
-        else DBIO.failed(new Throwable("the serviceUrl '"+searchSvcUrl+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
+//        else DBIO.failed(new Throwable("the serviceUrl '"+searchSvcUrl+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
+        else DBIO.failed(new Throwable(Messages("service.not.in.pattern"))).asTry
+
       }
-      else DBIO.failed(new Throwable("pattern '"+compositePat+"' not found")).asTry
+      else DBIO.failed(new Throwable(Messages("pattern.id.not.found", compositePat))).asTry
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result size: "+xs.getOrElse(Vector()).size)
       //logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/search result: "+xs.toString)
@@ -697,7 +702,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           PostPatternSearchResponse(List[PatternNodeResponse](), 0)
         }
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "invalid input: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, Messages("invalid.input.message", t.getMessage))
       }
     })
   })
@@ -714,7 +719,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.DELETED,Messages("deleted")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   delete("/orgs/:orgid/patterns/:pattern", operation(deletePatterns)) ({
@@ -731,13 +736,13 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             AuthCache.patterns.removeOwner(pattern)
             AuthCache.patterns.removeIsPublic(pattern)
             resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, "pattern deleted")
+            ApiResponse(ApiResponseType.OK, Messages("pattern.deleted"))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, Messages("pattern.id.not.found", pattern))
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+pattern+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("pattern.id.not.deleted", pattern, t.toString))
       }
     })
   })
@@ -755,7 +760,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/patterns/:pattern/keys", operation(getPatternKeys)) ({
@@ -786,7 +791,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
       produces "text/plain"
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/patterns/:pattern/keys/:keyid", operation(getOnePatternKey)) ({
@@ -808,7 +813,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       }
       else {
         resp.setStatus(HttpCode.NOT_FOUND)
-        ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' not found")
+        ApiResponse(ApiResponseType.NOT_FOUND, Messages("key.not.found", keyId))
       }
     })
   })
@@ -828,7 +833,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val putPatternKey2 = (apiOperation[String]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -847,13 +852,13 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("PUT /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "key added or updated")
+          ApiResponse(ApiResponseType.OK, Messages("key.added.or.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "key '"+keyId+"' for pattern '"+compositeId+"' not inserted or updated: "+t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage))
         } else {
           resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "key '"+keyId+"' for pattern '"+compositeId+"' not inserted or updated: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, Messages("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage))
         }
       }
     })
@@ -870,7 +875,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.DELETED,Messages("deleted")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   delete("/orgs/:orgid/patterns/:pattern/keys", operation(deletePatternAllKey)) ({
@@ -884,13 +889,13 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "pattern keys deleted")
+          ApiResponse(ApiResponseType.OK, Messages("pattern.keys.deleted"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "no keys for pattern '"+compositeId+"' found")
+          ApiResponse(ApiResponseType.NOT_FOUND, Messages("no.pattern.keys.found", compositeId))
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "keys for pattern '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("pattern.keys.not.deleted", compositeId, t.toString))
       }
     })
   })
@@ -907,7 +912,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.DELETED,Messages("deleted")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   delete("/orgs/:orgid/patterns/:pattern/keys/:keyid", operation(deletePatternKey)) ({
@@ -922,13 +927,13 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "pattern key deleted")
+          ApiResponse(ApiResponseType.OK, Messages("pattern.key.deleted"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' for pattern '"+compositeId+"' not found")
+          ApiResponse(ApiResponseType.NOT_FOUND, Messages("pattern.key.not.found", keyId, compositeId))
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "key '"+keyId+"' for pattern '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("pattern.key.not.deleted", keyId, compositeId, t.toString))
       }
     })
   })

@@ -2,6 +2,7 @@
 package com.horizon.exchangeapi
 
 import com.horizon.exchangeapi.tables._
+import com.osinka.i18n.{Lang, Messages}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
@@ -90,6 +91,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   def db: Database      // get access to the db object in ExchangeApiApp
   def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
+  override implicit val userLang = Lang("en")
 
   /* ====== GET /orgs/{orgid}/business/policies ================================ */
   val getBusinessPolicies =
@@ -105,7 +107,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("label", DataType.String, Option[String]("Filter results to only include business policies with this label (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("description", DataType.String, Option[String]("Filter results to only include business policies with this description (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/business/policies", operation(getBusinessPolicies)) ({
@@ -141,7 +143,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire business policy resource will be returned."), paramType=ParamType.Query, required=false)
         )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/business/policies/:policy", operation(getOneBusinessPolicy)) ({
@@ -153,7 +155,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the businessPolicy
         val q = BusinessPoliciesTQ.getAttribute(businessPolicy, attribute)       // get the proper db query for this attribute
-        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Business Policy attribute name '"+attribute+"' is not an attribute of the business policy resource."))
+        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("buspol.wrong.attribute", attribute)))
         db.run(q.result).map({ list =>
           logger.trace("GET /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" attribute result: "+list.toString)
           if (list.nonEmpty) {
@@ -161,7 +163,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
             GetBusinessPolicyAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, Messages("not.found"))
           }
         })
 
@@ -261,7 +263,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
     val ident = authenticate().authorizeTo(TBusiness(OrgAndId(orgid,"").toString),Access.CREATE)
     val policyReq = try { parse(request.body).extract[PostPutBusinessPolicyRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }
     policyReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
@@ -278,8 +280,8 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           } }
           if (invalidIndex < 0) BusinessPoliciesTQ.getNumOwned(owner).result.asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
-              else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            val errStr = if (invalidIndex < svcRefs.length) Messages("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+              else Messages("service.not.in.exchange.index", Nth(invalidIndex+1))
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -292,7 +294,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           if (maxBusinessPolicies == 0 || numOwned <= maxBusinessPolicies) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
             policyReq.getDbInsert(businessPolicy, orgid, owner).asTry
           }
-          else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxBusinessPolicies+ " business policies")).asTry
+          else DBIO.failed(new Throwable(Messages("over.max.limit.buspols", maxBusinessPolicies))).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
@@ -301,16 +303,16 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         case Success(_) => if (owner != "") AuthCache.business.putOwner(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
           AuthCache.business.putIsPublic(businessPolicy, isPub = false)
           resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "business policy '"+businessPolicy+"' created")
+          ApiResponse(ApiResponseType.OK, Messages("buspol.created", businessPolicy))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "business policy '" + businessPolicy + "' not created: " + t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("buspol.not.created", businessPolicy, t.getMessage))
         } else if (t.getMessage.contains("duplicate key value violates unique constraint")) {
           resp.setStatus(HttpCode.ALREADY_EXISTS)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, "business policy '" + businessPolicy + "' already exists: " + t.getMessage)
+          ApiResponse(ApiResponseType.ALREADY_EXISTS, Messages("buspol.already.exists", businessPolicy, t.getMessage))
         } else {
           resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "business policy '"+businessPolicy+"' not created: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, Messages("buspol.not.created", businessPolicy, t.getMessage))
         }
       }
     })
@@ -330,7 +332,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           Option[String]("Business Policy object that needs to be updated in the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val putBusinessPolicies2 = (apiOperation[PostPutBusinessPolicyRequest]("putBusinessPolicies2") summary("a") description("a"))  // for some bizarre reason, the PutBusinessPolicyRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -340,7 +342,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
     val ident = authenticate().authorizeTo(TBusiness(businessPolicy),Access.WRITE)
     val policyReq = try { parse(request.body).extract[PostPutBusinessPolicyRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }
     policyReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
@@ -357,8 +359,8 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           } }
           if (invalidIndex < 0) policyReq.getDbUpdate(businessPolicy, orgid, owner).asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
-              else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            val errStr = if (invalidIndex < svcRefs.length) Messages("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+              else Messages("service.not.in.exchange.index", Nth(invalidIndex+1))
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -372,14 +374,14 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
               if (owner != "") AuthCache.business.putOwner(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
               AuthCache.business.putIsPublic(businessPolicy, isPub = false)
               resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, "business policy updated")
+              ApiResponse(ApiResponseType.OK, Messages("buspol.updated"))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "business policy '"+businessPolicy+"' not found")
+              ApiResponse(ApiResponseType.NOT_FOUND, Messages("business.policy.not.found", businessPolicy))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "business policy '"+businessPolicy+"' not updated: "+e) }    // the specific exception is NumberFormatException
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("buspol.not.updated", businessPolicy, e)) }    // the specific exception is NumberFormatException
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "business policy '"+businessPolicy+"' not updated: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, Messages("buspol.not.updated", businessPolicy, t.getMessage))
       }
     })
   })
@@ -398,7 +400,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           Option[String]("Partial business policy object that contains an attribute to be updated in this business policy. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
         )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val patchBusinessPolicies2 = (apiOperation[PatchBusinessPolicyRequest]("patchBusinessPolicies2") summary("a") description("a"))  // for some bizarre reason, the PatchBusinessPolicyRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -408,11 +410,11 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
     authenticate().authorizeTo(TBusiness(businessPolicy),Access.WRITE)
     val policyReq = try { parse(request.body).extract[PatchBusinessPolicyRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }    // the specific exception is MappingException
     logger.trace("PATCH /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" input: "+policyReq.toString)
     val resp = response
     val (action, attrName) = policyReq.getDbUpdate(businessPolicy, orgid)
-    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid business policy attribute specified"))
+    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("no.valid.buspol.attribute.specified")))
     val (valServiceIdActions, svcRefs) = if (attrName == "service") BusinessPoliciesTQ.validateServiceIds(policyReq.service.get, List())
       else if (attrName == "userInput") BusinessPoliciesTQ.validateServiceIds(BService("","","",List(),None), policyReq.userInput.get)
       else (DBIO.successful(Vector()), Vector())
@@ -428,8 +430,8 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           } }
           if (invalidIndex < 0) action.transactionally.asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) "the following referenced service does not exist in the exchange: org="+svcRefs(invalidIndex).org+", url="+svcRefs(invalidIndex).url+", version="+svcRefs(invalidIndex).versionRange+", arch="+svcRefs(invalidIndex).arch
-              else "the "+Nth(invalidIndex+1)+" referenced service does not exist in the exchange"
+            val errStr = if (invalidIndex < svcRefs.length) Messages("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+              else Messages("service.not.in.exchange.index", Nth(invalidIndex+1))
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -441,14 +443,14 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
             val numUpdated = v.toString.toInt     // v comes to us as type Any
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
               resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of business policy '"+businessPolicy+"' updated")
+              ApiResponse(ApiResponseType.OK, Messages("buspol.attribute.updated", attrName, businessPolicy))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "business policy '"+businessPolicy+"' not found")
+              ApiResponse(ApiResponseType.NOT_FOUND, Messages("business.policy.not.found", businessPolicy))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("unexpected.result.from.update", e)) }
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "business policy '"+businessPolicy+"' not updated: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, Messages("buspol.not.updated", businessPolicy, t.getMessage))
       }
     })
   })
@@ -464,7 +466,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.DELETED,Messages("deleted")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   delete("/orgs/:orgid/business/policies/:policy", operation(deleteBusinessPolicies)) ({
@@ -481,13 +483,13 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
             AuthCache.business.removeOwner(businessPolicy)
             AuthCache.business.removeIsPublic(businessPolicy)
             resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, "business policy deleted")
+            ApiResponse(ApiResponseType.OK, Messages("business.policy.deleted"))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "business policy '"+businessPolicy+"' not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, Messages("business.policy.not.found", businessPolicy))
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "business policy '"+businessPolicy+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("business.policy.not.deleted", businessPolicy, t.toString))
       }
     })
   })
@@ -515,7 +517,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
         paramType = ParamType.Body)
     )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val postBusinessPolicySearch2 = (apiOperation[PostBusinessPolicySearchRequest]("postBusinessPolicySearch2") summary("a") description("a"))
 
@@ -526,7 +528,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
     authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostBusinessPolicySearchRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }    // the specific exception is MappingException
     searchProps.validate()
     logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search criteria: "+searchProps.toString)
     val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
@@ -554,7 +556,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
         nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
       }
-      else DBIO.failed(new Throwable("business policy '"+businessPolicy+"' not found")).asTry
+      else DBIO.failed(new Throwable(Messages("business.policy.not.found", businessPolicy))).asTry
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search result size: "+xs.getOrElse(Vector()).size)
       //logger.trace("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search result: "+xs.toString)
@@ -586,7 +588,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), 0)
         }
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "invalid input: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, Messages("invalid.input.message", t.getMessage))
       }
     })
   })

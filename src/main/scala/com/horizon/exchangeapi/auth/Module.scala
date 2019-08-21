@@ -3,6 +3,7 @@ package com.horizon.exchangeapi.auth
 import java.security._
 
 import com.horizon.exchangeapi._
+import com.osinka.i18n.{Lang, Messages}
 import javax.security.auth._
 import javax.security.auth.callback._
 import javax.security.auth.login.FailedLoginException
@@ -48,7 +49,7 @@ class Module extends LoginModule with AuthorizationSupport {
       handler.handle(Array(reqCallback))
       if (reqCallback.request.isEmpty) {
         logger.debug("Unable to get HTTP request while authenticating")
-        throw new AuthInternalErrorException("Unable to get HTTP request while authenticating")
+        throw new AuthInternalErrorException(Messages("unable.to.get.http.request.when.authenticating")(Lang("en")))
       }
       val reqInfo = reqCallback.request.get
       val RequestInfo(req, _, isDbMigration, _, hint) = reqInfo
@@ -63,7 +64,7 @@ class Module extends LoginModule with AuthorizationSupport {
         val creds = credentials(reqInfo)
         val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
         val (_, id) = IbmCloudAuth.compositeIdSplit(userOrId)
-        if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException("User is iamapikey or iamtoken, so credentials are not local Exchange credentials")
+        if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException(Messages("creds.not.local.exchange.creds")(Lang("en")))
         logger.info("User or id " + userOrId + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
         if (isDbMigration && !Role.isSuperUser(creds.id)) throw new IsDbMigrationException()
         identity = IIdentity(creds).authenticate(hint)
@@ -155,7 +156,7 @@ case class PermissionCheck(permission: String) extends PrivilegedAction[Unit] {
 
   private def isAdminAllowed(permission: String) = {
     if (adminNotAllowed.contains(permission)) {
-      Failure(new Exception(s"Admins are not given the permission $permission"))
+      Failure(new Exception(Messages("admins.not.given.permission", permission)(Lang("en"))))
     } else {
       Success(())
     }

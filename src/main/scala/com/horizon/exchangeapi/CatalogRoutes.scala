@@ -1,11 +1,13 @@
 package com.horizon.exchangeapi
 
 import com.horizon.exchangeapi.tables._
+import com.osinka.i18n.{Lang, Messages}
 import org.json4s._
 import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
+
 import scala.collection.mutable.{HashMap => MutableHashMap}
 
 // Provides routes for browsing the services and patterns in the IBM catalog
@@ -14,6 +16,7 @@ trait CatalogRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   def db: Database      // get access to the db object in ExchangeApiApp
   def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
+  override implicit val userLang = Lang("en")
 
   // ====== GET /catalog/services ================================
   val getCatalogServices =
@@ -25,7 +28,7 @@ trait CatalogRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
       Parameter("orgtype", DataType.String, Option[String]("Return services from orgs of this orgtype (default is IBM)"), paramType=ParamType.Query, required=false)
     )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/catalog/services", operation(getCatalogServices)) ({
@@ -58,7 +61,7 @@ trait CatalogRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
       Parameter("orgtype", DataType.String, Option[String]("Return patterns from orgs of this orgtype (default is IBM)"), paramType=ParamType.Query, required=false)
     )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/catalog/patterns", operation(getCatalogPatterns)) ({

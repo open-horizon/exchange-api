@@ -5,6 +5,7 @@ import java.io.File
 import java.time._
 
 import com.horizon.exchangeapi.tables.{OrgRow, UserRow}
+import com.osinka.i18n.{Lang, Messages}
 import com.typesafe.config._
 import org.json4s.JValue
 import slick.jdbc.PostgresProfile.api._
@@ -44,20 +45,21 @@ object HttpCode {
 /** These are used as the response structure for most PUTs, POSTs, and DELETEs. */
 case class ApiResponse(code: String, msg: String)
 object ApiResponseType {
-  val BADCREDS = "invalid-credentials"
-  val ACCESS_DENIED = "access-denied"
-  val ALREADY_EXISTS = "already-exists"
-  val BAD_INPUT = "invalid-input"
-  val NOT_FOUND = "not-found"
-  val INTERNAL_ERROR = "internal_error"
-  val NOT_IMPLEMENTED = "not-implemented"
-  val BAD_GW = "database-connection-error"
-  val GW_TIMEOUT = "database-timeout"
-  val ERROR = "error"
-  val WARNING = "warning"
-  val INFO = "info"
-  val OK = "ok"
-  val TOO_BUSY = "too busy"
+  implicit val userLang = Lang("en")
+  val BADCREDS = Messages("api.bad.creds")
+  val ACCESS_DENIED = Messages("api.access.denied")
+  val ALREADY_EXISTS = Messages("api.already.exists")
+  val BAD_INPUT = Messages("api.invalid.input")
+  val NOT_FOUND = Messages("api.not.found")
+  val INTERNAL_ERROR = Messages("api.internal.error")
+  val NOT_IMPLEMENTED = Messages("api.not.implemented")
+  val BAD_GW = Messages("api.db.connection.error")
+  val GW_TIMEOUT = Messages("api.db.timeout")
+  val ERROR = Messages("error")
+  val WARNING = Messages("warning")
+  val INFO = Messages("info")
+  val OK = Messages("ok")
+  val TOO_BUSY = Messages("too.busy")
 }
 
 /** Global config parameters for the exchange. See typesafe config classes: http://typesafehub.github.io/config/latest/api/ */

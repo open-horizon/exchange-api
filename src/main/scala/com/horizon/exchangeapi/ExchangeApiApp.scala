@@ -6,6 +6,7 @@
 package com.horizon.exchangeapi
 
 import com.horizon.exchangeapi.auth.IbmCloudAuth
+import com.osinka.i18n.Messages
 import org.scalatra._
 import slick.jdbc.PostgresProfile.api._
 // import scala.concurrent.ExecutionContext.Implicits.global    // this is needed for FutureSupport
@@ -61,8 +62,8 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
   try { ExchangeApiTables.upgradeDb(db) }
   catch {
     // Handle db problems
-    case timeout: java.util.concurrent.TimeoutException => halt(HttpCode.GW_TIMEOUT, ApiResponse(ApiResponseType.GW_TIMEOUT, "DB timed out while upgrading it: "+timeout.getMessage))
-    case other: Throwable => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "while upgrading the DB, the DB threw exception: "+other.getMessage))
+    case timeout: java.util.concurrent.TimeoutException => halt(HttpCode.GW_TIMEOUT, ApiResponse(ApiResponseType.GW_TIMEOUT, Messages("db.timeout.upgrading", timeout.getMessage)))
+    case other: Throwable => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("db.exception.upgrading", other.getMessage)))
   }
   ExchConfig.createRoot(db)
   AuthCache.users.init(db)

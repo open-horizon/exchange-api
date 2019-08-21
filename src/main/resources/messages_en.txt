@@ -1,0 +1,21 @@
+org.not.found.user.facing.error=IAM authentication succeeded, but no matching exchange org with a cloud account id was found for {0}
+incorrect.org.found.user.facing.error=IAM authentication succeeded, but the cloud account id of the org {0} does not match that of the cloud account credentials {1}
+incorrect.org.found.user.facing.error.ICP=ICP IAM authentication succeeded, but the org specified in the request {0} does not match the org associated with the ICP credentials {1}
+not.ibm.creds.exception=User is not iamapikey or iamtoken, so credentials are not IBM cloud IAM credentials
+error.getting.iam.token.from.api.key=error getting IAM token from API key: {0}
+no.valid.iam.keyword=the user is not a valid IAM keyword
+iam.return.value.not.set=IAM return value not set in retry loop
+error.authenticating.icp.iam.key=error authenticating ICP IAM API key: {0}
+error.authenticating.icp.iam.token=error authenticating ICP IAM token: {0}
+error.authenticating.iam.token=error authenticating IAM token: {0}
+error.creating.user=error creating user {0}/{1} : {2}
+unable.to.get.http.request.when.authenticating=Unable to get HTTP request while authenticating
+creds.not.local.exchange.creds=User is iamapikey or iamtoken, so credentials are not local Exchange credentials
+admins.not.given.permission=Admins are not given the permission {0}
+in.process.db.migration=access denied - in the process of DB migration
+invalid.credentials=invalid credentials
+error.creating.user=error creating user
+unknown.error.invalid.creds=unknown error or invalid credentials
+
+service.not.in.pattern=the serviceUrl '{0}' specified in search body does not exist in pattern '{1}'
+get.admin.version=post ok

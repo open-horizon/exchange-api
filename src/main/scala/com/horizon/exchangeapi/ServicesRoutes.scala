@@ -3,6 +3,8 @@ package com.horizon.exchangeapi
 
 import com.horizon.exchangeapi.tables._
 import java.net.{MalformedURLException, URL}
+
+import com.osinka.i18n.{Lang, Messages}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
@@ -10,6 +12,7 @@ import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
+
 import scala.collection.immutable._
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.util._
@@ -32,30 +35,31 @@ object SharableVals extends Enumeration {
 /** Input format for POST /orgs/{orgid}/services or PUT /orgs/{orgid}/services/<service-id> */
 case class PostPutServiceRequest(label: String, description: Option[String], public: Boolean, documentation: Option[String], url: String, version: String, arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: String, deploymentSignature: String, imageStore: Option[Map[String,Any]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
+  implicit val userLang = Lang("en")
   def validate(orgid: String, serviceId: String) = {
     // Ensure that the documentation field is a valid URL
     if (documentation.getOrElse("") != "") {
       try { new URL(documentation.getOrElse("")) }
-      catch { case _: MalformedURLException => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the 'documentation' field is not valid URL format.")) }
+      catch { case _: MalformedURLException => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("documentation.field.not.valid.url"))) }
     }
 
-    if (!Version(version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '"+version+"' is not valid version format."))
-    if (arch == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "arch can not be empty."))
+    if (!Version(version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("version.not.valid.format", version)))
+    if (arch == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("arch.cannot.be.empty")))
 
     // We enforce that the attributes equal the existing id for PUT, because even if they change the attribute, the id would not get updated correctly
-    if (serviceId != null && serviceId != "" && formId(orgid) != serviceId) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the service id specified in the URL does not match the url, version, and arch in the body."))
+    if (serviceId != null && serviceId != "" && formId(orgid) != serviceId) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("service.id.does.not.match")))
 
     val allSharableVals = SharableVals.values.map(_.toString)
-    if (sharable == "" || !allSharableVals.contains(sharable)) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value '"+sharable+"' for the sharable attribute."))
+    if (sharable == "" || !allSharableVals.contains(sharable)) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("invalid.sharable.value", sharable)))
 
     // Check for requiring a service that is a different arch than this service
     for (rs <- requiredServices.getOrElse(List())) {
-      if(rs.versionRange.isEmpty && rs.version.isEmpty){halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "required service '"+rs.url+"' does not contain a versionRange"))}
-      if (rs.arch != arch) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "required service '"+rs.url+"' has arch '"+rs.arch+"', which is different than this service's arch '"+arch+"'"))
+      if(rs.versionRange.isEmpty && rs.version.isEmpty){halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("no.version.range.in.req.service", rs.url)))}
+      if (rs.arch != arch) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("req.service.has.wrong.arch", rs.url, rs.arch, arch)))
     }
 
     // Check that it is signed
-    if (deployment != "" && deploymentSignature == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "this service definition does not appear to be signed."))
+    if (deployment != "" && deploymentSignature == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("service.def.not.signed")))
   }
 
   // Build a list of db actions to verify that the referenced services exist
@@ -107,7 +111,7 @@ case class PutServicePolicyRequest(properties: Option[List[OneProperty]], constr
     val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of string", "version")
     for (p <- properties.getOrElse(List())) {
       if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
-        halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "The 'properties.type' value '"+p.`type`.get+"' must be 1 of: "+validTypes.mkString(", ")))
+        halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("property.type.must.be", p.`type`.get, validTypes.mkString(", "))(Lang("en"))))
       }
     }
   }
@@ -143,6 +147,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   def db: Database      // get access to the db object in ExchangeApiApp
   def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
+  override implicit val userLang = Lang("en")
 
   // ====== GET /orgs/{orgid}/services ================================
   val getServices =
@@ -160,7 +165,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("arch", DataType.String, Option[String]("Filter results to only include services with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
         Parameter("requiredurl", DataType.String, Option[String]("Filter results to only include services that use this service with this url (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
         )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/services", operation(getServices)) ({
@@ -205,7 +210,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire service resource will be returned."), paramType=ParamType.Query, required=false)
         )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/services/:service", operation(getOneService)) ({
@@ -217,7 +222,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the service
         val q = ServicesTQ.getAttribute(service, attribute)       // get the proper db query for this attribute
-        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Service attribute name '"+attribute+"' is not an attribute of the service resource."))
+        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("attribute.not.part.of.service", attribute)))
         db.run(q.result).map({ list =>
           //logger.trace("GET /orgs/"+orgid+"/services/"+bareService+" attribute result: "+list.toString)
           if (list.nonEmpty) {
@@ -225,7 +230,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             GetServiceAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, Messages("not.found"))
           }
         })
 
@@ -292,7 +297,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           Option[String]("Service object that needs to be updated in the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val postServices2 = (apiOperation[PostPutServiceRequest]("postServices2") summary("a") description("a"))  // for some bizarre reason, the PostServiceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -301,7 +306,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val ident = authenticate().authorizeTo(TService(OrgAndId(orgid,"").toString),Access.CREATE)
     val serviceReq = try { parse(request.body).extract[PostPutServiceRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }
     serviceReq.validate(orgid, null)
     val service = serviceReq.formId(orgid)
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }   // currently only users are allowed to create/update services, so owner will never be blank
@@ -338,7 +343,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           if (invalidIndex < 0) ServicesTQ.getNumOwned(owner).result.asTry    // we are good, move on to the next step
           else {
             //else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced service in requiredServices does not exist in the exchange")).asTry
-            val errStr = "the following required service does not exist in the exchange: org=" + invalidSvcRef.org + ", url=" + invalidSvcRef.url + ", version=" + invalidSvcRef.version + ", arch=" + invalidSvcRef.arch
+            val errStr = Messages("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -351,7 +356,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           if (maxServices == 0 || maxServices >= numOwned) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
             serviceReq.toServiceRow(service, orgid, owner).insert.asTry
           }
-          else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxServices+ " services")).asTry
+          else DBIO.failed(new Throwable(Messages("over.the.limit.of.services", maxServices))).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
@@ -360,16 +365,16 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Success(_) => if (owner != "") AuthCache.services.putOwner(service, owner)     // currently only users are allowed to update service resources, so owner should never be blank
           AuthCache.services.putIsPublic(service, serviceReq.public)
           resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "service '"+service+"' created")
+          ApiResponse(ApiResponseType.OK, Messages("service.created"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "service '" + service + "' not created: " + t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("service.not.created", service, t.getMessage))
         } else if (t.getMessage.contains("duplicate key value violates unique constraint")) {
           resp.setStatus(HttpCode.ALREADY_EXISTS)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, "service '" + service + "' already exists: " + t.getMessage)
+          ApiResponse(ApiResponseType.ALREADY_EXISTS, Messages("service.already.exists", service, t.getMessage))
         } else {
           resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "service '"+service+"' not created: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, Messages("service.not.created", service, t.getMessage))
         }
       }
     })
@@ -389,7 +394,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           Option[String]("Service object that needs to be updated in the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val putServices2 = (apiOperation[PostPutServiceRequest]("putServices2") summary("a") description("a"))  // for some bizarre reason, the PutServiceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -399,7 +404,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val service = OrgAndId(orgid,bareService).toString
     val ident = authenticate().authorizeTo(TService(service),Access.WRITE)
     val serviceReq = try { parse(request.body).extract[PostPutServiceRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }
     serviceReq.validate(orgid, service)
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }     // currently only users are allowed to update service resources, so owner should never be blank
     val resp = response
@@ -434,7 +439,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           } }
           if (invalidIndex < 0) serviceReq.toServiceRow(service, orgid, owner).update.asTry    // we are good, move on to the next step
           else {
-            val errStr = "the following required service does not exist in the exchange: org=" + invalidSvcRef.org + ", url=" + invalidSvcRef.url + ", version=" + invalidSvcRef.version + ", arch=" + invalidSvcRef.arch
+            val errStr = Messages("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -448,18 +453,20 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               if (owner != "") AuthCache.services.putOwner(service, owner)     // currently only users are allowed to update service resources, so owner should never be blank
               AuthCache.services.putIsPublic(service, serviceReq.public)
               resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, "service updated")
+              ApiResponse(ApiResponseType.OK, Messages("service.updated"))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "service '"+service+"' not found")
+              ApiResponse(ApiResponseType.NOT_FOUND, Messages("service.not.found", service))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "service '"+service+"' not updated: "+e) }    // the specific exception is NumberFormatException
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("service.not.updated", service, e)) }    // the specific exception is NumberFormatException
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
-            ApiResponse(ApiResponseType.ACCESS_DENIED, "service '" + service + "' not updated: " + t.getMessage)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("service.not.updated", service, t.getMessage))
+          //            ApiResponse(ApiResponseType.ACCESS_DENIED, "service '" + service + "' not updated: " + t.getMessage)
           } else {
             resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, "service '" + service + "' not updated: " + t.getMessage)
+            ApiResponse(ApiResponseType.BAD_INPUT, Messages("service.not.updated", service, t.getMessage))
+          //            ApiResponse(ApiResponseType.BAD_INPUT, "service '" + service + "' not updated: " + t.getMessage)
           }
       }
     })
@@ -479,7 +486,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           Option[String]("Partial service object that contains 1 attribute to be updated in this service."),
           paramType = ParamType.Body)
         )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val patchServices2 = (apiOperation[PatchServiceRequest]("patchServices2") summary("a") description("a"))  // for some bizarre reason, the PatchServiceRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -489,15 +496,15 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val service = OrgAndId(orgid,bareService).toString
     authenticate().authorizeTo(TService(service),Access.WRITE)
     val serviceReq = try { parse(request.body).extract[PatchServiceRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }    // the specific exception is MappingException
     //logger.trace("PATCH /orgs/"+orgid+"/services/"+bareService+" input: "+serviceReq.toString)
     val resp = response
     val (action, attrName) = serviceReq.getDbUpdate(service, orgid)
-    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid service attribute specified"))
-    if (attrName == "url" || attrName == "version" || attrName == "arch") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "patching attributes 'url', 'version', and 'arch' are not allowed (because the id would not match). To change those attributes you must delete the resource and recreate it."))
+    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("no.valid.service.attr.specified")))
+    if (attrName == "url" || attrName == "version" || attrName == "arch") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("cannot.patch.these.attributes")))
     if (attrName == "sharable") {
       val allSharableVals = SharableVals.values.map(_.toString)
-      if (!allSharableVals.contains(serviceReq.sharable.getOrElse(""))) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value '" + serviceReq.sharable.getOrElse("") + "' for the sharable attribute."))
+      if (!allSharableVals.contains(serviceReq.sharable.getOrElse(""))) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("invalid.value.for.sharable.attribute",serviceReq.sharable.getOrElse("") )))
     }
 
     // Make a list of service searches for the required services. This can match more services than we need, because it wildcards the version.
@@ -532,7 +539,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           } }
           if (invalidIndex < 0) action.transactionally.asTry    // we are good, move on to the real patch action
           else {
-            val errStr = "the following required service does not exist in the exchange: org=" + invalidSvcRef.org + ", url=" + invalidSvcRef.url + ", version=" + invalidSvcRef.version + ", arch=" + invalidSvcRef.arch
+            val errStr = Messages("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -545,18 +552,18 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
               if (attrName == "public") AuthCache.services.putIsPublic(service, serviceReq.public.getOrElse(false))
               resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of service '"+service+"' updated")
+              ApiResponse(ApiResponseType.OK, Messages("service.attr.updated", attrName, service))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "service '"+service+"' not found")
+              ApiResponse(ApiResponseType.NOT_FOUND, Messages("service.not.found", service))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("unexpected.result.from.update", e)) }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
-            ApiResponse(ApiResponseType.ACCESS_DENIED, "service '" + service + "' not updated: " + t.getMessage)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("service.not.updated", service, t.getMessage))
           } else {
             resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, "service '" + service + "' not updated: " + t.getMessage)
+            ApiResponse(ApiResponseType.BAD_INPUT, Messages("service.not.updated", service, t.getMessage))
           }
       }
     })
@@ -573,7 +580,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
         )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.DELETED,Messages("deleted")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   delete("/orgs/:orgid/services/:service", operation(deleteServices)) ({
@@ -590,13 +597,13 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             AuthCache.services.removeOwner(service)
             AuthCache.services.removeIsPublic(service)
             resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, "service deleted")
+            ApiResponse(ApiResponseType.OK, Messages("service.deleted"))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "service '"+service+"' not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, Messages("service.not.found", service))
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "service '"+service+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("service.not.deleted", service, t.toString))
       }
     })
   })
@@ -613,7 +620,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
       Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
     )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("post.ok")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/services/:service/policy", operation(getServicePolicy)) ({
@@ -660,7 +667,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Option[String]("Policy object add or update. See details in the Implementation Notes above."),
         paramType = ParamType.Body)
     )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val putServicePolicy2 = (apiOperation[PutServicePolicyRequest]("putServicePolicy2") summary("a") description("a"))  // for some bizarre reason, the PutServicePolicyRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -670,20 +677,20 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val service = OrgAndId(orgid,bareService).toString
     authenticate().authorizeTo(TService(service),Access.WRITE)
     val policy = try { parse(request.body).extract[PutServicePolicyRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }    // the specific exception is MappingException
     policy.validate()
     val resp = response
     db.run(policy.toServicePolicyRow(service).upsert.asTry).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/services/"+bareService+"/policy result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "policy added or updated")
+          ApiResponse(ApiResponseType.OK, Messages("policy.added.or.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "policy for service '"+service+"' not inserted or updated: "+t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("policy.not.inserted.or.updated", service, t.getMessage))
         } else {
           resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "policy for service '"+service+"' not inserted or updated: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("policy.not.inserted.or.updated", service, t.toString))
         }
       }
     })
@@ -699,7 +706,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
       Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
     )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.DELETED,Messages("deleted")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   delete("/orgs/:orgid/services/:service/policy", operation(deleteServicePolicy)) ({
@@ -713,13 +720,13 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "service policy deleted")
+          ApiResponse(ApiResponseType.OK, Messages("service.policy.deleted"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "policy for service '"+service+"' not found")
+          ApiResponse(ApiResponseType.NOT_FOUND, Messages("service.policy.not.found", service))
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "policy for service '"+service+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("service.policy.not.deleted", service, t.toString))
       }
     })
   })
@@ -738,7 +745,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/services/:service/keys", operation(getServiceKeys)) ({
@@ -769,7 +776,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
       )
       produces "text/plain"
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/services/:service/keys/:keyid", operation(getOneServiceKey)) ({
@@ -791,7 +798,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       }
       else {
         resp.setStatus(HttpCode.NOT_FOUND)
-        ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' not found")
+        ApiResponse(ApiResponseType.NOT_FOUND, Messages("key.not.found", keyId))
       }
     })
   })
@@ -811,7 +818,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           Option[String]("Key object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
           paramType = ParamType.Body)
       )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val putServiceKey2 = (apiOperation[String]("putKey2") summary("a") description("a"))  // for some bizarre reason, the PutKeysRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -830,13 +837,13 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "key added or updated")
+          ApiResponse(ApiResponseType.OK, Messages("key.added.or.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "key '"+keyId+"' for service '"+compositeId+"' not inserted or updated: "+t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage))
         } else {
           resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "key '"+keyId+"' for service '"+compositeId+"' not inserted or updated: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, Messages("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage))
         }
       }
     })
@@ -853,7 +860,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.DELETED,Messages("deleted")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   delete("/orgs/:orgid/services/:service/keys", operation(deleteServiceAllKey)) ({
@@ -867,13 +874,13 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "service keys deleted")
+          ApiResponse(ApiResponseType.OK, Messages("service.keys.deleted"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "no keys for service '"+compositeId+"' found")
+          ApiResponse(ApiResponseType.NOT_FOUND, Messages("no.service.keys.found", compositeId))
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "keys for service '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("service.keys.not.deleted", compositeId, t.toString))
       }
     })
   })
@@ -890,7 +897,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
         Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
       )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.DELETED,Messages("deleted")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   delete("/orgs/:orgid/services/:service/keys/:keyid", operation(deleteServiceKey)) ({
@@ -905,13 +912,13 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "service key deleted")
+          ApiResponse(ApiResponseType.OK, Messages("service.key.deleted"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "key '"+keyId+"' for service '"+compositeId+"' not found")
+          ApiResponse(ApiResponseType.NOT_FOUND, Messages("service.key.not.found", keyId, compositeId))
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "key '"+keyId+"' for service '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("service.key.not.deleted", keyId, compositeId, t.toString))
       }
     })
   })
@@ -930,7 +937,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
       Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
     )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/services/:service/dockauths", operation(getServiceDockAuths)) ({
@@ -962,7 +969,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
     )
       produces "text/plain"
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   get("/orgs/:orgid/services/:service/dockauths/:dockauthid", operation(getOneServiceDockAuth)) ({
@@ -999,7 +1006,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Option[String]("DockAuth object that needs to be added or updated in the exchange. Current supported values for 'username' are: 'token' (default) or 'iamapikey'."),
         paramType = ParamType.Body)
     )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val postServiceDockAuth2 = (apiOperation[PostPutServiceDockAuthRequest]("postDockAuth2") summary("a") description("a"))  // for some bizarre reason, the PostDockAuthsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -1010,7 +1017,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val dockAuthId = 0      // the db will choose a new id on insert
     authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val dockAuthIdReq = try { parse(request.body).extract[PostPutServiceDockAuthRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }    // the specific exception is MappingException
     dockAuthIdReq.validate(dockAuthId)
     val resp = response
     db.run(dockAuthIdReq.getDupDockAuth(compositeId).result.asTry.flatMap({ xs =>
@@ -1026,16 +1033,16 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Success(n) => val num = n.toString.toInt     // num is either the id that was added, or (in the dup case) the number of rows that were updated (0 or 1)
           resp.setStatus(HttpCode.POST_OK)
           num match {
-            case 0 => ApiResponse(ApiResponseType.OK, "duplicate dockauth resource already exists")    // we don't expect this, but it is possible, but only means that the lastUpdated field didn't get updated
-            case 1 => ApiResponse(ApiResponseType.OK, "dockauth resource updated")    //todo: this can be 2 cases i dont know how to distinguish between: A) the 1st time anyone added a dockauth, or B) a dup was found and we updated it
-            case _ => ApiResponse(ApiResponseType.OK, "dockauth "+num+" added")    // we did not find a dup, so this is the dockauth id that was added
+            case 0 => ApiResponse(ApiResponseType.OK, Messages("duplicate.dockauth.resource.already.exists"))    // we don't expect this, but it is possible, but only means that the lastUpdated field didn't get updated
+            case 1 => ApiResponse(ApiResponseType.OK, Messages("dockauth.resource.updated"))    //todo: this can be 2 cases i dont know how to distinguish between: A) the 1st time anyone added a dockauth, or B) a dup was found and we updated it
+            case _ => ApiResponse(ApiResponseType.OK, Messages("dockauth.num.added", num))    // we did not find a dup, so this is the dockauth id that was added
           }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "dockAuthId '"+dockAuthId+"' for service '"+compositeId+"' not inserted: "+t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("service.dockauth.not.inserted", dockAuthId, compositeId, t.getMessage))
         } else {
           resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "dockAuthId '"+dockAuthId+"' for service '"+compositeId+"' not inserted: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, Messages("service.dockauth.not.inserted", dockAuthId, compositeId, t.getMessage))
         }
       }
     })
@@ -1056,7 +1063,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         Option[String]("DockAuth object that needs to be added to, or updated in, the exchange. Current supported values for 'username' are: 'token' (default) or 'iamapikey'."),
         paramType = ParamType.Body)
     )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.POST_OK,Messages("created.updated")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.BAD_INPUT,Messages("bad.input")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
   val putServiceDockAuth2 = (apiOperation[PostPutServiceDockAuthRequest]("putDockAuth2") summary("a") description("a"))  // for some bizarre reason, the PutDockAuthsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
@@ -1067,7 +1074,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val dockAuthId = try { params("dockauthid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "dockauthid must be an integer: "+e)) }    // the specific exception is NumberFormatException
     authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val dockAuthIdReq = try { parse(request.body).extract[PostPutServiceDockAuthRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, Messages("error.parsing.input.json", e))) }    // the specific exception is MappingException
     dockAuthIdReq.validate(dockAuthId)
     val resp = response
     db.run(dockAuthIdReq.toServiceDockAuthRow(compositeId, dockAuthId).update.asTry).map({ xs =>
@@ -1076,17 +1083,17 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Success(n) => val numUpdated = n.toString.toInt     // n is an AnyRef so we have to do this to get it to an int
           if (numUpdated > 0) {
             resp.setStatus(HttpCode.PUT_OK)
-            ApiResponse(ApiResponseType.OK, "dockauth "+dockAuthId+" updated")
+            ApiResponse(ApiResponseType.OK, Messages("dockauth.updated", dockAuthId))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.OK, "dockauth "+dockAuthId+" not found")
+            ApiResponse(ApiResponseType.OK, Messages("dockauth.not.found", dockAuthId))
           }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "dockAuthId '"+dockAuthId+"' for service '"+compositeId+"' not updated: "+t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage))
         } else {
           resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "dockAuthId '"+dockAuthId+"' for service '"+compositeId+"' not updated: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, Messages("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage))
         }
       }
     })
@@ -1103,7 +1110,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
       Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
     )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.DELETED,Messages("deleted")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   delete("/orgs/:orgid/services/:service/dockauths", operation(deleteServiceAllDockAuth)) ({
@@ -1117,13 +1124,13 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "service dockauths deleted")
+          ApiResponse(ApiResponseType.OK, Messages("service.dockauths.deleted"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "no dockauths for service '"+compositeId+"' found")
+          ApiResponse(ApiResponseType.NOT_FOUND, Messages("no.dockauths.found.for.service", compositeId))
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "dockauths for service '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("service.dockauths.not.deleted", compositeId, t.toString))
       }
     })
   })
@@ -1140,7 +1147,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
       Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
     )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      responseMessages(ResponseMessage(HttpCode.DELETED,Messages("deleted")), ResponseMessage(HttpCode.BADCREDS,Messages("invalid.credentials")), ResponseMessage(HttpCode.ACCESS_DENIED,Messages("access.denied")), ResponseMessage(HttpCode.NOT_FOUND,Messages("not.found")))
       )
 
   delete("/orgs/:orgid/services/:service/dockauths/:dockauthid", operation(deleteServiceDockAuth)) ({
@@ -1155,13 +1162,13 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "service dockauths deleted")
+          ApiResponse(ApiResponseType.OK, Messages("service.dockauths.deleted"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "dockauths '"+dockAuthId+"' for service '"+compositeId+"' not found")
+          ApiResponse(ApiResponseType.NOT_FOUND, Messages("service.dockauths.not.found", dockAuthId, compositeId))
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "dockauths '"+dockAuthId+"' for service '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("service.dockauths.not.deleted", dockAuthId, compositeId, t.toString))
       }
     })
   })

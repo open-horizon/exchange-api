@@ -220,6 +220,34 @@ object NodeStatusTQ {
 
 case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], lastUpdated: String)
 
+//Node Errors
+case class ErrorLogEvent(recordId: String, message: String, eventCode: String, hidden: Boolean)
+
+case class NodeErrorRow(nodeId: String, errors: List[ErrorLogEvent], lastUpdated: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  def toNodeError: NodeError = {
+//    val err = if (errors != "") read[List[ErrorLogEvent]](errors) else List[ErrorLogEvent]()
+    return NodeError(errors, lastUpdated)
+  }
+
+  def upsert: DBIO[_] = NodeErrorTQ.rows.insertOrUpdate(this)
+}
+
+class NodeErrors(tag: Tag) extends Table[NodeErrorRow](tag, "nodeerror") {
+  def nodeId = column[String]("nodeid", O.PrimaryKey)
+  def errors = column[String]("errors")
+  def lastUpdated = column[String]("lastUpdated")
+  def * = (nodeId, errors, lastUpdated) <> (NodeErrorRow.tupled, NodeErrorRow.unapply)
+  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+}
+
+object NodeErrorTQ {
+  val rows = TableQuery[NodeErrors]
+  def getNodeError(nodeId: String) = rows.filter(_.nodeId === nodeId)
+}
+
+case class NodeError(errors: List[ErrorLogEvent], lastUpdated: String)
 
 case class NodePolicyRow(nodeId: String, properties: String, constraints: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats

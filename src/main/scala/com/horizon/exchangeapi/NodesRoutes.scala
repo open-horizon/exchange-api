@@ -273,6 +273,13 @@ case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: Lis
   def toNodeStatusRow(nodeId: String) = NodeStatusRow(nodeId, write(connectivity), write(services), ApiTime.nowUTC)
 }
 
+case class PutNodeErrorRequest(recordId: String, message: String, eventCode: String, hidden: Boolean, lastUpdated: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+  def validate() = { }
+
+  def toNodeErrorRow(nodeId: String) = NodeErrorRow(nodeId, recordId, message, eventCode, hidden, ApiTime.nowUTC)
+}
+
 case class PutNodePolicyRequest(properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = {
@@ -981,138 +988,269 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   })
 
 
-  /* ====== GET /orgs/{orgid}/nodes/{id}/status ================================ */
-  val getNodeStatus =
-    (apiOperation[NodeStatus]("getNodeStatus")
-      summary("Returns the node status")
-      description("""Returns the node run time status, for example service container status. Can be run by a user or the node.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node."), paramType=ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/nodes/:id/status", operation(getNodeStatus)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.READ)
-    val resp = response
-      db.run(NodeStatusTQ.getNodeStatus(id).result).map({ list =>
-        logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/status result size: "+list.size)
-        if (list.nonEmpty) {
-          resp.setStatus(HttpCode.OK)
-          list.head.toNodeStatus
-        }
-        else resp.setStatus(HttpCode.NOT_FOUND)
-      })
-  })
-
-  // =========== PUT /orgs/{orgid}/nodes/{id}/status ===============================
-  val putNodeStatus =
-    (apiOperation[ApiResponse]("putNodeStatus")
-      summary "Adds/updates the node status"
-      description """Adds or updates the run time status of a node. This is called by the node or owning user. The **request body** structure:
-
-```
-{
-  "connectivity": {
-     "firmware.bluehorizon.network": true,
-      "images.bluehorizon.network": true
-   },
-  "services": [
-    {
-      "agreementId": "78d7912aafb6c11b7a776f77d958519a6dc718b9bd3da36a1442ebb18fe9da30",
-      "serviceUrl":"mydomain.com.location",
-      "orgid":"ling.com",
-      "version":"1.2",
-      "arch":"amd64",
-      "containers": [
-        {
-          "name": "/dc23c045eb64e1637d027c4b0236512e89b2fddd3f06290c7b2354421d9d8e0d-location",
-          "image": "summit.hovitos.engineering/x86/location:v1.2",
-          "created": 1506086099,
-          "state": "running"
-        }
-      ]
-    }
-  ]
-}
-```"""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node wanting to add/update this status."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PutNodeStatusRequest],
-          Option[String]("Status object add or update. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val putNodeStatus2 = (apiOperation[PutNodeStatusRequest]("putNodeStatus2") summary("a") description("a"))  // for some bizarre reason, the PutNodeStatusRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  put("/orgs/:orgid/nodes/:id/status", operation(putNodeStatus)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val status = try { parse(request.body).extract[PutNodeStatusRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    status.validate()
-    val resp = response
-    db.run(status.toNodeStatusRow(id).upsert.asTry).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "status added or updated")
-        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "status for node '"+id+"' not inserted or updated: "+t.getMessage)
-        } else {
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "status for node '"+id+"' not inserted or updated: "+t.toString)
-        }
-      }
-    })
-  })
-
-  // =========== DELETE /orgs/{orgid}/nodes/{id}/status ===============================
-  val deleteNodeStatus =
-    (apiOperation[ApiResponse]("deleteNodeStatus")
-      summary "Deletes the status of a node"
-      description "Deletes the status of a node from the exchange DB. Can be run by the owning user or the node."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node for which the status is to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-      )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/nodes/:id/status", operation(deleteNodeStatus)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val resp = response
-    db.run(NodeStatusTQ.getNodeStatus(id).delete.asTry).map({ xs =>
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "node status deleted")
-        } else {
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "status for node '"+id+"' not found")
-        }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "status for node '"+id+"' not deleted: "+t.toString)
-      }
-    })
-  })
-
+//  /* ====== GET /orgs/{orgid}/nodes/{id}/errors ================================ */
+//  val getNodeError =
+//    (apiOperation[NodeError]("getNodeError")
+//      summary("Returns the node error")
+//      description("""Returns any node errors.""")
+//      parameters(
+//        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+//        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node."), paramType=ParamType.Path),
+//        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+//        )
+//      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+//      )
+//
+//  get("/orgs/:orgid/nodes/:id/errors", operation(getNodeError)) ({
+//    val orgid = params("orgid")
+//    val bareId = params("id")
+//    val id = OrgAndId(orgid,bareId).toString
+//    authenticate().authorizeTo(TNode(id),Access.READ)
+//    val resp = response
+//      db.run(NodeErrorTQ.getNodeError(id).result).map({ list =>
+//        logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/errors result size: "+list.size)
+//        if (list.nonEmpty) {
+//          resp.setStatus(HttpCode.OK)
+//          list.head.toNodeError
+//        }
+//        else resp.setStatus(HttpCode.NOT_FOUND)
+//      })
+//  })
+//
+//  // =========== PUT /orgs/{orgid}/nodes/{id}/errors ===============================
+//  val putNodeError =
+//    (apiOperation[ApiResponse]("putNodeError")
+//      summary "Adds/updates node error"
+//      description """Adds or updates any error of a node. This is called by the node or owning user. The **request body** structure:
+//
+//```
+//{
+//  "connectivity": {
+//     "firmware.bluehorizon.network": true,
+//      "images.bluehorizon.network": true
+//   },
+//  "services": [
+//    {
+//      "agreementId": "78d7912aafb6c11b7a776f77d958519a6dc718b9bd3da36a1442ebb18fe9da30",
+//      "serviceUrl":"mydomain.com.location",
+//      "orgid":"ling.com",
+//      "version":"1.2",
+//      "arch":"amd64",
+//      "containers": [
+//        {
+//          "name": "/dc23c045eb64e1637d027c4b0236512e89b2fddd3f06290c7b2354421d9d8e0d-location",
+//          "image": "summit.hovitos.engineering/x86/location:v1.2",
+//          "created": 1506086099,
+//          "state": "running"
+//        }
+//      ]
+//    }
+//  ]
+//}
+//```"""
+//      parameters(
+//        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+//        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node wanting to add/update the error."), paramType = ParamType.Path),
+//        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+//        Parameter("body", DataType[PutNodeErrorRequest],
+//          Option[String]("Error object add or update. See details in the Implementation Notes above."),
+//          paramType = ParamType.Body)
+//      )
+//      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+//      )
+//  val putNodeError2 = (apiOperation[PutNodeErrorRequest]("putNodeError2") summary("a") description("a"))
+//
+//  put("/orgs/:orgid/nodes/:id/errors", operation(putNodeError)) ({
+//    val orgid = params("orgid")
+//    val bareId = params("id")
+//    val id = OrgAndId(orgid,bareId).toString
+//    authenticate().authorizeTo(TNode(id),Access.WRITE)
+//    val status = try { parse(request.body).extract[PutNodeErrorRequest] }
+//    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+//    status.validate()
+//    val resp = response
+//    db.run(status.toNodeErrorRow(id).upsert.asTry).map({ xs =>
+//      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)
+//      xs match {
+//        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+//          ApiResponse(ApiResponseType.OK, "status added or updated")
+//        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+//          resp.setStatus(HttpCode.ACCESS_DENIED)
+//          ApiResponse(ApiResponseType.ACCESS_DENIED, "status for node '"+id+"' not inserted or updated: "+t.getMessage)
+//        } else {
+//          resp.setStatus(HttpCode.INTERNAL_ERROR)
+//          ApiResponse(ApiResponseType.INTERNAL_ERROR, "status for node '"+id+"' not inserted or updated: "+t.toString)
+//        }
+//      }
+//    })
+//  })
+//
+//  // =========== DELETE /orgs/{orgid}/nodes/{id}/status ===============================
+//  val deleteNodeStatus =
+//    (apiOperation[ApiResponse]("deleteNodeStatus")
+//      summary "Deletes the status of a node"
+//      description "Deletes the status of a node from the exchange DB. Can be run by the owning user or the node."
+//      parameters(
+//        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+//        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node for which the status is to be deleted."), paramType = ParamType.Path),
+//        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+//      )
+//      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+//      )
+//
+//  delete("/orgs/:orgid/nodes/:id/status", operation(deleteNodeStatus)) ({
+//    val orgid = params("orgid")
+//    val bareId = params("id")
+//    val id = OrgAndId(orgid,bareId).toString
+//    authenticate().authorizeTo(TNode(id),Access.WRITE)
+//    val resp = response
+//    db.run(NodeStatusTQ.getNodeStatus(id).delete.asTry).map({ xs =>
+//      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)
+//      xs match {
+//        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+//          resp.setStatus(HttpCode.DELETED)
+//          ApiResponse(ApiResponseType.OK, "node status deleted")
+//        } else {
+//          resp.setStatus(HttpCode.NOT_FOUND)
+//          ApiResponse(ApiResponseType.NOT_FOUND, "status for node '"+id+"' not found")
+//        }
+//        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+//          ApiResponse(ApiResponseType.INTERNAL_ERROR, "status for node '"+id+"' not deleted: "+t.toString)
+//      }
+//    })
+//  })
+//
+//  /* ====== GET /orgs/{orgid}/nodes/{id}/status ================================ */
+//  val getNodeStatus =
+//    (apiOperation[NodeStatus]("getNodeStatus")
+//      summary("Returns the node status")
+//      description("""Returns the node run time status, for example service container status. Can be run by a user or the node.""")
+//      parameters(
+//      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+//      Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node."), paramType=ParamType.Path),
+//      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+//    )
+//      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+//      )
+//
+//  get("/orgs/:orgid/nodes/:id/status", operation(getNodeStatus)) ({
+//    val orgid = params("orgid")
+//    val bareId = params("id")
+//    val id = OrgAndId(orgid,bareId).toString
+//    authenticate().authorizeTo(TNode(id),Access.READ)
+//    val resp = response
+//    db.run(NodeStatusTQ.getNodeStatus(id).result).map({ list =>
+//      logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/status result size: "+list.size)
+//      if (list.nonEmpty) {
+//        resp.setStatus(HttpCode.OK)
+//        list.head.toNodeStatus
+//      }
+//      else resp.setStatus(HttpCode.NOT_FOUND)
+//    })
+//  })
+//
+//  // =========== PUT /orgs/{orgid}/nodes/{id}/status ===============================
+//  val putNodeStatus =
+//    (apiOperation[ApiResponse]("putNodeStatus")
+//      summary "Adds/updates the node status"
+//      description """Adds or updates the run time status of a node. This is called by the node or owning user. The **request body** structure:
+//
+//```
+//{
+//  "connectivity": {
+//     "firmware.bluehorizon.network": true,
+//      "images.bluehorizon.network": true
+//   },
+//  "services": [
+//    {
+//      "agreementId": "78d7912aafb6c11b7a776f77d958519a6dc718b9bd3da36a1442ebb18fe9da30",
+//      "serviceUrl":"mydomain.com.location",
+//      "orgid":"ling.com",
+//      "version":"1.2",
+//      "arch":"amd64",
+//      "containers": [
+//        {
+//          "name": "/dc23c045eb64e1637d027c4b0236512e89b2fddd3f06290c7b2354421d9d8e0d-location",
+//          "image": "summit.hovitos.engineering/x86/location:v1.2",
+//          "created": 1506086099,
+//          "state": "running"
+//        }
+//      ]
+//    }
+//  ]
+//}
+//```"""
+//      parameters(
+//      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+//      Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node wanting to add/update this status."), paramType = ParamType.Path),
+//      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+//      Parameter("body", DataType[PutNodeStatusRequest],
+//        Option[String]("Status object add or update. See details in the Implementation Notes above."),
+//        paramType = ParamType.Body)
+//    )
+//      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+//      )
+//  val putNodeStatus2 = (apiOperation[PutNodeStatusRequest]("putNodeStatus2") summary("a") description("a"))  // for some bizarre reason, the PutNodeStatusRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
+//
+//  put("/orgs/:orgid/nodes/:id/status", operation(putNodeStatus)) ({
+//    val orgid = params("orgid")
+//    val bareId = params("id")
+//    val id = OrgAndId(orgid,bareId).toString
+//    authenticate().authorizeTo(TNode(id),Access.WRITE)
+//    val status = try { parse(request.body).extract[PutNodeStatusRequest] }
+//    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+//    status.validate()
+//    val resp = response
+//    db.run(status.toNodeStatusRow(id).upsert.asTry).map({ xs =>
+//      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)
+//      xs match {
+//        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+//          ApiResponse(ApiResponseType.OK, "status added or updated")
+//        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+//          resp.setStatus(HttpCode.ACCESS_DENIED)
+//          ApiResponse(ApiResponseType.ACCESS_DENIED, "status for node '"+id+"' not inserted or updated: "+t.getMessage)
+//        } else {
+//          resp.setStatus(HttpCode.INTERNAL_ERROR)
+//          ApiResponse(ApiResponseType.INTERNAL_ERROR, "status for node '"+id+"' not inserted or updated: "+t.toString)
+//        }
+//      }
+//    })
+//  })
+//
+//  // =========== DELETE /orgs/{orgid}/nodes/{id}/status ===============================
+//  val deleteNodeStatus =
+//    (apiOperation[ApiResponse]("deleteNodeStatus")
+//      summary "Deletes the status of a node"
+//      description "Deletes the status of a node from the exchange DB. Can be run by the owning user or the node."
+//      parameters(
+//      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+//      Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node for which the status is to be deleted."), paramType = ParamType.Path),
+//      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
+//    )
+//      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+//      )
+//
+//  delete("/orgs/:orgid/nodes/:id/status", operation(deleteNodeStatus)) ({
+//    val orgid = params("orgid")
+//    val bareId = params("id")
+//    val id = OrgAndId(orgid,bareId).toString
+//    authenticate().authorizeTo(TNode(id),Access.WRITE)
+//    val resp = response
+//    db.run(NodeStatusTQ.getNodeStatus(id).delete.asTry).map({ xs =>
+//      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)
+//      xs match {
+//        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+//          resp.setStatus(HttpCode.DELETED)
+//          ApiResponse(ApiResponseType.OK, "node status deleted")
+//        } else {
+//          resp.setStatus(HttpCode.NOT_FOUND)
+//          ApiResponse(ApiResponseType.NOT_FOUND, "status for node '"+id+"' not found")
+//        }
+//        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+//          ApiResponse(ApiResponseType.INTERNAL_ERROR, "status for node '"+id+"' not deleted: "+t.toString)
+//      }
+//    })
+//  })
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/policy ================================ */
   val getNodePolicy =

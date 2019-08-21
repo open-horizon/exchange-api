@@ -17,3 +17,6 @@ target/
 .cache-tests
 .project
 .settings/
+
+# Mac specific
+.DS_Store

@@ -323,7 +323,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   implicit def logger: Logger    // get access to the logger object in ExchangeApiApp
   protected implicit def jsonFormats: Formats
   // implicit def formats: org.json4s.Formats{val dateFormat: org.json4s.DateFormat; val typeHints: org.json4s.TypeHints}
-  override implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
+//  override implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
+  override implicit val userLang = Lang("en")
 
   /* ====== GET /orgs/{orgid}/nodes ================================
     This is of type org.scalatra.swagger.SwaggerOperation

@@ -442,7 +442,7 @@ iterDeltaTotal=0
 sleepTotal=0
 
 for (( h=1 ; h<=$numHeartbeats ; h++ )) ; do
-    echo "Node heartbeat $h for $numNodes nodes"
+    echo "Node heartbeat $h of $numHeartbeats for $numNodes nodes"
 	startIteration=`date +%s`
     # We assume 1 hb of all the nodes takes nodeHbInterval seconds, so increment our other counts by that much
     svcCheckCount=$(( $svcCheckCount + $nodeHbInterval ))

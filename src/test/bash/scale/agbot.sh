@@ -426,7 +426,7 @@ sleepTotal=0
 # Note: the default value of newAgreementInterval and processGovInterval are the same, so for now we assume they are the same value
 
 for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
-    echo "Agbot agreement check $h"
+    echo "Agbot agreement check $h of $numAgrChecks"
 	startIteration=`date +%s`
     # We assume 1 agreement check of all the agbots takes newAgreementInterval seconds, so increment our other counts by that much
     agbotHbCount=$(( $agbotHbCount + $newAgreementInterval ))

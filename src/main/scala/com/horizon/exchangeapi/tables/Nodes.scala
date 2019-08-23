@@ -223,12 +223,12 @@ case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneServi
 //Node Errors
 case class ErrorLogEvent(recordId: String, message: String, eventCode: String, hidden: Boolean)
 
-case class NodeErrorRow(nodeId: String, errors: List[ErrorLogEvent], lastUpdated: String) {
+case class NodeErrorRow(nodeId: String, errors: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNodeError: NodeError = {
-//    val err = if (errors != "") read[List[ErrorLogEvent]](errors) else List[ErrorLogEvent]()
-    return NodeError(errors, lastUpdated)
+    val err = if (errors != "") read[List[ErrorLogEvent]](errors) else List[ErrorLogEvent]()
+    return NodeError(err, lastUpdated)
   }
 
   def upsert: DBIO[_] = NodeErrorTQ.rows.insertOrUpdate(this)

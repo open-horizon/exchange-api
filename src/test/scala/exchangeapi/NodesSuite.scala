@@ -932,6 +932,37 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
+  //~~~~~ Node errors ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
+    val errorLogEvent = ErrorLogEvent("1", "test error 1", "500", false)
+    val input = PutNodeErrorRequest(List[ErrorLogEvent](errorLogEvent))
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("POST DATA: " + write(input))
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+//  test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
+//    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+//    info("code: "+response.code+", response.body: "+response.body)
+//    assert(response.code === HttpCode.OK)
+//    val getResp = parse(response.body).extract[NodeErrors]
+////    assert(getResp.connectivity("images.bluehorizon.network") === true)
+//  }
+//
+//  test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
+//    val response = Http(URL+"/nodes/"+nodeId+"/status").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+//    info("code: "+response.code+", response.body: "+response.body)
+//    assert(response.code === HttpCode.DELETED)
+//  }
+//
+//  test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node - should not be there") {
+//    val response = Http(URL+"/nodes/"+nodeId+"/status").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+//    info("code: "+response.code+", response.body: "+response.body)
+//    assert(response.code === HttpCode.NOT_FOUND)
+//  }
+
   //~~~~~ Node policy ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node") {

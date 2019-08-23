@@ -3,7 +3,6 @@ package com.horizon.exchangeapi
 //import java.time.Clock
 
 import com.horizon.exchangeapi.auth.{AuthErrors, ExchCallbackHandler}
-import com.osinka.i18n.{Lang, Messages}
 import javax.security.auth.login.LoginContext
 import org.mindrot.jbcrypt.BCrypt
 //import org.scalatra.servlet.ServletApiImplicits
@@ -38,7 +37,6 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
 
   def db: Database      // get access to the db object in ExchangeApiApp
   implicit def logger: Logger    // get access to the logger object in ExchangeApiApp
-  override implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   var migratingDb = false     // used to lock everyone out during db migration
   def isDbMigration = migratingDb
@@ -90,7 +88,7 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
     val creds = credsForAnonymous()
     val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
     logger.info("User or id "+userOrId+" from "+clientIp+" running "+request.getMethod+" "+request.getPathInfo)
-    if (isDbMigration && !Role.isSuperUser(creds.id)) halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("db.migration.in.progress")))
+    if (isDbMigration && !Role.isSuperUser(creds.id)) halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("db.migration.in.progress")))
   }
 
   def frontEndCredsForAnonymous(): Creds = {
@@ -103,7 +101,7 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
     //val idType = request.getHeader("type")
     val orgid = request.getHeader("orgid")
     val id = request.getHeader("id")
-    if (id == null || orgid == null) halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("required.headers.not.set", frontEndHeader)))
+    if (id == null || orgid == null) halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("required.headers.not.set", frontEndHeader)))
     val creds = Creds(OrgAndIdCred(orgid,id).toString, "")    // we don't have a pw/token, so leave it blank
     return creds
   }

@@ -1,7 +1,6 @@
 package com.horizon.exchangeapi.auth
 
-import com.horizon.exchangeapi.{ApiResponseType, HttpCode}
-import com.osinka.i18n.{Lang, Messages}
+import com.horizon.exchangeapi.{ApiResponseType, ExchangeMessage, HttpCode}
 import javax.security.auth.login.{FailedLoginException, LoginException}
 
 //
@@ -17,15 +16,15 @@ class NotIbmCredsException(msg: String) extends AuthException(HttpCode.INTERNAL_
 class NotLocalCredsException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
 
 // We are in the middle of a db migration, so cant authenticate/authorize anything else
-class IsDbMigrationException(msg: String = Messages("in.process.db.migration")(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en")))) extends AuthException(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, msg)
+class IsDbMigrationException(msg: String = ExchangeMessage.translateMessage("in.process.db.migration")) extends AuthException(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, msg)
 
 // Exceptions for handling DB connection errors
 class DbTimeoutException(msg: String) extends AuthException(HttpCode.GW_TIMEOUT, ApiResponseType.GW_TIMEOUT, msg)
 class DbConnectionException(msg: String) extends AuthException(HttpCode.BAD_GW, ApiResponseType.BAD_GW, msg)
 
-class InvalidCredentialsException(msg: String = Messages("invalid.credentials")(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en")))) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
+class InvalidCredentialsException(msg: String = ExchangeMessage.translateMessage("invalid.credentials")) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
 
-class UserCreateException(msg: String = Messages("error.creating.user")(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en")))) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
+class UserCreateException(msg: String = ExchangeMessage.translateMessage("error.creating.user")) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
 
 // The IAM token we were given was expired, or some similar problem
 class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
@@ -45,8 +44,8 @@ object AuthErrors {
       // This is a catch all that probably doesnt get thrown
       case t: FailedLoginException => (HttpCode.BADCREDS, ApiResponseType.BADCREDS, t.getMessage)
       // Should not get here
-      case t: Throwable => (HttpCode.INTERNAL_ERROR, ApiResponseType.ERROR, t.toString)
-      case _ => (HttpCode.BADCREDS, ApiResponseType.BADCREDS, Messages("unknown.error.invalid.creds")(Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))))
+      case t: Throwable => (HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, t.toString)
+      case _ => (HttpCode.BADCREDS, ApiResponseType.BADCREDS, ExchangeMessage.translateMessage("unknown.error.invalid.creds"))
     }
   }
 }

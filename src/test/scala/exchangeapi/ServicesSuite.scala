@@ -238,6 +238,7 @@ class ServicesSuite extends FunSuite {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
+    info("SADIYAH LOOK AT THIS ONE")
     assert(response.code === HttpCode.ALREADY_EXISTS)
   }
 

@@ -45,21 +45,41 @@ object HttpCode {
 /** These are used as the response structure for most PUTs, POSTs, and DELETEs. */
 case class ApiResponse(code: String, msg: String)
 object ApiResponseType {
-  implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
-  val BADCREDS = Messages("api.bad.creds")
-  val ACCESS_DENIED = Messages("api.access.denied")
-  val ALREADY_EXISTS = Messages("api.already.exists")
-  val BAD_INPUT = Messages("api.invalid.input")
-  val NOT_FOUND = Messages("api.not.found")
-  val INTERNAL_ERROR = Messages("api.internal.error")
-  val NOT_IMPLEMENTED = Messages("api.not.implemented")
-  val BAD_GW = Messages("api.db.connection.error")
-  val GW_TIMEOUT = Messages("api.db.timeout")
-  val ERROR = Messages("error")
-  val WARNING = Messages("warning")
-  val INFO = Messages("info")
-  val OK = Messages("ok")
-  val TOO_BUSY = Messages("too.busy")
+  val BADCREDS = ExchangeMessage.translateMessage("api.bad.creds")
+  val ACCESS_DENIED = ExchangeMessage.translateMessage("api.access.denied")
+  val ALREADY_EXISTS = ExchangeMessage.translateMessage("api.already.exists")
+  val BAD_INPUT = ExchangeMessage.translateMessage("api.invalid.input")
+  val NOT_FOUND = ExchangeMessage.translateMessage("api.not.found")
+  val INTERNAL_ERROR = ExchangeMessage.translateMessage("api.internal.error")
+  val NOT_IMPLEMENTED = ExchangeMessage.translateMessage("api.not.implemented")
+  val BAD_GW = ExchangeMessage.translateMessage("api.db.connection.error")
+  val GW_TIMEOUT = ExchangeMessage.translateMessage("api.db.timeout")
+  val ERROR = ExchangeMessage.translateMessage("error")
+  val WARNING = ExchangeMessage.translateMessage("warning")
+  val INFO = ExchangeMessage.translateMessage("info")
+  val OK = ExchangeMessage.translateMessage("ok")
+  val TOO_BUSY = ExchangeMessage.translateMessage("too.busy")
+}
+
+object ExchangeMessage {
+  //TODO: Refactor translateMessage so that it doesn't need to determine Messages call based on size of args array
+  def translateMessage(key: String, args: Any*): String ={
+    implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en")))
+    if(args.nonEmpty){
+      if(args.size == 1){
+        return Messages(key, args(0))
+      } else if (args.size == 2) {
+        return Messages(key, args(0), args(1))
+      } else if (args.size == 3) {
+        return Messages(key, args(0), args(1), args(2))
+      } else if (args.size == 4) {
+        return Messages(key, args(0), args(1), args(2), args(3))
+      } else if (args.size == 5) {
+        return Messages(key, args(0), args(1), args(2), args(3), args(4))
+      }
+    }
+    Messages(key)
+  }
 }
 
 /** Global config parameters for the exchange. See typesafe config classes: http://typesafehub.github.io/config/latest/api/ */

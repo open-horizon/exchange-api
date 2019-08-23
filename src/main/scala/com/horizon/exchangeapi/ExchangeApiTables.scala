@@ -9,7 +9,6 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
-import com.osinka.i18n.{Lang, Messages}
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -27,8 +26,6 @@ object ExchangeApiTables {
       ++ ServicesTQ.rows.schema ++ ServiceKeysTQ.rows.schema ++ ServiceDockAuthsTQ.rows.schema ++ ServicePolicyTQ.rows.schema ++ PatternsTQ.rows.schema ++ PatternKeysTQ.rows.schema ++ BusinessPoliciesTQ.rows.schema
     ).create,
     SchemaTQ.getSetVersionAction)
-
-  implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   // Alter the schema of existing tables - used to be used in /admin/upgradedb
   // Note: the compose/bluemix version of postgresql does not support the 'if not exists' option
@@ -85,7 +82,7 @@ object ExchangeApiTables {
           }
           else {
             logger.trace("ExchangeApiTables.upgradeDb: success v was empty")
-            DBIO.failed(new Throwable(Messages("db.upgrade.error"))).asTry
+            DBIO.failed(new Throwable(ExchangeMessage.translateMessage("db.upgrade.error"))).asTry
           }
         case Failure(t) => if (t.getMessage.contains("""relation "schema" does not exist""")) {
               logger.info("Schema table does not exist, initializing the DB...")
@@ -96,9 +93,9 @@ object ExchangeApiTables {
     })).map({ xs =>
       logger.debug("ExchangeApiTables.upgradeDb: processing upgrade or init db result")   // dont want to display xs.toString because it will have a scary looking error in it in the case of the db already being at the latest schema
       xs match {
-        case Success(_) => ApiResponse(ApiResponseType.OK, Messages("db.upgraded.successfully"))  // cant tell the diff between these 2, they both return Success(())
+        case Success(_) => ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.upgraded.successfully"))  // cant tell the diff between these 2, they both return Success(())
         case Failure(t) => if (t.getMessage.contains(upgradeNotNeededMsg)) ApiResponse(ApiResponseType.OK, t.getMessage)  // db already at latest schema
-          else ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("db.not.upgraded", t.toString))     // we hit some problem
+          else ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.not.upgraded", t.toString))     // we hit some problem
       }
     }), Duration(60000, MILLISECONDS))     // this is the rest of Await.result(), wait 1 minute for db init/upgrade to complete
     if (upgradeResult.code == ApiResponseType.OK) logger.info(upgradeResult.msg)

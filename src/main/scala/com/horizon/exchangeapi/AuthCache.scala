@@ -11,7 +11,6 @@ import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import com.horizon.exchangeapi.auth._
-import com.osinka.i18n.{Lang, Messages}
 
 /** In-memory cache of the user/pw, node id/token, and agbot id/token, where the pw and tokens are not hashed to speed up validation */
 object AuthCache extends Control with ServletApiImplicits {
@@ -33,8 +32,6 @@ object AuthCache extends Control with ServletApiImplicits {
     val whichTable = whichTab
 
     var db: Database = _       // filled in my init() below
-
-    implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
     /** Initializes the cache with all of the things currently in the persistent db */
     def init(db: Database): Unit = {
@@ -114,10 +111,10 @@ object AuthCache extends Control with ServletApiImplicits {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting pw/token for '"+id+"' . Trying to use the cache for now. "+timeout.getMessage)
           val cacheVal = _get(id)
-          if (cacheVal.isEmpty) throw new DbTimeoutException(Messages("db.timeout.getting.token", id, timeout.getMessage))
+          if (cacheVal.isEmpty) throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.token", id, timeout.getMessage))
           return cacheVal
         case other: Throwable => logger.error("db connection error getting pw/token for '"+id+"': "+other.getMessage)
-          throw new DbConnectionException(Messages("db.threw.exception", other.getMessage))
+          throw new DbConnectionException(ExchangeMessage.translateMessage("db.threw.exception", other.getMessage))
       }
 
       // Now get it from the cache and compare/sync the 2
@@ -208,10 +205,10 @@ object AuthCache extends Control with ServletApiImplicits {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting owner or isAdmin for '"+id+"' . Trying to use the cache for now. "+timeout.getMessage)
           val cacheVal = _getOwner(id)
-          if (cacheVal.isEmpty) throw new DbTimeoutException(Messages("db.timeout.getting.owner", id, timeout.getMessage))
+          if (cacheVal.isEmpty) throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.owner", id, timeout.getMessage))
           return cacheVal
         case other: Throwable => logger.error("db connection error getting owner or isAdmin for '"+id+"': "+other.getMessage)
-          throw new DbConnectionException(Messages("db.threw.exception", other.getMessage))
+          throw new DbConnectionException(ExchangeMessage.translateMessage("db.threw.exception", other.getMessage))
       }
     }
 
@@ -234,10 +231,10 @@ object AuthCache extends Control with ServletApiImplicits {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting isPublic for '"+id+"' . Trying to use the cache for now. "+timeout.getMessage)
           val cacheVal = _getIsPublic(id)
-          if (cacheVal.isEmpty) throw new DbTimeoutException(Messages("db.timeout.getting.ispublic", id, timeout.getMessage))
+          if (cacheVal.isEmpty) throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.ispublic", id, timeout.getMessage))
           return cacheVal
         case other: Throwable => logger.error("db connection error getting isPublic for '"+id+"': "+other.getMessage)
-          throw new DbConnectionException(Messages("db.threw.exception", other.getMessage))
+          throw new DbConnectionException(ExchangeMessage.translateMessage("db.threw.exception", other.getMessage))
       }
     }
 

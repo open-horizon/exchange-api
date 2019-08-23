@@ -4,7 +4,6 @@ import java.util.Base64
 
 import com.horizon.exchangeapi.auth.InvalidCredentialsException
 import com.horizon.exchangeapi.auth.PermissionCheck
-import com.osinka.i18n.{Lang, Messages}
 import javax.security.auth.Subject
 import javax.servlet.http.HttpServletRequest
 import org.scalatra.servlet.ServletApiImplicits
@@ -222,7 +221,6 @@ It contains several authentication utilities:
  */
 trait AuthorizationSupport extends Control with ServletApiImplicits {
   implicit def logger: Logger
-  implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", "en"))
 
   /** Returns true if the token is correct for this user and not expired */
   def isTokenValid(token: String, username: String): Boolean = {
@@ -231,7 +229,7 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
     AuthCache.users.get(username) match {
       // case Some(userTok) => if (userTok.unhashed != "") Token.isValid(token, userTok.unhashed) else Token.isValid(token, userTok.hashed)
       case Some(userTok) => Token.isValid(token, userTok.hashed)
-      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, Messages("invalid.credentials")))
+      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, ExchangeMessage.translateMessage("invalid.credentials")))
     }
   }
 
@@ -247,13 +245,13 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
     val idType = request.getHeader("type")
     val orgid = request.getHeader("orgid")
     val id = request.getHeader("id")
-    if (idType == null || id == null || orgid == null) halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("required.headers.not.set", frontEndHeader)))
+    if (idType == null || id == null || orgid == null) halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("required.headers.not.set", frontEndHeader)))
     val creds = Creds(OrgAndIdCred(orgid,id).toString, "")    // we don't have a pw/token, so leave it blank
     val identity: Identity = idType match {
       case "person" => IUser(creds)
       case "app" => IApiKey(creds)
       case "dev" => INode(creds)
-      case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, Messages("unexpected.identity", idType)))
+      case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.identity", idType)))
     }
     identity.hasFrontEndAuthority = true
     return identity
@@ -281,14 +279,14 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
             if (basicAuthStr.contains(":")) basicAuthStr2 = basicAuthStr
             else {
               try { basicAuthStr2 = new String(Base64.getDecoder.decode(basicAuthStr), "utf-8") }
-              catch { case _: IllegalArgumentException => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, Messages("bad.auth.header"))) }
+              catch { case _: IllegalArgumentException => halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, ExchangeMessage.translateMessage("bad.auth.header"))) }
             }
             val R2 = """^(.+):(.+)\s?$""".r      // decode() seems to add a newline at the end
             basicAuthStr2 match {
               case R2(id,tok) => /*logger.trace("id="+id+",tok="+tok+".");*/ Creds(id,tok)
-              case _ => throw new InvalidCredentialsException(Messages("invalid.credentials.string", basicAuthStr))
+              case _ => throw new InvalidCredentialsException(ExchangeMessage.translateMessage("invalid.credentials.string", basicAuthStr))
             }
-          case _ => throw new InvalidCredentialsException(Messages("only.use.basic.auth"))
+          case _ => throw new InvalidCredentialsException(ExchangeMessage.translateMessage("only.use.basic.auth"))
         }
       // Not in the header, look in the url query string. Parameters() gives you the params after "?". Params() gives you the routes variables (if they have same name)
       case None => (params.get("orgid"), request.parameters.get("id").orElse(params.get("id")), request.parameters.get("token")) match {
@@ -299,7 +297,7 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
           case (Some(org), Some(user), Some(pw)) => Creds(OrgAndIdCred(org,user).toString,pw)
           case (None, Some(user), Some(pw)) => Creds(OrgAndIdCred("",user).toString,pw)   // this is when they are querying /orgs so there is not org
           case _ => if (anonymousOk) Creds("","")
-          else throw new InvalidCredentialsException(Messages("no.creds.given"))
+          else throw new InvalidCredentialsException(ExchangeMessage.translateMessage("no.creds.given"))
         }
       }
     }
@@ -352,7 +350,7 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
     def isAdmin = false       // IUser overrides this
     def isAnonymous = creds.isAnonymous
     def identityString = creds.id     // for error msgs
-    def accessDeniedMsg(access: Access) = Messages("access.denied.no.auth", identityString, access)
+    def accessDeniedMsg(access: Access) = ExchangeMessage.translateMessage("access.denied.no.auth", identityString, access)
     var hasFrontEndAuthority = false   // true if this identity was already vetted by the front end
     def isMultiTenantAgbot: Boolean = return false
 
@@ -407,11 +405,11 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
   case class IFrontEnd(creds: Creds) extends Identity {
     override def authenticate(hint: String) = {
       if (ExchConfig.config.getString("api.root.frontEndHeader") == creds.id) this    // let everything thru
-      else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, Messages("invalid.credentials")))
+      else halt(HttpCode.BADCREDS, ApiResponse(ApiResponseType.BADCREDS, ExchangeMessage.translateMessage("invalid.credentials")))
     }
     def authorizeTo(target: Target, access: Access): Authorization = {
       if (ExchConfig.config.getString("api.root.frontEndHeader") == creds.id) FrontendAuth    // let everything thru
-      else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, Messages("access.denied.no.exchange.front.end")))
+      else halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("access.denied.no.exchange.front.end")))
     }
   }
 

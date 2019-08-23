@@ -15,8 +15,6 @@ if [[ -z $2 ]]; then
     set $namebase 1 test.sh
 fi
 
-script="${3:-test.sh}"
-
 # default of where to write the summary or error msgs. Can be overridden
 EX_PERF_REPORT_DIR="${EX_PERF_REPORT_DIR:-/tmp/exchangePerf}"
 
@@ -36,7 +34,10 @@ trapHandler() {
 }
 
 # Clear out all of the summaries (in case we are running with a lower number than previous)
-rm -rf $EX_PERF_REPORT_DIR/$script/*
+for d in "${@:2}"; do
+    # some of these args are numbers, but the -f flag will ignore those cases silently
+    rm -rf $EX_PERF_REPORT_DIR/$d/*
+done
 
 # Loop thru arg pairs (this 1st shift gets rid of namebase)
 while shift; do

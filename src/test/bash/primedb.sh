@@ -582,7 +582,7 @@ else
 fi
 
 # Do not have a good way to know what msg id they will have, but it is ok to create additional msgs
-curlputpost "POST" $agbotauth "orgs/$orgid/nodes/$nodeid/msgs" '{"message": "hey there", "ttl": 300}'
+curlputpost "POST" $agbotauth "orgs/$orgid/nodes/x$nodeid/msgs" '{"message": "hey there", "ttl": 300}'
 curlputpost "POST" $nodeauth "orgs/$orgid/agbots/$agbotid/msgs" '{"message": "hey there", "ttl": 300}'
 
 echo "All resources added successfully"

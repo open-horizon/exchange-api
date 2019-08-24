@@ -1053,11 +1053,11 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val status = try { parse(request.body).extract[PutNodeErrorRequest] }
+    val error = try { parse(request.body).extract[PutNodeErrorRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    status.validate()
+    error.validate()
     val resp = response
-    db.run(status.toNodeErrorRow(id).upsert.asTry).map({ xs =>
+    db.run(error.toNodeErrorRow(id).upsert.asTry).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/errors result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
@@ -1086,14 +1086,14 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
 
-  delete("/orgs/:orgid/nodes/:id/errors", operation(deleteNodeStatus)) ({
+  delete("/orgs/:orgid/nodes/:id/errors", operation(deleteNodeError)) ({
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     authenticate().authorizeTo(TNode(id),Access.WRITE)
     val resp = response
     db.run(NodeErrorTQ.getNodeError(id).delete.asTry).map({ xs =>
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)
+      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/errors result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)

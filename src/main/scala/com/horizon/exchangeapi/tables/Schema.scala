@@ -128,12 +128,13 @@ object SchemaTQ {
       case 26 => DBIO.seq(   // version 1.92.0
         sqlu"alter table users add column updatedBy character varying not null default ''"
       )
+      case 27 => DBIO.seq(NodeErrorTQ.rows.schema.create)    // v1.102.0
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 26     // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "add column updatedBy to users table"
+  val latestSchemaVersion = 267    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "add nodeerror table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

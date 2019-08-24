@@ -221,7 +221,7 @@ object NodeStatusTQ {
 case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], lastUpdated: String)
 
 //Node Errors
-case class ErrorLogEvent(recordId: String, message: String, eventCode: String, hidden: Boolean)
+case class ErrorLogEvent(record_id: String, message: String, event_code: String, hidden: Boolean)
 
 case class NodeErrorRow(nodeId: String, errors: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats

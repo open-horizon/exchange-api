@@ -932,6 +932,71 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
+  //~~~~~ Node errors ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
+    val errorLogEvent = ErrorLogEvent("1", "test error 1", "500", false)
+    val input = PutNodeErrorRequest(List[ErrorLogEvent](errorLogEvent))
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("POST DATA: " + write(input))
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getResp = parse(response.body).extract[NodeError]
+    assert(getResp.errors.size === 1)
+    val errorLogEvent = getResp.errors.head
+    assert(errorLogEvent.record_id === "1")
+    assert(errorLogEvent.message === "test error 1")
+    assert(errorLogEvent.event_code === "500")
+    assert(errorLogEvent.hidden === false)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node with 2 errors") {
+    val errorLogEvent1 = ErrorLogEvent("1", "test error 1", "500", false)
+    val errorLogEvent2 = ErrorLogEvent("2", "test error 2", "404", true)
+    val input = PutNodeErrorRequest(List[ErrorLogEvent](errorLogEvent1, errorLogEvent2))
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("POST DATA: " + write(input))
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node with 2 errors") {
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getResp = parse(response.body).extract[NodeError]
+    info(getResp.errors.size.toString)
+    assert(getResp.errors.size === 2)
+    val errorLogEvent = getResp.errors.head
+    assert(errorLogEvent.record_id === "1")
+    assert(errorLogEvent.message === "test error 1")
+    assert(errorLogEvent.event_code === "500")
+    assert(errorLogEvent.hidden === false)
+    val errorLogEvent2 = getResp.errors(1)
+    assert(errorLogEvent2.record_id === "2")
+    assert(errorLogEvent2.message === "test error 2")
+    assert(errorLogEvent2.event_code === "404")
+    assert(errorLogEvent2.hidden === true)
+  }
+
+  test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node - should not be there") {
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
   //~~~~~ Node policy ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node") {

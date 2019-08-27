@@ -20,7 +20,7 @@ object ExchangeApiTables {
   // Create all of the current version's tables - used in /admin/initdb
   val initDB = DBIO.seq((
     SchemaTQ.rows.schema ++ OrgsTQ.rows.schema ++ UsersTQ.rows.schema
-      ++ NodesTQ.rows.schema ++ NodeAgreementsTQ.rows.schema ++ NodeStatusTQ.rows.schema ++ NodePolicyTQ.rows.schema
+      ++ NodesTQ.rows.schema ++ NodeAgreementsTQ.rows.schema ++ NodeStatusTQ.rows.schema ++ NodeErrorTQ.rows.schema ++ NodePolicyTQ.rows.schema
       ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ AgbotPatternsTQ.rows.schema ++ AgbotBusinessPolsTQ.rows.schema
       ++ NodeMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema
       ++ ServicesTQ.rows.schema ++ ServiceKeysTQ.rows.schema ++ ServiceDockAuthsTQ.rows.schema ++ ServicePolicyTQ.rows.schema ++ PatternsTQ.rows.schema ++ PatternKeysTQ.rows.schema ++ BusinessPoliciesTQ.rows.schema
@@ -43,7 +43,7 @@ object ExchangeApiTables {
     sqlu"drop table if exists businesspolicies", sqlu"drop table if exists patternkeys", sqlu"drop table if exists patterns", sqlu"drop table if exists servicepolicies", sqlu"drop table if exists servicedockauths", sqlu"drop table if exists servicekeys", sqlu"drop table if exists services",   // no table depends on these
     sqlu"drop table if exists nodemsgs", sqlu"drop table if exists agbotmsgs",     // these depend on both nodes and agbots
     sqlu"drop table if exists agbotbusinesspols", sqlu"drop table if exists agbotpatterns", sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots",
-    sqlu"drop table if exists nodeagreements", sqlu"drop table if exists nodestatus", sqlu"drop table if exists nodepolicies",
+    sqlu"drop table if exists nodeagreements", sqlu"drop table if exists nodestatus", sqlu"drop table if exists nodeerror", sqlu"drop table if exists nodepolicies",
     /* these are no longer used, but just in case they are still there */ sqlu"drop table if exists properties", sqlu"drop table if exists nodemicros",
     sqlu"drop table if exists nodes",
     sqlu"drop table if exists users", sqlu"drop table if exists orgs", sqlu"drop table if exists schema",

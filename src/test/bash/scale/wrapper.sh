@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Facilitates scale testing of Exchange. Runs the specified number of instances of test.sh in the background and waits for them to finish.
-# For true scale testing use a higher level script (not supplied) to run wrapper.sh on multiple systems, giving each one a different namebase.
+# For true scale testing use a higher level script like scaledriver.sh to run wrapper.sh on multiple systems, giving each one a different namebase.
 
 if [[ -z $1 ]]; then
 	echo "Usage: $0 <name-base> [<num-instances> <test-script>] ..."
@@ -20,12 +20,12 @@ EX_PERF_REPORT_DIR="${EX_PERF_REPORT_DIR:-/tmp/exchangePerf}"
 
 dir=`dirname $0`
 
-function checkrc {
-	if [[ $1 != $2 ]]; then
-		echo "curl failed with rc $1"
-		exit $1
-	fi
-}
+#function checkrc {
+#	if [[ $1 != $2 ]]; then
+#		echo "Error: Cmd failed with rc $1"
+#		exit $1
+#	fi
+#}
 
 # Clean up our children
 trapHandler() {
@@ -33,11 +33,12 @@ trapHandler() {
     exit
 }
 
-# Clear out all of the summaries (in case we are running with a lower number than previous)
-for d in "${@:2}"; do
-    # some of these args are numbers, but the -f flag will ignore those cases silently
-    rm -rf $EX_PERF_REPORT_DIR/$d/*
-done
+# Clear out all of the summaries (in case we are running with a lower number or different script than previous)
+#for d in ${@:2}; do
+#    # some of these args are numbers, but the -f flag will ignore those cases silently
+#    rm -rf $EX_PERF_REPORT_DIR/$d/*
+#done
+rm -rf $EX_PERF_REPORT_DIR/*
 
 # Loop thru arg pairs (this 1st shift gets rid of namebase)
 while shift; do

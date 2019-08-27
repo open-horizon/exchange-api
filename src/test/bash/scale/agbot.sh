@@ -40,11 +40,11 @@ EX_PERF_ORG="${EX_PERF_ORG:-performancenodeagbot}"
 # default of where to write the summary or error msgs. Can be overridden
 EX_PERF_REPORT_DIR="${EX_PERF_REPORT_DIR:-/tmp/exchangePerf}"
 reportDir="$EX_PERF_REPORT_DIR/$scriptName"
+# this file holds the summary stats, and any errors that may have occurred along the way
 EX_PERF_REPORT_FILE="${EX_PERF_REPORT_FILE:-$reportDir/$namebase.summary}"
-# this file holds the output of the most recent curl cmd, which is useful when the script errors out
+# this file holds the output of the most recent curl cmd, which is useful when the curl cmd errors out
 EX_PERF_DEBUG_FILE="${EX_PERF_DEBUG_FILE:-$reportDir/debug/$namebase.lastmsg}"
-# this file holds all the errors from curl cmds, which is useful if we continue even when an error occurs
-EX_PERF_ERROR_FILE="${EX_PERF_ERROR_FILE:-$reportDir/debug/$namebase.errors}"
+#EX_PERF_ERROR_FILE="${EX_PERF_ERROR_FILE:-$reportDir/$namebase.errors}"
 
 # The length of the performance test, measured in the number of times each agbot checks for agreements (by default 10 sec each)
 numAgrChecks="${EX_PERF_NUM_AGR_CHECKS:-90}"
@@ -68,12 +68,9 @@ agbotHbInterval="${EX_AGBOT_HB_INTERVAL:-60}"
 versionCheckInterval="${EX_AGBOT_VERSION_CHECK_INTERVAL:-60}"
 #activeNodeTimeout="${EX_AGBOT_ACTIVE_NODE_CHECK:-180}"
 # EX_AGBOT_NO_SLEEP can be set to disable sleep if it finishes an interval early
+# EX_AGBOT_CREATE_PATTERN can be set to have this script create 1 pattern, so it finds something even if node.sh is not running
 
 # CURL_CA_BUNDLE can be exported in our parent if a self-signed cert is needed.
-
-appjson="application/json"
-accept="-H Accept:$appjson"
-content="-H Content-Type:$appjson"
 
 rootauth="root/root:$EXCHANGE_ROOTPW"
 
@@ -101,7 +98,7 @@ agbotid="${agbotbase}1"
 agbottoken=abcdef
 agbotauth="$org/$agbotid:$agbottoken"
 
-#svcurlbase="${namebase}-svcurl"
+# The svcurl value must match what node.sh is using
 svcurl="nodeagbotsvc"
 svcversion="1.2.3"
 svcarch="amd64"
@@ -113,261 +110,34 @@ patternid="${patternbase}1"
 buspolbase="${namebase}-bp"
 buspolid="${buspolbase}1"
 
-curlBasicArgs="-sS -w %{http_code} --output $EX_PERF_DEBUG_FILE $accept"
-#curlBasicArgs="-sS -w %{http_code} --output /dev/null $accept"
-# curlBasicArgs="-s -w %{http_code} $accept"
+appjson="application/json"
+accept="-H Accept:$appjson"
+content="-H Content-Type:$appjson"
+
+CURL_BASIC_ARGS="-sS -w %{http_code} --output $EX_PERF_DEBUG_FILE $accept"
+#CURL_BASIC_ARGS="-sS -w %{http_code} --output /dev/null $accept"
+# CURL_BASIC_ARGS="-s -w %{http_code} $accept"
 # set -x
 
-# Check the http code returned by curl.
-# Most of the curl invocations use --output, so the only thing that comes to stdout is the http code.
-function checkhttpcode {
-    local httpcode=$1
-    local okcodes=$2
-    local msg="$3"
-    local cont=$4
-    if [[ $okcodes =~ $httpcode ]]; then return; fi
-
-    # An error occurred
-    local nextAction
-    if [[ "$cont" == 'continue' ]]; then
-        nextAction='continuing'
-    else
-        nextAction='exiting'
-    fi
-    # write error msg to both the summary file and stderr
-    local errMsg="===============> curl $msg failed with: $httpcode, $nextAction"
-    echo "$errMsg" >> $EX_PERF_REPORT_FILE
-    echo "$errMsg" >&2
-
-    # save off the error msg and output from the curl cmd, in case we are continuing
-    echo "$errMsg" >> $EX_PERF_ERROR_FILE
-    cat $EX_PERF_DEBUG_FILE >> $EX_PERF_ERROR_FILE
-    printf "\n" >> $EX_PERF_ERROR_FILE
-
-    if [[ "$cont" != 'continue' ]]; then exit $httpcode; fi
-}
-
-# Check the exit code of the cmd that was run
-#function checkexitcode {
-#	if [[ $1 == 0 ]]; then return; fi
-#    # write error msg to both the summary file and stderr
-#    local nextAction
-#    if [[ "$5" == 'continue' ]]; then
-#        nextAction='continuing'
-#    else
-#        nextAction='exiting'
-#    fi
-#    local errMsg="===============> command $2 failed with exit code $1, $nextAction."
-#    echo "$errMsg" >> $EX_PERF_REPORT_FILE
-#    echo "$errMsg" >&2
-#    if [[ "$3" != 'continue' ]]; then exit $1; fi
-#}
-
-function divide {
-	bc <<< "scale=3; $1/$2"
-}
-
-function max {
-    if [[ $1 -ge $2 ]]; then
-        echo $1
-    else
-        echo $2
-    fi
-}
-
-function min {
-    if [[ $1 -le $2 ]]; then
-        echo $1
-    else
-        echo $2
-    fi
-}
-
-function wordCount {
-    # Convert to array and return length
-    local words=( $1 )
-    echo ${#words[@]}
-    #wc -w <<< "$1"
-}
-
-function curlget {
-    #numtimes=$1
-    local auth=$1
-    local url=$2
-    local otherRcs=$3
-	if [[ -n "$VERBOSE" ]]; then echo "Running GET ($auth) $url"; fi
-	#start=`date +%s`
-	#local i
-	#for (( i=1 ; i<=$numtimes ; i++ )) ; do
-		local httpcode=$(curl -X GET $curlBasicArgs -H "Authorization:Basic $auth" $HZN_EXCHANGE_URL/$url)
-		checkhttpcode $httpcode "200 $otherRcs" "GET $url" 'continue'
-		#echo -n .
-		bignum=$(($bignum+1))
-	#done
-	#total=$(($(date +%s)-start))
-	#echo " total=${total}s, num=$numtimes, each=$(divide $total $numtimes)s"
-}
-
-function curlcreate {
-    local method=$1
-    local numtimes=$2
-    local auth="$3"
-    local urlbase=$4
-    local body=$5
-    local otherRcs=$6
-    local cont=$7
-	local start=`date +%s`
-	if [[ $auth != "" ]]; then
-		auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
-	fi
-	if [[ -n "$VERBOSE" ]]; then echo "Running $method/create ($auth) $urlbase $numtimes times:"; fi
-	local i
-	for (( i=1 ; i<=$numtimes ; i++ )) ; do
-        # echo curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$urlbase$i
-        local httpcode=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$urlbase$i)
-		checkhttpcode $httpcode "201 $otherRcs" "$method $urlbase$i" $cont
-		if [[ -n "$VERBOSE" ]]; then echo -n .; fi
-		bignum=$(($bignum+1))
-	done
-	local total=$(($(date +%s)-start))
-	if [[ -n "$VERBOSE" ]]; then echo " total=${total}s, num=$numtimes, each=$(divide $total $numtimes)s"; fi
-}
-
-# Create just 1 object in the case in which the call needs to increment something in the body (e.g. w/services)
-function curlcreateone {
-    local method=$1
-    local auth="$2"
-    local url=$3
-    local body=$4
-    local otherRcs=$5
-    local cont=$6
-	if [[ $auth != "" ]]; then
-		auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
-	fi
-	if [[ -n "$VERBOSE" ]]; then echo "Running $method/create ($auth) $url"; fi
-    # echo curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url
-    local httpcode=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url)
-    checkhttpcode $httpcode "201 $otherRcs" "$method $url" $cont
-    bignum=$(($bignum+1))
-}
-
-# Args: PUT/POST/PATCH, auth, url, body
-function curlputpost {
-    local method=$1
-    #numtimes=$2
-    local auth=$2
-    local url=$3
-    local body="$4"
-    local otherRcs=$5
-	if [[ -n "$VERBOSE" ]]; then echo "Running $method ($auth) $url"; fi
-	#start=`date +%s`
-	auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
-	local httpcode
-	#local i
-	#for (( i=1 ; i<=$numtimes ; i++ )) ; do
-		if [[ $body == "" ]]; then
-			httpcode=$(curl -X $method $curlBasicArgs $auth $HZN_EXCHANGE_URL/$url)
-		else
-			# echo curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url
-			httpcode=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url)
-		fi
-		checkhttpcode $httpcode "201 $otherRcs" "$method $url" 'continue'
-		#echo -n .
-		bignum=$(($bignum+1))
-	#done
-	#total=$(($(date +%s)-start))
-	#echo " total=${total}s, num=$numtimes, each=$(divide $total $numtimes)s"
-}
-
-# Args: PUT/POST/PATCH, numtimes, auth, url, body
-function curlputpostmulti {
-    local method=$1
-    local numtimes=$2
-    local auth=$3
-    local url=$4
-    local body="$5"
-	if [[ -n "$VERBOSE" ]]; then echo "Running $method ($auth) $url $numtimes times:"; fi
-	local start=`date +%s`
-	local auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
-	local httpcode
-	local i
-	for (( i=1 ; i<=$numtimes ; i++ )) ; do
-		if [[ $body == "" ]]; then
-			httpcode=$(curl -X $method $curlBasicArgs $auth $HZN_EXCHANGE_URL/$url)
-		else
-			# echo curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url
-			httpcode=$(curl -X $method $curlBasicArgs $content $auth -d "$body" $HZN_EXCHANGE_URL/$url)
-		fi
-		checkhttpcode $httpcode 201 "$method $url" 'continue'
-		if [[ -n "$VERBOSE" ]]; then echo -n .; fi
-		bignum=$(($bignum+1))
-	done
-	local total=$(($(date +%s)-start))
-	if [[ -n "$VERBOSE" ]]; then echo " total=${total}s, num=$numtimes, each=$(divide $total $numtimes)s"; fi
-}
-
-function curldelete {
-    local numtimes="$1"
-    local auth=$2
-    local urlbase=$3
-    local otherRcs=$4
-	if [[ -n "$VERBOSE" ]]; then echo "Running DELETE ($auth) $urlbase $numtimes times:"; fi
-	local start=`date +%s`
-	local auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
-	local httpcode
-	local i
-    for (( i=1 ; i<=$numtimes ; i++ )) ; do
-        #echo curl -X DELETE $curlBasicArgs $auth $HZN_EXCHANGE_URL/$urlbase$i
-        httpcode=$(curl -X DELETE $curlBasicArgs $auth $HZN_EXCHANGE_URL/$urlbase$i)
-        checkhttpcode $httpcode "204 $otherRcs" "DELETE $urlbase$i" 'continue'
-        if [[ -n "$VERBOSE" ]]; then echo -n .; fi
-        #echo $rc
-        bignum=$(($bignum+1))
-    done
-	local total=$(($(date +%s)-start))
-	if [[ -n "$VERBOSE" ]]; then echo " total=${total}s, num=$numtimes, each=$(divide $total $numtimes)s"; fi
-}
-
-function curldeleteone {
-    local auth=$1
-    local url=$2
-    local otherRcs=$3
-	if [[ -n "$VERBOSE" ]]; then echo "Running DELETE ($auth) $url"; fi
-	local auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
-    #echo curl -X DELETE $curlBasicArgs $auth $HZN_EXCHANGE_URL/$url
-    local httpcode=$(curl -X DELETE $curlBasicArgs $auth $HZN_EXCHANGE_URL/$url)
-    checkhttpcode $httpcode "204 $otherRcs" "DELETE $url" 'continue'
-    bignum=$(($bignum+1))
-}
-
-# Args: POST/GET, auth, url
-function curladmin {
-    local method=$1
-    local auth=$2
-    local url=$3
-	if [[ -n "$VERBOSE" ]]; then echo "Running $method ($auth) $url:"; fi
-	local start=`date +%s`
-	local auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
-    local httpcode=$(curl -X $method $curlBasicArgs $auth $HZN_EXCHANGE_URL/$url)
-    checkhttpcode $httpcode 201 "$method $url"
-    bignum=$(($bignum+1))
-	local total=$(($(date +%s)-start))
-	if [[ -n "$VERBOSE" ]]; then echo " total=${total}s, num=1, each=${total}s"; fi
-}
+source $(dirname $0)/functions.sh
 
 
 #=========== Initialization =================================================
 
 bignum=0
 bigstart=`date +%s`
+bigstarttime=`date`
 
-echo "Initializing agbot test:"
+echo "Initializing agbot test for ${namebase}:"
+
+confirmcmds curl jq
 
 echo "Using exchange $HZN_EXCHANGE_URL"
 
 #echo mkdir -p "$reportDir" "$(dirname $EX_PERF_DEBUG_FILE)"
 mkdir -p "$reportDir" "$(dirname $EX_PERF_DEBUG_FILE)"
-rm -f $EX_PERF_REPORT_FILE $EX_PERF_ERROR_FILE   # do not actually need to delete the debug lastmsg file, because every cmd overwrites it
+#rm -f $EX_PERF_REPORT_FILE $EX_PERF_ERROR_FILE
+rm -f $EX_PERF_REPORT_FILE   # do not need to delete the debug lastmsg file, because every curl cmd overwrites it
 
 # Can not delete the org in case other instances of this script are using it. Whoever calls this script must delete it.
 #curldelete 1 "$rootauth" "orgs/$orgbase" 404
@@ -378,7 +148,7 @@ if [[ -n "$EXCHANGE_IAM_ACCOUNT_ID" ]]; then
     # this is an IBM public cloud instance
     curlcreateone "POST" "$rootauth" "orgs/$org" '{ "label": "perf test org", "description": "blah blah", "tags": { "ibmcloud_id": "'$EXCHANGE_IAM_ACCOUNT_ID'" } }' 403
     curlcreateone "PUT" "$rootauth" "orgs/$org/users/$EXCHANGE_IAM_EMAIL" '{"password": "foobar", "admin": false, "email": "'$EXCHANGE_IAM_EMAIL'"}' 400  # needed until issue 176 is fixed
-    curlget $userauth "orgs/$org/users/iamapikey" 504   #todo: remove 504 once exchange 1.98.0 is deployed everywhere
+    curlget $userauth "orgs/$org/users/iamapikey" #504   remove 504 once exchange 1.98.0 is deployed everywhere
 else
     # ICP
     curlcreateone "POST" "$rootauth" "orgs/$org" '{ "label": "perf test org", "description": "blah blah" }' 403
@@ -398,10 +168,15 @@ for (( i=1 ; i<=$numAgbots ; i++ )) ; do
     curlcreateone "POST" $userauth "orgs/$org/agbots/$agbotbase$i/patterns" '{"patternOrgid": "IBM", "pattern": "*", "nodeOrgid": "'$org'"}'
 done
 
-# Put (create) 1 svc, pattern, and node to be able to create agbot msgs, and to have pattern search return at least 1 node
-curlcreateone "POST" $userauth "orgs/$org/services" '{"label": "svc", "public": true, "url": "'$svcurl'", "version": "'$svcversion'", "arch": "'$svcarch'", "sharable": "singleton", "deployment": "{\"services\":{\"svc\":{\"image\":\"openhorizon/gps:1.2.3\"}}}", "deploymentSignature": "a" }' 403
-curlcreateone "POST" $userauth "orgs/$org/patterns/$patternid" '{"label": "pat", "public": false, "services": [{ "serviceUrl": "'$svcurl'", "serviceOrgid": "'$org'", "serviceArch": "'$svcarch'", "serviceVersions": [{ "version": "'$svcversion'" }] }] }'
-curlcreateone "PUT" $userauth "orgs/$org/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "pi", "pattern": "'$org'/'$patternid'", "publicKey": "ABC"}'
+if [[ -n $EX_AGBOT_CREATE_PATTERN ]]; then
+    # Put (create) 1 svc, pattern, and node to be able to create agbot msgs, and to have pattern search return at least 1 node
+    curlcreateone "POST" $userauth "orgs/$org/services" '{"label": "svc", "public": true, "url": "'$svcurl'", "version": "'$svcversion'", "arch": "'$svcarch'", "sharable": "singleton", "deployment": "{\"services\":{\"svc\":{\"image\":\"openhorizon/gps:1.2.3\"}}}", "deploymentSignature": "a" }' 403
+    curlcreateone "POST" $userauth "orgs/$org/patterns/$patternid" '{"label": "pat", "public": false, "services": [{ "serviceUrl": "'$svcurl'", "serviceOrgid": "'$org'", "serviceArch": "'$svcarch'", "serviceVersions": [{ "version": "'$svcversion'" }] }] }'
+    curlcreateone "PUT" $userauth "orgs/$org/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "pi", "pattern": "'$org'/'$patternid'", "publicKey": "ABC"}'
+else
+    # Put (create) 1 node to be able to create agbot msgs
+    curlcreateone "PUT" $userauth "orgs/$org/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "pi", "pattern": "", "publicKey": "ABC"}'
+fi
 
 # Post (create) agbot a* msgs
 for (( i=1 ; i<=$numAgbots ; i++ )) ; do
@@ -423,6 +198,10 @@ nodesMaxProcessed=0
 nodesLastProcessed=0
 iterDeltaTotal=0
 sleepTotal=0
+shortCircuit="false"    # detect all node.sh instances have completed so we should stop sleeping
+chkIntervalShortCircuit=10    # at this interval start checking if we should short circuit
+emptyIntervals=0    # how many intervals we have had with no patterns found
+requiredEmptyIntervals=3   # how many empty intervals we need before short-circuiting
 # Note: the default value of newAgreementInterval and processGovInterval are the same, so for now we assume they are the same value
 
 for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
@@ -446,6 +225,7 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
         url="orgs/$org/patterns"
         if [[ -n "$VERBOSE" ]]; then echo "Running GET ($myagbotauth) $url"; fi
         output=$(curl -X GET -sS -w '%{http_code}' $accept -H "Authorization:Basic $myagbotauth" $certFile $HZN_EXCHANGE_URL/$url)
+        #echo "DEBUG agbot.sh: GET patterns output: $output"
         httpcode=${output:$((${#output}-3))}    # the last 3 chars are the http code
         patterns="${output%[0-9][0-9][0-9]}"   # for the output, get all but the 3 digits of http code
 		checkhttpcode $httpcode '200 404' "GET $url, output: $patterns" 'continue'
@@ -454,6 +234,11 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
             #echo "DEBUG: patterns: $patterns."
             if [[ "$patterns" != "" ]]; then
                 numPatterns=$(wordCount "$patterns")
+                if [[ $numPatterns -eq 0 ]]; then
+                    emptyIntervals=$(( $emptyIntervals + 1 ))
+                else
+                    emptyIntervals=0    # reset it
+                fi
                 echo "Agbot $a processing $numPatterns patterns"
                 patsMaxProcessed=$(max $patsMaxProcessed $numPatterns )
                 numAgrChkNodes=0
@@ -507,7 +292,11 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
                 done
                 #todo: query agbot businesspols orgs and business policies and do a search for each, and query service policy
                 echo "Agbot $a processed $numAgrChkNodes nodes"
+            else    # patterns==""
+                emptyIntervals=$(( $emptyIntervals + 1 ))
             fi
+        elif [[ "$httpcode" == "404" ]]; then
+            emptyIntervals=$(( $emptyIntervals + 1 ))
         fi
 
 
@@ -542,7 +331,11 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
 	iterTime=$(($(date +%s)-startIteration))
 	iterDelta=$(( $newAgreementInterval - $iterTime ))
 	iterDeltaTotal=$(( $iterDeltaTotal + $iterDelta ))
-	if [[ $iterDelta -gt 0 && -z "$EX_AGBOT_NO_SLEEP" ]]; then
+	if [[ $shortCircuit != "true" && $h -ge $chkIntervalShortCircuit && $emptyIntervals -ge $requiredEmptyIntervals ]]; then
+	    # stop sleeping if we have done more than 10 intervals and the last 3 intervals have had 0 patterns
+        shortCircuit="true"
+	fi
+	if [[ $iterDelta -gt 0 && -z "$EX_AGBOT_NO_SLEEP" && $shortCircuit != "true" ]]; then
 	    echo "Sleeping for $iterDelta seconds at the end of agbot agreement check $h of $numAgrChecks because loop iteration finished early"
     	sleepTotal=$(( $sleepTotal + $iterDelta ))
 	    sleep $iterDelta
@@ -562,11 +355,11 @@ printf "\nCleaning up from agbot test:\n"
 # Delete agbot a*
 curldelete $numAgbots $userauth "orgs/$org/agbots/$agbotbase"
 
-# Delete the pattern
-curldeleteone $userauth "orgs/$org/patterns/$patternid"
-
-# Delete the service
-curldeleteone $userauth "orgs/$org/services/$svcid" 404
+if [[ -n $EX_AGBOT_CREATE_PATTERN ]]; then
+    # Delete the pattern and service
+    curldeleteone $userauth "orgs/$org/patterns/$patternid"
+    curldeleteone $userauth "orgs/$org/services/$svcid" 404
+fi
 
 # Delete node n*
 curldeleteone $userauth "orgs/$org/nodes/$nodeid"
@@ -576,14 +369,16 @@ curldeleteone $userauth "orgs/$org/nodes/$nodeid"
 
 iterDeltaAvg=$(divide $iterDeltaTotal $numAgrChecks)
 nodesProcAvg=$(divide $nodesProcessed $numAgrChecks)
-bigtotal=$(($(date +%s)-bigstart))
+bigtotal=$(($(date +%s)-$bigstart))
 actualTotal=$(($bigtotal-$sleepTotal))
 bigAvg=$(divide $actualTotal $bignum)
+bigstoptime=$(date)
 
 sumMsg="Simulated $numAgbots agbots for $numAgrChecks agreement-checks
 Max patterns=$patsMaxProcessed, total nodes=$nodesProcessed, avg=$nodesProcAvg nodes/agr-chk
 Max nodes=$nodesMaxProcessed, min nodes=$nodesMinProcessed, last nodes=$nodesLastProcessed
-Overall: total time=$bigtotal s, num ops=$bignum, avg=$bigAvg s/op, avg iteration delta=$iterDeltaAvg s"
+Start time: $bigstarttime, End time: $bigstoptime, wall clock duration=$bigtotal s
+Overall: active time=$actualTotal s, num ops=$bignum, avg=$bigAvg s/op, avg iteration delta=$iterDeltaAvg s"
 
 printf "$sumMsg\n" >> $EX_PERF_REPORT_FILE
 printf "\n$sumMsg\n"

@@ -88,7 +88,7 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
     val creds = credsForAnonymous()
     val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
     logger.info("User or id "+userOrId+" from "+clientIp+" running "+request.getMethod+" "+request.getPathInfo)
-    if (isDbMigration && !Role.isSuperUser(creds.id)) halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, "access denied - in the process of DB migration"))
+    if (isDbMigration && !Role.isSuperUser(creds.id)) halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("db.migration.in.progress")))
   }
 
   def frontEndCredsForAnonymous(): Creds = {
@@ -101,7 +101,7 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
     //val idType = request.getHeader("type")
     val orgid = request.getHeader("orgid")
     val id = request.getHeader("id")
-    if (id == null || orgid == null) halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "front end header "+frontEndHeader+" set, but not the rest of the required headers"))
+    if (id == null || orgid == null) halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("required.headers.not.set", frontEndHeader)))
     val creds = Creds(OrgAndIdCred(orgid,id).toString, "")    // we don't have a pw/token, so leave it blank
     return creds
   }
@@ -128,7 +128,6 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
     AuthCache.users.get(username) match {
       // case Some(userTok) => if (userTok.unhashed != "") Token.create(userTok.unhashed) else Token.create(userTok.hashed)   // try to create the token with the unhashed pw for consistency with the rest of the code
       case Some(userTok) => Token.create(userTok.hashed)   // always create the token with the hashed pw because that will always be there during creation and validation of the token
-      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "username not found"))
     }
   }
 }

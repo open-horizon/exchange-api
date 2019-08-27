@@ -6,6 +6,7 @@ import org.scalatra._
 import org.scalatra.swagger._
 import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
+
 import scala.collection.mutable.{HashMap => MutableHashMap}
 
 // Provides routes for browsing the services and patterns in the IBM catalog

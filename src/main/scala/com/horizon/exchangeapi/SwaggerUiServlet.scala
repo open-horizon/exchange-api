@@ -2,6 +2,7 @@ package com.horizon.exchangeapi
 
 import org.scalatra._
 import java.io.File
+
 import org.slf4j.LoggerFactory
 
 class SwaggerUiServlet extends ScalatraServlet {
@@ -45,7 +46,7 @@ class SwaggerUiServlet extends ScalatraServlet {
         request.uri.toString match {
           case R1(first) => redirect(first+"/api?"+sortParams+"&url="+first+"/api-docs/swagger.json#/default")
           case R2(first,second) => redirect(first+"/"+second+"?"+sortParams+"&url="+first+"/api-docs/swagger.json#/default")
-          case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "unexpected uri"))
+          case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.uri")))
         }
       }
   }

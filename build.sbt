@@ -51,6 +51,7 @@ lazy val root = (project in file(".")).
       "com.github.cb372" %% "scalacache-guava" % "latest.release",
       //"org.joda" % "joda-convert" % "2.1.2",
       //"javax.mail" % "javax.mail-api" % "latest.release"
+      "com.osinka.i18n" %% "scala-i18n" % "1.0.3"
     ),
     scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
     javaOptions ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config", "-Djava.security.policy=src/main/resources/auth.policy")

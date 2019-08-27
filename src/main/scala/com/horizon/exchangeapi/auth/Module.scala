@@ -21,7 +21,6 @@ class Module extends LoginModule with AuthorizationSupport {
   private var succeeded = false
   lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
 
-
   override def initialize(
     subject: Subject,
     handler: CallbackHandler,
@@ -48,7 +47,7 @@ class Module extends LoginModule with AuthorizationSupport {
       handler.handle(Array(reqCallback))
       if (reqCallback.request.isEmpty) {
         logger.debug("Unable to get HTTP request while authenticating")
-        throw new AuthInternalErrorException("Unable to get HTTP request while authenticating")
+        throw new AuthInternalErrorException(ExchangeMessage.translateMessage("unable.to.get.http.request.when.authenticating"))
       }
       val reqInfo = reqCallback.request.get
       val RequestInfo(req, _, isDbMigration, _, hint) = reqInfo
@@ -63,7 +62,7 @@ class Module extends LoginModule with AuthorizationSupport {
         val creds = credentials(reqInfo)
         val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
         val (_, id) = IbmCloudAuth.compositeIdSplit(userOrId)
-        if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException("User is iamapikey or iamtoken, so credentials are not local Exchange credentials")
+        if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException(ExchangeMessage.translateMessage("creds.not.local.exchange.creds"))
         logger.info("User or id " + userOrId + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
         if (isDbMigration && !Role.isSuperUser(creds.id)) throw new IsDbMigrationException()
         identity = IIdentity(creds).authenticate(hint)
@@ -155,7 +154,7 @@ case class PermissionCheck(permission: String) extends PrivilegedAction[Unit] {
 
   private def isAdminAllowed(permission: String) = {
     if (adminNotAllowed.contains(permission)) {
-      Failure(new Exception(s"Admins are not given the permission $permission"))
+      Failure(new Exception(ExchangeMessage.translateMessage("admins.not.given.permission", permission)))
     } else {
       Success(())
     }

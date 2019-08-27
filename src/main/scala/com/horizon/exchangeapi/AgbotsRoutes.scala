@@ -24,7 +24,7 @@ case class GetAgbotAttributeResponse(attribute: String, value: String)
 case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Option[String], publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate(): Unit = {
-    if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token specified must not be blank"))
+    if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.specified.cannot.be.blank")))
   }
 
   /** Get the db queries to insert or update the agbot */
@@ -43,7 +43,7 @@ case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEn
     //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
     token match {
-      case Some(token2) => if (token2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "the token can not be set to the empty string"))
+      case Some(token2) => if (token2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.cannot.be.empty.string")))
         val tok = if (Password.isHashed(token2)) token2 else Password.hash(token2)
         return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, tok, lastHeartbeat)), "token")
       case _ => ;
@@ -78,7 +78,7 @@ case class PostAgbotBusinessPolRequest(businessPolOrgid: String, businessPol: St
   def formId = businessPolOrgid + "_" + businessPol + "_" + nodeOrgid.getOrElse(businessPolOrgid)
   def validate() = {
     val nodeOrg = nodeOrgid.getOrElse(businessPolOrgid)
-    if (nodeOrg != businessPolOrgid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Currently nodeOrgid must be the same as businessPolOrgid, because business policies can only be used within the organization they are defined in"))
+    if (nodeOrg != businessPolOrgid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.org.must.equal.bus.pol.org")))
   }
 }
 
@@ -174,7 +174,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the agbot
         val q = AgbotsTQ.getAttribute(compositeId, attribute)
-        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Agbot attribute name '"+attribute+"' is not an attribute of the agbot resource."))
+        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("agbot.name.not.in.resource")))
+        //        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Agbot attribute name '"+attribute+"' is not an attribute of the agbot resource."))
         db.run(q.result).map({ list =>
           //logger.trace("GET /orgs/"+orgid+"/agbots/"+id+" attribute result: "+list.toString)
           if (list.nonEmpty) {
@@ -182,7 +183,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
             GetAgbotAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "not found")     // validateAccessToAgbot() will return ApiResponseType.NOT_FOUND to the client so do that here for consistency
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("not.found"))     // validateAccessToAgbot() will return ApiResponseType.NOT_FOUND to the client so do that here for consistency
           }
         })
 
@@ -228,7 +229,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
           agbotOld.toPutAgbotsRequest
         }
-        else*/ halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e))
+        else*/ halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e)))
     }
     agbot.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
@@ -241,20 +242,20 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         val action = if (owner == "") agbot.getDbUpdate(compositeId, orgid, owner) else agbot.getDbUpsert(compositeId, orgid, owner)
         action.asTry
       }
-      else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxAgbots+ " agbots")).asTry
+      else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("over.max.limit.of.agbots", maxAgbots))).asTry
     //todo: insert another map() here to verify that patterns referenced actually exist
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
       xs match {
         case Success(_) => AuthCache.agbots.putBoth(Creds(compositeId,agbot.token), owner)    // the token passed in to the cache should be the non-hashed one
           resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "agbot added or updated")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.added.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
-            ApiResponse(ApiResponseType.ACCESS_DENIED, "agbot '"+compositeId+"' not inserted or updated: "+t.getMessage)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("agbot.not.inserted.or.updated", compositeId, t.getMessage))
           } else {
             resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+compositeId+"' not inserted or updated: "+t.toString)
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.not.inserted.or.updated", compositeId, t.toString))
           }
       }
     })
@@ -283,11 +284,11 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val compositeId = OrgAndId(orgid,id).toString
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val agbot = try { parse(request.body).extract[PatchAgbotsRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     //logger.trace("PATCH /orgs/"+orgid+"/agbots/"+id+" input: "+agbot.toString)
     val resp = response
     val (action, attrName) = agbot.getDbUpdate(compositeId, orgid)
-    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "no valid agbot attribute specified"))
+    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.agbot.attribute.specified")))
     db.run(action.transactionally.asTry).map({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
       xs match {
@@ -296,14 +297,14 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
               agbot.token match { case Some(tok) if (tok != "") => AuthCache.agbots.put(Creds(compositeId, tok)); case _ => ; }    // the token passed in to the cache should be the non-hashed one. We do not need to run putOwner because patch does not change the owner
               resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, "attribute '"+attrName+"' of agbot '"+compositeId+"' updated")
+              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.attribute.updated", attrName, compositeId))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "agbot '"+compositeId+"' not found")
+              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e)) }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+compositeId+"' not inserted or updated: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.not.inserted.or.updated", compositeId, t.toString))
       }
     })
   })
@@ -334,13 +335,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
             AuthCache.agbots.removeBoth(compositeId)
             resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, "agbot deleted")
+            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.deleted"))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "agbot '"+compositeId+"' not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.not.deleted", compositeId, t.toString))
         }
     })
   })
@@ -369,13 +370,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
               resp.setStatus(HttpCode.POST_OK)
-              ApiResponse(ApiResponseType.OK, "agbot updated")
+              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.updated"))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, "agbot '"+compositeId+"' not found")
+              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))
             }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+compositeId+"' not updated: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.not.updated", compositeId, t.toString))
       }
     })
   })
@@ -474,7 +475,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val compositeId = OrgAndId(orgid,id).toString
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val pattern = try { parse(request.body).extract[PostAgbotPatternRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     pattern.validate()
     val patId = pattern.formId
     val resp = response
@@ -482,23 +483,23 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/patterns pattern validation: "+xs.toString)
       xs match {
         case Success(num) => if (num > 0 || pattern.pattern == "*") pattern.toAgbotPatternRow(compositeId, patId).insert.asTry
-        else DBIO.failed(new Throwable("the referenced pattern does not exist in the exchange")).asTry
+        else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("pattern.not.in.exchange"))).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/patterns result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "pattern "+patId+" added")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.added", patId))
         case Failure(t) => if (t.getMessage.contains("duplicate key")) {
           resp.setStatus(HttpCode.ALREADY_EXISTS2)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, "pattern '"+patId+"' for agbot '"+compositeId+"' already exists")
+          ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("pattern.already.exists", patId, compositeId))
         } else if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted: "+t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("pattern.not.inserted", patId, compositeId, t.getMessage))
         } else {
           resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "pattern '"+patId+"' for agbot '"+compositeId+"' not inserted: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("pattern.not.inserted", patId, compositeId, t.getMessage))
         }
       }
     })
@@ -528,13 +529,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
             resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, "agbot patterns deleted")
+            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("patterns.deleted"))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "no patterns for agbot '"+compositeId+"' found")
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("patterns.not.found", compositeId))
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "patterns for agbot '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("patterns.not.deleted", compositeId, t.toString))
         }
     })
   })
@@ -565,13 +566,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
             resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, "agbot pattern deleted")
+            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.pattern.deleted"))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "pattern '"+patId+"' for agbot '"+compositeId+"' not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.not.found", patId, compositeId))
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "pattern '"+patId+"' for agbot '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("pattern.not.deleted", patId, compositeId, t.toString))
         }
     })
   })
@@ -670,7 +671,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val compositeId = OrgAndId(orgid,id).toString
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val businessPol = try { parse(request.body).extract[PostAgbotBusinessPolRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     businessPol.validate()
     val busPolId = businessPol.formId
     val resp = response
@@ -678,23 +679,23 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/businesspols business policy validation: "+xs.toString)
       xs match {
         case Success(num) => if (num > 0 || businessPol.businessPol == "*") businessPol.toAgbotBusinessPolRow(compositeId, busPolId).insert.asTry
-          else DBIO.failed(new Throwable("the referenced business policy does not exist in the exchange")).asTry
+          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("buspol.not.in.exchange"))).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/businesspols result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "businessPol "+busPolId+" added")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.added", busPolId))
         case Failure(t) => if (t.getMessage.contains("duplicate key")) {
           resp.setStatus(HttpCode.ALREADY_EXISTS2)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, "businessPol '"+busPolId+"' for agbot '"+compositeId+"' already exists")
+          ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("buspol.already.exists", busPolId, compositeId))
         } else if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "businessPol '"+busPolId+"' for agbot '"+compositeId+"' not inserted: "+t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("buspol.not.inserted", busPolId, compositeId, t.getMessage))
         } else {
           resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, "businessPol '"+busPolId+"' for agbot '"+compositeId+"' not inserted: "+t.getMessage)
+          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("buspol.not.inserted", busPolId, compositeId, t.getMessage))
         }
       }
     })
@@ -724,13 +725,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "agbot business policies deleted")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspols.deleted"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "no business policies for agbot '"+compositeId+"' found")
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("buspols.not.found", compositeId))
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "businessPols for agbot '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("buspols.not.deleted", compositeId, t.toString))
       }
     })
   })
@@ -761,13 +762,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "agbot business policy deleted")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.deleted"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "businessPol '"+busPolId+"' for agbot '"+compositeId+"' not found")
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("buspol.not.found", busPolId, compositeId))
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "businessPol '"+busPolId+"' for agbot '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("buspol.not.deleted", busPolId, compositeId, t.toString))
       }
     })
   })
@@ -860,7 +861,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val agrId = params("agid")
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val agreement = try { parse(request.body).extract[PutAgbotAgreementRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     agreement.validate()
     val resp = response
     db.run(AgbotAgreementsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
@@ -870,18 +871,18 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       if (maxAgreements == 0 || numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
         agreement.toAgbotAgreementRow(compositeId, agrId).upsert.asTry
       }
-      else DBIO.failed(new Throwable("Access Denied: you are over the limit of "+maxAgreements+ " agreements for this agbot")).asTry
+      else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("over.max.limit.of.agreements", maxAgreements))).asTry
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "agreement added or updated")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agreement.added.or.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "agreement '"+agrId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("agreement.not.inserted.or.updated", agrId, compositeId, t.getMessage))
         } else {
           resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agrId+"' for agbot '"+compositeId+"' not inserted or updated: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agreement.not.inserted.or.updated", agrId, compositeId, t.toString))
         }
       }
     })
@@ -911,13 +912,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "agbot agreements deleted")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.agreements.deleted"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for agbot '"+compositeId+"' found")
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.agreements.found.for.agbot", compositeId))
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreements for agbot '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.agreements.not.deleted", compositeId, t.toString))
       }
     })
   })
@@ -948,13 +949,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "agbot agreement deleted")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.agreement.deleted"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "agreement '"+agrId+"' for agbot '"+compositeId+"' not found")
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agreement.for.agbot.not.found", agrId, compositeId))
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "agreement '"+agrId+"' for agbot '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agreement.for.agbot.not.deleted", agrId, compositeId, t.toString))
       }
     })
   })
@@ -1078,7 +1079,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val ident = authenticate().authorizeTo(TAgbot(OrgAndId(orgid,"#").toString),Access.READ)
     val creds = ident.creds
     val req = try { parse(request.body).extract[PostAgreementsConfirmRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
 
     val resp = response
     // val owner = if (isAuthenticatedUser(creds)) creds.id else ""
@@ -1094,10 +1095,10 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.owner === owner && agr.agrId === req.agreementId
         if (list.nonEmpty && list.head._2.isDefined && list.head._2.get.state != "") {
           resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "agreement active")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agreement.active"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "agreement not found or not active")
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agreement.not.found.not.active"))
         }
       })
     } else {
@@ -1114,14 +1115,14 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           val agbot2 = list.find(r => r._2.isDefined && r._2.get.agrId == req.agreementId).orNull
           if (agbot1 != null && agbot2 != null && agbot1._1.owner == agbot2._1.owner && agbot2._2.get.state != "") {
             resp.setStatus(HttpCode.POST_OK)
-            ApiResponse(ApiResponseType.OK, "agreement active")
+            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agreement.active"))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "agreement not found or not active")
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agreement.not.found.not.active"))
           }
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "agreement not found or not active")
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agreement.not.found.not.active"))
         }
       })
     }
@@ -1152,7 +1153,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val ident = authenticate().authorizeTo(TAgbot(compositeId),Access.SEND_MSG_TO_AGBOT)
     val nodeId = ident.creds.id      //todo: handle the case where the acls allow users to send msgs
     val msg = try { parse(request.body).extract[PostAgbotsMsgsRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     val resp = response
     // Remove msgs whose TTL is past, then check the mailbox is not full, then get the node publicKey, then write the agbotmsgs row, all in the same db.run thread
     db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
@@ -1163,13 +1164,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       val mailboxSize = xs
       val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
       if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) NodesTQ.getPublicKey(nodeId).result.asTry
-      else DBIO.failed(new Throwable("Access Denied: the message mailbox of "+compositeId+" is full ("+maxMessagesInMailbox+ " messages)")).asTry
+      else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("agbot.mailbox.full", compositeId, maxMessagesInMailbox))).asTry
     }).flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs node publickey result: "+xs.toString)
       xs match {
         case Success(v) => val nodePubKey = v.head
           if (nodePubKey != "") AgbotMsgRow(0, compositeId, nodeId, nodePubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
-          else DBIO.failed(new Throwable("Invalid Input: the message sender must have their public key registered with the Exchange")).asTry
+          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("agbot.message.invalid.input"))).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }
     })).map({ xs =>
@@ -1179,13 +1180,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           ApiResponse(ApiResponseType.OK, "agbot msg "+v+" inserted")
         case Failure(t) => if (t.getMessage.startsWith("Invalid Input:")) {
             resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, "agbot '"+compositeId+"' msg not inserted: "+t.getMessage)
+            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, t.getMessage))
           } else if (t.getMessage.startsWith("Access Denied:")) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
-            ApiResponse(ApiResponseType.ACCESS_DENIED, "agbot '"+compositeId+"' msg not inserted: "+t.getMessage)
+            ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, t.getMessage))
           } else {
             resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, "agbot '"+compositeId+"' msg not inserted: "+t.toString)
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, t.toString))
           }
         }
     })
@@ -1244,7 +1245,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val orgid = params("orgid")
     val id = params("id")
     val compositeId = OrgAndId(orgid,id).toString
-    val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "msgid must be an integer: "+e)) }    // the specific exception is NumberFormatException
+    val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("msgid.must.be.int", e))) }    // the specific exception is NumberFormatException
+
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
     db.run(AgbotMsgsTQ.getMsg(compositeId,msgId).delete.asTry).map({ xs =>
@@ -1252,13 +1254,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
             resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, "agbot msg deleted")
+            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.message.deleted"))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, "msg '"+msgId+"' for agbot '"+compositeId+"' not found")
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.message.not.found", msgId, compositeId))
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "msg '"+msgId+"' for agbot '"+compositeId+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.message.not.deleted", msgId, compositeId, t.toString))
         }
     })
   })

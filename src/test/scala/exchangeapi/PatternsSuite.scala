@@ -362,6 +362,7 @@ class PatternsSuite extends FunSuite {
     val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.body.contains("pattern 'PatternsSuiteTests-NotIBM/pt9922' not created: only IBM patterns can be made public"))
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" again - should fail") {

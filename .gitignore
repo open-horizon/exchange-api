@@ -18,5 +18,6 @@ target/
 .project
 .settings/
 
+
 # Mac specific
 .DS_Store

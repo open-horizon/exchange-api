@@ -387,25 +387,26 @@ case class Prop(name: String, value: String, propType: String, op: String) {
 
   /** Returns an error msg if the user input is invalid. */
   def validate: Option[String] = {
-    if (!PropType.contains(propType)) return Option[String]("invalid propType '"+propType+"' specified for "+name)
-    if (!Op.contains(op)) return Option[String]("invalid op '"+op+"' specified for "+name)
+    if (!PropType.contains(propType)) return Option[String](ExchangeMessage.translateMessage("invalid.proptype.for.name", propType, name))
+    if (!Op.contains(op)) return Option[String](ExchangeMessage.translateMessage("invalid.op.for.name", op, name))
     if (propType==PropType.BOOLEAN) {
-      if (op!=Op.EQUAL) return Option[String]("invalid op '"+op+"' specified for "+name+" (only '"+Op.EQUAL+"' is supported for propType '"+PropType.BOOLEAN+"')")
-      if (value.toLowerCase != "true" && value.toLowerCase != "false" && value != "*") return Option[String]("invalid boolean value '"+value+"' specified for "+name)
+      if (op!=Op.EQUAL) return Option[String](ExchangeMessage.translateMessage("invalid.op.for.name.opequal", op, name, Op.EQUAL, PropType.BOOLEAN))
+      if (value.toLowerCase != "true" && value.toLowerCase != "false" && value != "*") return Option[String](ExchangeMessage.translateMessage("invalid.boolean.value.for.name", value, name))
     }
-    if ((propType==PropType.LIST || propType==PropType.STRING) && op!=Op.IN) return Option[String]("invalid op '"+op+"' specified for "+name+" (only '"+Op.IN+"' is supported for propType '"+PropType.STRING+"' and '"+PropType.LIST+"')")
+    if ((propType==PropType.LIST || propType==PropType.STRING) && op!=Op.IN) return Option[String](ExchangeMessage.translateMessage("invalid.op.for.name.proplist", op, name, Op.IN, PropType.STRING, PropType.LIST))
     if (propType==PropType.INT) {
-      if (op==Op.IN) return Option[String]("invalid op '"+op+"' specified for "+name)
+      if (op==Op.IN) return Option[String](ExchangeMessage.translateMessage("invalid.op.for.name", op, name))
+      //      if (op==Op.IN) return Option[String]("invalid op '"+op+"' specified for "+name)
       if (value != "*") {
         // ensure its a valid integer number
         try { value.toInt }
-        catch { case _: Exception => return Option[String]("invalid integer value '"+value+"' specified for "+name) }
+        catch { case _: Exception => return Option[String](ExchangeMessage.translateMessage("invalid.int.for.name", value, name)) }
       }
     }
     if (propType==PropType.VERSION) {
-      if (!(op==Op.EQUAL || op==Op.IN)) return Option[String]("invalid op '"+op+"' specified for "+name+" (only '"+Op.EQUAL+"' or '"+Op.IN+"' is supported for propType '"+PropType.VERSION+"')")
+      if (!(op==Op.EQUAL || op==Op.IN)) return Option[String](ExchangeMessage.translateMessage("invalid.op.for.name.propversion", op, name, Op.EQUAL, Op.IN, PropType.VERSION))
       if (value != "*") {       // verify it is a valid version or range format
-        if (!VersionRange(value).isValid) return Option[String]("invalid version value '"+value+"' specified for "+name)
+        if (!VersionRange(value).isValid) return Option[String](ExchangeMessage.translateMessage("invalid.version.for.name", value, name))
       }
     }
     return None

@@ -68,7 +68,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     ExchConfig.reload()
     logger.debug("POST /admin/reload completed successfully.")
     status_=(HttpCode.POST_OK)
-    ApiResponse(ApiResponseType.OK, "reload successful")
+    ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("reload.successful"))
   })
 
   // =========== POST /admin/hashpw ===============================
@@ -91,7 +91,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     // validateUser(BaseAccess.ADMIN, "")
     authenticate().authorizeTo(TAction(),Access.ADMIN)
     val req = try { parse(request.body).extract[AdminHashpwRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     status_=(HttpCode.POST_OK)
     AdminHashpwResponse(Password.hash(req.password))
   })
@@ -116,13 +116,13 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     // validateUser(BaseAccess.ADMIN, "")
     authenticate().authorizeTo(TAction(),Access.ADMIN)
     val req = try { parse(request.body).extract[AdminLogLevelRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     ExchConfig.levels.get(req.loggingLevel.toUpperCase) match {
       case Some(level) => ExchConfig.logger.setLevel(level)
-      case None => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Invalid logging level '"+req.loggingLevel+"' specified."))
+      case None => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.logging.level", req.loggingLevel)))
     }
     status_=(HttpCode.PUT_OK)
-    ApiResponse(ApiResponseType.OK, "Logging level set")
+    ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("logging.level.set"))
   })
 
   // =========== GET /admin/dropdb/token ===============================
@@ -167,9 +167,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           AuthCache.users.removeAll()
           AuthCache.agbots.removeAll()
           resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "db deleted successfully")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.deleted"))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.not.deleted", t.toString))
       }
     })
   })
@@ -194,9 +194,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
           ExchConfig.createRoot(db)         // initialize the users table with the root user from config.json
-          ApiResponse(ApiResponseType.OK, "db initialized successfully")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.init"))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db not initialized: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.not.init", t.toString))
       }
     })
   })
@@ -216,7 +216,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   post("/admin/upgradedb", operation(postAdminUpgradeDb)) ({
     authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
-    val upgradeNotNeededMsg = "DB schema does not need upgrading, it is already at the latest schema version: "
+    val upgradeNotNeededMsg = ExchangeMessage.translateMessage("db.upgrade.not.needed")
 
     // Assemble the list of db actions to alter schema of existing tables and create tables that are new in each of the schema versions we have to catch up on
     db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
@@ -227,20 +227,20 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
             if (SchemaTQ.isLatestSchemaVersion(schemaRow.schemaVersion)) DBIO.failed(new Throwable(upgradeNotNeededMsg + schemaRow.schemaVersion)).asTry    // I do not think there is a way to pass a msg thru the Success path
             else SchemaTQ.getUpgradeActionsFrom(schemaRow.schemaVersion).transactionally.asTry
           }
-          else DBIO.failed(new Throwable("DB upgrade error: did not find a row in the schemas table")).asTry
+          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("db.upgrade.failed.no.new.row"))).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }
     })).map({ xs =>
       logger.debug("POST /admin/upgradedb result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "DB table schema upgraded to the latest successfully")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.upgrade.success"))
         case Failure(t) => if (t.getMessage.contains(upgradeNotNeededMsg)) {
             resp.setStatus(HttpCode.POST_OK)
             ApiResponse(ApiResponseType.OK, t.getMessage)
           } else {
             resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, "DB table schema not upgraded: " + t.toString)
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.schema.not.upgraded", t.toString))
           }
       }
     })
@@ -324,7 +324,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           // Probably should do the dbActions 1st, but this is more convenient because we have the schemaVersion right now
           SchemaTQ.getDecrementVersionAction(schemaRow.schemaVersion).asTry
         }
-        else DBIO.failed(new Throwable("DB downgrade error: did not find a row in the schemas table")).asTry
+        else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("db.downgrade.error"))).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }
     }).flatMap({ xs =>
@@ -337,9 +337,9 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("POST /admin/downgrade result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "db table schemas downgraded successfully")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.downgrade.success"))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db table schemas not downgraded: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.table.schemas.not.downgraded", t.toString))
       }
     })
   })
@@ -508,14 +508,14 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     val mod = try { parse(request.body).extract[AdminConfigRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     logger.debug("PUT /admin/config mod: "+mod)
     val props = new Properties()
     props.setProperty(mod.varPath, mod.value)
     ExchConfig.mod(props)
     // logger.debug("config value: "+ExchConfig.getInt(mod.varPath))
     resp.setStatus(HttpCode.PUT_OK)    // let the auth cache build up gradually
-    ApiResponse(ApiResponseType.OK, "Config value set successfully")
+    ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("config.value.set"))
   })
 
   /** Dev testing of db access */
@@ -523,7 +523,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     authenticate().authorizeTo(TAction(),Access.ADMIN)
     //val resp = response
 
-    ApiResponse(ApiResponseType.OK, "done")
+    ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("done"))
 
     /*
     // ApiResponse(ApiResponseType.OK, "Now: "+ApiTime.nowUTC+", Then: "+ApiTime.pastUTC(100)+".")
@@ -566,7 +566,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     AuthCache.services.removeAll()
     AuthCache.users.removeAll()
     response.setStatus(HttpCode.POST_OK)
-    ApiResponse(ApiResponseType.OK, "cache cleared")
+    ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("cache.cleared"))
   })
 
 }

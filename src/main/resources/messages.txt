@@ -310,25 +310,3 @@ user.not.deleted=user ''{0}'' not deleted: {1}
 password.updated.successfully=password updated successfully
 user.password.not.updated=user ''{0}'' password not updated: {1}
 logging.level.set=Logging level set
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

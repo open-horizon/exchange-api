@@ -909,7 +909,7 @@ class UsersSuite extends FunSuite {
       info("test for api key not part of this org: code: "+response.code+", response.body: "+response.body)
       //info("code: "+response.code)
       assert(response.code === HttpCode.BADCREDS)
-      var errorMsg = s"IAM authentication succeeded, but the cloud account id of the org ($iamAccount) does not match that of the cloud account credentials ($iamOtherAccount)"
+      var errorMsg = s"IAM authentication succeeded, but the cloud account id of the org $iamAccount does not match that of the cloud account credentials $iamOtherAccount"
       assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
 
       // remove ibmcloud_id from org

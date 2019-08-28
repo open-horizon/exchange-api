@@ -128,6 +128,7 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
     AuthCache.users.get(username) match {
       // case Some(userTok) => if (userTok.unhashed != "") Token.create(userTok.unhashed) else Token.create(userTok.hashed)   // try to create the token with the unhashed pw for consistency with the rest of the code
       case Some(userTok) => Token.create(userTok.hashed)   // always create the token with the hashed pw because that will always be there during creation and validation of the token
+      case None => ""    // this case will never happen (we always pass in superUser), but here to remove compile warning
     }
   }
 }

@@ -311,3 +311,5 @@ node.errors.not.inserted=errors for node ''{0}'' not inserted or updated: {1}
 node.errors.deleted=node errors deleted
 node.errors.not.found=errors for node ''{0}'' not found
 node.errors.not.deleted=errors for node ''{0}'' not deleted: {1}
+db.timeout.getting.token2=DB timed out getting pw/token for ''{0}''. {1}
+user.notfound.db=user {0} not found in the exchange

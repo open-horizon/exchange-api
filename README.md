@@ -204,10 +204,6 @@ To build an exchange container with code that is targeted for a git branch:
 - Upgradedb updates
 - Have scale scripts calculate the number of agreements each node HB
 
-## Changes in 1.104.0 (built only in the auth-cache branch)
-
-- Added GuavaCache for authentication artifacts
-
 ## Changes in 1.103.0
 
 - Moved exchange messages into separate non-code files to enable translation 

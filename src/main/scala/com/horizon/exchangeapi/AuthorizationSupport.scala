@@ -224,11 +224,9 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
 
   /** Returns true if the token is correct for this user and not expired */
   def isTokenValid(token: String, username: String): Boolean = {
-    // Get their current pw to use as the secret
-    // Use the users hashed pw because that is consistently there, whereas the clear pw is not
-    AuthCache.users.get(username) match {
-      // case Some(userTok) => if (userTok.unhashed != "") Token.isValid(token, userTok.unhashed) else Token.isValid(token, userTok.hashed)
-      case Some(userTok) => Token.isValid(token, userTok.hashed)
+    // Get their current hashed pw to use as the secret
+    AuthCache.users.getOne(username) match {
+      case Some(userHashedTok) => Token.isValid(token, userHashedTok)
       case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, ExchangeMessage.translateMessage("invalid.credentials")))
     }
   }

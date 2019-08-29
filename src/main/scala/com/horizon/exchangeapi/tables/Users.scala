@@ -6,21 +6,20 @@ import slick.jdbc.PostgresProfile.api._
 /** Contains the object representations of the DB tables related to users. */
 
 //future: figure out how to use the slick type Timestamp, but have it stored in UTC
-// case class UserRow(username: String, password: String, email: String, lastUpdated: Timestamp) {
-case class UserRow(username: String, orgid: String, password: String, admin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
+case class UserRow(username: String, orgid: String, hashedPw: String, admin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
   def insertUser(): DBIO[_] = {
-    val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
-    UsersTQ.rows += UserRow(username, orgid, pw, admin, email, lastUpdated, updatedBy)
+    //val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
+    UsersTQ.rows += UserRow(username, orgid, hashedPw, admin, email, lastUpdated, updatedBy)
   }
 
   def upsertUser: DBIO[_] = {
-    val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
-    UsersTQ.rows.insertOrUpdate(UserRow(username, orgid, pw, admin, email, lastUpdated, updatedBy))
+    //val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
+    UsersTQ.rows.insertOrUpdate(UserRow(username, orgid, hashedPw, admin, email, lastUpdated, updatedBy))
   }
 
   def updateUser(): DBIO[_] = {
-    val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
-    return (for { u <- UsersTQ.rows if u.username === username } yield u).update(UserRow(username, orgid, pw, admin, email, lastUpdated, updatedBy))
+    //val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
+    return (for { u <- UsersTQ.rows if u.username === username } yield u).update(UserRow(username, orgid, hashedPw, admin, email, lastUpdated, updatedBy))
     /*
     // if password and/or email are blank, it means they should not be updated <- not supporting this anymore
     (pw, email) match {

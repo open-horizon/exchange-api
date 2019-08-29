@@ -310,3 +310,5 @@ user.not.deleted=user ''{0}'' not deleted: {1}
 password.updated.successfully=password updated successfully
 user.password.not.updated=user ''{0}'' password not updated: {1}
 logging.level.set=Logging level set
+db.timeout.getting.token2=DB timed out getting pw/token for ''{0}''. {1}
+user.notfound.db=user {0} not found in the exchange

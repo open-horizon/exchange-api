@@ -164,7 +164,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("POST /admin/dropdb result: "+xs.toString)
       xs match {
         case Success(_) => AuthCache.nodes.removeAll()     // i think we could just let the cache catch up over time, but seems better to clear it out now
-          AuthCache.users.removeAll()
+          AuthCache.users.clearCache()
           AuthCache.agbots.removeAll()
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.deleted"))
@@ -564,7 +564,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     AuthCache.nodes.removeAll()
     AuthCache.patterns.removeAll()
     AuthCache.services.removeAll()
-    AuthCache.users.removeAll()
+    AuthCache.users.clearCache()
     response.setStatus(HttpCode.POST_OK)
     ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("cache.cleared"))
   })

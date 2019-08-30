@@ -25,6 +25,8 @@
 		"cache": {
 			"idsSize": 1000,   // includes: users, nodes, agbots
 			"idsTtlSeconds": 300,
+			"resourceOwnersSize": 100,   // each of: users, services, patterns, policies
+			"resourceOwnersTtlSeconds": 300,
 			"authDbTimeoutSeconds": 15   // timeout for db access for critical auth info when cache missing
 		},
 		"db": {

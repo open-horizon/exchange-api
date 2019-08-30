@@ -484,12 +484,10 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
 
     override def isAdmin: Boolean = {
       if (isSuperUser) return true
-      //println("AuthCache.users.owners: "+AuthCache.users.owners.toString())
-      //println("getting owner for "+creds.id+": "+AuthCache.users.getOwner(creds.id))
-      AuthCache.users.getOwner(creds.id) match {
-        case Some(s) => if (s == "admin") return true else return false
-        case None => return false
-      }
+      //println("getting admin for "+creds.id+" ...")
+      val resp = AuthCache.usersAdmin.getOne(creds.id).getOrElse(false)
+      //println("... back from getting admin for "+creds.id+": "+resp)
+      resp
     }
 
     def iOwnTarget(target: Target): Boolean = {

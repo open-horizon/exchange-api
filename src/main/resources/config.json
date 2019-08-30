@@ -8,7 +8,6 @@
 			"maxAgbots": 1000,		// maximum number of agbots 1 user is allowed to create, 0 for unlimited
 			"maxAgreements": 0,	// maximum number of agreements 1 node or agbot is allowed to create, 0 for unlimited
 			"maxMessagesInMailbox": 10000,	// maximum number of msgs currently in 1 node or agbot mailbox (the sending side is handled by rate limiting), 0 for unlimited
-			"maxResources": 1000,		// maximum number of resources 1 user is allowed to create, 0 for unlimited
 			"maxServices": 1000,		// maximum number of services 1 user is allowed to create, 0 for unlimited
 			"maxPatterns": 1000,		// maximum number of patterns 1 user is allowed to create, 0 for unlimited
 			"maxBusinessPolicies": 5000		// maximum number of business policies 1 user is allowed to create, 0 for unlimited
@@ -23,6 +22,13 @@
 				"check_agreement_status": 1800
 			}
 		},
+		"cache": {
+			"idsSize": 1000,   // includes: users, nodes, agbots
+			"idsTtlSeconds": 300,
+			"resourceOwnersSize": 100,   // each of: users, services, patterns, policies
+			"resourceOwnersTtlSeconds": 300,
+			"authDbTimeoutSeconds": 15   // timeout for db access for critical auth info when cache missing
+		},
 		"db": {
 			"driverClass": "org.postgresql.Driver",
 			"jdbcUrl": "",		// the back-end db the exchange uses
@@ -30,7 +36,8 @@
 			"password": "",
 			"minPoolSize": 1,
 			"acquireIncrement": 1,
-			"maxPoolSize": 50
+			"maxPoolSize": 50,
+			"upgradeTimeoutSeconds": 180
 		},
 		"smtp": {		// set all of these in your own version of this config file
 			"host": "",		// the SMTP relay svr the exchange uses to send reset pw emails

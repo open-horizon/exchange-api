@@ -97,7 +97,7 @@ object ExchangeApiTables {
         case Failure(t) => if (t.getMessage.contains(upgradeNotNeededMsg)) ApiResponse(ApiResponseType.OK, t.getMessage)  // db already at latest schema
           else ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.not.upgraded", t.toString))     // we hit some problem
       }
-    }), Duration(60000, MILLISECONDS))     // this is the rest of Await.result(), wait 1 minute for db init/upgrade to complete
+    }), Duration(ExchConfig.getInt("api.db.upgradeTimeoutSeconds"), SECONDS))     // this is the rest of Await.result(), wait 1 minute for db init/upgrade to complete
     if (upgradeResult.code == ApiResponseType.OK) logger.info(upgradeResult.msg)
     else logger.error("ERROR: failure to init or upgrade db: "+upgradeResult.msg)
   }

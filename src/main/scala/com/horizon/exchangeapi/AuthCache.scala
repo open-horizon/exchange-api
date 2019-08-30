@@ -38,10 +38,9 @@ object AuthCache extends Control with ServletApiImplicits {
   case class Tokens(unhashed: String, hashed: String)
 
   /* Cache todo:
-  - add await timeout and cache expiration to config.json
-  - put new strings in 2nd msg file
   - add node and agbot ids to CacheId
   - add owner caches (including a base class)
+  - put new strings in 2nd msg file
    */
 
   /** Holds recently authenticated users, node ids, agbot ids */
@@ -57,8 +56,8 @@ object AuthCache extends Control with ServletApiImplicits {
     } */
 
     private val guavaCache = CacheBuilder.newBuilder()
-      .maximumSize(1000)
-      .expireAfterWrite(5, TimeUnit.MINUTES)    //todo: put this timeout in config.json
+      .maximumSize(ExchConfig.getInt("api.cache.idsSize"))
+      .expireAfterWrite(ExchConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
       .build[String, Entry[CacheVal]]     // the cache key is org/id, and the value is CacheVal
     implicit val userCache = GuavaCache(guavaCache)   // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
     private var db: Database = _
@@ -94,7 +93,7 @@ object AuthCache extends Control with ServletApiImplicits {
       val dbAction = UsersTQ.getPassword(id).result
       val dbHashedTok: String = try {
         //logger.trace("awaiting for DB query of local exchange creds for "+id+"...")
-        val respVector = Await.result(db.run(dbAction), Duration(9000, MILLISECONDS))  //todo: put the timeout value in config.json
+        val respVector = Await.result(db.run(dbAction), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
         //logger.trace("...back from awaiting for DB query of local exchange creds for "+id+".")
         if (respVector.nonEmpty) respVector.head else ""
       } catch {
@@ -133,8 +132,8 @@ object AuthCache extends Control with ServletApiImplicits {
     // For this cache the key is the id (already prefixed with the org) and the value is a boolean
 
     private val guavaCache = CacheBuilder.newBuilder()
-      .maximumSize(1000)
-      .expireAfterWrite(5, TimeUnit.MINUTES)    //todo: put this timeout in config.json
+      .maximumSize(ExchConfig.getInt("api.cache.resourceOwnersSize"))
+      .expireAfterWrite(ExchConfig.getInt("api.cache.resourceOwnersTtlSeconds"), TimeUnit.SECONDS)
       .build[String, Entry[Boolean]]     // the cache key is org/id, and the value is whether it has admin priv
     implicit val userCache = GuavaCache(guavaCache)   // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
     private var db: Database = _
@@ -164,7 +163,7 @@ object AuthCache extends Control with ServletApiImplicits {
       val dbAction = UsersTQ.getAdmin(id).result
       try {
         //logger.trace("CacheAdmin:getUser(): awaiting for DB query of local exchange admin value for "+id+"...")
-        val respVector = Await.result(db.run(dbAction), Duration(9000, MILLISECONDS))  //todo: put the timeout value in config.json
+        val respVector = Await.result(db.run(dbAction), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
         //logger.trace("CacheAdmin:getUser(): ...back from awaiting for DB query of local exchange admin value for "+id+".")
         if (respVector.nonEmpty) {
           val isAdmin = respVector.head
@@ -284,7 +283,7 @@ object AuthCache extends Control with ServletApiImplicits {
       // maybe this db access should go at the beginning of every rest api db access, using flatmap to move on to the db access the rest api is really for
       val dbHashedTok: String = try {
         //logger.trace("awaiting for DB query of local exchange creds for "+id+"...")
-        val tokVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
+        val tokVector = Await.result(db.run(a), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
         //logger.trace("...back from awaiting for DB query of local exchange creds for "+id+".")
         if (tokVector.nonEmpty) tokVector.head else ""
       } catch {
@@ -359,7 +358,7 @@ object AuthCache extends Control with ServletApiImplicits {
       try {
         if (whichTable == "users") {
           //logger.trace("awaiting for DB query of local exchange isAdmin for "+id+"...")
-          val ownerVector = Await.result(db.run(UsersTQ.getAdmin(id).result), Duration(9000, MILLISECONDS))
+          val ownerVector = Await.result(db.run(UsersTQ.getAdmin(id).result), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
           //logger.trace("...back from awaiting for DB query of local exchange isAdmin for "+id+".")
           if (ownerVector.nonEmpty) {
             if (ownerVector.head) return Some("admin")
@@ -377,7 +376,7 @@ object AuthCache extends Control with ServletApiImplicits {
             case "business" => BusinessPoliciesTQ.getOwner(id).result
           }
           //logger.trace("awaiting for DB query of local exchange owner for "+id+"...")
-          val ownerVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
+          val ownerVector = Await.result(db.run(a), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
           //logger.trace("...back from awaiting for DB query of local exchange owner for "+id+".")
           if (ownerVector.nonEmpty) /*{ logger.trace("getOwner return: "+ownerVector.head);*/ return Some(ownerVector.head) else /*{ logger.trace("getOwner return: None");*/ return None
         }
@@ -404,7 +403,7 @@ object AuthCache extends Control with ServletApiImplicits {
           case _ => return Some(false)      // should never get here
         }
         //logger.trace("awaiting for DB query of local exchange isPublic for "+id+"...")
-        val publicVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
+        val publicVector = Await.result(db.run(a), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
         //logger.trace("...back from awaiting for DB query of local exchange isPublic for "+id+".")
         if (publicVector.nonEmpty) /*{ logger.trace("getIsPublic return: "+publicVector.head);*/ return Some(publicVector.head) else /*{ logger.trace("getIsPublic return: None");*/ return None
       } catch {

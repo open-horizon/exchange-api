@@ -123,8 +123,8 @@ object ExchConfig {
     }
 
     // Let them know if they are running with the in-memory db
-    if (getBoolean("api.db.memoryDb")) logger.info("Running with the in-memory DB (not the persistent postgresql DB).")
-    else logger.info("Running with the persistent postgresql DB.")
+    //if (getBoolean("api.db.memoryDb")) logger.info("Running with the in-memory DB (not the persistent postgresql DB).")
+    //else logger.info("Running with the persistent postgresql DB.")
   }
 
   def reload(): Unit = load()
@@ -175,10 +175,7 @@ object ExchConfig {
   def getInt(key: String): Int = { return config.getInt(key) }
 
   /** Returns the value of the specified config variable. Throws com.typesafe.config.ConfigException.* if not found. */
-  def getBoolean(key: String): Boolean = {
-    if (key == "api.db.memoryDb") return false
-    else return config.getBoolean(key)
-  }
+  def getBoolean(key: String): Boolean = { return config.getBoolean(key) }
 }
 
 object StrConstants {

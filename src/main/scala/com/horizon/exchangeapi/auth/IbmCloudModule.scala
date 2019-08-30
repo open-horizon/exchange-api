@@ -368,7 +368,7 @@ object IbmCloudAuth {
     //todo: getOrCreateUser() is only called if this is not already in the cache, so its a problem if we cant get it in the db
     //logger.trace("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.email+"...")
     // Note: exceptions from this get caught in login() above
-    Await.result(db.run(userQuery.transactionally), Duration(9000, MILLISECONDS))
+    Await.result(db.run(userQuery.transactionally), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
     /* it doesnt work to add this to our authorization cache, and causes some exceptions during automated tests
     val awaitResult = Await.result(db.run(userQuery.transactionally), Duration(3000, MILLISECONDS))
     AuthCache.users.putBoth(Creds(s"${authInfo.org}/${userInfo.email}", ""), "")

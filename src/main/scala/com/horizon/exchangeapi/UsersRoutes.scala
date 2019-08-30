@@ -166,7 +166,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val ident = authenticate(anonymousOk = true).authorizeTo(TUser(compositeId),Access.CREATE)
     val user = try { parse(request.body).extract[PostPutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    val owner = if (user.admin) "admin" else ""
+    //val owner = if (user.admin) "admin" else ""
     val resp = response
     if (user.password == "" || user.email == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("password.and.email.must.be.non.blank.when.creating.user")))
     if (ident.isAnonymous && user.admin) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("anonymous.client.cannot.create.admin")))
@@ -175,7 +175,8 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(UserRow(compositeId, orgid, hashedPw, user.admin, user.email, ApiTime.nowUTC, updatedBy).insertUser().asTry).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
       xs match {
-        case Success(v) => AuthCache.users.putBoth(Creds(compositeId, hashedPw), owner)
+        case Success(v) => AuthCache.users.putOne(Creds(compositeId, hashedPw))
+          AuthCache.usersAdmin.putOne(compositeId, user.admin)
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.added.successfully", v))
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)     // this usually happens if the user already exists
@@ -217,7 +218,8 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       db.run(UserRow(compositeId, orgid, hashedPw, user.admin, user.email, ApiTime.nowUTC, updatedBy).upsertUser.asTry).map({ xs =>
         logger.debug("PUT /orgs/"+orgid+"/users/"+username+" (root) result: "+xs.toString)
         xs match {
-          case Success(v) => AuthCache.users.putOne(Creds(compositeId, hashedPw))    // the password passed in to the cache should be the non-hashed one
+          case Success(v) => AuthCache.users.putOne(Creds(compositeId, hashedPw))
+            AuthCache.usersAdmin.putOne(compositeId, user.admin)
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.added.or.updated.successfully", v))
           case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
@@ -233,7 +235,8 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         try {
           val numUpdated = xs.toString.toInt
           if (numUpdated > 0) {
-            if (hashedPw != "") AuthCache.users.putOne(Creds(compositeId, hashedPw))
+            /* if (hashedPw != "") */ AuthCache.users.putOne(Creds(compositeId, hashedPw))
+            AuthCache.usersAdmin.putOne(compositeId, user.admin)
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.updated.successfully"))
           } else {
@@ -283,7 +286,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(v) => try {
           val numUpdated = v.toString.toInt     // v comes to us as type Any
           if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-            user.password match { case Some(pw) if (pw != "") => AuthCache.users.putOne(Creds(compositeId, hashedPw)); case _ => ; }  // We do not need to run putOwner because patch does not change the owner
+            //user.password match { case Some(pw) if (pw != "") => AuthCache.users.putOne(Creds(compositeId, hashedPw)); case _ => ; }
+            if (user.password.isDefined) AuthCache.users.putOne(Creds(compositeId, hashedPw))
+            if (user.admin.isDefined) AuthCache.usersAdmin.putOne(compositeId, user.admin.get)
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.attr.updated", attrName, compositeId))
           } else {
@@ -321,7 +326,8 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("DELETE /users/"+username+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.users.removeBoth(compositeId)
+            AuthCache.users.removeOne(compositeId)
+            AuthCache.usersAdmin.removeOne(compositeId)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.deleted"))
           } else {

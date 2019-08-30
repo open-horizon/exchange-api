@@ -66,6 +66,7 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
   }
   ExchConfig.createRoot(db)
   AuthCache.users.init(db)
+  AuthCache.usersAdmin.init(db)
   AuthCache.nodes.init(db)
   AuthCache.agbots.init(db)
   AuthCache.services.init(db)

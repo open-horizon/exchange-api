@@ -312,3 +312,4 @@ user.password.not.updated=user ''{0}'' password not updated: {1}
 logging.level.set=Logging level set
 db.timeout.getting.token2=DB timed out getting pw/token for ''{0}''. {1}
 user.notfound.db=user {0} not found in the exchange
+db.timeout.getting.admin=DB timed out getting admin boolean for ''{0}''. {1}

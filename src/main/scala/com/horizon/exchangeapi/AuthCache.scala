@@ -37,11 +37,9 @@ object AuthCache extends Control with ServletApiImplicits {
   // The unhashed and hashed values of the token are not always both set, but if they are they are in sync.
   case class Tokens(unhashed: String, hashed: String)
 
-  /* Cache todos:
-  - run tests (might fail because of the admin cache - work around that)
+  /* Cache todo:
   - add await timeout and cache expiration to config.json
   - put new strings in 2nd msg file
-  - add admin cached class
   - add node and agbot ids to CacheId
   - add owner caches (including a base class)
    */
@@ -96,9 +94,9 @@ object AuthCache extends Control with ServletApiImplicits {
       val dbAction = UsersTQ.getPassword(id).result
       val dbHashedTok: String = try {
         //logger.trace("awaiting for DB query of local exchange creds for "+id+"...")
-        val tokVector = Await.result(db.run(dbAction), Duration(9000, MILLISECONDS))  //todo: put the timeout value in config.json
+        val respVector = Await.result(db.run(dbAction), Duration(9000, MILLISECONDS))  //todo: put the timeout value in config.json
         //logger.trace("...back from awaiting for DB query of local exchange creds for "+id+".")
-        if (tokVector.nonEmpty) tokVector.head else ""
+        if (respVector.nonEmpty) respVector.head else ""
       } catch {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting pw/token for '"+id+"' . "+timeout.getMessage)
@@ -119,19 +117,83 @@ object AuthCache extends Control with ServletApiImplicits {
       else None
     }
 
-    def getOwner(id: String): Option[String] = { None }   //todo: this is really if the user is admin, and should be split into another cache
-
     // The token passed in is already hashed.
-    def putOne(creds: Creds): Unit = { put(creds.id)(CacheVal(creds.token, CacheIdType.User)) }    //todo: should we do this when they update their token, even tho it will only help in this 1 exchange instance???
-
-    def putBoth(creds: Creds, owner: String): Unit = { putOne(creds) }  //todo: the admin cache should be moved to a separate cache
+    def putOne(creds: Creds): Unit = { put(creds.id)(CacheVal(creds.token, CacheIdType.User)) }    // we need this for the test suites, but in production it will only help in this 1 exchange instance
 
     def removeOne(id: String): Try[Any] = { remove(id) }
 
-    def removeBoth(id: String) = { removeOne(id) }  //todo: the admin cache entry should be moved to a separate cache
-
     def clearCache(): Try[Unit] = {
       logger.debug("Clearing the id cache")
+      removeAll().map(_ => ())
+    }
+  }
+
+  /** Holds whether a user has admin privilege or not */
+  class CacheAdmin() {
+    // For this cache the key is the id (already prefixed with the org) and the value is a boolean
+
+    private val guavaCache = CacheBuilder.newBuilder()
+      .maximumSize(1000)
+      .expireAfterWrite(5, TimeUnit.MINUTES)    //todo: put this timeout in config.json
+      .build[String, Entry[Boolean]]     // the cache key is org/id, and the value is whether it has admin priv
+    implicit val userCache = GuavaCache(guavaCache)   // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
+    private var db: Database = _
+
+    def init(db: Database): Unit = { this.db = db }
+
+    def isAdmin(id: String): Boolean = {
+      logger.debug("CacheAdmin:isAdmin(): querying whether "+id+" has admin privilege")
+      val cacheValue = getCacheValue(id)
+      if (cacheValue.isFailure) return false
+      // we got the answer from the cache or db, return it
+      cacheValue.get
+    }
+
+    // I currently don't know how to make the cachingF function run and get its value w/o putting it in a separate method
+    private def getCacheValue(id: String): Try[Boolean] = {
+      cachingF(id)(ttl = None) {
+        for {
+          userVal <- getUser(id)
+        } yield userVal
+      }
+    }
+
+    // Called when this user id isn't in the cache. Gets the user from the db and puts the admin boolean in the cache.
+    private def getUser(id: String): Try[Boolean] = {
+      logger.debug("CacheAdmin:getUser(): "+id+" was not in the cache, so attempting to get it from the db")
+      val dbAction = UsersTQ.getAdmin(id).result
+      try {
+        //logger.trace("CacheAdmin:getUser(): awaiting for DB query of local exchange admin value for "+id+"...")
+        val respVector = Await.result(db.run(dbAction), Duration(9000, MILLISECONDS))  //todo: put the timeout value in config.json
+        //logger.trace("CacheAdmin:getUser(): ...back from awaiting for DB query of local exchange admin value for "+id+".")
+        if (respVector.nonEmpty) {
+          val isAdmin = respVector.head
+          logger.debug("CacheAdmin:getUser(): "+id+" found in the db, adding it with value "+isAdmin+" to the cache")
+          Success(isAdmin)
+        }
+        else Failure(new UserPwNotFoundException(ExchangeMessage.translateMessage("user.notfound.db", id)))
+      } catch {
+        // Handle db problems
+        case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting admin boolean for '"+id+"' . "+timeout.getMessage)
+          throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.admin", id, timeout.getMessage))
+        case other: Throwable => logger.error("db connection error getting admin boolean for '"+id+"': "+other.getMessage)
+          throw new DbConnectionException(ExchangeMessage.translateMessage("db.threw.exception", other.getMessage))
+      }
+    }
+
+    // Called for temp token creation/validation
+    def getOne(id: String): Option[Boolean] = {
+      val cacheValue = getCacheValue(id)
+      if (cacheValue.isSuccess) Some(cacheValue.get)
+      else None
+    }
+
+    def putOne(id: String, isAdmin: Boolean): Unit = { put(id)(isAdmin) }    // we need this for the test suites, but in production it will only help in this 1 exchange instance
+
+    def removeOne(id: String): Try[Any] = { remove(id) }
+
+    def clearCache(): Try[Unit] = {
+      logger.debug("Clearing the admin cache")
       removeAll().map(_ => ())
     }
   }
@@ -419,6 +481,7 @@ object AuthCache extends Control with ServletApiImplicits {
   }     // end of Cache class
 
   val users = new CacheId()
+  val usersAdmin = new CacheAdmin()
   val nodes = new Cache("nodes")
   val agbots = new Cache("agbots")
   val services = new Cache("services")

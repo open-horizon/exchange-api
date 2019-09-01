@@ -125,7 +125,7 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
   /** Returns a temporary pw reset token. */
   def createToken(username: String): String = {
     // Get their current pw to use as the secret
-    AuthCache.users.getOne(username) match {
+    AuthCache.ids.getOne(username) match {
       case Some(userHashedTok) => Token.create(userHashedTok)   // always create the token with the hashed pw because that will always be there during creation and validation of the token
       case None => ""    // this case will never happen (we always pass in superUser), but here to remove compile warning
     }

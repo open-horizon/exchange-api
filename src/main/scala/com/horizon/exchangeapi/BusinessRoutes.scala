@@ -309,7 +309,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+xs.toString)
       xs match {
-        case Success(_) => if (owner != "") AuthCache.business.putOwner(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
+        case Success(_) => if (owner != "") AuthCache.businessOwner.putOne(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
           AuthCache.business.putIsPublic(businessPolicy, isPub = false)
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.created", businessPolicy))
@@ -380,7 +380,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         case Success(n) => try {
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
             if (numUpdated > 0) {
-              if (owner != "") AuthCache.business.putOwner(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
+              if (owner != "") AuthCache.businessOwner.putOne(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
               AuthCache.business.putIsPublic(businessPolicy, isPub = false)
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.updated"))
@@ -490,7 +490,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       logger.debug("DELETE /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.business.removeOwner(businessPolicy)
+            AuthCache.businessOwner.removeOne(businessPolicy)
             AuthCache.business.removeIsPublic(businessPolicy)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("business.policy.deleted"))

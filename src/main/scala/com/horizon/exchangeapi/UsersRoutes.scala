@@ -235,7 +235,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         try {
           val numUpdated = xs.toString.toInt
           if (numUpdated > 0) {
-            if (hashedPw != "") AuthCache.ids.putUser(Creds(compositeId, hashedPw))
+            /* if (hashedPw != "") */ AuthCache.ids.putUser(Creds(compositeId, hashedPw))
             AuthCache.usersAdmin.putOne(compositeId, user.admin)
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.updated.successfully"))

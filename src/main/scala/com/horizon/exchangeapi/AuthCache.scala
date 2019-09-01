@@ -38,14 +38,8 @@ object AuthCache extends Control with ServletApiImplicits {
   case class Tokens(unhashed: String, hashed: String)
 
   /* Cache todo:
-<<<<<<< HEAD
   - scale test
   - if cache value results in invalid creds or access denied, remove cache entry and try again
-=======
-  - add node and agbot ids to CacheId
-  - add owner caches (including a base class)
-  - put new strings in 2nd msg file
->>>>>>> cache sizes and timeouts in config.json
    */
 
   /** Holds recently authenticated users, node ids, agbot ids */
@@ -304,7 +298,6 @@ object AuthCache extends Control with ServletApiImplicits {
   class CacheOwnerBusiness() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = BusinessPoliciesTQ.getOwner(id).result
   }
-
 
   /** 1 set of things (user/pw, node id/token, agbot id/token, service/owner, pattern/owner) */
   class Cache(val whichTab: String) {     // i am sure there is a better way to handle the different tables

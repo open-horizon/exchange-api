@@ -350,7 +350,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
-        case Success(_) => if (owner != "") AuthCache.patterns.putOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
+        case Success(_) => if (owner != "") AuthCache.patternsOwner.putOne(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
           AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.created", pattern))
@@ -448,7 +448,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Success(n) => try {
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
             if (numUpdated > 0) {
-              if (owner != "") AuthCache.patterns.putOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
+              if (owner != "") AuthCache.patternsOwner.putOne(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
               AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.updated"))
@@ -738,7 +738,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("DELETE /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.patterns.removeOwner(pattern)
+            AuthCache.patternsOwner.removeOne(pattern)
             AuthCache.patterns.removeIsPublic(pattern)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.deleted"))

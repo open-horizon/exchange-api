@@ -28,24 +28,24 @@ case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Option[Str
   }
 
   /** Get the db queries to insert or update the agbot */
-  def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).upsert
+  def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = AgbotRow(id, orgid, hashedTok, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).upsert
 
   /** Get the db queries to update the agbot */
-  def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = AgbotRow(id, orgid, token, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).update
+  def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = AgbotRow(id, orgid, hashedTok, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).update
 }
 
 case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], publicKey: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the agbot, and the attribute name being updated. */
-  def getDbUpdate(id: String, orgid: String): (DBIO[_],String) = {
+  def getDbUpdate(id: String, orgid: String, hashedTok: String): (DBIO[_],String) = {
     val lastHeartbeat = ApiTime.nowUTC
     //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
     token match {
       case Some(token2) => if (token2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.cannot.be.empty.string")))
-        val tok = /*if (Password.isHashed(token2)) token2 else*/ Password.hash(token2)
-        return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, tok, lastHeartbeat)), "token")
+        //val tok = if (Password.isHashed(token2)) token2 else Password.hash(token2)
+        return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, hashedTok, lastHeartbeat)), "token")
       case _ => ;
     }
     name match { case Some(name2) => return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name2, lastHeartbeat)), "name"); case _ => ; }
@@ -234,20 +234,21 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     agbot.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
+    val hashedTok = Password.hash(agbot.token)
     db.run(AgbotsTQ.getNumOwned(owner).result.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" num owned: "+xs)
       val numOwned = xs
       val maxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
       if (maxAgbots == 0 || numOwned <= maxAgbots || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
-        val action = if (owner == "") agbot.getDbUpdate(compositeId, orgid, owner) else agbot.getDbUpsert(compositeId, orgid, owner)
+        val action = if (owner == "") agbot.getDbUpdate(compositeId, orgid, owner, hashedTok) else agbot.getDbUpsert(compositeId, orgid, owner, hashedTok)
         action.asTry
       }
       else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("over.max.limit.of.agbots", maxAgbots))).asTry
-    //todo: insert another map() here to verify that patterns referenced actually exist
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
       xs match {
-        case Success(_) => AuthCache.agbots.putBoth(Creds(compositeId,agbot.token), owner)    // the token passed in to the cache should be the non-hashed one
+        case Success(_) => AuthCache.ids.putAgbot(Creds(compositeId, hashedTok))
+          AuthCache.agbotsOwner.putOne(compositeId, owner)
           resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.added.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -287,7 +288,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     //logger.trace("PATCH /orgs/"+orgid+"/agbots/"+id+" input: "+agbot.toString)
     val resp = response
-    val (action, attrName) = agbot.getDbUpdate(compositeId, orgid)
+    val hashedPw = if (agbot.token.isDefined) Password.hash(agbot.token.get) else ""    // hash the token if that is what is being updated
+    val (action, attrName) = agbot.getDbUpdate(compositeId, orgid, hashedPw)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.agbot.attribute.specified")))
     db.run(action.transactionally.asTry).map({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
@@ -295,7 +297,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         case Success(v) => try {
             val numUpdated = v.toString.toInt     // v comes to us as type Any
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              agbot.token match { case Some(tok) if (tok != "") => AuthCache.agbots.put(Creds(compositeId, tok)); case _ => ; }    // the token passed in to the cache should be the non-hashed one. We do not need to run putOwner because patch does not change the owner
+              if (agbot.token.isDefined) AuthCache.ids.putAgbot(Creds(compositeId, hashedPw))  // We do not need to run putOwner because patch does not change the owner
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.attribute.updated", attrName, compositeId))
             } else {
@@ -333,7 +335,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.debug("DELETE /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.agbots.removeBoth(compositeId)
+            AuthCache.ids.removeOne(compositeId)
+            AuthCache.agbotsOwner.removeOne(compositeId)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.deleted"))
           } else {

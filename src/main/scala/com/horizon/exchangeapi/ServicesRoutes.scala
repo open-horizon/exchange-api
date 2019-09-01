@@ -359,7 +359,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/services result: "+xs.toString)
       xs match {
-        case Success(_) => if (owner != "") AuthCache.services.putOwner(service, owner)     // currently only users are allowed to update service resources, so owner should never be blank
+        case Success(_) => if (owner != "") AuthCache.servicesOwner.putOne(service, owner)     // currently only users are allowed to update service resources, so owner should never be blank
           AuthCache.services.putIsPublic(service, serviceReq.public)
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.created", service))
@@ -447,7 +447,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Success(n) => try {
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
             if (numUpdated > 0) {
-              if (owner != "") AuthCache.services.putOwner(service, owner)     // currently only users are allowed to update service resources, so owner should never be blank
+              if (owner != "") AuthCache.servicesOwner.putOne(service, owner)     // currently only users are allowed to update service resources, so owner should never be blank
               AuthCache.services.putIsPublic(service, serviceReq.public)
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.updated"))
@@ -591,7 +591,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("DELETE /orgs/"+orgid+"/services/"+bareService+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.services.removeOwner(service)
+            AuthCache.servicesOwner.removeOne(service)
             AuthCache.services.removeIsPublic(service)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.deleted"))

@@ -461,7 +461,7 @@ class PatternsSuite extends FunSuite {
     val orgInput = """{ "orgType": "test" }"""
     val orgResp = Http(URL3).postData(orgInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     assert(orgResp.code === HttpCode.PUT_OK)
-    val jsonInput = """{ "public": true }"""
+    //val jsonInput = """{ "public": true }"""
     val input = PostPutPatternRequest(pattern5, None, Some(true),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
@@ -936,7 +936,7 @@ class PatternsSuite extends FunSuite {
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 2)
-    info(nodes.count(d => d.id==orgnodeIdSearchTest1 || d.id==orgnodeId2SearchTest2).toString())
+    info(nodes.count(d => d.id == orgnodeIdSearchTest1 || d.id == orgnodeId2SearchTest2).toString)
     assert(nodes.count(d => d.id==orgnodeIdSearchTest1 || d.id==orgnodeId2SearchTest2) === 2)
     val dev = nodes.find(d => d.id == orgnodeIdSearchTest1).get // the 2nd get turns the Some(val) into val
     val dev2 = nodes.find(d => d.id == orgnodeId2SearchTest2).get // the 2nd get turns the Some(val) into val
@@ -1161,7 +1161,13 @@ class PatternsSuite extends FunSuite {
     //assert(getPatternResp.patterns.size === 0)
   }
 
-  test("DELETE /orgs/"+orgid+"/users/"+user2+" - which should also delete pattern2") {
+  test("DELETE /orgs/"+orgid+"/patterns/"+pattern2+" - so its cache entry will also be deleted") {
+    val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern2).method("delete").headers(ACCEPT).headers(USER2AUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("DELETE /orgs/"+orgid+"/users/"+user2) {
     val response = Http(URL+"/users/"+user2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)

@@ -65,10 +65,14 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
     case other: Throwable => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.exception.upgrading", other.getMessage)))
   }
   ExchConfig.createRoot(db)
-  AuthCache.users.init(db)
+  AuthCache.ids.init(db)
   AuthCache.usersAdmin.init(db)
-  AuthCache.nodes.init(db)
-  AuthCache.agbots.init(db)
+  AuthCache.nodesOwner.init(db)
+  AuthCache.agbotsOwner.init(db)
+  AuthCache.servicesOwner.init(db)
+  AuthCache.patternsOwner.init(db)
+  AuthCache.businessOwner.init(db)
+
   AuthCache.services.init(db)
   AuthCache.patterns.init(db)
   AuthCache.business.init(db)

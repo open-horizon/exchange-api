@@ -27,7 +27,7 @@ object CacheIdType extends Enumeration {
   val User = Value("User")
   val Node = Value("Node")
   val Agbot = Value("Agbot")
-  val Unknown = Value("Unknown")
+  val None = Value("None")
 }
 
 /** In-memory cache of the user/pw, node id/token, and agbot id/token, where the pw and tokens are not hashed to speed up validation */
@@ -46,7 +46,7 @@ object AuthCache extends Control with ServletApiImplicits {
   /** Holds recently authenticated users, node ids, agbot ids */
   class CacheId() {
     // For this cache the key is the id (already prefixed with the org) and the value is this class
-    case class CacheVal(hashedToken: String, idType: CacheIdType = CacheIdType.Unknown) /*{
+    case class CacheVal(hashedToken: String, idType: CacheIdType = CacheIdType.None) /*{
       // Generate the key that this should be stored under in the cache
       def cacheKey = id + ":" + hashedToken     // there is probably a better way to combine these values for the key
 
@@ -64,17 +64,18 @@ object AuthCache extends Control with ServletApiImplicits {
 
     def init(db: Database): Unit = { this.db = db }
 
-    def isValid(creds: Creds): Boolean = {
-      logger.debug("CacheId:isValid(): attempting to authenticate to the exchange with "+creds)
+    // Try to authenticate the creds and return the type (user/node/agbot) it is, or None
+    def getValidType(creds: Creds): CacheIdType = {
+      logger.debug("CacheId:getValidType(): attempting to authenticate to the exchange with "+creds)
       val cacheValue = getCacheValue(creds.id)
-      if (cacheValue.isFailure) return false
+      if (cacheValue.isFailure) return CacheIdType.None
       // we got the hashed token from the cache or db, now verify the token passed in
       if (Password.check(creds.token, cacheValue.get.hashedToken)) {
-        logger.debug("CacheId:isValid(): successfully matched "+creds.id+" and its pw in the cache/db")
-        return true
+        logger.debug("CacheId:getValidType(): successfully matched "+creds.id+" and its pw in the cache/db")
+        return cacheValue.get.idType
       } else {
-        logger.debug("CacheId:isValid(): user "+creds.id+" not authenticated in the exchange")
-        return false
+        logger.debug("CacheId:getValidType(): user "+creds.id+" not authenticated in the exchange")
+        return CacheIdType.None
       }
     }
 
@@ -83,12 +84,15 @@ object AuthCache extends Control with ServletApiImplicits {
       cachingF(id)(ttl = None) {
         for {
           userVal <- getUser(id)
-        } yield userVal
+          nodeVal <- getNode(id, userVal)
+          cacheVal <- getAgbot(id, nodeVal)
+        } yield cacheVal
       }
     }
 
-    // Called when this user id isn't in the cache. Gets the user from the db and puts the hashed token and type in the cache.
-    private def getUser(id: String): Try[CacheVal] = {
+    // These 3 methods are called in succession, falling thru to the next 1 if the id isn't found.
+    // Gets the id from the db and returns the hashed token and type so it can be added to the cache.
+    private def getUser(id: String): Try[Option[CacheVal]] = {
       logger.debug("CacheId:getUser(): "+id+" was not in the cache, so attempting to get it from the db")
       val dbAction = UsersTQ.getPassword(id).result
       val dbHashedTok: String = try {
@@ -104,9 +108,54 @@ object AuthCache extends Control with ServletApiImplicits {
           throw new DbConnectionException(ExchangeMessage.translateMessage("db.threw.exception", other.getMessage))
       }   // end of getting dbHashedTok
 
-      if (dbHashedTok == "") return Failure(new UserPwNotFoundException(ExchangeMessage.translateMessage("user.notfound.db", id)))
+      //if (dbHashedTok == "") return Failure(new IdNotFoundException(ExchangeMessage.translateMessage("id.notfound.db", id)))
+      if (dbHashedTok == "") return Success(None)  // not finding it isn't an error, try the next id type
       logger.debug("CacheId:getUser(): "+id+" found in the db, adding it to the cache")
-      Success(CacheVal(dbHashedTok, CacheIdType.User))
+      Success(Some(CacheVal(dbHashedTok, CacheIdType.User)))
+    }
+
+    private def getNode(id: String, userVal: Option[CacheVal]): Try[Option[CacheVal]] = {
+      if (userVal.isDefined) return Success(userVal)
+      logger.debug("CacheId:getNode(): "+id+" was not in the cache, so attempting to get it from the db")
+      val dbAction = NodesTQ.getToken(id).result
+      val dbHashedTok: String = try {
+        //logger.trace("awaiting for DB query of local exchange creds for "+id+"...")
+        val respVector = Await.result(db.run(dbAction), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
+        //logger.trace("...back from awaiting for DB query of local exchange creds for "+id+".")
+        if (respVector.nonEmpty) respVector.head else ""
+      } catch {
+        // Handle db problems
+        case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting pw/token for '"+id+"' . "+timeout.getMessage)
+          throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.token2", id, timeout.getMessage))
+        case other: Throwable => logger.error("db connection error getting pw/token for '"+id+"': "+other.getMessage)
+          throw new DbConnectionException(ExchangeMessage.translateMessage("db.threw.exception", other.getMessage))
+      }   // end of getting dbHashedTok
+
+      if (dbHashedTok == "") return Success(None)  // not finding it isn't an error, try the next id type
+      logger.debug("CacheId:getNode(): "+id+" found in the db, adding it to the cache")
+      Success(Some(CacheVal(dbHashedTok, CacheIdType.Node)))
+    }
+
+    private def getAgbot(id: String, nodeVal: Option[CacheVal]): Try[CacheVal] = {
+      if (nodeVal.isDefined) return Success(nodeVal.get)
+      logger.debug("CacheId:getAgbot(): "+id+" was not in the cache, so attempting to get it from the db")
+      val dbAction = AgbotsTQ.getToken(id).result
+      val dbHashedTok: String = try {
+        //logger.trace("awaiting for DB query of local exchange creds for "+id+"...")
+        val respVector = Await.result(db.run(dbAction), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
+        //logger.trace("...back from awaiting for DB query of local exchange creds for "+id+".")
+        if (respVector.nonEmpty) respVector.head else ""
+      } catch {
+        // Handle db problems
+        case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting pw/token for '"+id+"' . "+timeout.getMessage)
+          throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.token2", id, timeout.getMessage))
+        case other: Throwable => logger.error("db connection error getting pw/token for '"+id+"': "+other.getMessage)
+          throw new DbConnectionException(ExchangeMessage.translateMessage("db.threw.exception", other.getMessage))
+      }   // end of getting dbHashedTok
+
+      if (dbHashedTok == "") return Failure(new IdNotFoundException(ExchangeMessage.translateMessage("id.notfound.db", id)))
+      logger.debug("CacheId:getAgbot(): "+id+" found in the db, adding it to the cache")
+      Success(CacheVal(dbHashedTok, CacheIdType.Agbot))
     }
 
     // Called for temp token creation/validation
@@ -117,7 +166,9 @@ object AuthCache extends Control with ServletApiImplicits {
     }
 
     // The token passed in is already hashed.
-    def putOne(creds: Creds): Unit = { put(creds.id)(CacheVal(creds.token, CacheIdType.User)) }    // we need this for the test suites, but in production it will only help in this 1 exchange instance
+    def putUser(creds: Creds): Unit = { put(creds.id)(CacheVal(creds.token, CacheIdType.User)) }    // we need these for the test suites, but in production it will only help in this 1 exchange instance
+    def putNode(creds: Creds): Unit = { put(creds.id)(CacheVal(creds.token, CacheIdType.Node)) }
+    def putAgbot(creds: Creds): Unit = { put(creds.id)(CacheVal(creds.token, CacheIdType.Agbot)) }
 
     def removeOne(id: String): Try[Any] = { remove(id) }
 
@@ -139,14 +190,6 @@ object AuthCache extends Control with ServletApiImplicits {
     private var db: Database = _
 
     def init(db: Database): Unit = { this.db = db }
-
-    def isAdmin(id: String): Boolean = {
-      logger.debug("CacheAdmin:isAdmin(): querying whether "+id+" has admin privilege")
-      val cacheValue = getCacheValue(id)
-      if (cacheValue.isFailure) return false
-      // we got the answer from the cache or db, return it
-      cacheValue.get
-    }
 
     // I currently don't know how to make the cachingF function run and get its value w/o putting it in a separate method
     private def getCacheValue(id: String): Try[Boolean] = {
@@ -170,7 +213,7 @@ object AuthCache extends Control with ServletApiImplicits {
           logger.debug("CacheAdmin:getUser(): "+id+" found in the db, adding it with value "+isAdmin+" to the cache")
           Success(isAdmin)
         }
-        else Failure(new UserPwNotFoundException(ExchangeMessage.translateMessage("user.notfound.db", id)))
+        else Failure(new IdNotFoundException(ExchangeMessage.translateMessage("id.notfound.db", id)))
       } catch {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting admin boolean for '"+id+"' . "+timeout.getMessage)
@@ -180,7 +223,6 @@ object AuthCache extends Control with ServletApiImplicits {
       }
     }
 
-    // Called for temp token creation/validation
     def getOne(id: String): Option[Boolean] = {
       val cacheValue = getCacheValue(id)
       if (cacheValue.isSuccess) Some(cacheValue.get)
@@ -197,6 +239,88 @@ object AuthCache extends Control with ServletApiImplicits {
     }
   }
 
+  /** Holds the owner for this resource */
+  abstract class CacheOwner(val maxSize: Int) {
+    // For this cache the key is the id (already prefixed with the org) and the value is the owner
+
+    private val guavaCache = CacheBuilder.newBuilder()
+      .maximumSize(maxSize)
+      .expireAfterWrite(ExchConfig.getInt("api.cache.resourceOwnersTtlSeconds"), TimeUnit.SECONDS)
+      .build[String, Entry[String]]     // the cache key is org/id, and the value is the owner
+    implicit val userCache = GuavaCache(guavaCache)   // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
+    private var db: Database = _
+
+    def init(db: Database): Unit = { this.db = db }
+
+    def getDbAction(id: String): DBIO[Seq[String]]
+
+    // I currently don't know how to make the cachingF function run and get its value w/o putting it in a separate method
+    private def getCacheValue(id: String): Try[String] = {
+      cachingF(id)(ttl = None) {
+        for {
+          userVal <- getId(id)
+        } yield userVal
+      }
+    }
+
+    // Called when this id isn't in the cache. Gets the id from the db and puts the owner in the cache.
+    private def getId(id: String): Try[String] = {
+      logger.debug("CacheOwner:getUser(): "+id+" was not in the cache, so attempting to get it from the db")
+      //val dbAction: DBIO[Seq[String]] = NodesTQ.getOwner(id).result
+      try {
+        //logger.trace("CacheOwner:getUser(): awaiting for DB query of local exchange admin value for "+id+"...")
+        val respVector = Await.result(db.run(getDbAction(id)), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
+        //logger.trace("CacheOwner:getUser(): ...back from awaiting for DB query of local exchange admin value for "+id+".")
+        if (respVector.nonEmpty) {
+          val owner = respVector.head
+          logger.debug("CacheOwner:getUser(): "+id+" found in the db, adding it with value "+owner+" to the cache")
+          Success(owner)
+        }
+        else Failure(new IdNotFoundException(ExchangeMessage.translateMessage("id.notfound.db", id)))
+      } catch {
+        // Handle db problems
+        case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting owner for '"+id+"' . "+timeout.getMessage)
+          throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.owner", id, timeout.getMessage))
+        case other: Throwable => logger.error("db connection error getting owner for '"+id+"': "+other.getMessage)
+          throw new DbConnectionException(ExchangeMessage.translateMessage("db.threw.exception", other.getMessage))
+      }
+    }
+
+    def getOne(id: String): Option[String] = {
+      val cacheValue = getCacheValue(id)
+      if (cacheValue.isSuccess) Some(cacheValue.get)
+      else None
+    }
+
+    def putOne(id: String, owner: String): Unit = { if (owner != "") put(id)(owner) }    // we need this for the test suites, but in production it will only help in this 1 exchange instance
+
+    def removeOne(id: String): Try[Any] = { remove(id) }
+
+    def clearCache(): Try[Unit] = {
+      logger.debug("Clearing the admin cache")
+      removeAll().map(_ => ())
+    }
+  }
+
+  class CacheOwnerNode() extends CacheOwner(ExchConfig.getInt("api.cache.idsSize")) {
+    def getDbAction(id: String): DBIO[Seq[String]] = NodesTQ.getOwner(id).result
+  }
+
+  class CacheOwnerAgbot() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+    def getDbAction(id: String): DBIO[Seq[String]] = AgbotsTQ.getOwner(id).result
+  }
+
+  class CacheOwnerService() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+    def getDbAction(id: String): DBIO[Seq[String]] = ServicesTQ.getOwner(id).result
+  }
+
+  class CacheOwnerPattern() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+    def getDbAction(id: String): DBIO[Seq[String]] = PatternsTQ.getOwner(id).result
+  }
+
+  class CacheOwnerBusiness() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+    def getDbAction(id: String): DBIO[Seq[String]] = BusinessPoliciesTQ.getOwner(id).result
+  }
 
   /** 1 set of things (user/pw, node id/token, agbot id/token, service/owner, pattern/owner) */
   class Cache(val whichTab: String) {     // i am sure there is a better way to handle the different tables
@@ -479,10 +603,17 @@ object AuthCache extends Control with ServletApiImplicits {
     private def _clearIsPublic() = synchronized { isPublic.clear }
   }     // end of Cache class
 
-  val users = new CacheId()
+  // Note: when you add a cache here, also init it in ExchangeApiApp
+  val ids = new CacheId()
   val usersAdmin = new CacheAdmin()
-  val nodes = new Cache("nodes")
-  val agbots = new Cache("agbots")
+  val nodesOwner = new CacheOwnerNode()
+  val agbotsOwner = new CacheOwnerAgbot()
+  val servicesOwner = new CacheOwnerService()
+  val patternsOwner = new CacheOwnerPattern()
+  val businessOwner = new CacheOwnerBusiness()
+
+  //val nodes = new Cache("nodes")
+  //val agbots = new Cache("agbots")
   val services = new Cache("services")
   val patterns = new Cache("patterns")
   val business = new Cache("business")

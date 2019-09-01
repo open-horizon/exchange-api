@@ -118,7 +118,7 @@ object ExchConfig {
     val rootpw = config.getString("api.root.password")
     if (rootpw != "") {
       rootHashedPw = Password.hashIfNot(rootpw)
-      AuthCache.users.putOne(Creds(Role.superUser, rootHashedPw))
+      AuthCache.ids.putUser(Creds(Role.superUser, rootHashedPw))
       logger.info("Root user from config.json added to the in-memory authentication cache")
     }
 
@@ -139,7 +139,7 @@ object ExchConfig {
     val rootpw = config.getString("api.root.password")
     if (rootpw != "") {
       //val hashedPw = Password.hashIfNot(rootpw)  <- can't hash this again, because it would be different
-      AuthCache.users.putOne(Creds(Role.superUser, rootHashedPw))    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
+      AuthCache.ids.putUser(Creds(Role.superUser, rootHashedPw))    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
       val rootemail = config.getString("api.root.email")
       // Create the root org, create the IBM org, and create the root user (all only if necessary)
       db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None).upsert.asTry.flatMap({ xs =>

@@ -548,7 +548,13 @@ class BusinessSuite extends FunSuite {
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
-  test("DELETE /orgs/"+orgid+"/users/"+user2+" - which should also delete businessPolicy2") {
+  test("DELETE /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - so owner cache will also be deleted") {
+    val response = Http(URL+"/business/policies/"+businessPolicy2).method("delete").headers(ACCEPT).headers(USER2AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("DELETE /orgs/"+orgid+"/users/"+user2) {
     val response = Http(URL+"/users/"+user2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)

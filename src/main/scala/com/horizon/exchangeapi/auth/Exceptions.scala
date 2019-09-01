@@ -36,7 +36,7 @@ class IamApiErrorException(msg: String) extends AuthException(HttpCode.BADCREDS,
 class SelfSignedCertException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
 
 // The local exchange user was not found in the db
-class UserPwNotFoundException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
+class IdNotFoundException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
 
 // The local exchange user/pw combo was not matched in the db
 class UserPwInvalidException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)

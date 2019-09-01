@@ -156,16 +156,18 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   post("/admin/dropdb", operation(postAdminDropDb)) ({
-    // validateToken(BaseAccess.ADMIN, "")     // the token was generated for root, so will only work for root
     authenticate(hint = "token").authorizeTo(TAction(),Access.ADMIN)
     val resp = response
-    // ApiResponse(ApiResponseType.OK, "would delete db")
     db.run(ExchangeApiTables.dropDB.transactionally.asTry).map({ xs =>
       logger.debug("POST /admin/dropdb result: "+xs.toString)
       xs match {
-        case Success(_) => AuthCache.nodes.removeAll()     // i think we could just let the cache catch up over time, but seems better to clear it out now
-          AuthCache.users.clearCache()
-          AuthCache.agbots.removeAll()
+        case Success(_) => AuthCache.ids.clearCache()     // i think we could just let the cache catch up over time, but seems better to clear it out now
+          AuthCache.usersAdmin.clearCache()
+          AuthCache.nodesOwner.clearCache()
+          AuthCache.agbotsOwner.clearCache()
+          AuthCache.servicesOwner.clearCache()
+          AuthCache.patternsOwner.clearCache()
+          AuthCache.businessOwner.clearCache()
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.deleted"))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
@@ -560,11 +562,13 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     authenticate().authorizeTo(TAction(), Access.ADMIN)
     //todo: ensure other client requests are not updating the cache at the same time
     IbmCloudAuth.clearCache()
-    AuthCache.agbots.removeAll()
-    AuthCache.nodes.removeAll()
-    AuthCache.patterns.removeAll()
-    AuthCache.services.removeAll()
-    AuthCache.users.clearCache()
+    AuthCache.ids.clearCache()     // i think we could just let the cache catch up over time, but seems better to clear it out now
+    AuthCache.usersAdmin.clearCache()
+    AuthCache.nodesOwner.clearCache()
+    AuthCache.agbotsOwner.clearCache()
+    AuthCache.servicesOwner.clearCache()
+    AuthCache.patternsOwner.clearCache()
+    AuthCache.businessOwner.clearCache()
     response.setStatus(HttpCode.POST_OK)
     ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("cache.cleared"))
   })

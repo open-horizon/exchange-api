@@ -225,7 +225,7 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
   /** Returns true if the token is correct for this user and not expired */
   def isTokenValid(token: String, username: String): Boolean = {
     // Get their current hashed pw to use as the secret
-    AuthCache.users.getOne(username) match {
+    AuthCache.ids.getOne(username) match {
       case Some(userHashedTok) => Token.isValid(token, userHashedTok)
       case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, ExchangeMessage.translateMessage("invalid.credentials")))
     }
@@ -361,12 +361,16 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
         //else throw new InvalidCredentialsException("invalid token")  <- hint==token means it *could* be a token, not that it *must* be
       }
       //for ((k, v) <- AuthCache.users.things) { logger.debug("users cache entry: "+k+" "+v) }
-      //logger.trace("calling AuthCache.users.isValid(creds)")
-      if (AuthCache.users.isValid(creds)) {/*logger.trace("back from AuthCache.users.isValid(creds) true");*/ return toIUser }
-      //logger.trace("back from AuthCache.users.isValid(creds) false")
+      AuthCache.ids.getValidType(creds) match {
+        case CacheIdType.User => return toIUser
+        case CacheIdType.Node => return toINode
+        case CacheIdType.Agbot => return toIAgbot
+        case CacheIdType.None => throw new InvalidCredentialsException()   // will be caught by AuthenticationSupport.authenticate() and the proper halt() done
+      }
+      /* if (AuthCache.ids.getValidType(creds)) return toIUser
       if (AuthCache.nodes.isValid(creds)) return toINode
       if (AuthCache.agbots.isValid(creds)) return toIAgbot
-      throw new InvalidCredentialsException()   // will be caught by AuthenticationSupport.authenticate() and the proper halt() done
+      throw new InvalidCredentialsException()   // will be caught by AuthenticationSupport.authenticate() and the proper halt() done */
     }
 
     def authorizeTo(target: Target, access: Access): Authorization
@@ -497,11 +501,11 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
         //todo: should move these into the Target subclasses
         val owner = target match {
           case TUser(id) => return id == creds.id
-          case TNode(id) => AuthCache.nodes.getOwner(id)
-          case TAgbot(id) => AuthCache.agbots.getOwner(id)
-          case TService(id) => AuthCache.services.getOwner(id)
-          case TPattern(id) => AuthCache.patterns.getOwner(id)
-          case TBusiness(id) => AuthCache.business.getOwner(id)
+          case TNode(id) => AuthCache.nodesOwner.getOne(id)
+          case TAgbot(id) => AuthCache.agbotsOwner.getOne(id)
+          case TService(id) => AuthCache.servicesOwner.getOne(id)
+          case TPattern(id) => AuthCache.patternsOwner.getOne(id)
+          case TBusiness(id) => AuthCache.businessOwner.getOne(id)
           case _ => return false
         }
         owner match {

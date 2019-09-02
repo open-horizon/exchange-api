@@ -38,9 +38,12 @@ object AuthCache extends Control with ServletApiImplicits {
   case class Tokens(unhashed: String, hashed: String)
 
   /* Cache todo:
-  - add node and agbot ids to CacheId
-  - add owner caches (including a base class)
-  - put new strings in 2nd msg file
+  - combine CacheId getUser, getNode, getAgbot methods
+  - remove Cache
+  - remove db.timeout.getting.token and the couple following it in msg file
+  - sync 2nd msg file
+  - scale test
+  - if cache value results in invalid creds or access denied, remove cache entry and try again
    */
 
   /** Holds recently authenticated users, node ids, agbot ids */
@@ -178,47 +181,49 @@ object AuthCache extends Control with ServletApiImplicits {
     }
   }
 
-  /** Holds whether a user has admin privilege or not */
-  class CacheAdmin() {
+  /** Holds isAdmin or isPublic, or maybe other single boolean values */
+  abstract class CacheBoolean(val attrName: String, val maxSize: Int) {
     // For this cache the key is the id (already prefixed with the org) and the value is a boolean
 
     private val guavaCache = CacheBuilder.newBuilder()
-      .maximumSize(ExchConfig.getInt("api.cache.resourceOwnersSize"))
+      .maximumSize(maxSize)
       .expireAfterWrite(ExchConfig.getInt("api.cache.resourceOwnersTtlSeconds"), TimeUnit.SECONDS)
-      .build[String, Entry[Boolean]]     // the cache key is org/id, and the value is whether it has admin priv
+      .build[String, Entry[Boolean]]     // the cache key is org/id, and the value is admin priv or isPublic
     implicit val userCache = GuavaCache(guavaCache)   // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
     private var db: Database = _
 
     def init(db: Database): Unit = { this.db = db }
 
+    def getDbAction(id: String): DBIO[Seq[Boolean]]
+
     // I currently don't know how to make the cachingF function run and get its value w/o putting it in a separate method
     private def getCacheValue(id: String): Try[Boolean] = {
       cachingF(id)(ttl = None) {
         for {
-          userVal <- getUser(id)
+          userVal <- getId(id)
         } yield userVal
       }
     }
 
-    // Called when this user id isn't in the cache. Gets the user from the db and puts the admin boolean in the cache.
-    private def getUser(id: String): Try[Boolean] = {
-      logger.debug("CacheAdmin:getUser(): "+id+" was not in the cache, so attempting to get it from the db")
-      val dbAction = UsersTQ.getAdmin(id).result
+    // Called when this user id isn't in the cache. Gets the user from the db and puts the boolean value in the cache.
+    private def getId(id: String): Try[Boolean] = {
+      logger.debug("CacheBoolean:getId(): "+id+" was not in the cache, so attempting to get it from the db")
+      //val dbAction = UsersTQ.getAdmin(id).result
       try {
-        //logger.trace("CacheAdmin:getUser(): awaiting for DB query of local exchange admin value for "+id+"...")
-        val respVector = Await.result(db.run(dbAction), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
-        //logger.trace("CacheAdmin:getUser(): ...back from awaiting for DB query of local exchange admin value for "+id+".")
+        //logger.trace("CacheBoolean:getId(): awaiting for DB query of local exchange bool value for "+id+"...")
+        val respVector = Await.result(db.run(getDbAction(id)), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
+        //logger.trace("CacheBoolean:getId(): ...back from awaiting for DB query of local exchange bool value for "+id+".")
         if (respVector.nonEmpty) {
-          val isAdmin = respVector.head
-          logger.debug("CacheAdmin:getUser(): "+id+" found in the db, adding it with value "+isAdmin+" to the cache")
-          Success(isAdmin)
+          val isValue = respVector.head
+          logger.debug("CacheBoolean:getId(): "+id+" found in the db, adding it with value "+isValue+" to the cache")
+          Success(isValue)
         }
         else Failure(new IdNotFoundException(ExchangeMessage.translateMessage("id.notfound.db", id)))
       } catch {
         // Handle db problems
-        case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting admin boolean for '"+id+"' . "+timeout.getMessage)
-          throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.admin", id, timeout.getMessage))
-        case other: Throwable => logger.error("db connection error getting admin boolean for '"+id+"': "+other.getMessage)
+        case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting "+attrName+" boolean for '"+id+"' . "+timeout.getMessage)
+          throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.bool", attrName, id, timeout.getMessage))
+        case other: Throwable => logger.error("db connection error getting "+attrName+" boolean for '"+id+"': "+other.getMessage)
           throw new DbConnectionException(ExchangeMessage.translateMessage("db.threw.exception", other.getMessage))
       }
     }
@@ -229,15 +234,35 @@ object AuthCache extends Control with ServletApiImplicits {
       else None
     }
 
-    def putOne(id: String, isAdmin: Boolean): Unit = { put(id)(isAdmin) }    // we need this for the test suites, but in production it will only help in this 1 exchange instance
+    def putOne(id: String, isValue: Boolean): Unit = { put(id)(isValue) }    // we need this for the test suites, but in production it will only help in this 1 exchange instance
 
     def removeOne(id: String): Try[Any] = { remove(id) }
 
     def clearCache(): Try[Unit] = {
-      logger.debug("Clearing the admin cache")
+      logger.debug("Clearing the "+attrName+" cache")
       removeAll().map(_ => ())
     }
   }
+
+  class CacheAdmin() extends CacheBoolean("admin", ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+    def getDbAction(id: String): DBIO[Seq[Boolean]] = UsersTQ.getAdmin(id).result
+  }
+
+  class CachePublicService() extends CacheBoolean("public", ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+    def getDbAction(id: String): DBIO[Seq[Boolean]] = ServicesTQ.getPublic(id).result
+  }
+
+  class CachePublicPattern() extends CacheBoolean("public", ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+    def getDbAction(id: String): DBIO[Seq[Boolean]] = PatternsTQ.getPublic(id).result
+  }
+
+  // Currently, business policies are never allowd to be public, so always return false
+  class CachePublicBusiness() extends CacheBoolean("public", 1) {
+    def getDbAction(id: String): DBIO[Seq[Boolean]] = DBIO.successful(Seq())
+    override def getOne(id: String): Option[Boolean] = Some(false)
+    override def putOne(id: String, isValue: Boolean): Unit = {}
+    override def removeOne(id: String): Try[Any] = Try(true)
+    }
 
   /** Holds the owner for this resource */
   abstract class CacheOwner(val maxSize: Int) {
@@ -611,10 +636,7 @@ object AuthCache extends Control with ServletApiImplicits {
   val servicesOwner = new CacheOwnerService()
   val patternsOwner = new CacheOwnerPattern()
   val businessOwner = new CacheOwnerBusiness()
-
-  //val nodes = new Cache("nodes")
-  //val agbots = new Cache("agbots")
-  val services = new Cache("services")
-  val patterns = new Cache("patterns")
-  val business = new Cache("business")
+  val servicesPublic = new CachePublicService()
+  val patternsPublic = new CachePublicPattern()
+  val businessPublic = new CachePublicBusiness()
 }

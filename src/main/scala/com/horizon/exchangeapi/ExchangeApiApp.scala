@@ -72,10 +72,9 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
   AuthCache.servicesOwner.init(db)
   AuthCache.patternsOwner.init(db)
   AuthCache.businessOwner.init(db)
-
-  AuthCache.services.init(db)
-  AuthCache.patterns.init(db)
-  AuthCache.business.init(db)
+  AuthCache.servicesPublic.init(db)
+  AuthCache.patternsPublic.init(db)
+  AuthCache.businessPublic.init(db)
   IbmCloudAuth.init(db)
 
   // All of the route implementations are in traits called *Routes

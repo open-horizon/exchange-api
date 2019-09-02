@@ -310,7 +310,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+xs.toString)
       xs match {
         case Success(_) => if (owner != "") AuthCache.businessOwner.putOne(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
-          AuthCache.business.putIsPublic(businessPolicy, isPub = false)
+          AuthCache.businessPublic.putOne(businessPolicy, isValue = false)
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.created", businessPolicy))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -381,7 +381,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
             if (numUpdated > 0) {
               if (owner != "") AuthCache.businessOwner.putOne(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
-              AuthCache.business.putIsPublic(businessPolicy, isPub = false)
+              AuthCache.businessPublic.putOne(businessPolicy, isValue = false)
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.updated"))
             } else {
@@ -491,7 +491,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
             AuthCache.businessOwner.removeOne(businessPolicy)
-            AuthCache.business.removeIsPublic(businessPolicy)
+            AuthCache.businessPublic.removeOne(businessPolicy)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("business.policy.deleted"))
           } else {

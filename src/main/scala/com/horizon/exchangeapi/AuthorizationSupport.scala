@@ -761,13 +761,13 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
   case class TNode(id: String) extends Target
   case class TAgbot(id: String) extends Target
   case class TService(id: String) extends Target {      // for services only the user that created it can update/delete it
-    override def isPublic: Boolean = if (all) return true else return AuthCache.services.getIsPublic(id).getOrElse(false)
+    override def isPublic: Boolean = if (all) return true else return AuthCache.servicesPublic.getOne(id).getOrElse(false)
   }
   case class TPattern(id: String) extends Target {      // for patterns only the user that created it can update/delete it
-    override def isPublic: Boolean = if (all) return true else return AuthCache.patterns.getIsPublic(id).getOrElse(false)
+    override def isPublic: Boolean = if (all) return true else return AuthCache.patternsPublic.getOne(id).getOrElse(false)
   }
   case class TBusiness(id: String) extends Target {      // for business policies only the user that created it can update/delete it
-    override def isPublic: Boolean = if (all) return true else return AuthCache.business.getIsPublic(id).getOrElse(false)
+    override def isPublic: Boolean = if (all) return true else return AuthCache.businessPublic.getOne(id).getOrElse(false)
   }
   case class TAction(id: String = "") extends Target    // for post rest api methods that do not target any specific resource (e.g. admin operations)
 }

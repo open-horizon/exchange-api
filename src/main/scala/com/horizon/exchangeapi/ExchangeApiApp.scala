@@ -5,7 +5,6 @@
 
 package com.horizon.exchangeapi
 
-import com.horizon.exchangeapi.auth.IbmCloudAuth
 import org.scalatra._
 import slick.jdbc.PostgresProfile.api._
 // import scala.concurrent.ExecutionContext.Implicits.global    // this is needed for FutureSupport
@@ -64,18 +63,7 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
     case timeout: java.util.concurrent.TimeoutException => halt(HttpCode.GW_TIMEOUT, ApiResponse(ApiResponseType.GW_TIMEOUT, ExchangeMessage.translateMessage("db.timeout.upgrading", timeout.getMessage)))
     case other: Throwable => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.exception.upgrading", other.getMessage)))
   }
-  ExchConfig.createRoot(db)
-  AuthCache.ids.init(db)
-  AuthCache.usersAdmin.init(db)
-  AuthCache.nodesOwner.init(db)
-  AuthCache.agbotsOwner.init(db)
-  AuthCache.servicesOwner.init(db)
-  AuthCache.patternsOwner.init(db)
-  AuthCache.businessOwner.init(db)
-  AuthCache.servicesPublic.init(db)
-  AuthCache.patternsPublic.init(db)
-  AuthCache.businessPublic.init(db)
-  IbmCloudAuth.init(db)
+  AuthCache.initAllCaches(db, includingIbmAuth=true)
 
   // All of the route implementations are in traits called *Routes
 }

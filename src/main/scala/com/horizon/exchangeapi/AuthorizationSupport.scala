@@ -367,10 +367,6 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
         case CacheIdType.Agbot => return toIAgbot
         case CacheIdType.None => throw new InvalidCredentialsException()   // will be caught by AuthenticationSupport.authenticate() and the proper halt() done
       }
-      /* if (AuthCache.ids.getValidType(creds)) return toIUser
-      if (AuthCache.nodes.isValid(creds)) return toINode
-      if (AuthCache.agbots.isValid(creds)) return toIAgbot
-      throw new InvalidCredentialsException()   // will be caught by AuthenticationSupport.authenticate() and the proper halt() done */
     }
 
     def authorizeTo(target: Target, access: Access): Authorization

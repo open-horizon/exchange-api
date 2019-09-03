@@ -3,7 +3,6 @@ package com.horizon.exchangeapi
 
 import java.util.Properties
 
-import com.horizon.exchangeapi.auth.IbmCloudAuth
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -161,13 +160,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(ExchangeApiTables.dropDB.transactionally.asTry).map({ xs =>
       logger.debug("POST /admin/dropdb result: "+xs.toString)
       xs match {
-        case Success(_) => AuthCache.ids.clearCache()     // i think we could just let the cache catch up over time, but seems better to clear it out now
-          AuthCache.usersAdmin.clearCache()
-          AuthCache.nodesOwner.clearCache()
-          AuthCache.agbotsOwner.clearCache()
-          AuthCache.servicesOwner.clearCache()
-          AuthCache.patternsOwner.clearCache()
-          AuthCache.businessOwner.clearCache()
+        case Success(_) => AuthCache.clearAllCaches(includingIbmAuth=true)
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.deleted"))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
@@ -189,6 +182,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   post("/admin/initdb", operation(postAdminInitDb)) ({
+    ExchConfig.createRootInCache()  // need to do this before authenticating, because dropdb cleared it out (can do this in dropdb, because it might expire)
     authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     db.run(ExchangeApiTables.initDB.transactionally.asTry).map({ xs =>
@@ -282,11 +276,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(_) => migratingDb = false    // let clients run rest api calls again
           resp.setStatus(HttpCode.POST_OK)
-          // AuthCache.users.init(db)     // instead of doing this we can let the cache build up over time as resources are accessed
-          // AuthCache.nodes.init(db)
-          // AuthCache.agbots.init(db)
-          // AuthCache.bctypes.init(db)
-          // AuthCache.blockchains.init(db)
+          // AuthCache.initAllCaches(db, includingIbmAuth=true)
           ApiResponse(ApiResponseType.OK, "db tables migrated successfully")
           // ApiResponse(ApiResponseType.OK, "db tables dumped and schemas migrated, now load tables using POST /admin/loadtables")    //TODO:
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
@@ -561,14 +551,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   post("/admin/clearauthcaches") ({
     authenticate().authorizeTo(TAction(), Access.ADMIN)
     //todo: ensure other client requests are not updating the cache at the same time
-    IbmCloudAuth.clearCache()
-    AuthCache.ids.clearCache()     // i think we could just let the cache catch up over time, but seems better to clear it out now
-    AuthCache.usersAdmin.clearCache()
-    AuthCache.nodesOwner.clearCache()
-    AuthCache.agbotsOwner.clearCache()
-    AuthCache.servicesOwner.clearCache()
-    AuthCache.patternsOwner.clearCache()
-    AuthCache.businessOwner.clearCache()
+    AuthCache.clearAllCaches(includingIbmAuth=true)
     response.setStatus(HttpCode.POST_OK)
     ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("cache.cleared"))
   })

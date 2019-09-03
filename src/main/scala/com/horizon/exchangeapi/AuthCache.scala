@@ -123,8 +123,12 @@ object AuthCache extends Control with ServletApiImplicits {
     def clearCache(): Try[Unit] = {
       logger.debug("Clearing the id cache")
       removeAll().map(_ => ())
+
+      // Put the root id/pw back in the cache, so we are never left not being able to do anything to the exchange
+
     }
   }   // end of class CacheId
+
 
   /** Holds isAdmin or isPublic, or maybe other single boolean values */
   abstract class CacheBoolean(val attrName: String, val maxSize: Int) {
@@ -208,6 +212,7 @@ object AuthCache extends Control with ServletApiImplicits {
     override def putOne(id: String, isValue: Boolean): Unit = {}
     override def removeOne(id: String): Try[Any] = Try(true)
   }
+
 
   /** Holds the owner for this resource */
   abstract class CacheOwner(val maxSize: Int) {
@@ -293,7 +298,36 @@ object AuthCache extends Control with ServletApiImplicits {
   }
 
 
-  // Note: when you add a cache here, also init it in ExchangeApiApp
+  def clearAllCaches(includingIbmAuth: Boolean): Unit = {
+    ids.clearCache()
+    usersAdmin.clearCache()
+    nodesOwner.clearCache()
+    agbotsOwner.clearCache()
+    servicesOwner.clearCache()
+    patternsOwner.clearCache()
+    businessOwner.clearCache()
+    servicesPublic.clearCache()
+    patternsPublic.clearCache()
+    businessPublic.clearCache()
+    if (includingIbmAuth) IbmCloudAuth.clearCache()
+  }
+
+  def initAllCaches(db: Database, includingIbmAuth: Boolean): Unit = {
+    ExchConfig.createRoot(db)
+    ids.init(db)
+    usersAdmin.init(db)
+    nodesOwner.init(db)
+    agbotsOwner.init(db)
+    servicesOwner.init(db)
+    patternsOwner.init(db)
+    businessOwner.init(db)
+    servicesPublic.init(db)
+    patternsPublic.init(db)
+    businessPublic.init(db)
+    if (includingIbmAuth) IbmCloudAuth.init(db)
+  }
+
+  // Note: when you add a cache here, also add it to the 2 methods above
   val ids = new CacheId()
   val usersAdmin = new CacheAdmin()
   val nodesOwner = new CacheOwnerNode()

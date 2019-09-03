@@ -114,17 +114,22 @@ object ExchConfig {
       }
     }
 
-    // Put the root user in the auth cache in case the db has not been inited yet, they need to be able to run POST /admin/initdb
-    val rootpw = config.getString("api.root.password")
-    if (rootpw != "") {
-      rootHashedPw = Password.hashIfNot(rootpw)
-      AuthCache.ids.putUser(Creds(Role.superUser, rootHashedPw))
-      logger.info("Root user from config.json added to the in-memory authentication cache")
-    }
+    createRootInCache()
+  }
 
-    // Let them know if they are running with the in-memory db
-    //if (getBoolean("api.db.memoryDb")) logger.info("Running with the in-memory DB (not the persistent postgresql DB).")
-    //else logger.info("Running with the persistent postgresql DB.")
+  // Put the root user in the auth cache in case the db has not been inited yet, they need to be able to run POST /admin/initdb
+  def createRootInCache(): Unit = {
+    if (rootHashedPw == "") {
+      // this is the 1st time, we need to hash and save it
+      val rootpw = config.getString("api.root.password")
+      if (rootpw == "") {
+        logger.error("Root password is not specified in config.json, you may not be able to do any exchange operations.")
+        return
+      }
+      rootHashedPw = Password.hashIfNot(rootpw)
+    }
+    AuthCache.ids.putUser(Creds(Role.superUser, rootHashedPw))
+    logger.info("Root user from config.json added to the in-memory authentication cache")
   }
 
   def reload(): Unit = load()

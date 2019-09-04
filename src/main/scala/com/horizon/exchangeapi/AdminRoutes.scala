@@ -198,6 +198,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   })
 
   // =========== POST /admin/upgradedb ===============================
+  /* They do not ever need to explicitly run this anymore, because it is always run on startup...
   val postAdminUpgradeDb =
     (apiOperation[ApiResponse]("postAdminUpgradeDb")
       summary "Upgrades the DB schema"
@@ -210,7 +211,17 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   post("/admin/upgradedb", operation(postAdminUpgradeDb)) ({
+  */
+  post("/admin/upgradedb") ({
     authenticate().authorizeTo(TAction(),Access.ADMIN)
+    try { ExchangeApiTables.upgradeDb(db) }
+    catch {
+      // Handle db problems
+      case timeout: java.util.concurrent.TimeoutException => halt(HttpCode.GW_TIMEOUT, ApiResponse(ApiResponseType.GW_TIMEOUT, ExchangeMessage.translateMessage("db.timeout.upgrading", timeout.getMessage)))
+      case other: Throwable => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.exception.upgrading", other.getMessage)))
+    }
+
+    /*
     val resp = response
     val upgradeNotNeededMsg = ExchangeMessage.translateMessage("db.upgrade.not.needed")
 
@@ -240,6 +251,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           }
       }
     })
+    */
   })
 
   /* Someday we should support this....

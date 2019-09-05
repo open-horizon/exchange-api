@@ -29,7 +29,7 @@ class UserCreateException(msg: String = ExchangeMessage.translateMessage("error.
 // The IAM token we were given was expired, or some similar problem
 class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
 
-// The keyword specified was for icp, but not in an icp environment (for vice versa)
+// The keyword specified was for icp, but not in an icp environment (or vice versa)
 class IamApiErrorException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
 
 // An error occurred while building the SSLSocketFactory with the self-signed cert

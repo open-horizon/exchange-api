@@ -67,6 +67,10 @@ processGovInterval="${EX_AGBOT_PROC_GOV_INTERVAL:-10}"
 agbotHbInterval="${EX_AGBOT_HB_INTERVAL:-60}"
 versionCheckInterval="${EX_AGBOT_VERSION_CHECK_INTERVAL:-60}"
 #activeNodeTimeout="${EX_AGBOT_ACTIVE_NODE_CHECK:-180}"
+
+shortCircuitChkInterval="${EX_AGBOT_SHORT_CIRCUIT_CHK_INTERVAL:-10}"    # at this interval start checking if we should short circuit
+requiredEmptyIntervals="${EX_AGBOT_SHORT_CIRCUIT_EMPTY_INTERVALS:-3}"   # how many empty intervals we need before short-circuiting
+
 # EX_AGBOT_NO_SLEEP can be set to disable sleep if it finishes an interval early
 # EX_AGBOT_CREATE_PATTERN can be set to have this script create 1 pattern, so it finds something even if node.sh is not running
 
@@ -128,7 +132,7 @@ bignum=0
 bigstart=`date +%s`
 bigstarttime=`date`
 
-echo "Initializing agbot test for ${namebase}:"
+echo "Initializing agbot test for ${namebase} with $numAgrChecks agreement checks:"
 
 confirmcmds curl jq
 
@@ -198,10 +202,8 @@ nodesMaxProcessed=0
 nodesLastProcessed=0
 iterDeltaTotal=0
 sleepTotal=0
-shortCircuit="false"    # detect all node.sh instances have completed so we should stop sleeping
-chkIntervalShortCircuit=10    # at this interval start checking if we should short circuit
+shortCircuit="false"    # detected that all node.sh instances have completed so we should stop sleeping
 emptyIntervals=0    # how many intervals we have had with no patterns found
-requiredEmptyIntervals=3   # how many empty intervals we need before short-circuiting
 # Note: the default value of newAgreementInterval and processGovInterval are the same, so for now we assume they are the same value
 
 for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
@@ -331,7 +333,7 @@ for (( h=1 ; h<=$numAgrChecks ; h++ )) ; do
 	iterTime=$(($(date +%s)-startIteration))
 	iterDelta=$(( $newAgreementInterval - $iterTime ))
 	iterDeltaTotal=$(( $iterDeltaTotal + $iterDelta ))
-	if [[ $shortCircuit != "true" && $h -ge $chkIntervalShortCircuit && $emptyIntervals -ge $requiredEmptyIntervals ]]; then
+	if [[ $shortCircuit != "true" && $h -ge $shortCircuitChkInterval && $emptyIntervals -ge $requiredEmptyIntervals ]]; then
 	    # stop sleeping if we have done more than 10 intervals and the last 3 intervals have had 0 patterns
         shortCircuit="true"
 	fi

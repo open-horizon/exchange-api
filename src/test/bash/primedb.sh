@@ -444,8 +444,8 @@ if [[ $rc != 200 ]]; then
   ],
   "userInput": [
     {
-      "serviceOrgid": "IBM",
-      "serviceUrl": "ibm.cpu2msghub",
+      "serviceOrgid": "'$orgid'",
+      "serviceUrl": "'$svcurl'",
       "serviceArch": "",
       "serviceVersionRange": "[0.0.0,INFINITY)",
       "inputs": [

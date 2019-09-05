@@ -19,14 +19,14 @@ case class AgbotRow(id: String, orgid: String, token: String, name: String, owne
   }
 
   def upsert: DBIO[_] = {
-    val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
+    val tok = if (token == "") "" else /*if (Password.isHashed(token)) token else*/ Password.hash(token)
     // If owner is root, do not set owner so we do not take over a user's agbot. It will default to root if upsert turns out to be a insert
     if (Role.isSuperUser(owner)) AgbotsTQ.rows.map(a => (a.id, a.orgid, a.token, a.name, /*a.patterns,*/ a.msgEndPoint, a.lastHeartbeat, a.publicKey)).insertOrUpdate((id, orgid, tok, name, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey))
     else AgbotsTQ.rows.insertOrUpdate(AgbotRow(id, orgid, tok, name, owner, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey))
   }
 
   def update: DBIO[_] = {
-    val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
+    val tok = if (token == "") "" else /*if (Password.isHashed(token)) token else*/ Password.hash(token)
     if (owner == "") (for { a <- AgbotsTQ.rows if a.id === id } yield (a.id,a.orgid,a.token,a.name,/*a.patterns,*/a.msgEndPoint,a.lastHeartbeat,a.publicKey)).update((id, orgid, tok, name, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey))
     else (for { a <- AgbotsTQ.rows if a.id === id } yield a).update(AgbotRow(id, orgid, tok, name, owner, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey))
   }

@@ -69,6 +69,10 @@ function divide {
 	bc <<< "scale=3; $1/$2"
 }
 
+function round2int {
+    printf "%.0f" "$1"
+}
+
 function max {
     if [[ $1 -ge $2 ]]; then
         echo $1

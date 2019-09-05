@@ -9,16 +9,19 @@ import slick.jdbc.PostgresProfile.api._
 // case class UserRow(username: String, password: String, email: String, lastUpdated: Timestamp) {
 case class UserRow(username: String, orgid: String, password: String, admin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
   def insertUser(): DBIO[_] = {
+    // need to allow inputting hashed pw in case it is root from config.json
     val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
     UsersTQ.rows += UserRow(username, orgid, pw, admin, email, lastUpdated, updatedBy)
   }
 
   def upsertUser: DBIO[_] = {
+    // need to allow inputting hashed pw in case it is root from config.json
     val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
     UsersTQ.rows.insertOrUpdate(UserRow(username, orgid, pw, admin, email, lastUpdated, updatedBy))
   }
 
   def updateUser(): DBIO[_] = {
+    // need to allow inputting hashed pw in case it is root from config.json
     val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
     return (for { u <- UsersTQ.rows if u.username === username } yield u).update(UserRow(username, orgid, pw, admin, email, lastUpdated, updatedBy))
     /*

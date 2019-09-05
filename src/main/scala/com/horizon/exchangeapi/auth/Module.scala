@@ -163,7 +163,7 @@ case class PermissionCheck(permission: String) extends PrivilegedAction[Unit] {
   override def run() = {
     val literalCheck = Try(AccessController.checkPermission(AccessPermission(permission)))
     lazy val adminCheck =  for {
-      allowed <- isAdminAllowed(permission)
+      allowed <- isAdminAllowed(permission)   //todo: try changing allowed to _ to make the editor happy
       ok <- Try(AccessController.checkPermission(AccessPermission("ALL_IN_ORG")))
     } yield ok
     lazy val superCheck = Try(AccessController.checkPermission(AccessPermission("ALL")))

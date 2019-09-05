@@ -31,7 +31,7 @@ case class PatchUsersRequest(password: Option[String], admin: Option[Boolean], e
     password match {
       case Some(password2) => if (password2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("password.cannot.be.set.to.empty.string")))
         println("password2="+password2+".")
-        val pw = if (Password.isHashed(password2)) password2 else Password.hash(password2)
+        val pw = /*if (Password.isHashed(password2)) password2 else*/ Password.hash(password2)
         return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated, u.updatedBy)).update((username, pw, lastUpdated, updatedBy)), "password")
       case _ => ;
     }
@@ -48,7 +48,7 @@ case class ChangePwRequest(newPassword: String) {
   def getDbUpdate(username: String, orgid: String): DBIO[_] = {
     val lastUpdated = ApiTime.nowUTC
     if (newPassword == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("password.cannot.be.set.to.empty.string")))
-    val pw = if (Password.isHashed(newPassword)) newPassword else Password.hash(newPassword)
+    val pw = /*if (Password.isHashed(newPassword)) newPassword else*/ Password.hash(newPassword)
     return (for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated)).update((username, pw, lastUpdated))
   }
 }

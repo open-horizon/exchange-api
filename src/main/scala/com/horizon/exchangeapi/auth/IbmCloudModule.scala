@@ -150,8 +150,8 @@ object IbmCloudAuth {
   lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
 
   private val guavaCache = CacheBuilder.newBuilder()
-    .maximumSize(1000)
-    .expireAfterWrite(10, TimeUnit.MINUTES)
+    .maximumSize(ExchConfig.getInt("api.cache.idsSize"))
+    .expireAfterWrite(ExchConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
     .build[String, Entry[String]]     // the cache key is org/apikey, and the value is org/username
   implicit val userCache = GuavaCache(guavaCache)   // the effect of this is that these methods don't need to be qualified
 
@@ -368,7 +368,7 @@ object IbmCloudAuth {
     //todo: getOrCreateUser() is only called if this is not already in the cache, so its a problem if we cant get it in the db
     //logger.trace("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.email+"...")
     // Note: exceptions from this get caught in login() above
-    Await.result(db.run(userQuery.transactionally), Duration(9000, MILLISECONDS))
+    Await.result(db.run(userQuery.transactionally), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
     /* it doesnt work to add this to our authorization cache, and causes some exceptions during automated tests
     val awaitResult = Await.result(db.run(userQuery.transactionally), Duration(3000, MILLISECONDS))
     AuthCache.users.putBoth(Creds(s"${authInfo.org}/${userInfo.email}", ""), "")

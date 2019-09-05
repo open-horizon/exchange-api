@@ -44,7 +44,7 @@ case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEn
     // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
     token match {
       case Some(token2) => if (token2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.cannot.be.empty.string")))
-        val tok = if (Password.isHashed(token2)) token2 else Password.hash(token2)
+        val tok = /*if (Password.isHashed(token2)) token2 else*/ Password.hash(token2)
         return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, tok, lastHeartbeat)), "token")
       case _ => ;
     }

@@ -3,7 +3,6 @@ package com.horizon.exchangeapi
 
 import java.util.Properties
 
-import com.horizon.exchangeapi.auth.IbmCloudAuth
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -13,8 +12,6 @@ import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.io.Source
-//import scala.collection.immutable._
-//import scala.collection.mutable.ListBuffer
 import scala.util._
 
 case class AdminHashpwRequest(password: String)
@@ -156,16 +153,12 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   post("/admin/dropdb", operation(postAdminDropDb)) ({
-    // validateToken(BaseAccess.ADMIN, "")     // the token was generated for root, so will only work for root
     authenticate(hint = "token").authorizeTo(TAction(),Access.ADMIN)
     val resp = response
-    // ApiResponse(ApiResponseType.OK, "would delete db")
     db.run(ExchangeApiTables.dropDB.transactionally.asTry).map({ xs =>
       logger.debug("POST /admin/dropdb result: "+xs.toString)
       xs match {
-        case Success(_) => AuthCache.nodes.removeAll()     // i think we could just let the cache catch up over time, but seems better to clear it out now
-          AuthCache.users.removeAll()
-          AuthCache.agbots.removeAll()
+        case Success(_) => AuthCache.clearAllCaches(includingIbmAuth=true)
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.deleted"))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
@@ -187,6 +180,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   post("/admin/initdb", operation(postAdminInitDb)) ({
+    ExchConfig.createRootInCache()  // need to do this before authenticating, because dropdb cleared it out (can do this in dropdb, because it might expire)
     authenticate().authorizeTo(TAction(),Access.ADMIN)
     val resp = response
     db.run(ExchangeApiTables.initDB.transactionally.asTry).map({ xs =>
@@ -202,6 +196,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   })
 
   // =========== POST /admin/upgradedb ===============================
+  /* They do not ever need to explicitly run this anymore, because it is always run on startup...
   val postAdminUpgradeDb =
     (apiOperation[ApiResponse]("postAdminUpgradeDb")
       summary "Upgrades the DB schema"
@@ -214,85 +209,16 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
 
   post("/admin/upgradedb", operation(postAdminUpgradeDb)) ({
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val resp = response
-    val upgradeNotNeededMsg = ExchangeMessage.translateMessage("db.upgrade.not.needed")
-
-    // Assemble the list of db actions to alter schema of existing tables and create tables that are new in each of the schema versions we have to catch up on
-    db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
-      logger.debug("POST /admin/upgradedb current schema result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v.nonEmpty) {
-            val schemaRow = v.head
-            if (SchemaTQ.isLatestSchemaVersion(schemaRow.schemaVersion)) DBIO.failed(new Throwable(upgradeNotNeededMsg + schemaRow.schemaVersion)).asTry    // I do not think there is a way to pass a msg thru the Success path
-            else SchemaTQ.getUpgradeActionsFrom(schemaRow.schemaVersion).transactionally.asTry
-          }
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("db.upgrade.failed.no.new.row"))).asTry
-        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
-      }
-    })).map({ xs =>
-      logger.debug("POST /admin/upgradedb result: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.upgrade.success"))
-        case Failure(t) => if (t.getMessage.contains(upgradeNotNeededMsg)) {
-            resp.setStatus(HttpCode.POST_OK)
-            ApiResponse(ApiResponseType.OK, t.getMessage)
-          } else {
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.schema.not.upgraded", t.toString))
-          }
-      }
-    })
-  })
-
-  /* Someday we should support this....
-  // =========== POST /admin/migratedb ===============================
-  val postAdminMigrateDb =
-    (apiOperation[ApiResponse]("postAdminMigrateDb")
-      summary "Migrates the DB to a new schema"
-      description "Consider running POST /admin/upgradedb instead. Note: for now you must run POST /admin/dumptables before running this. Dumps all of the tables to files, drops the tables, creates the tables (usually with new schema), and loads the tables from the files. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("skipload", DataType.String, Option[String]("Set to 'yes' if you want to load the tables later (via POST /admin/loadtables) after you have edited the json files to conform to the new schema."), paramType=ParamType.Query, required=false)
-        )
-      )
-
-  post("/admin/migratedb", operation(postAdminMigrateDb)) ({
-    credsAndLog().authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val skipLoad: Boolean = if (params.get("skipLoad").orNull != null && params("skipload").toLowerCase == "yes") true else false
-    // val skipLoad: Boolean = true    //Note: ExchangeApiTables.load() tries to read the json file content immediately, instead of waiting until they have been dumped
-    migratingDb = true      // lock non-root people out of rest api calls
-    val resp = response
-
-    // Assemble the list of db actions to: dump tables, drop db, init db, (optionally) load tables
-    val dbActions = ListBuffer[DBIO[_]]()
-    dbActions += ExchangeApiTables.dump(dumpDir, dumpSuffix)
-    dbActions += ExchangeApiTables.deletePrevious
-    dbActions += ExchangeApiTables.create
-    if (!skipLoad) dbActions ++= ExchangeApiTables.load(dumpDir, dumpSuffix)
-    val dbio = DBIO.seq(dbActions: _*)      // convert the list of actions to a DBIO seq
-
-    // This should stop performing the actions if any of them fail. Currently intentionally not running it all as a transaction
-    db.run(dbio.asTry).map({ xs =>
-      logger.debug("POST /admin/migratedb result: "+xs.toString)
-      xs match {
-        case Success(_) => migratingDb = false    // let clients run rest api calls again
-          resp.setStatus(HttpCode.POST_OK)
-          // AuthCache.users.init(db)     // instead of doing this we can let the cache build up over time as resources are accessed
-          // AuthCache.nodes.init(db)
-          // AuthCache.agbots.init(db)
-          // AuthCache.bctypes.init(db)
-          // AuthCache.blockchains.init(db)
-          ApiResponse(ApiResponseType.OK, "db tables migrated successfully")
-          // ApiResponse(ApiResponseType.OK, "db tables dumped and schemas migrated, now load tables using POST /admin/loadtables")    //TODO:
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "db tables not migrated: "+t.toString)
-      }
-    })
-  })
   */
+  post("/admin/upgradedb") ({
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
+    try { ExchangeApiTables.upgradeDb(db) }
+    catch {
+      // Handle db problems
+      case timeout: java.util.concurrent.TimeoutException => halt(HttpCode.GW_TIMEOUT, ApiResponse(ApiResponseType.GW_TIMEOUT, ExchangeMessage.translateMessage("db.timeout.upgrading", timeout.getMessage)))
+      case other: Throwable => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.exception.upgrading", other.getMessage)))
+    }
+  })
 
   /* Just for re-testing upgrade...
   // =========== POST /admin/downgradedb ===============================
@@ -559,12 +485,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   post("/admin/clearauthcaches") ({
     authenticate().authorizeTo(TAction(), Access.ADMIN)
     //todo: ensure other client requests are not updating the cache at the same time
-    IbmCloudAuth.clearCache()
-    AuthCache.agbots.removeAll()
-    AuthCache.nodes.removeAll()
-    AuthCache.patterns.removeAll()
-    AuthCache.services.removeAll()
-    AuthCache.users.removeAll()
+    AuthCache.clearAllCaches(includingIbmAuth=true)
     response.setStatus(HttpCode.POST_OK)
     ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("cache.cleared"))
   })

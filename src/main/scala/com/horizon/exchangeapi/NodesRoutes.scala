@@ -141,40 +141,6 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
     NodeRow(id, orgid, token, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).update
   }
-
-  /** Not used any more, kept for reference of how to access object store - Returns the microservice templates for the registeredMicroservices in this object
-  def getMicroTemplates: Map[String,String] = {
-    if (ExchConfig.getBoolean("api.microservices.disable")) return Map[String,String]()
-    val resp = new MutableHashMap[String, String]()
-    for (m <- registeredMicroservices) {
-      // parse the microservice name out of the specRef url
-      val R = ExchConfig.getString("api.specRef.prefix")+"(.*)"+ExchConfig.getString("api.specRef.suffix")+"/?"
-      val R2 = R.r
-      val microName = m.url match {
-        case R2(mNname) => mNname
-        case _ => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Incorrect format for microservice url '"+m.url+"'"))
-      }
-
-      // find arch and version properties
-      val arch = m.properties.find(p => p.name=="arch").map[String](p => p.value).orNull
-      if (arch == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Arch property is not specified for microservice '"+m.url+"'"))
-      val version = m.properties.find(p => p.name=="version").map[String](p => p.value).orNull
-      if (version == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Version property is not specified for microservice '"+m.url+"'"))
-      val versObj = Version(version)
-
-      // Get the microservice template from softlayer object store
-      val microTmplName = microName+"-"+arch+"-"+versObj
-      val objStoreUrl = ExchConfig.getString("api.objStoreTmpls.prefix")+"/"+ExchConfig.getString("api.objStoreTmpls.microDir")+"/"+microTmplName+ExchConfig.getString("api.objStoreTmpls.suffix")
-      var response: HttpResponse[String] = null
-      try {     // the http request can throw java.net.SocketTimeoutException: connect timed out
-        response = scalaj.http.Http(objStoreUrl).headers(("Accept","application/json")).asString
-      } catch { case e: Exception => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "Exception thrown while trying to get '"+objStoreUrl+"' from Softlayer object storage: "+e)) }
-      if (response.code != HttpCode.OK) halt(response.code, ApiResponse(ApiResponseType.BAD_INPUT, "Microservice template for '"+microTmplName+"' not found"))
-      resp.put(m.url, response.body)
-    }
-    resp.toMap
-  }
-  */
 }
 
 case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
@@ -187,7 +153,7 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
     // find the 1st non-blank attribute and create a db action to update it for this node
     token match {
       case Some(token2) => if (token2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.cannot.be.empty.string")))
-        val tok = if (Password.isHashed(token2)) token2 else Password.hash(token2)
+        val tok = /*if (Password.isHashed(token2)) token2 else*/ Password.hash(token2)
         return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, tok, lastHeartbeat)), "token")
       case _ => ;
     }

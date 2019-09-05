@@ -73,14 +73,14 @@ case class NodeRow(id: String, orgid: String, token: String, name: String, owner
 
   def upsert: DBIO[_] = {
     // Note: this currently does not do the right thing for a blank token
-    val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
+    val tok = if (token == "") "" else /*if (Password.isHashed(token)) token else*/ Password.hash(token)
     if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch)).insertOrUpdate((id, orgid, tok, name, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch))
     else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, tok, name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch))
   }
 
   def update: DBIO[_] = {
     // Note: this currently does not do the right thing for a blank token
-    val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)
+    val tok = if (token == "") "" else /*if (Password.isHashed(token)) token else*/ Password.hash(token)
     if (owner == "") (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.orgid,d.token,d.name,d.pattern,d.regServices,d.userInput,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey, d.arch)).update((id, orgid, tok, name, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch))
     else (for { d <- NodesTQ.rows if d.id === id } yield d).update(NodeRow(id, orgid, tok, name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch))
   }

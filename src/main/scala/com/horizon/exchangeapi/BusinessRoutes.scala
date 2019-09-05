@@ -21,15 +21,22 @@ import scala.util.control.Breaks._
 case class GetBusinessPoliciesResponse(businessPolicy: Map[String,BusinessPolicy], lastIndex: Int)
 case class GetBusinessPolicyAttributeResponse(attribute: String, value: String)
 
+object BusinessUtils {
+  def validateBusinessService(service: BService): Unit = {
+    // Check they specified at least 1 service version
+    if (service.serviceVersions.isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.version.specified.for.service2")))
+    // Check the version syntax
+    for (sv <- service.serviceVersions) {
+      if (!Version(sv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("version.not.valid.format", sv.version)))
+    }
+  }
+}
+
 /** Input format for POST/PUT /orgs/{orgid}/business/policies/<bus-pol-id> */
 case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate(): Unit = {
-    // Check the version syntax
-    for (sv <- service.serviceVersions) {
-      if (!Version(sv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "version '" + sv.version + "' is not valid version format."))
-    }
-  }
+
+  def validate(): Unit = { BusinessUtils.validateBusinessService(service) }
 
   // Build a list of db actions to verify that the referenced services exist
   def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { BusinessPoliciesTQ.validateServiceIds(service, userInput.getOrElse(List())) }
@@ -54,7 +61,11 @@ case class PostPutBusinessPolicyRequest(label: String, description: Option[Strin
 }
 
 case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
-   protected implicit val jsonFormats: Formats = DefaultFormats
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  def validate(): Unit = {
+    if (service.isDefined) BusinessUtils.validateBusinessService(service.get)
+  }
 
   /** Returns a tuple of the db action to update parts of the businessPolicy, and the attribute name being updated. */
   def getDbUpdate(businessPolicy: String, orgid: String): (DBIO[_],String) = {
@@ -409,6 +420,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     authenticate().authorizeTo(TBusiness(businessPolicy),Access.WRITE)
     val policyReq = try { parse(request.body).extract[PatchBusinessPolicyRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    policyReq.validate()
     logger.trace("PATCH /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" input: "+policyReq.toString)
     val resp = response
     val (action, attrName) = policyReq.getDbUpdate(businessPolicy, orgid)

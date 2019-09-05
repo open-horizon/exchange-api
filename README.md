@@ -183,6 +183,7 @@ To build an exchange container with code that is targeted for a git branch:
 
 - Fixed issue 207: Change use of icp-management-ingress DNS name for ICP 3.2.1 (also works in 3.2.0)
 - Fixed issue 183: Exchange node not found for POST /msgs should return 404, not 500 (also fixed it for agbot msgs)
+- Fixed issue 185: serviceVersions should never be empty
 
 ## Changes in 1.105.0
 

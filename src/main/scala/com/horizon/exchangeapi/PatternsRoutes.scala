@@ -11,10 +11,8 @@ import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
-import scala.collection.mutable
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.util._
-//import java.net._
 import scala.util.control.Breaks._
 
 //====== These are the input and output structures for /orgs/{orgid}/patterns routes. Swagger and/or json seem to require they be outside the trait.
@@ -28,21 +26,26 @@ case class PostPatternSearchRequest(serviceUrl: String, nodeOrgids: Option[List[
   def validate() = { }
 }
 
-/** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
-case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], services: List[PServices], userInput: Option[List[OneUserInputService]], agreementProtocols: Option[List[Map[String,String]]]) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate(): Unit = {
+object PatternUtils {
+  def validatePatternServices(services: List[PServices]): Unit = {
     // Check that it is signed and check the version syntax
     for (s <- services) {
       if (s.serviceVersions.isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.version.specified.for.service", s.serviceOrgid, s.serviceUrl, s.serviceArch)))
       for (sv <- s.serviceVersions) {
-        if (!Version(sv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("not.a.valid.version.format", sv.version)))
+        if (!Version(sv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("version.not.valid.format", sv.version)))
         if (sv.deployment_overrides.getOrElse("") != "" && sv.deployment_overrides_signature.getOrElse("") == "") {
           halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("pattern.definition.not.signed")))
         }
       }
     }
   }
+}
+
+/** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
+case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], services: List[PServices], userInput: Option[List[OneUserInputService]], agreementProtocols: Option[List[Map[String,String]]]) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  def validate(): Unit = { PatternUtils.validatePatternServices(services) }
 
   // Build a list of db actions to verify that the referenced services exist
   def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { PatternsTQ.validateServiceIds(services, userInput.getOrElse(List())) }
@@ -66,7 +69,11 @@ case class PostPutPatternRequest(label: String, description: Option[String], pub
 }
 
 case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], services: Option[List[PServices]], userInput: Option[List[OneUserInputService]], agreementProtocols: Option[List[Map[String,String]]]) {
-   protected implicit val jsonFormats: Formats = DefaultFormats
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  def validate(): Unit = {
+    if (services.isDefined) PatternUtils.validatePatternServices(services.get)
+  }
 
   /** Returns a tuple of the db action to update parts of the pattern, and the attribute name being updated. */
   def getDbUpdate(pattern: String, orgid: String): (DBIO[_],String) = {
@@ -488,6 +495,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
     val patternReq = try { parse(request.body).extract[PatchPatternRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    patternReq.validate()
     logger.trace("PATCH /orgs/"+orgid+"/patterns/"+barePattern+" input: "+patternReq.toString)
     val resp = response
     val (action, attrName) = patternReq.getDbUpdate(pattern, orgid)

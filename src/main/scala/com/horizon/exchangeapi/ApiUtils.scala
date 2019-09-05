@@ -113,16 +113,16 @@ object ExchConfig {
       }
     }
 
-    // Put the root user in the auth cache in case the db has not been inited yet, they need to be able to run POST /admin/initdb
+    createRootInCache()
+  }
+
+  // Put the root user in the auth cache in case the db has not been inited yet and they need to be able to run POST /admin/initdb
+  def createRootInCache(): Unit = {
     val rootpw = config.getString("api.root.password")
     if (rootpw != "") {
       AuthCache.users.put(Creds(Role.superUser, rootpw))
       logger.info("Root user from config.json added to the in-memory authentication cache")
     }
-
-    // Let them know if they are running with the in-memory db
-    if (getBoolean("api.db.memoryDb")) logger.info("Running with the in-memory DB (not the persistent postgresql DB).")
-    else logger.info("Running with the persistent postgresql DB.")
   }
 
   def reload(): Unit = load()
@@ -172,10 +172,7 @@ object ExchConfig {
   def getInt(key: String): Int = { return config.getInt(key) }
 
   /** Returns the value of the specified config variable. Throws com.typesafe.config.ConfigException.* if not found. */
-  def getBoolean(key: String): Boolean = {
-    if (key == "api.db.memoryDb") return false
-    else return config.getBoolean(key)
-  }
+  def getBoolean(key: String): Boolean = { return config.getBoolean(key) }
 }
 
 object StrConstants {

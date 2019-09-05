@@ -52,8 +52,7 @@ numHeartbeats="${EX_PERF_NUM_HEARTBEATS:-15}"
 # On average each rest api takes 0.4 seconds, which means a node's 4 repeated apis would take 1.6 seconds, so this script can do that 37.5 times in the 60 s interval,
 # thereby representing the load on the exchange of about 35 nodes
 numNodes="${EX_PERF_NUM_NODES:-50}"
-# How many nodes should be given an agreement each hb interval
-numNodeAgreements="${EX_PERF_NUM_NODE_AGREEMENTS:-7}"
+# EX_PERF_NUM_NODE_AGREEMENTS can be explicitly set to ow many nodes should be given an agreement each hb interval, otherwise it will be calculated below
 # An estimate of the average number of msgs a node will have in flight at 1 time
 numMsgs="${EX_PERF_NUM_MSGS:-5}"
 # create this many extra svcs so the nodes and patterns have to search thru them, but we will just use a primary/common svc for the pattern this group of nodes will use
@@ -123,6 +122,16 @@ CURL_BASIC_ARGS="-sS -w %{http_code} --output $EX_PERF_DEBUG_FILE $accept"
 
 source $(dirname $0)/functions.sh
 
+if [[ -n "$EX_PERF_NUM_NODE_AGREEMENTS" ]]; then
+    numNodeAgreements="$EX_PERF_NUM_NODE_AGREEMENTS"
+else
+    # Calculate the num agreements per HB to finish all of the nodes 1 or 2 HBs before the end
+    numHB=$(( $numHeartbeats - 1 ))
+    numNA=$(divide $numNodes $numHB)
+    numNA=$(round2int $numNA)
+    numNodeAgreements=$(( $numNA + 1 ))    # make sure we give them all agreements before we are done
+fi
+
 
 #=========== Initialization =================================================
 
@@ -130,7 +139,7 @@ bignum=0
 bigstart=`date +%s`
 bigstarttime=`date`
 
-echo "Initializing node test for ${namebase}:"
+echo "Initializing node test for ${namebase}, with $numHeartbeats heartbeats for $numNodes nodes and $numNodeAgreements agreements/HB:"
 
 confirmcmds curl jq
 

@@ -104,7 +104,7 @@ object AuthCache extends Control with ServletApiImplicits {
       //todo: this db access should go at the beginning of every rest api db access, using flatmap to move on to the db access the rest api is really for
       val dbHashedTok: String = try {
         //logger.trace("awaiting for DB query of local exchange creds for "+id+"...")
-        val tokVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
+        val tokVector = Await.result(db.run(a), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
         //logger.trace("...back from awaiting for DB query of local exchange creds for "+id+".")
         if (tokVector.nonEmpty) tokVector.head else ""
       } catch {
@@ -179,7 +179,7 @@ object AuthCache extends Control with ServletApiImplicits {
       try {
         if (whichTable == "users") {
           //logger.trace("awaiting for DB query of local exchange isAdmin for "+id+"...")
-          val ownerVector = Await.result(db.run(UsersTQ.getAdmin(id).result), Duration(9000, MILLISECONDS))
+          val ownerVector = Await.result(db.run(UsersTQ.getAdmin(id).result), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
           //logger.trace("...back from awaiting for DB query of local exchange isAdmin for "+id+".")
           if (ownerVector.nonEmpty) {
             if (ownerVector.head) return Some("admin")
@@ -197,7 +197,7 @@ object AuthCache extends Control with ServletApiImplicits {
             case "business" => BusinessPoliciesTQ.getOwner(id).result
           }
           //logger.trace("awaiting for DB query of local exchange owner for "+id+"...")
-          val ownerVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
+          val ownerVector = Await.result(db.run(a), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
           //logger.trace("...back from awaiting for DB query of local exchange owner for "+id+".")
           if (ownerVector.nonEmpty) /*{ logger.trace("getOwner return: "+ownerVector.head);*/ return Some(ownerVector.head) else /*{ logger.trace("getOwner return: None");*/ return None
         }
@@ -224,7 +224,7 @@ object AuthCache extends Control with ServletApiImplicits {
           case _ => return Some(false)      // should never get here
         }
         //logger.trace("awaiting for DB query of local exchange isPublic for "+id+"...")
-        val publicVector = Await.result(db.run(a), Duration(9000, MILLISECONDS))
+        val publicVector = Await.result(db.run(a), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
         //logger.trace("...back from awaiting for DB query of local exchange isPublic for "+id+".")
         if (publicVector.nonEmpty) /*{ logger.trace("getIsPublic return: "+publicVector.head);*/ return Some(publicVector.head) else /*{ logger.trace("getIsPublic return: None");*/ return None
       } catch {
@@ -300,6 +300,28 @@ object AuthCache extends Control with ServletApiImplicits {
     private def _clearIsPublic() = synchronized { isPublic.clear }
   }     // end of Cache class
 
+  def clearAllCaches(includingIbmAuth: Boolean): Unit = {
+    users.removeAll()
+    nodes.removeAll()
+    agbots.removeAll()
+    services.removeAll()
+    patterns.removeAll()
+    business.removeAll()
+    if (includingIbmAuth) IbmCloudAuth.clearCache()
+  }
+
+  def initAllCaches(db: Database, includingIbmAuth: Boolean): Unit = {
+    ExchConfig.createRoot(db)
+    users.init(db)
+    nodes.init(db)
+    agbots.init(db)
+    services.init(db)
+    patterns.init(db)
+    business.init(db)
+    if (includingIbmAuth) IbmCloudAuth.init(db)
+  }
+
+  // Note: when you add a cache here, also add it to the 2 methods above
   val users = new Cache("users")
   val nodes = new Cache("nodes")
   val agbots = new Cache("agbots")

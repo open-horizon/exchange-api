@@ -1,4 +1,5 @@
 # NLS_MESSAGEFORMAT_ALL
+# NLS_ENCODING=UTF-8
 post.ok=post ok
 invalid.credentials=invalid credentials
 access.denied=access denied

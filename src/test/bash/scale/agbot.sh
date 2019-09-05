@@ -132,7 +132,7 @@ bignum=0
 bigstart=`date +%s`
 bigstarttime=`date`
 
-echo "Initializing agbot test for ${namebase}:"
+echo "Initializing agbot test for ${namebase} with $numAgrChecks agreement checks:"
 
 confirmcmds curl jq
 

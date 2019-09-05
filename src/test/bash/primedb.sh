@@ -45,6 +45,7 @@ contenttext="-H Content-Type:text/plain"
 
 orgid="IBM"
 orgid2="org2"
+orgicp="major-peacock-icp-cluster"
 
 userauth="$orgid/$user:$pw"
 email=$EXCHANGE_EMAIL
@@ -196,6 +197,14 @@ if [[ $rc == 404 ]]; then
     curlcreate "POST" "$rootauth" "orgs/$orgidcloud" '{"label": "Carls org", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
 else
     echo "orgs/$orgidcloud exists"
+fi
+
+rc=$(curlfind "$rootauth" "orgs/$orgicp")
+checkrc "$rc" 200 404
+if [[ $rc == 404 ]]; then
+    curlcreate "POST" "$rootauth" "orgs/$orgicp" '{"label": "'$orgicp'", "description": "blah blah" }'
+else
+    echo "orgs/$orgicp exists"
 fi
 
 rc=$(curlfind "$rootauth" "orgs/$orgid2")

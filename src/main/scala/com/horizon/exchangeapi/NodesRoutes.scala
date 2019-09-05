@@ -1621,6 +1621,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           } else if (t.getMessage.startsWith("Access Denied:")) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, t.getMessage))
+          } else if (t.getMessage.contains("is not present in table")) {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.msg.nodeid.not.found", nodeId, t.getMessage))
           } else {
             resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, t.toString))

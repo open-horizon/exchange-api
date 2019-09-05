@@ -935,7 +935,7 @@ class NodesSuite extends FunSuite {
   //~~~~~ Node errors ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
-    val errorLogEvent = ErrorLogEvent("1", "test error 1", "500", false)
+    val errorLogEvent = ErrorLogEvent("1", "test error 1", "500", hidden = false)
     val input = PutNodeErrorRequest(List[ErrorLogEvent](errorLogEvent))
     val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("POST DATA: " + write(input))
@@ -957,8 +957,8 @@ class NodesSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node with 2 errors") {
-    val errorLogEvent1 = ErrorLogEvent("1", "test error 1", "500", false)
-    val errorLogEvent2 = ErrorLogEvent("2", "test error 2", "404", true)
+    val errorLogEvent1 = ErrorLogEvent("1", "test error 1", "500", hidden = false)
+    val errorLogEvent2 = ErrorLogEvent("2", "test error 2", "404", hidden = true)
     val input = PutNodeErrorRequest(List[ErrorLogEvent](errorLogEvent1, errorLogEvent2))
     val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("POST DATA: " + write(input))
@@ -1467,6 +1467,13 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"foo/msgs - Send a msg from agbot1 to nonexistant node, should fail") {
+    val input = PostNodesMsgsRequest("{msg1 from agbot1 to node1}", 300)
+    val response = Http(URL+"/nodes/"+nodeId+"foo/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
+
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/msgs - Send a msg from agbot1 to node1") {
     val input = PostNodesMsgsRequest("{msg1 from agbot1 to node1}", 300)
     val response = Http(URL+"/nodes/"+nodeId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -1558,6 +1565,13 @@ class NodesSuite extends FunSuite {
     assert(resp2.messages.size === 0)
   }
 
+
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"foo/msgs from node1 to nonexistant agbot, should fail") {
+    val input = PostAgbotsMsgsRequest("{msg1 from node1 to agbot1}", 300)
+    val response = Http(URL+"/agbots/"+agbotId+"foo/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND)
+  }
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs from node1 to agbot1") {
     val input = PostAgbotsMsgsRequest("{msg1 from node1 to agbot1}", 300)

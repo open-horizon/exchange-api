@@ -493,7 +493,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.added", patId))
         case Failure(t) => if (t.getMessage.contains("duplicate key")) {
           resp.setStatus(HttpCode.ALREADY_EXISTS2)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("pattern.already.exists", patId, compositeId))
+          ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("pattern.foragbot.already.exists", patId, compositeId))
         } else if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
           ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("pattern.not.inserted", patId, compositeId, t.getMessage))
@@ -689,7 +689,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.added", busPolId))
         case Failure(t) => if (t.getMessage.contains("duplicate key")) {
           resp.setStatus(HttpCode.ALREADY_EXISTS2)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("buspol.already.exists", busPolId, compositeId))
+          ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("buspol.foragbot.already.exists", busPolId, compositeId))
         } else if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
           ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("buspol.not.inserted", busPolId, compositeId, t.getMessage))

@@ -24,7 +24,7 @@ class DbConnectionException(msg: String) extends AuthException(HttpCode.BAD_GW, 
 
 class InvalidCredentialsException(msg: String = ExchangeMessage.translateMessage("invalid.credentials")) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
 
-class UserCreateException(msg: String = ExchangeMessage.translateMessage("error.creating.user")) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
+class UserCreateException(msg: String = ExchangeMessage.translateMessage("error.creating.user.noargs")) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
 
 // The IAM token we were given was expired, or some similar problem
 class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)

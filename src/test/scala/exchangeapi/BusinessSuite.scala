@@ -175,6 +175,16 @@ class BusinessSuite extends FunSuite {
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
+  test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - with no service versions - should fail") {
+    val input = PostPutBusinessPolicyRequest("Bad BusinessPolicy", None,
+      BService(svcurl, orgid, svcarch, List(), None),
+      None, None, None
+    )
+    val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" with invalid svc ref in userInput") {
     val input = PostPutBusinessPolicyRequest(businessPolicy, Some("desc"),
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None ),
@@ -402,13 +412,19 @@ class BusinessSuite extends FunSuite {
 
   //~~~~~ Patch and get (verify) business policies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - no service versions") {
+    val jsonInput = """{ "service": [{ "org": """"+orgid+"""", "name": """"+svcurl+"""", "arch": """"+svcarch+"""", "serviceVersions": [] }] }"""
+    val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
   test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - userInput with an invalid service ref") {
     val jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": "fooarch", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
-
 
   test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - the description and userInput as user") {
     var jsonInput = """{ "description": "this is now patched" }"""

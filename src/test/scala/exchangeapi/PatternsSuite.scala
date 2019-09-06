@@ -290,6 +290,16 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
+  test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" with no service versions - should fail") {
+    val input = PostPutPatternRequest(pattern, None, None,
+      List( PServices(svcurl, orgid, svcarch, None, List(), None, None )),
+      None, None
+    )
+    val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" with invalid svc ref in userInput") {
     val input = PostPutPatternRequest(pattern, Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), None, None)), None, None )),
@@ -624,6 +634,13 @@ class PatternsSuite extends FunSuite {
   }
 
   //~~~~~ Patch and get (verify) patterns ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - no service versions") {
+    val jsonInput = """{ "services": [{ "serviceUrl": """"+svcurl+"""", "serviceOrgid": """"+orgid+"""", "serviceArch": """"+svcarch+"""", "serviceVersions": [] }] }"""
+    val response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
 
   test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - userInput with an invalid svc ref") {
     val jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": "fooarch", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""

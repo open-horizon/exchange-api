@@ -1184,6 +1184,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           } else if (t.getMessage.startsWith("Access Denied:")) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, t.getMessage))
+        } else if (t.getMessage.contains("is not present in table")) {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.message.agbotid.not.found", compositeId, t.getMessage))
           } else {
             resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, t.toString))

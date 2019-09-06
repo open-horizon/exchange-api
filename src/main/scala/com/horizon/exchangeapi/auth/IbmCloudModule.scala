@@ -214,14 +214,14 @@ object IbmCloudAuth {
   }
 
   private def getIcpMgmtIngressUrl = {
-    // https://$ICP_EXTERNAL_MGMT_INGRESS  or  https://icp-management-ingress:$ICP_MANAGEMENT_INGRESS_SERVICE_PORT
+    // https://$ICP_EXTERNAL_MGMT_INGRESS  or  https://icp-management-ingress.kube-system:$ICP_MANAGEMENT_INGRESS_SERVICE_PORT
     if (sys.env.get("ICP_EXTERNAL_MGMT_INGRESS").nonEmpty) {
       val ICP_EXTERNAL_MGMT_INGRESS = sys.env.getOrElse("ICP_EXTERNAL_MGMT_INGRESS", "")
       s"https://$ICP_EXTERNAL_MGMT_INGRESS"
     } else {
       // ICP kube automatically sets this env var and hostname
       val ICP_MANAGEMENT_INGRESS_SERVICE_PORT = sys.env.getOrElse("ICP_MANAGEMENT_INGRESS_SERVICE_PORT", "8443")
-      s"https://icp-management-ingress:$ICP_MANAGEMENT_INGRESS_SERVICE_PORT"
+      s"https://icp-management-ingress.kube-system:$ICP_MANAGEMENT_INGRESS_SERVICE_PORT"
     }
   }
 

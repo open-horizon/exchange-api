@@ -691,6 +691,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val patValidateAction = if (node.pattern != "") PatternsTQ.getPattern(node.pattern).length.result else DBIO.successful(1)
     val (valServiceIdActions, svcRefs) = node.validateServiceIds  // to check that the services referenced in userInput exist
     db.run(patValidateAction.asTry.flatMap({ xs =>
+      // Check if pattern exists, then get services referenced
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
       xs match {
         case Success(num) => if (num > 0) valServiceIdActions.asTry
@@ -698,6 +699,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
+      // Check if referenced services exist, then get whether node is using policy
       logger.debug("PUT /orgs/"+orgid+"/nodes"+bareId+" service validation: "+xs.toString)
       xs match {
         case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
@@ -707,7 +709,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
               break
             }
           } }
-          if (invalidIndex < 0) NodesTQ.getNumOwned(owner).result.asTry
+          if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(id).result.asTry
           else {
             val errStr = if (invalidIndex < svcRefs.length) ExchangeMessage.translateMessage("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
             else ExchangeMessage.translateMessage("service.not.in.exchange.index", Nth(invalidIndex+1))
@@ -716,6 +718,19 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
+      // Check if node is using policy, then get num nodes already owned
+      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" policy related attrs: "+xs.toString)
+      xs match {
+        case Success(v) => if (v.nonEmpty) {
+            val (existingPattern, existingPublicKey) = v.head
+            if (node.pattern!="" && existingPattern=="" && existingPublicKey!="") DBIO.failed(new Throwable(ExchangeMessage.translateMessage("not.pattern.when.policy"))).asTry
+            else NodesTQ.getNumOwned(owner).result.asTry   // they are not trying to switch from policy to pattern, so we can continue
+          }
+          else NodesTQ.getNumOwned(owner).result.asTry    // node doesn't exit yet, we can continue
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      // Check if num nodes owned is below limit, then create/update node
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" num owned: "+xs)
       xs match {
         case Success(numOwned) => val maxNodes = ExchConfig.getInt("api.limits.maxNodes")
@@ -727,6 +742,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
+      // Check creation/update of node, and other errors
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" result: "+xs.toString)
       xs match {
         case Success(_) => AuthCache.nodes.putBoth(Creds(id,node.token),owner)    // the token passed in to the cache should be the non-hashed one
@@ -775,6 +791,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val (valServiceIdActions, svcRefs) = if (attrName == "userInput") NodesTQ.validateServiceIds(node.userInput.get)
       else (DBIO.successful(Vector()), Vector())
     db.run(patValidateAction.asTry.flatMap({ xs =>
+      // Check if pattern exists, then get services referenced
       logger.debug("PATCH /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
       xs match {
         case Success(num) => if (num > 0) valServiceIdActions.asTry
@@ -782,6 +799,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
+      // Check if referenced services exist, then get whether node is using policy
       logger.debug("PATCH /orgs/"+orgid+"/nodes"+bareId+" service validation: "+xs.toString)
       xs match {
         case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
@@ -791,12 +809,24 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
               break
             }
           } }
-          if (invalidIndex < 0) action.transactionally.asTry
+          if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(id).result.asTry
           else {
             val errStr = if (invalidIndex < svcRefs.length) ExchangeMessage.translateMessage("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
             else ExchangeMessage.translateMessage("service.not.in.exchange.index", Nth(invalidIndex+1))
             DBIO.failed(new Throwable(errStr)).asTry
           }
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    }).flatMap({ xs =>
+      // Check if node is using policy, then update node
+      logger.debug("PATCH /orgs/"+orgid+"/nodes/"+bareId+" policy related attrs: "+xs.toString)
+      xs match {
+        case Success(v) => if (v.nonEmpty) {
+          val (existingPattern, existingPublicKey) = v.head
+          if (node.pattern.getOrElse("")!="" && existingPattern=="" && existingPublicKey!="") DBIO.failed(new Throwable(ExchangeMessage.translateMessage("not.pattern.when.policy"))).asTry
+          else action.transactionally.asTry   // they are not trying to switch from policy to pattern, so we can continue
+        }
+        else action.transactionally.asTry    // node doesn't exit yet, we can continue
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>

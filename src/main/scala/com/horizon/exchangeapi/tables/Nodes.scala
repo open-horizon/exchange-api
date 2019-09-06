@@ -150,6 +150,7 @@ object NodesTQ {
   def getLastHeartbeat(id: String) = rows.filter(_.id === id).map(_.lastHeartbeat)
   def getPublicKey(id: String) = rows.filter(_.id === id).map(_.publicKey)
   def getArch(id: String) = rows.filter(_.id === id).map(_.arch)
+  def getNodeUsingPolicy(id: String) = rows.filter(_.id === id).map(x => (x.pattern, x.publicKey))
 
   def setLastHeartbeat(id: String, lastHeartbeat: String) = rows.filter(_.id === id).map(_.lastHeartbeat).update(lastHeartbeat)
 

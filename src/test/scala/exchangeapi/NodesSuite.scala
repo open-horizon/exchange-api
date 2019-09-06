@@ -72,6 +72,7 @@ class NodesSuite extends FunSuite {
   val orgnodeId4 = authpref+nodeId4
   val nodeId5 = "n5"      // not ever successfully created
   val orgnodeId5 = authpref+nodeId5
+  val nodePubKey = "NODEABC"
   val patid = "p1"
   val businessPolicySdr = "mybuspolsdr"
   val businessPolicySdr2 = "mybuspolsdr2"
@@ -114,13 +115,33 @@ class NodesSuite extends FunSuite {
     }
   }
 
-  /** Patches all of the nodes to have a pattern or blank out the pattern (for business policy and node health searches) */
-  def patchNodePattern(pattern: String): Unit = {
+  def patchNodePublicKey(nodeid: String, publicKey: String): Unit = {
+    val jsonInput = """{ "publicKey": """"+publicKey+"""" }"""
+    val response = Http(URL + "/nodes/" + nodeid).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("PATCH "+nodeid+", code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  def patchNodePattern(nodeid: String, pattern: String): Unit = {
     val jsonInput = """{ "pattern": """"+pattern+"""" }"""
+    val response = Http(URL + "/nodes/" + nodeid).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("PATCH "+nodeid+", code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  /** Patches all of the nodes to have a pattern or blank out the pattern (for business policy and node health searches) */
+  def patchAllNodePatterns(pattern: String): Unit = {
+    // Can not change the pattern when the publicKey is set, so have to blank it first, and then restore it afterward
     for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
-      val response = Http(URL + "/nodes/" + i).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-      info("PATCH "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK)
+      patchNodePublicKey(i, "")
+    }
+
+    for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
+      patchNodePattern(i, pattern)
+    }
+
+    for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
+      patchNodePublicKey(i, nodePubKey)
     }
   }
 
@@ -166,7 +187,7 @@ class NodesSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - before pattern exists - should fail") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
       None,
-      None, None, Some(Map("horizon"->"3.2.3")), "NODEABC", None)
+      None, None, Some(Map("horizon"->"3.2.3")), nodePubKey, None)
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT)
@@ -243,14 +264,14 @@ class NodesSuite extends FunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - add node with invalid svc ref in userInput") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid, None,
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, Some("[9.9.9,9.9.9]"), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      None, None, "NODEABC", None)
+      None, None, nodePubKey, None)
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - add normal node as user") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - add normal node as user, but with no pattern yet") {
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", "",
       Some(List(
         RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
@@ -263,20 +284,22 @@ class NodesSuite extends FunSuite {
           Prop("version","1.0.0","version","in")))
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      None, Some(Map("horizon"->"3.2.3")), "NODEABC", None)
+      None, Some(Map("horizon"->"3.2.3")), nodePubKey, None)
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+" - add node in 2nd org") {
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid, None, None, None, None, "NODEABCORG2", None)
-    val response = Http(URL2+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - try to set pattern when publicKey already exists - should fail") {
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid,
+      None, None, None, None, nodePubKey, None)
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.BAD_INPUT)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal - update as user") {
+    patchNodePublicKey(nodeId, "")   // 1st blank the publicKey so we are allowed to set the pattern
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal-user", compositePatid,
       Some(List(
         RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId+" pws}",List(
@@ -312,8 +335,15 @@ class NodesSuite extends FunSuite {
           Prop("version","1.0.0","version","in")))
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(""), Some(Map("horizon"->"3.2.1")), "NODEABC", Some("amd64"))
+      Some(""), Some(Map("horizon"->"3.2.1")), nodePubKey, Some("amd64"))
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+" - add node in 2nd org") {
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid, None, None, None, None, nodePubKey, None)
+    val response = Http(URL2+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
   }
@@ -324,7 +354,7 @@ class NodesSuite extends FunSuite {
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", Some("amd64"))
+      Prop("dataVerification","true","boolean","="))))), None, None, None, nodePubKey, Some("amd64"))
     val response = Http(URL+"/nodes/"+nodeId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -347,7 +377,7 @@ class NodesSuite extends FunSuite {
       Prop("arch","arm","string","in"),
       Prop("memory","400MB","int",">="),
       Prop("version","2.0.0","version","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE4ABC", Some("arm"))
+      Prop("dataVerification","true","boolean","="))))), None, None, None, nodePubKey, Some("arm"))
     val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
@@ -386,7 +416,7 @@ class NodesSuite extends FunSuite {
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE4ABC", Some("arm"))
+      Prop("dataVerification","true","boolean","="))))), None, None, None, nodePubKey, Some("arm"))
     val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -747,8 +777,23 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
+  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - try to go from blank pattern to nonblank pattern - should fail") {
+    patchNodePattern(nodeId, "")    // First blank out the pattern
+
+    // Now try to set the pattern - should fail
+    val jsonInput = """{ "pattern": """"+compositePatid+"""" }"""
+    val response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+
+    // Restore the pattern
+    patchNodePublicKey(nodeId, "")
+    patchNodePattern(nodeId, compositePatid)
+    patchNodePublicKey(nodeId, nodePubKey)
+  }
+
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - as node") {
-    var jsonInput = """{ "publicKey": "NODEABC" }"""
+    var jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
     var response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -766,7 +811,7 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.OK)
     val getNodeResp = parse(response.body).extract[GetNodeAttributeResponse]
     assert(getNodeResp.attribute === "publicKey")
-    assert(getNodeResp.value === "NODEABC")
+    assert(getNodeResp.value === nodePubKey)
 
     response = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(NODEAUTH).param("attribute","userInput").asString
     info("code: "+response.code)
@@ -808,7 +853,7 @@ class NodesSuite extends FunSuite {
     assert(nodes.length === 4)
     assert(nodes.count(d => d.id==orgnodeId || d.id==org2nodeId || d.id==orgnodeId2 || d.id==orgnodeId4) === 4)
     val dev = nodes.find(d => d.id == orgnodeId).get // the 2nd get turns the Some(val) into val
-    assert(dev.publicKey === "NODEABC")
+    assert(dev.publicKey === nodePubKey)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+PWSSPEC+" which is not in the pattern, so should fail") {
@@ -854,7 +899,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - all nodes (no agreements yet)") {
-    patchNodePattern("")      // remove pattern from nodes so we can search for services
+    patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
     val input = PostBusinessPolicySearchRequest(None, 0, None, None)
     val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -864,7 +909,7 @@ class NodesSuite extends FunSuite {
     assert(nodes.length === 4)     // we created 4 nodes in this org
     assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
     val dev = nodes.find(d => d.id == orgnodeId).get
-    assert(dev.publicKey === "NODEABC")
+    assert(dev.publicKey === nodePubKey)
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+"/search - as agbot") {
@@ -1051,7 +1096,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement") {
-    patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
+    patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
     val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1114,7 +1159,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - 1 node in sdr agreement") {
-    patchNodePattern("")      // remove pattern from nodes so we can search for services
+    patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
     val input = PostBusinessPolicySearchRequest(None, 0, None, None)
     val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -1197,7 +1242,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement, should get same result as before") {
-    patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
+    patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
     val input = PostPatternSearchRequest(SDRSPEC, None, 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
@@ -1211,7 +1256,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - the pws agreement shouldn't affect this") {
-    patchNodePattern("")      // remove pattern from nodes so we can search for services
+    patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
     val input = PostBusinessPolicySearchRequest(None, 0, None, None)
     val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -1236,7 +1281,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+NETSPEEDSPEC+" - with "+nodeId+" in agreement") {
-    patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
+    patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
     val input = PostPatternSearchRequest(NETSPEEDSPEC, None, 86400, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1259,11 +1304,11 @@ class NodesSuite extends FunSuite {
     assert(nodes.length === 4)
     assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
     val dev = nodes.find(d => d.id == orgnodeId).get // the 2nd get turns the Some(val) into val
-    assert(dev.publicKey === "NODEABC")
+    assert(dev.publicKey === nodePubKey)
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+"/search - the netspeed agreement means we should return 1 less node") {
-    patchNodePattern("")      // remove pattern from nodes so we can search for services
+    patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
     val input = PostBusinessPolicySearchRequest(None, 0, None, None)
     val response = Http(URL+"/business/policies/"+businessPolicyNS+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -1277,7 +1322,7 @@ class NodesSuite extends FunSuite {
   //~~~~~ Staleness tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - all nodes stale") {
-    patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
+    patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
     Thread.sleep(1100)    // delay 1.1 seconds so all nodes will be stale
     val input = PostPatternSearchRequest(SDRSPEC, None, 1, 0, 0)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -1336,7 +1381,7 @@ class NodesSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - with a sleep, so all nodes are stale") {
-    patchNodePattern("")      // remove pattern from nodes so we can search for services
+    patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
     Thread.sleep(2100)    // delay 2.1 seconds so all nodes will be stale
     val input = PostBusinessPolicySearchRequest(None, ApiTime.nowSeconds, None, None)
     val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -1443,7 +1488,7 @@ class NodesSuite extends FunSuite {
       val input = PutNodesRequest(nodeToken, "rpi"+nodeId5+"-netspeed", compositePatid, Some(List(RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId5+" netspeed}",List(
         Prop("arch","arm","string","in"),
         Prop("version","1.0.0","version","in"),
-        Prop("agreementProtocols",agProto,"list","in"))))), None, None, None, "NODE4ABC", None)
+        Prop("agreementProtocols",agProto,"list","in"))))), None, None, None, nodePubKey, None)
       response = Http(URL+"/nodes/"+nodeId5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
@@ -1628,17 +1673,17 @@ class NodesSuite extends FunSuite {
     var msg = resp.messages.find(m => m.message=="{msg1 from node1 to agbot1}").orNull
     assert(msg !== null)
     assert(msg.nodeId === orgnodeId)
-    assert(msg.nodePubKey === "NODEABC")
+    assert(msg.nodePubKey === nodePubKey)
 
     msg = resp.messages.find(m => m.message=="{msg2 from node1 to agbot1}").orNull
     assert(msg !== null)
     assert(msg.nodeId === orgnodeId)
-    assert(msg.nodePubKey === "NODEABC")
+    assert(msg.nodePubKey === nodePubKey)
 
     msg = resp.messages.find(m => m.message=="{msg1 from node2 to agbot1}").orNull
     assert(msg !== null)
     assert(msg.nodeId === orgnodeId2)
-    assert(msg.nodePubKey === "NODE2ABC")
+    assert(msg.nodePubKey === nodePubKey)
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId2+"/msgs - then delete and get again") {
@@ -1650,7 +1695,7 @@ class NodesSuite extends FunSuite {
     val msg = resp.messages.find(m => m.message == "{msg1 from node2 to agbot2}").orNull
     assert(msg !== null)
     assert(msg.nodeId === orgnodeId2)
-    assert(msg.nodePubKey === "NODE2ABC")
+    assert(msg.nodePubKey === nodePubKey)
     val msgId = msg.msgId
 
     response = Http(URL+"/agbots/"+agbotId2+"/msgs/"+msgId).method("delete").headers(ACCEPT).headers(AGBOT2AUTH).asString

@@ -222,13 +222,14 @@ object NodeStatusTQ {
 case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], lastUpdated: String)
 
 //Node Errors
-case class ErrorLogEvent(record_id: String, message: String, event_code: String, hidden: Boolean)
+// We are using the type Any instead of this case class so anax and the UI can change the fields w/o our code having to change
+//case class ErrorLogEvent(record_id: String, message: String, event_code: String, hidden: Boolean)
 
 case class NodeErrorRow(nodeId: String, errors: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNodeError: NodeError = {
-    val err = if (errors != "") read[List[ErrorLogEvent]](errors) else List[ErrorLogEvent]()
+    val err = if (errors != "") read[List[Any]](errors) else List[Any]()
     return NodeError(err, lastUpdated)
   }
 
@@ -248,7 +249,7 @@ object NodeErrorTQ {
   def getNodeError(nodeId: String) = rows.filter(_.nodeId === nodeId)
 }
 
-case class NodeError(errors: List[ErrorLogEvent], lastUpdated: String)
+case class NodeError(errors: List[Any], lastUpdated: String)
 
 case class NodePolicyRow(nodeId: String, properties: String, constraints: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats

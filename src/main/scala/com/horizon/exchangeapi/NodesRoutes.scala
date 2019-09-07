@@ -238,7 +238,7 @@ case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: Lis
   def toNodeStatusRow(nodeId: String) = NodeStatusRow(nodeId, write(connectivity), write(services), ApiTime.nowUTC)
 }
 
-case class PutNodeErrorRequest(errors: List[ErrorLogEvent]) {
+case class PutNodeErrorRequest(errors: List[Any]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = { }
 
@@ -1050,20 +1050,20 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val id = OrgAndId(orgid,bareId).toString
     authenticate().authorizeTo(TNode(id),Access.WRITE)
     val error = try { parse(request.body).extract[PutNodeErrorRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     error.validate()
     val resp = response
     db.run(error.toNodeErrorRow(id).upsert.asTry).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/errors result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, "error added or updated")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.errors.added"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, "error for node '"+id+"' not inserted or updated: "+t.getMessage)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.errors.not.inserted", id, t.getMessage))
         } else {
           resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "error for node '"+id+"' not inserted or updated: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.errors.not.inserted", id, t.toString))
         }
       }
     })
@@ -1093,13 +1093,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "node errors deleted")
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.errors.deleted"))
         } else {
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, "errors for node '"+id+"' not found")
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.errors.not.found", id))
         }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "errors for node '"+id+"' not deleted: "+t.toString)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.errors.not.deleted", id, t.toString))
       }
     })
   })

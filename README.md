@@ -179,6 +179,10 @@ To build an exchange container with code that is targeted for a git branch:
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.107.0
+
+- Implemented issue 204: made `nodes/{id}/errors` more flexible so anax can add whatever fields they want
+
 ## Changes in 1.106.0
 
 - Fixed issue 207: Change use of icp-management-ingress DNS name for ICP 3.2.1 (also works in 3.2.0)

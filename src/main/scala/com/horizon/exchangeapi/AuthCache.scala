@@ -43,7 +43,7 @@ object AuthCache extends Control with ServletApiImplicits {
   /** Holds recently authenticated users, node ids, agbot ids */
   class CacheId() {
     // For this cache the key is the id (already prefixed with the org) and the value is this class
-    case class CacheVal(hashedToken: String, idType: CacheIdType = CacheIdType.None)
+    case class CacheVal(hashedToken: String, unhashedToken: String = "", idType: CacheIdType = CacheIdType.None)
 
     private val guavaCache = CacheBuilder.newBuilder()
       .maximumSize(ExchConfig.getInt("api.cache.idsSize"))
@@ -52,38 +52,44 @@ object AuthCache extends Control with ServletApiImplicits {
     implicit val userCache = GuavaCache(guavaCache)   // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
     private var db: Database = _
 
-    def init(db: Database): Unit = { this.db = db }
+    def init(db: Database): Unit = { this.db = db }   // we intentionally don't prime the cache. We let it build on every access so we can add the unhashed token
 
     // Try to authenticate the creds and return the type (user/node/agbot) it is, or None
     def getValidType(creds: Creds): CacheIdType = {
       logger.debug("CacheId:getValidType(): attempting to authenticate to the exchange with "+creds)
-      val cacheValue = getCacheValue(creds.id)
+      val cacheValue = getCacheValue(creds)
       if (cacheValue.isFailure) return CacheIdType.None
       // we got the hashed token from the cache or db, now verify the token passed in
-      if (Password.check(creds.token, cacheValue.get.hashedToken)) {
-        logger.debug("CacheId:getValidType(): successfully matched "+creds.id+" and its pw in the cache/db")
-        return cacheValue.get.idType
+      val cacheVal = cacheValue.get
+      if (cacheVal.unhashedToken != "" && creds.token == cacheVal.unhashedToken) {    // much faster than the bcrypt check below
+        logger.debug("CacheId:getValidType(): successfully quick-validated "+creds.id+" and its pw using the cache/db")
+        return cacheVal.idType
+      } else if (Password.check(creds.token, cacheVal.hashedToken)) {
+        logger.debug("CacheId:getValidType(): successfully validated "+creds.id+" and its pw using the cache/db")
+        return cacheVal.idType
       } else {
+        //TODO: if we only used a non-expired cache entry to get here, the cache entry could be stale (e.g. they recently changed their pw/token via a different instance of the exchange).
+        //      So refresh they cache entry from the db.
         logger.debug("CacheId:getValidType(): user "+creds.id+" not authenticated in the exchange")
         return CacheIdType.None
       }
     }
 
     // I currently don't know how to make the cachingF function run and get its value w/o putting it in a separate method
-    private def getCacheValue(id: String): Try[CacheVal] = {
-      cachingF(id)(ttl = None) {
+    private def getCacheValue(creds: Creds): Try[CacheVal] = {
+      cachingF(creds.id)(ttl = None) {
         for {
-          userVal <- getId(id, UsersTQ.getPassword(id).result, CacheIdType.User, None)
-          nodeVal <- getId(id, NodesTQ.getToken(id).result, CacheIdType.Node, userVal)
-          cacheVal <- getId(id, AgbotsTQ.getToken(id).result, CacheIdType.Agbot, nodeVal, last = true)
+          userVal <- getId(creds, UsersTQ.getPassword(creds.id).result, CacheIdType.User, None)
+          nodeVal <- getId(creds, NodesTQ.getToken(creds.id).result, CacheIdType.Node, userVal)
+          cacheVal <- getId(creds, AgbotsTQ.getToken(creds.id).result, CacheIdType.Agbot, nodeVal, last = true)
         } yield cacheVal.get
       }
     }
 
     // Get the id of this type from the db, if there
-    private def getId(id: String, dbAction: DBIO[Seq[String]], idType: CacheIdType, cacheVal: Option[CacheVal], last: Boolean = false): Try[Option[CacheVal]] = {
+    private def getId(creds: Creds, dbAction: DBIO[Seq[String]], idType: CacheIdType, cacheVal: Option[CacheVal], last: Boolean = false): Try[Option[CacheVal]] = {
       if (cacheVal.isDefined) return Success(cacheVal)
-      logger.debug("CacheId:getId(): "+id+" was not in the cache, so attempting to get it from the db")
+      logger.debug("CacheId:getId(): "+creds.id+" was not in the cache, so attempting to get it from the db")
       //val dbAction = NodesTQ.getToken(id).result
       val dbHashedTok: String = try {
         //logger.trace("awaiting for DB query of local exchange creds for "+id+"...")
@@ -92,31 +98,39 @@ object AuthCache extends Control with ServletApiImplicits {
         if (respVector.nonEmpty) respVector.head else ""
       } catch {
         // Handle db problems
-        case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting pw/token for '"+id+"' . "+timeout.getMessage)
-          throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.token", id, timeout.getMessage))
-        case other: Throwable => logger.error("db connection error getting pw/token for '"+id+"': "+other.getMessage)
+        case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting pw/token for '"+creds.id+"' . "+timeout.getMessage)
+          throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.token", creds.id, timeout.getMessage))
+        case other: Throwable => logger.error("db connection error getting pw/token for '"+creds.id+"': "+other.getMessage)
           throw new DbConnectionException(ExchangeMessage.translateMessage("db.threw.exception", other.getMessage))
       }   // end of getting dbHashedTok
 
       if (dbHashedTok == "") {
-        if (last) return Failure(new IdNotFoundException(ExchangeMessage.translateMessage("id.notfound.db", id)))
+        if (last) return Failure(new IdNotFoundException(ExchangeMessage.translateMessage("id.notfound.db", creds.id)))
         else return Success(None) // not finding it isn't an error, try the next id type
       }
-      logger.debug("CacheId:getId(): "+id+" found in the db, adding it to the cache")
-      Success(Some(CacheVal(dbHashedTok, idType)))
+      // We found this id in the db. If the user-specified creds are valid, add the unhashed token to the cache entry
+      if (creds.token!="" && Password.check(creds.token, dbHashedTok)) {
+        logger.debug("CacheId:getId(): " + creds.id + " found in the db and user creds are valid, adding both to the cache")
+        Success(Some(CacheVal(dbHashedTok, creds.token, idType))) // we only get the hashed tok from the db, the unhashed will be added by getValidType()
+      } else {
+        logger.debug("CacheId:getId(): " + creds.id + " found in the db (but user creds are not valid), adding db entry to the cache")
+        Success(Some(CacheVal(dbHashedTok, "", idType))) // we only get the hashed token from the db
+        // In this case the cache value won't have the unhashed token, because the client didn't give us the right one. Until this entry
+        // expires from the cache, we will have to do the slower bcrypt check against this entry
+      }
     }
 
-    // Called for temp token creation/validation
+    // Called for temp token creation/validation. Note: this method just gets the hashed pw, it doesn't check it against provided creds
     def getOne(id: String): Option[String] = {
-      val cacheValue = getCacheValue(id)
+      val cacheValue = getCacheValue(Creds(id,""))
       if (cacheValue.isSuccess) Some(cacheValue.get.hashedToken)
       else None
     }
 
     // The token passed in is already hashed.
-    def putUser(creds: Creds): Unit = { put(creds.id)(CacheVal(creds.token, CacheIdType.User)) }    // we need these for the test suites, but in production it will only help in this 1 exchange instance
-    def putNode(creds: Creds): Unit = { put(creds.id)(CacheVal(creds.token, CacheIdType.Node)) }
-    def putAgbot(creds: Creds): Unit = { put(creds.id)(CacheVal(creds.token, CacheIdType.Agbot)) }
+    def putUser(id: String, hashedPw: String, unhashedPw: String): Unit = { put(id)(CacheVal(hashedPw, unhashedPw, CacheIdType.User)) }    // we need these for the test suites, but in production it will only help in this 1 exchange instance
+    def putNode(id: String, hashedTok: String, unhashedTok: String): Unit = { put(id)(CacheVal(hashedTok, unhashedTok, CacheIdType.Node)) }
+    def putAgbot(id: String, hashedTok: String, unhashedTok: String): Unit = { put(id)(CacheVal(hashedTok, unhashedTok, CacheIdType.Agbot)) }
 
     def removeOne(id: String): Try[Any] = { remove(id) }
 

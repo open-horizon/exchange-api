@@ -788,7 +788,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       // Check creation/update of node, and other errors
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" result: "+xs.toString)
       xs match {
-        case Success(_) => AuthCache.ids.putNode(Creds(id,hashedTok))
+        case Success(_) => AuthCache.ids.putNode(id, hashedTok, node.token)
           AuthCache.nodesOwner.putOne(id, owner)
           resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.added.or.updated"))
@@ -880,7 +880,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(v) => try {
             val numUpdated = v.toString.toInt     // v comes to us as type Any
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              if (node.token.isDefined) AuthCache.ids.putNode(Creds(id, hashedPw))  // We do not need to run putOwner because patch does not change the owner
+              if (node.token.isDefined) AuthCache.ids.putNode(id, hashedPw, node.token.get)  // We do not need to run putOwner because patch does not change the owner
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.attribute.updated", attrName, id))
             } else {

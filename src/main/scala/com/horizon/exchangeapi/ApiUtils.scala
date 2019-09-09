@@ -119,16 +119,17 @@ object ExchConfig {
 
   // Put the root user in the auth cache in case the db has not been inited yet and they need to be able to run POST /admin/initdb
   def createRootInCache(): Unit = {
+    val rootpw = config.getString("api.root.password")
+    if (rootpw == "") {
+      logger.error("Root password is not specified in config.json, you may not be able to do any exchange operations.")
+      return
+    }
     if (rootHashedPw == "") {
       // this is the 1st time, we need to hash and save it
-      val rootpw = config.getString("api.root.password")
-      if (rootpw == "") {
-        logger.error("Root password is not specified in config.json, you may not be able to do any exchange operations.")
-        return
-      }
       rootHashedPw = Password.hashIfNot(rootpw)
     }
-    AuthCache.ids.putUser(Creds(Role.superUser, rootHashedPw))
+    val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw    // this is the 1 case in which an id cache entry could not have an unhashed pw/tok
+    AuthCache.ids.putUser(Role.superUser, rootHashedPw, rootUnhashedPw)
     logger.info("Root user from config.json added to the in-memory authentication cache")
   }
 
@@ -144,7 +145,9 @@ object ExchConfig {
     val rootpw = config.getString("api.root.password")
     if (rootpw != "") {
       //val hashedPw = Password.hashIfNot(rootpw)  <- can't hash this again, because it would be different
-      AuthCache.ids.putUser(Creds(Role.superUser, rootHashedPw))    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
+      if (rootHashedPw == "") logger.error("Internal Error: rootHashedPw not already set")
+      val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw    // this is the 1 case in which an id cache entry could not have an unhashed pw/tok
+      AuthCache.ids.putUser(Role.superUser, rootHashedPw, rootUnhashedPw)    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
       val rootemail = config.getString("api.root.email")
       // Create the root org, create the IBM org, and create the root user (all only if necessary)
       db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None).upsert.asTry.flatMap({ xs =>

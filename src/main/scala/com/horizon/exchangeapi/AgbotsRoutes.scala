@@ -247,7 +247,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
       xs match {
-        case Success(_) => AuthCache.ids.putAgbot(Creds(compositeId, hashedTok))
+        case Success(_) => AuthCache.ids.putAgbot(compositeId, hashedTok, agbot.token)
           AuthCache.agbotsOwner.putOne(compositeId, owner)
           resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.added.updated"))
@@ -288,8 +288,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     //logger.trace("PATCH /orgs/"+orgid+"/agbots/"+id+" input: "+agbot.toString)
     val resp = response
-    val hashedPw = if (agbot.token.isDefined) Password.hash(agbot.token.get) else ""    // hash the token if that is what is being updated
-    val (action, attrName) = agbot.getDbUpdate(compositeId, orgid, hashedPw)
+    val hashedTok = if (agbot.token.isDefined) Password.hash(agbot.token.get) else ""    // hash the token if that is what is being updated
+    val (action, attrName) = agbot.getDbUpdate(compositeId, orgid, hashedTok)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.agbot.attribute.specified")))
     db.run(action.transactionally.asTry).map({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
@@ -297,7 +297,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         case Success(v) => try {
             val numUpdated = v.toString.toInt     // v comes to us as type Any
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              if (agbot.token.isDefined) AuthCache.ids.putAgbot(Creds(compositeId, hashedPw))  // We do not need to run putOwner because patch does not change the owner
+              if (agbot.token.isDefined) AuthCache.ids.putAgbot(compositeId, hashedTok, agbot.token.get)  // We do not need to run putOwner because patch does not change the owner
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.attribute.updated", attrName, compositeId))
             } else {

@@ -10,10 +10,10 @@ class AuthException(var httpCode: Int, var apiResponse: String, msg: String) ext
 class UserFacingError(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
 
 // The creds werent ibm cloud creds, so return gracefully and move on to the next login module
-class NotIbmCredsException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
+class NotIbmCredsException extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, "User is not iamapikey or iamtoken, so credentials are not IBM cloud IAM credentials")
 
 // The creds werent local exchange creds, so return gracefully and move on to the next login module
-class NotLocalCredsException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
+class NotLocalCredsException extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, "User is iamapikey or iamtoken, so credentials are not local Exchange credentials")
 
 // We are in the middle of a db migration, so cant authenticate/authorize anything else
 class IsDbMigrationException(msg: String = ExchangeMessage.translateMessage("in.process.db.migration")) extends AuthException(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, msg)

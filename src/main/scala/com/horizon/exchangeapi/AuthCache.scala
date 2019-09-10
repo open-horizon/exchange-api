@@ -105,7 +105,7 @@ object AuthCache extends Control with ServletApiImplicits {
       }   // end of getting dbHashedTok
 
       if (dbHashedTok == "") {
-        if (last) return Failure(new IdNotFoundException(ExchangeMessage.translateMessage("id.notfound.db", creds.id)))
+        if (last) return Failure(new IdNotFoundException)
         else return Success(None) // not finding it isn't an error, try the next id type
       }
       // We found this id in the db. If the user-specified creds are valid, add the unhashed token to the cache entry
@@ -181,7 +181,7 @@ object AuthCache extends Control with ServletApiImplicits {
           logger.debug("CacheBoolean:getId(): "+id+" found in the db, adding it with value "+isValue+" to the cache")
           Success(isValue)
         }
-        else Failure(new IdNotFoundException(ExchangeMessage.translateMessage("id.notfound.db", id)))
+        else Failure(new IdNotFoundException)
       } catch {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting "+attrName+" boolean for '"+id+"' . "+timeout.getMessage)
@@ -264,7 +264,7 @@ object AuthCache extends Control with ServletApiImplicits {
           logger.debug("CacheOwner:getId(): "+id+" found in the db, adding it with value "+owner+" to the cache")
           Success(owner)
         }
-        else Failure(new IdNotFoundException(ExchangeMessage.translateMessage("id.notfound.db", id)))
+        else Failure(new IdNotFoundException)
       } catch {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting owner for '"+id+"' . "+timeout.getMessage)

@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -38,11 +39,16 @@ func GetEnvVarWithDefault(envVarName, defaultValue string) string {
 	return envVarValue
 }
 
-func IsVerbose() bool {
-	if GetEnvVarWithDefault("VERBOSE", "false") == "true" {
-		return true
+func GetEnvVarIntWithDefault(envVarName string, defaultValue int) int {
+	envVarValue := os.Getenv(envVarName)
+	if envVarValue == "" {
+		return defaultValue
 	}
-	return false
+	return Str2int(envVarValue)
+}
+
+func IsVerbose() bool {
+	return GetEnvVarWithDefault("VERBOSE", "false") == "true"
 }
 
 func Verbose(msg string, args ...interface{}) {
@@ -61,6 +67,14 @@ func Fatal(exitCode int, msg string, args ...interface{}) {
 	}
 	fmt.Fprintf(os.Stderr, "Error: "+msg, args...)
 	os.Exit(exitCode)
+}
+
+func Str2int(str string) int {
+	i, err := strconv.Atoi(str)
+	if err != nil {
+		Fatal(2, "could not convert "+str+" to an integer number")
+	}
+	return i
 }
 
 // Unmarshal simply calls json.Unmarshal and handles any errors

@@ -4,14 +4,13 @@ package main
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/open-horizon/exchange-api/src/test/go/perfutils"
 )
 
 func Usage(exitCode int) {
-	fmt.Printf("Usage: %s num-times\n", os.Args[0])
+	fmt.Printf("Usage: %s <num-times>\n", os.Args[0])
 	os.Exit(exitCode)
 }
 
@@ -20,10 +19,7 @@ func main() {
 		Usage(1)
 	}
 
-	numTimes, err := strconv.Atoi(os.Args[1])
-	if err != nil {
-		perfutils.Fatal(2, "first arg num-times must be an integer number")
-	}
+	numTimes := perfutils.Str2int(os.Args[1])
 
 	org := "IBM"
 	nodeid := "n1"

@@ -36,6 +36,11 @@ case class NodeHealthAgreementElement(lastUpdated: String)
 class NodeHealthHashElement(var lastHeartbeat: String, var agreements: Map[String,NodeHealthAgreementElement])
 case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
 
+// Leaving this here for the UI wanting to implement filtering later
+case class PostNodeErrorRequest() {
+  def validate() = {}
+}
+case class PostNodeErrorResponse(nodes: scala.Seq[String])
 
 /** Input for service-based (citizen scientist) search, POST /orgs/"+orgid+"/search/nodes */
 case class PostSearchNodesRequest(desiredServices: List[RegServiceSearch], secondsStale: Int, propertiesToReturn: Option[List[String]], startIndex: Int, numEntries: Int) {
@@ -487,6 +492,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
+
+
   //todo: remove this once anax 2.23.7 hits prod
   // ======== POST /orgs/{orgid}/search/nodes ========================
   val postSearchNodes =
@@ -555,6 +562,58 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       val nodes = new MutableHashMap[String,Node]    // the key is node id
       if (list.nonEmpty) for (a <- list) nodes.put(a.id, a.toNode(false))
       searchProps.matches(nodes.toMap, agHash)
+    })
+  })
+
+  // ======== POST /org/{orgid}/search/nodes/error ========================
+  val postSearchNodeError =
+    (apiOperation[PostNodeHealthResponse]("postSearchNodeError")
+      summary("Returns nodes in an error state")
+      description """Returns a list of the id's of nodes in an error state. Can be run by a user or agbot (but not a node). The **request body** structure:
+
+```
+{
+  "lastTime": "2017-09-28T13:51:36.629Z[UTC]"   // only return nodes that have changed since this time, empty string returns all
+}
+```"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("body", DataType[PostNodeHealthRequest],
+        Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
+        paramType = ParamType.Body)
+    )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+  val postSearchNodeError2 = (apiOperation[PostNodeHealthRequest]("postSearchNodeError2") summary("a") description("a"))
+
+  /** Called by the UI to get the count of nodes in an error state. */
+  post("/orgs/:orgid/search/nodes/error", operation(postSearchNodeError)) ({
+    val orgid = params("orgid")
+    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
+    val searchProps = try { parse(request.body).extract[PostNodeErrorRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    searchProps.validate()
+    logger.debug("POST /orgs/"+orgid+"/search/nodes/error criteria: "+searchProps.toString)
+    val resp = response
+    val q = for {
+      (n) <- NodeErrorTQ.rows.filter(_.errors =!= "")
+    } yield n.nodeId
+    //    val q = for {
+    //      (n, a) <- NodesTQ.rows.filter(_.orgid === orgid) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+    //    } yield n.id
+    //yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
+
+    db.run(q.result).map({ list =>
+      logger.debug("POST /orgs/"+orgid+"/search/nodes/error result size: "+list.size)
+      if (list.nonEmpty) {
+        resp.setStatus(HttpCode.POST_OK)
+        PostNodeErrorResponse(list)
+      }
+      else {
+        resp.setStatus(HttpCode.NOT_FOUND)
+      }
     })
   })
 

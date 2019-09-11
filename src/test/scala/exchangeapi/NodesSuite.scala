@@ -1022,6 +1022,17 @@ class NodesSuite extends FunSuite {
     assert(response.body.contains(""""workload":{"url":"myservice2"}"""))
   }
 
+  test("POST /orgs/"+orgid+"/search/nodes/error/ - as agbot") {
+    val input = PostNodeErrorRequest()
+    val response = Http(URL+"/search/nodes/error").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    info("response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val postResp = parse(response.body).extract[PostNodeErrorResponse]
+    assert(postResp.nodes.size === 1)
+    assert(postResp.nodes.head === "NodesSuiteTests/n1")
+  }
+
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
     val response = Http(URL+"/nodes/"+nodeId+"/errors").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1032,6 +1043,64 @@ class NodesSuite extends FunSuite {
     val response = Http(URL+"/nodes/"+nodeId+"/errors").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
+  }
+
+  test("POST /orgs/"+orgid+"/search/nodes/error/ - as agbot, no errors") {
+    val input = PostNodeErrorRequest()
+    val response = Http(URL+"/search/nodes/error").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    info("response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.body.isEmpty)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node, adding the error again") {
+    val input = """{ "errors": [{ "record_id":"1", "message":"test error 1", "event_code":"500", "hidden":false, "workload":{"url":"myservice"}, "timestamp":"yesterday" }] }"""
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("POST DATA: " + write(input))
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+"/errors - add error to another node") {
+    val input = """{ "errors": [{ "record_id":"2", "message":"test error 2", "event_code":"500", "hidden":false, "workload":{"url":"myservice"}, "timestamp":"yesterday" }] }"""
+    val response = Http(URL+"/nodes/"+nodeId2+"/errors").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
+    info("POST DATA: " + write(input))
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/search/nodes/error/ - as agbot, list should have 2 nodes") {
+    val input = PostNodeErrorRequest()
+    val response = Http(URL+"/search/nodes/error").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    info("response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val postResp = parse(response.body).extract[PostNodeErrorResponse]
+    assert(postResp.nodes.size === 2)
+    assert(postResp.nodes.head === "NodesSuiteTests/n1")
+    assert(postResp.nodes(1) === "NodesSuiteTests/n2")
+  }
+
+  test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as first node again") {
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("DELETE /orgs/"+orgid+"/nodes/"+nodeId2+"/errors - as second node") {
+    val response = Http(URL+"/nodes/"+nodeId2+"/errors").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("POST /orgs/"+orgid+"/search/nodes/error/ - verify no more errors") {
+    val input = PostNodeErrorRequest()
+    val response = Http(URL+"/search/nodes/error").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    info("response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.body.isEmpty)
   }
 
   //~~~~~ Node policy ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

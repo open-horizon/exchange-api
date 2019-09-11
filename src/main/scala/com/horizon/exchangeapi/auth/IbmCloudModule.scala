@@ -37,8 +37,11 @@ case class IamUserInfo(account: Option[IamAccount], sub: String, iss: Option[Str
 }
 case class IamAccount(bss: String)
 
+// Response from /api/v1/config
+case class ClusterConfigResponse(cluster_name: String, cluster_url: String, cluster_ca_domain: String, kube_url: String, helm_host: String)
+
 // Response from ICP IAM /identity/api/v1/account
-case class TokenAccountResponse(id: String, name: String, description: String)
+//case class TokenAccountResponse(id: String, name: String, description: String)
 //s"ICP IAM authentication succeeded, but the org specified in the request ($requestOrg) does not match the org associated with the ICP credentials ($userCredsOrg)"
 
 // These error msgs are matched by UsersSuite.scala, so change them there if you change them here
@@ -132,7 +135,7 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
     val creds = credentials(reqInfo)
     val (org, id) = IbmCloudAuth.compositeIdSplit(creds.id)
     if ((id == "iamapikey" || id == "iamtoken") && creds.token.nonEmpty) Success(IamAuthCredentials(org, id, creds.token))
-    else Failure(new NotIbmCredsException(ExchangeMessage.translateMessage("not.ibm.creds.exception")))
+    else Failure(new NotIbmCredsException)
   }
 }
 
@@ -201,7 +204,7 @@ object IbmCloudAuth {
     }
   }
 
-  private def getIcpIdentityMgmtUrl = {
+  /* private def getIcpIdentityMgmtUrl = {
     // https://$ICP_EXTERNAL_MGMT_INGRESS/idmgmt  or  https://platform-identity-management:$PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT
     if (sys.env.get("ICP_EXTERNAL_MGMT_INGRESS").nonEmpty) {
       val ICP_EXTERNAL_MGMT_INGRESS = sys.env.getOrElse("ICP_EXTERNAL_MGMT_INGRESS", "")
@@ -211,7 +214,7 @@ object IbmCloudAuth {
       val PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT = sys.env.getOrElse("PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT", "4500")
       s"https://platform-identity-management:$PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT"
     }
-  }
+  } */
 
   private def getIcpMgmtIngressUrl = {
     // https://$ICP_EXTERNAL_MGMT_INGRESS  or  https://icp-management-ingress.kube-system:$ICP_MANAGEMENT_INGRESS_SERVICE_PORT
@@ -396,16 +399,23 @@ object IbmCloudAuth {
         var delayedReturn: DBIOAction[String, NoStream, Effect] = DBIO.failed(new AuthInternalErrorException(ExchangeMessage.translateMessage("iam.return.value.not.set")))
         for (i <- 1 to iamRetryNum) {
           try {
+            // If this token was authenticated via ICP IAM, we are associating that with the cluster-name org, so just get cluster name. Works for both ICP 3.2.0 and 3.2.1
+            val iamUrl = getIcpMgmtIngressUrl + "/api/v1/config"
+            logger.info("Attempt "+i+" retrieving ICP IAM cluster name from " + iamUrl)
+            val response = Http(iamUrl).method("get").option(HttpOptions.sslSocketFactory(this.sslSocketFactory)).asString
+            /* old ICP 3.2.0 method of getting the token org
             val iamUrl = getIcpIdentityMgmtUrl + "/identity/api/v1/account"
             val token = IamToken(authInfo.key)
             //logger.debug("Retrieving ICP IAM cluster name from " + iamUrl + ", token: " + token.accessToken)
             logger.info("Attempt "+i+" retrieving ICP IAM cluster name for "+authInfo.org+"/iamtoken from " + iamUrl)
             val response = Http(iamUrl).method("get").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
               .header("Authorization", s"bearer ${token.accessToken}") // Note: bearer MUST be lowercase for this rest api!!!
-              .asString
+              .asString */
             if (response.code == HttpCode.OK) {
-              val resp = parse(response.body).extract[List[TokenAccountResponse]]
-              val tokenOrg = if (resp.nonEmpty) extractICPTokenOrg(resp.head.id) else ""
+              val resp = parse(response.body).extract[ClusterConfigResponse]
+              val tokenOrg = resp.cluster_name
+              //val resp = parse(response.body).extract[List[TokenAccountResponse]]
+              //val tokenOrg = if (resp.nonEmpty) extractICPTokenOrg(resp.head.id) else ""
               logger.trace("Org of ICP creds: " + tokenOrg + ", org of request: " + authInfo.org)
               if (tokenOrg == authInfo.org) return DBIO.successful(authInfo.org)
               else return DBIO.failed(IncorrectIcpOrgFound(authInfo.org, tokenOrg))
@@ -471,14 +481,14 @@ object IbmCloudAuth {
     (UsersTQ.rows += user).asTry.map(count => count.map(_ => user))
   }
 
-  private def extractICPTokenOrg(id: String) = {
+  /* private def extractICPTokenOrg(id: String) = {
     // ICP id field is like: id-major-peacock-icp-cluster-account
     val R = """id-(.+)-account""".r
     id match {
       case R(clusterName) => clusterName
       case _ => ""
     }
-  }
+  } */
 
   private def extractICPOrg(iss: String) = {
     // ICP iss value looks like: https://major-peacock-icp-cluster.icp:9443/oidc/token

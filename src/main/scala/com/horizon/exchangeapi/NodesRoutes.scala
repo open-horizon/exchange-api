@@ -579,28 +579,6 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       )
   val postSearchNodeError2 = (apiOperation[PostNodeHealthRequest]("postSearchNodeError2") summary("a") description("a"))
 
-  //  post("/orgs/:orgid/nodes/:id/heartbeat", operation(postNodesHeartbeat)) ({
-  //    val orgid = params("orgid")
-  //    val bareId = params("id")
-  //    val id = OrgAndId(orgid,bareId).toString
-  //    authenticate().authorizeTo(TNode(id),Access.WRITE)
-  //    val resp = response
-  //    db.run(NodesTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry).map({ xs =>
-  //      logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/heartbeat result: "+xs.toString)
-  //      xs match {
-  //        case Success(v) => if (v > 0) {       // there were no db errors, but determine if it actually found it or not
-  //              resp.setStatus(HttpCode.POST_OK)
-  //              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.updated"))
-  //            } else {
-  //              resp.setStatus(HttpCode.NOT_FOUND)
-  //              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
-  //            }
-  //        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-  //          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.not.updated", id, t.toString))
-  //        }
-  //    })
-  //  })
-
   /** Called by the UI to get the count of nodes in an error state. */
   post("/orgs/:orgid/search/nodes/error", operation(postSearchNodeError)) ({
     val orgid = params("orgid")

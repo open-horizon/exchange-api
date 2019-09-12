@@ -567,7 +567,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   // ======== POST /org/{orgid}/search/nodes/error ========================
   val postSearchNodeError =
-    (apiOperation[PostNodeHealthResponse]("postSearchNodeError")
+    (apiOperation[PostNodeErrorResponse]("postSearchNodeError")
       summary("Returns nodes in an error state")
       description """Returns a list of the id's of nodes in an error state. Can be run by a user or agbot (but not a node). The **request body** structure:
 

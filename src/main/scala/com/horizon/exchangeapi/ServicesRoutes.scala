@@ -1106,7 +1106,6 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   // =========== POST /orgs/{orgid}/services/{service}/search  ===============================
 
-  //TODO: Change this godawful name
   val postServiceSearch =
     (apiOperation[PostServiceSearchResponse]("postServiceSearch")
       summary("Returns the nodes a service is running on")

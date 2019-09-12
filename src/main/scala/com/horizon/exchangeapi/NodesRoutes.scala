@@ -569,34 +569,45 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postSearchNodeError =
     (apiOperation[PostNodeErrorResponse]("postSearchNodeError")
       summary("Returns nodes in an error state")
-      description """Returns a list of the id's of nodes in an error state. Can be run by a user or agbot (but not a node). The **request body** structure:
-
-```
-No current request body needed.
-```"""
+      description """Returns a list of the id's of nodes in an error state. Can be run by a user or agbot (but not a node). No request body is currently required."""
       parameters(
       Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
       Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
       Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PostNodeHealthRequest],
-        Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
     )
       responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
       )
   val postSearchNodeError2 = (apiOperation[PostNodeHealthRequest]("postSearchNodeError2") summary("a") description("a"))
 
+  //  post("/orgs/:orgid/nodes/:id/heartbeat", operation(postNodesHeartbeat)) ({
+  //    val orgid = params("orgid")
+  //    val bareId = params("id")
+  //    val id = OrgAndId(orgid,bareId).toString
+  //    authenticate().authorizeTo(TNode(id),Access.WRITE)
+  //    val resp = response
+  //    db.run(NodesTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry).map({ xs =>
+  //      logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/heartbeat result: "+xs.toString)
+  //      xs match {
+  //        case Success(v) => if (v > 0) {       // there were no db errors, but determine if it actually found it or not
+  //              resp.setStatus(HttpCode.POST_OK)
+  //              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.updated"))
+  //            } else {
+  //              resp.setStatus(HttpCode.NOT_FOUND)
+  //              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
+  //            }
+  //        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+  //          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.not.updated", id, t.toString))
+  //        }
+  //    })
+  //  })
+
   /** Called by the UI to get the count of nodes in an error state. */
   post("/orgs/:orgid/search/nodes/error", operation(postSearchNodeError)) ({
     val orgid = params("orgid")
     authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
-    val searchProps = try { parse(request.body).extract[PostNodeErrorRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    searchProps.validate()
-    logger.debug("POST /orgs/"+orgid+"/search/nodes/error criteria: "+searchProps.toString)
     val resp = response
     val q = for {
-      (n) <- NodeErrorTQ.rows.filter(_.errors =!= "")
+      (n) <- NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]")
     } yield n.nodeId
 
     db.run(q.result).map({ list =>

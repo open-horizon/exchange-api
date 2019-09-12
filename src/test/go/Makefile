@@ -1,6 +1,6 @@
 # Build the performance/scale test drivers for the exchange
 
-# To cross-compile for linux on mac: GOOS=linux make smalltest
+# To cross-compile for linux from mac: GOOS=linux make $GOOS/node
 OS := $(shell uname)
 ifeq ($(OS),Darwin)
   # Mac OS X
@@ -13,12 +13,12 @@ endif
 $(GOOS)/smalltest: smalltest/smalltest.go
 	@echo GOOS=$(GOOS)
 	mkdir -p $(GOOS)
-	go build -o $(GOOS)/$@ $<
+	go build -o $@ $<
 
-$(GOOS)/node: node/node.go
-	@echo GOOS=$(GOOS)
+$(GOOS)/node: node/node.go perfutils/perfutils.go
 	mkdir -p $(GOOS)
-	go build -o $(GOOS)/$@ $<
+	go build -o $@ $<
 
-run: $(GOOS)/smalltest
-	$<
+testnode: $(GOOS)/node
+	../bash/scale/deleteperforg.sh
+	$< 1

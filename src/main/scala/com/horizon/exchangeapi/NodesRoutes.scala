@@ -572,9 +572,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       description """Returns a list of the id's of nodes in an error state. Can be run by a user or agbot (but not a node). The **request body** structure:
 
 ```
-{
-  "lastTime": "2017-09-28T13:51:36.629Z[UTC]"   // only return nodes that have changed since this time, empty string returns all
-}
+No current request body needed.
 ```"""
       parameters(
       Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
@@ -600,10 +598,6 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val q = for {
       (n) <- NodeErrorTQ.rows.filter(_.errors =!= "")
     } yield n.nodeId
-    //    val q = for {
-    //      (n, a) <- NodesTQ.rows.filter(_.orgid === orgid) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-    //    } yield n.id
-    //yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
 
     db.run(q.result).map({ list =>
       logger.debug("POST /orgs/"+orgid+"/search/nodes/error result size: "+list.size)

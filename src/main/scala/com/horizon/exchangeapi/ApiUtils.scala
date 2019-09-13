@@ -114,6 +114,9 @@ object ExchConfig {
       }
     }
 
+    AuthCache.cacheType = config.getString("api.cache.type")  // need to do this before using the cache in the next step
+    logger.info("Using cache type: "+AuthCache.cacheType)
+
     createRootInCache()
   }
 
@@ -129,7 +132,7 @@ object ExchConfig {
       rootHashedPw = Password.hashIfNot(rootpw)
     }
     val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw    // this is the 1 case in which an id cache entry could not have an unhashed pw/tok
-    AuthCache.ids.putUser(Role.superUser, rootHashedPw, rootUnhashedPw)
+    AuthCache.putUser(Role.superUser, rootHashedPw, rootUnhashedPw)
     logger.info("Root user from config.json added to the in-memory authentication cache")
   }
 
@@ -147,7 +150,7 @@ object ExchConfig {
       //val hashedPw = Password.hashIfNot(rootpw)  <- can't hash this again, because it would be different
       if (rootHashedPw == "") logger.error("Internal Error: rootHashedPw not already set")
       val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw    // this is the 1 case in which an id cache entry could not have an unhashed pw/tok
-      AuthCache.ids.putUser(Role.superUser, rootHashedPw, rootUnhashedPw)    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
+      AuthCache.putUser(Role.superUser, rootHashedPw, rootUnhashedPw)    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
       val rootemail = config.getString("api.root.email")
       // Create the root org, create the IBM org, and create the root user (all only if necessary)
       db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None).upsert.asTry.flatMap({ xs =>

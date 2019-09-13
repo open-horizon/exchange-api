@@ -788,8 +788,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       // Check creation/update of node, and other errors
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" result: "+xs.toString)
       xs match {
-        case Success(_) => AuthCache.ids.putNode(id, hashedTok, node.token)
-          AuthCache.nodesOwner.putOne(id, owner)
+        case Success(_) => AuthCache.putNodeAndOwner(id, hashedTok, node.token, owner)
+          //AuthCache.ids.putNode(id, hashedTok, node.token)
+          //AuthCache.nodesOwner.putOne(id, owner)
           resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.added.or.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -880,7 +881,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(v) => try {
             val numUpdated = v.toString.toInt     // v comes to us as type Any
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              if (node.token.isDefined) AuthCache.ids.putNode(id, hashedPw, node.token.get)  // We do not need to run putOwner because patch does not change the owner
+              if (node.token.isDefined) AuthCache.putNode(id, hashedPw, node.token.get)  // We do not need to run putOwner because patch does not change the owner
+              //AuthCache.ids.putNode(id, hashedPw, node.token.get)
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.attribute.updated", attrName, id))
             } else {
@@ -980,8 +982,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.ids.removeOne(id)
-            AuthCache.nodesOwner.removeOne(id)
+            AuthCache.removeNodeAndOwner(id)
+            //AuthCache.ids.removeOne(id)
+            //AuthCache.nodesOwner.removeOne(id)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.deleted"))
           } else {

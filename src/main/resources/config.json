@@ -27,7 +27,8 @@
 			"idsTtlSeconds": 300,
 			"resourceOwnersSize": 100,   // each of: users, services, patterns, policies
 			"resourceOwnersTtlSeconds": 300,
-			"authDbTimeoutSeconds": 15   // timeout for db access for critical auth info when cache missing
+			"authDbTimeoutSeconds": 15,   // timeout for db access for critical auth info when cache missing
+			"type": "guava"    // either guava (default) or custom
 		},
 		"db": {
 			"driverClass": "org.postgresql.Driver",

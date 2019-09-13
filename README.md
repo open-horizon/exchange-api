@@ -179,7 +179,16 @@ To build an exchange container with code that is targeted for a git branch:
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
-## Changes in 1.108.1 (built only in the auth-cache2 branch so far)
+
+## Changes in 1.110.0
+
+- Put the 2 cache mechanisms in the same branch/build, that can be chosen via the config file
+
+## Changes in 1.109.0
+
+- Implemented issue 187: Add API Route to search for nodes that have errors
+
+## Changes in 1.108.0
 
 - Fixed issue 171: Improve way exchange icp auth gets org to verify it (ICP 3.2.1 authentication of UI token (getting cluster name))
 
@@ -190,10 +199,6 @@ To build an exchange container with code that is targeted for a git branch:
 ## Changes in 1.107.1 (built only in the auth-cache2 branch so far)
 
 - Implemented issue 187: Add API Route to search for nodes that have errors
-
-## Changes in 1.108.0
-
-- Fixed issue 171: Improve way exchange icp auth gets org to verify it (ICP 3.2.1 authentication of UI token (getting cluster name))
 
 ## Changes in 1.107.0
 

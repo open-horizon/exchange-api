@@ -175,8 +175,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     db.run(UserRow(compositeId, orgid, hashedPw, user.admin, user.email, ApiTime.nowUTC, updatedBy).insertUser().asTry).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
       xs match {
-        case Success(v) => AuthCache.ids.putUser(compositeId, hashedPw, user.password)
-          AuthCache.usersAdmin.putOne(compositeId, user.admin)
+        case Success(v) => AuthCache.putUserAndIsAdmin(compositeId, hashedPw, user.password, user.admin)
+          //AuthCache.ids.putUser(compositeId, hashedPw, user.password)
+          //AuthCache.usersAdmin.putOne(compositeId, user.admin)
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.added.successfully", v))
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)     // this usually happens if the user already exists
@@ -218,8 +219,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       db.run(UserRow(compositeId, orgid, hashedPw, user.admin, user.email, ApiTime.nowUTC, updatedBy).upsertUser.asTry).map({ xs =>
         logger.debug("PUT /orgs/"+orgid+"/users/"+username+" (root) result: "+xs.toString)
         xs match {
-          case Success(v) => AuthCache.ids.putUser(compositeId, hashedPw, user.password)
-            AuthCache.usersAdmin.putOne(compositeId, user.admin)
+          case Success(v) => AuthCache.putUserAndIsAdmin(compositeId, hashedPw, user.password, user.admin)
+            //AuthCache.ids.putUser(compositeId, hashedPw, user.password)
+            //AuthCache.usersAdmin.putOne(compositeId, user.admin)
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.added.or.updated.successfully", v))
           case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
@@ -235,8 +237,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         try {
           val numUpdated = xs.toString.toInt
           if (numUpdated > 0) {
-            /* if (hashedPw != "") */ AuthCache.ids.putUser(compositeId, hashedPw, user.password)
-            AuthCache.usersAdmin.putOne(compositeId, user.admin)
+            AuthCache.putUserAndIsAdmin(compositeId, hashedPw, user.password, user.admin)
+            //AuthCache.ids.putUser(compositeId, hashedPw, user.password)
+            //AuthCache.usersAdmin.putOne(compositeId, user.admin)
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.updated.successfully"))
           } else {
@@ -286,8 +289,8 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(v) => try {
           val numUpdated = v.toString.toInt     // v comes to us as type Any
           if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-            if (user.password.isDefined) AuthCache.ids.putUser(compositeId, hashedPw, user.password.get)
-            if (user.admin.isDefined) AuthCache.usersAdmin.putOne(compositeId, user.admin.get)
+            if (user.password.isDefined) AuthCache.putUser(compositeId, hashedPw, user.password.get)
+            if (user.admin.isDefined) AuthCache.putUserIsAdmin(compositeId, user.admin.get)
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.attr.updated", attrName, compositeId))
           } else {
@@ -325,8 +328,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("DELETE /users/"+username+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.ids.removeOne(compositeId)
-            AuthCache.usersAdmin.removeOne(compositeId)
+            AuthCache.removeUserAndIsAdmin(compositeId)
+            //AuthCache.ids.removeOne(compositeId)
+            //AuthCache.usersAdmin.removeOne(compositeId)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.deleted"))
           } else {
@@ -473,7 +477,8 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(v) => try {
           val numUpdated = v.toString.toInt     // v comes to us as type Any
           if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.ids.putUser(compositeId, hashedPw, req.newPassword)
+            AuthCache.putUser(compositeId, hashedPw, req.newPassword)
+            //AuthCache.ids.putUser(compositeId, hashedPw, req.newPassword)
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("password.updated.successfully"))
           } else {

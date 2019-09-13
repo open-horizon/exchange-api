@@ -247,8 +247,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
       xs match {
-        case Success(_) => AuthCache.ids.putAgbot(compositeId, hashedTok, agbot.token)
-          AuthCache.agbotsOwner.putOne(compositeId, owner)
+        case Success(_) => AuthCache.putAgbotAndOwner(compositeId, hashedTok, agbot.token, owner)
+          //AuthCache.ids.putAgbot(compositeId, hashedTok, agbot.token)
+          //AuthCache.agbotsOwner.putOne(compositeId, owner)
           resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.added.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -297,7 +298,8 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         case Success(v) => try {
             val numUpdated = v.toString.toInt     // v comes to us as type Any
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              if (agbot.token.isDefined) AuthCache.ids.putAgbot(compositeId, hashedTok, agbot.token.get)  // We do not need to run putOwner because patch does not change the owner
+              if (agbot.token.isDefined) AuthCache.putAgbot(compositeId, hashedTok, agbot.token.get)  // We do not need to run putOwner because patch does not change the owner
+              //AuthCache.ids.putAgbot(compositeId, hashedTok, agbot.token.get)
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.attribute.updated", attrName, compositeId))
             } else {
@@ -335,8 +337,9 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       logger.debug("DELETE /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.ids.removeOne(compositeId)
-            AuthCache.agbotsOwner.removeOne(compositeId)
+            AuthCache.removeAgbotAndOwner(compositeId)
+            //AuthCache.ids.removeOne(compositeId)
+            //AuthCache.agbotsOwner.removeOne(compositeId)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.deleted"))
           } else {

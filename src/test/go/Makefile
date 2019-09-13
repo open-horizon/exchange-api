@@ -10,16 +10,16 @@ else
   export GOOS ?= linux
 endif
 
-$(GOOS)/smalltest: smalltest/smalltest.go
-	@echo GOOS=$(GOOS)
-	mkdir -p $(GOOS)
-	go build -o $@ $<
-
 $(GOOS)/node: node/node.go perfutils/perfutils.go
 	mkdir -p $(GOOS)
 	go build -o $@ $<
 
 $(GOOS)/agbot: agbot/agbot.go perfutils/perfutils.go
+	mkdir -p $(GOOS)
+	go build -o $@ $<
+
+$(GOOS)/smalltest: smalltest/smalltest.go
+	@echo GOOS=$(GOOS)
 	mkdir -p $(GOOS)
 	go build -o $@ $<
 

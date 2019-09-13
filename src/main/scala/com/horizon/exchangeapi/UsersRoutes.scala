@@ -25,14 +25,14 @@ case class PatchUsersRequest(password: Option[String], admin: Option[Boolean], e
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the user, and the attribute name being updated. */
-  def getDbUpdate(username: String, orgid: String, updatedBy: String): (DBIO[_],String) = {
+  def getDbUpdate(username: String, orgid: String, updatedBy: String, hashedPw: String): (DBIO[_],String) = {
     val lastUpdated = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
     password match {
       case Some(password2) => if (password2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("password.cannot.be.set.to.empty.string")))
-        println("password2="+password2+".")
-        val pw = /*if (Password.isHashed(password2)) password2 else*/ Password.hash(password2)
-        return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated, u.updatedBy)).update((username, pw, lastUpdated, updatedBy)), "password")
+        //println("password2="+password2+".")
+        //val pw = if (Password.isHashed(password2)) password2 else Password.hash(password2)
+        return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated, u.updatedBy)).update((username, hashedPw, lastUpdated, updatedBy)), "password")
       case _ => ;
     }
     admin match { case Some(admin2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.admin,u.lastUpdated, u.updatedBy)).update((username, admin2, lastUpdated, updatedBy)), "admin"); case _ => ; }
@@ -45,11 +45,11 @@ case class PatchUsersRequest(password: Option[String], admin: Option[Boolean], e
 
 case class ChangePwRequest(newPassword: String) {
 
-  def getDbUpdate(username: String, orgid: String): DBIO[_] = {
+  def getDbUpdate(username: String, orgid: String, hashedPw: String): DBIO[_] = {
     val lastUpdated = ApiTime.nowUTC
     if (newPassword == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("password.cannot.be.set.to.empty.string")))
-    val pw = /*if (Password.isHashed(newPassword)) newPassword else*/ Password.hash(newPassword)
-    return (for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated)).update((username, pw, lastUpdated))
+    //val pw = if (Password.isHashed(newPassword)) newPassword else Password.hash(newPassword)
+    return (for { u <- UsersTQ.rows if u.username === username } yield (u.username,u.password,u.lastUpdated)).update((username, hashedPw, lastUpdated))
   }
 }
 
@@ -81,7 +81,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("GET /orgs/"+orgid+"/users result size: "+list.size)
       val users = new MutableHashMap[String, User]
       if (list.nonEmpty) for (e <- list) {
-          val pw = if (superUser) e.password else StrConstants.hiddenPw
+          val pw = if (superUser) e.hashedPw else StrConstants.hiddenPw
           users.put(e.username, User(pw, e.admin, e.email, e.lastUpdated, e.updatedBy))
         }
       if (users.nonEmpty) resp.setStatus(HttpCode.OK)
@@ -120,7 +120,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       //logger.debug("GET /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)  <- can not log because it contains the pw
       logger.debug("GET /orgs/"+orgid+"/users/"+username+" result size: "+xs.size)
       if (xs.nonEmpty) {
-        val pw = if (superUser) xs.head.password else StrConstants.hiddenPw
+        val pw = if (superUser) xs.head.hashedPw else StrConstants.hiddenPw
         val user = User(pw, xs.head.admin, xs.head.email, xs.head.lastUpdated, xs.head.updatedBy)
         val users = HashMap[String,User](xs.head.username -> user)
         resp.setStatus(HttpCode.OK)
@@ -166,15 +166,18 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val ident = authenticate(anonymousOk = true).authorizeTo(TUser(compositeId),Access.CREATE)
     val user = try { parse(request.body).extract[PostPutUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    val owner = if (user.admin) "admin" else ""
+    //val owner = if (user.admin) "admin" else ""
     val resp = response
     if (user.password == "" || user.email == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("password.and.email.must.be.non.blank.when.creating.user")))
     if (ident.isAnonymous && user.admin) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("anonymous.client.cannot.create.admin")))
     val updatedBy = ident match { case IUser(creds) => creds.id; case _ => "" }
-    db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC, updatedBy).insertUser().asTry).map({ xs =>
+    val hashedPw = Password.hash(user.password)
+    db.run(UserRow(compositeId, orgid, hashedPw, user.admin, user.email, ApiTime.nowUTC, updatedBy).insertUser().asTry).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
       xs match {
-        case Success(v) => AuthCache.users.putBoth(Creds(compositeId, user.password), owner)    // the password passed in to the cache should be the non-hashed one
+        case Success(v) => AuthCache.putUserAndIsAdmin(compositeId, hashedPw, user.password, user.admin)
+          //AuthCache.ids.putUser(compositeId, hashedPw, user.password)
+          //AuthCache.usersAdmin.putOne(compositeId, user.admin)
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.added.successfully", v))
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)     // this usually happens if the user already exists
@@ -210,13 +213,15 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     val resp = response
     if (isRoot) {     // update or create of a (usually non-root) user by root
-      //if (user.password == "" || (user.email == "" && !Role.isSuperUser(username))) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "both password and email must be non-blank when creating a user"))
       if (user.password == "" || (user.email == "")) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("password.and.email.must.be.non.blank.when.creating.user")))
       val updatedBy = ident match { case IUser(creds) => creds.id; case _ => "" }
-      db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC, updatedBy).upsertUser.asTry).map({ xs =>
+      val hashedPw = Password.hash(user.password)
+      db.run(UserRow(compositeId, orgid, hashedPw, user.admin, user.email, ApiTime.nowUTC, updatedBy).upsertUser.asTry).map({ xs =>
         logger.debug("PUT /orgs/"+orgid+"/users/"+username+" (root) result: "+xs.toString)
         xs match {
-          case Success(v) => AuthCache.users.put(Creds(compositeId, user.password))    // the password passed in to the cache should be the non-hashed one
+          case Success(v) => AuthCache.putUserAndIsAdmin(compositeId, hashedPw, user.password, user.admin)
+            //AuthCache.ids.putUser(compositeId, hashedPw, user.password)
+            //AuthCache.usersAdmin.putOne(compositeId, user.admin)
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.added.or.updated.successfully", v))
           case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
@@ -226,12 +231,15 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     } else {      // update by existing user
       if (user.admin && !ident.isAdmin) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("non.admin.user.cannot.make.admin.user"))) // ensure that a user can't elevate himself to an admin user
       val updatedBy = ident match { case IUser(creds) => creds.id; case _ => "" }
-      db.run(UserRow(compositeId, orgid, user.password, user.admin, user.email, ApiTime.nowUTC, updatedBy).updateUser()).map({ xs =>     // updateUser() handles the case where pw or email is blank (i.e. do not update those fields)
+      val hashedPw = Password.hash(user.password)
+      db.run(UserRow(compositeId, orgid, hashedPw, user.admin, user.email, ApiTime.nowUTC, updatedBy).updateUser()).map({ xs =>     // updateUser() handles the case where pw or email is blank (i.e. do not update those fields)
         logger.debug("PUT /orgs/"+orgid+"/users/"+username+" result: "+xs.toString)
         try {
           val numUpdated = xs.toString.toInt
           if (numUpdated > 0) {
-            if (user.password != "") AuthCache.users.put(Creds(compositeId, user.password))    // the password passed in to the cache should be the non-hashed one
+            AuthCache.putUserAndIsAdmin(compositeId, hashedPw, user.password, user.admin)
+            //AuthCache.ids.putUser(compositeId, hashedPw, user.password)
+            //AuthCache.usersAdmin.putOne(compositeId, user.admin)
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.updated.successfully"))
           } else {
@@ -271,7 +279,8 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     val resp = response
     val updatedBy = ident match { case IUser(creds) => creds.id; case _ => "" }
-    val (action, attrName) = user.getDbUpdate(compositeId, orgid, updatedBy)
+    val hashedPw = if (user.password.isDefined) Password.hash(user.password.get) else ""    // hash the pw if that is what is being updated
+    val (action, attrName) = user.getDbUpdate(compositeId, orgid, updatedBy, hashedPw)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.agbot.attr.specified")))
     if (attrName == "admin" && user.admin.getOrElse(false) && !ident.isAdmin) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("non.admin.user.cannot.make.admin.user"))) // ensure that a user can't elevate himself to an admin user
     db.run(action.transactionally.asTry).map({ xs =>
@@ -280,7 +289,8 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(v) => try {
           val numUpdated = v.toString.toInt     // v comes to us as type Any
           if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-            user.password match { case Some(pw) if (pw != "") => AuthCache.users.put(Creds(compositeId, pw)); case _ => ; }    // the password passed in to the cache should be the non-hashed one. We do not need to run putOwner because patch does not change the owner
+            if (user.password.isDefined) AuthCache.putUser(compositeId, hashedPw, user.password.get)
+            if (user.admin.isDefined) AuthCache.putUserIsAdmin(compositeId, user.admin.get)
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.attr.updated", attrName, compositeId))
           } else {
@@ -318,7 +328,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("DELETE /users/"+username+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.users.removeBoth(compositeId)
+            AuthCache.removeUserAndIsAdmin(compositeId)
+            //AuthCache.ids.removeOne(compositeId)
+            //AuthCache.usersAdmin.removeOne(compositeId)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("user.deleted"))
           } else {
@@ -457,14 +469,16 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val req = try { parse(request.body).extract[ChangePwRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     val resp = response
-    val action = req.getDbUpdate(compositeId, orgid)
+    val hashedPw = Password.hash(req.newPassword)
+    val action = req.getDbUpdate(compositeId, orgid, hashedPw)
     db.run(action.transactionally.asTry).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/users/"+username+"/changepw result: "+xs.toString)
       xs match {
         case Success(v) => try {
           val numUpdated = v.toString.toInt     // v comes to us as type Any
           if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.users.put(Creds(compositeId, req.newPassword))    // the password passed in to the cache should be the non-hashed one
+            AuthCache.putUser(compositeId, hashedPw, req.newPassword)
+            //AuthCache.ids.putUser(compositeId, hashedPw, req.newPassword)
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("password.updated.successfully"))
           } else {

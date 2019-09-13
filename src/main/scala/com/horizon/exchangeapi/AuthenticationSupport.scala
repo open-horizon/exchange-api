@@ -125,9 +125,8 @@ trait AuthenticationSupport extends ScalatraBase with AuthorizationSupport {
   /** Returns a temporary pw reset token. */
   def createToken(username: String): String = {
     // Get their current pw to use as the secret
-    AuthCache.users.get(username) match {
-      // case Some(userTok) => if (userTok.unhashed != "") Token.create(userTok.unhashed) else Token.create(userTok.hashed)   // try to create the token with the unhashed pw for consistency with the rest of the code
-      case Some(userTok) => Token.create(userTok.hashed)   // always create the token with the hashed pw because that will always be there during creation and validation of the token
+    AuthCache.getUser(username) match {
+      case Some(userHashedTok) => Token.create(userHashedTok)   // always create the token with the hashed pw because that will always be there during creation and validation of the token
       case None => ""    // this case will never happen (we always pass in superUser), but here to remove compile warning
     }
   }
@@ -138,7 +137,10 @@ object Password {
   // Using jbcrypt, see https://github.com/jeremyh/jBCrypt and http://javadox.com/org.mindrot/jbcrypt/0.3m/org/mindrot/jbcrypt/BCrypt.html
   val logRounds = 10      // hashes the pw 2**logRounds times
 
-  /** Returns the hashed/salted value of the given password or token */
+  /** Returns the hashed value of the given password or token.
+    * Note: since BCrypt.hashpw() uses a different salt each time, 2 hashes of the same pw will be different. So it is not valid to hash the
+    *     clear pw specified by the user and compare it to the already-hashed pw in the db. You must use BCrypt.checkpw() instead.
+    */
   //TODO: when we have a more reliable check() below, allow them to pass in a pw that is already hashed our way, recognize it, and do not hash it. Linux pw hash can be created using: openssl passwd -1 -salt xyz yourpass
   def hash(password: String): String = { BCrypt.hashpw(password, BCrypt.gensalt(logRounds)) }
 
@@ -147,6 +149,9 @@ object Password {
 
   /** Returns true if this pw/token is already hashed */
   def isHashed(password: String): Boolean = { password.startsWith("""$2a$10$""") }      // is there a better way to determine this?
+
+  /** If already hash, return it, otherwise hash it */
+  def hashIfNot(password: String): String = if (isHashed(password)) password else hash(password)
 }
 
 /** Create and validate web tokens that expire */

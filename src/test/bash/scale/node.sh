@@ -266,7 +266,7 @@ for (( h=1 ; h<=$numHeartbeats ; h++ )) ; do
         # Get my node policy
         curlget $mynodeauth "orgs/$org/nodes/$mynodeid/policy"
 
-        # If it is time to do a service check, do that
+        #
         if [[ $svcCheckCount -ge $svcCheckInterval ]]; then
             # Get all services
             curlget $mynodeauth "orgs/$org/services"

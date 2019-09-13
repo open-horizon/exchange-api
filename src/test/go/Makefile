@@ -19,6 +19,14 @@ $(GOOS)/node: node/node.go perfutils/perfutils.go
 	mkdir -p $(GOOS)
 	go build -o $@ $<
 
+$(GOOS)/agbot: agbot/agbot.go perfutils/perfutils.go
+	mkdir -p $(GOOS)
+	go build -o $@ $<
+
 testnode: $(GOOS)/node
+	../bash/scale/deleteperforg.sh
+	$< 1
+
+testagbot: $(GOOS)/agbot
 	../bash/scale/deleteperforg.sh
 	$< 1

@@ -115,6 +115,13 @@ func MinInt(a, b int) int {
 	return b
 }
 
+func MaxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // RoundInt returns the nearest int result. To get more exact, look at https://github.com/a-h/round
 func Round2Int(f float64) int {
 	if f < 0 {
@@ -152,6 +159,19 @@ func MarshalIndent(v interface{}, errMsg string) string {
 		Fatal(JSON_PARSING_ERROR, "failed to marshal data type from %s: %v", errMsg, err)
 	}
 	return string(jsonBytes)
+}
+
+// TrimOrg returns id with the leading "<org>/" removed, if it was there.
+func TrimOrg(id string) string {
+	substrings := strings.Split(id, "/")
+	if len(substrings) <= 1 { // this means id was empty, or did not contain '/'
+		return id
+	} else if len(substrings) == 2 {
+		return substrings[1]
+	} else {
+		Fatal(CLI_INPUT_ERROR, "can not remove or from id '%s' because it contains more than 1 '/'", id)
+	}
+	return "" // will never get here
 }
 
 // Add the given org to the id if the id does not already contain an org

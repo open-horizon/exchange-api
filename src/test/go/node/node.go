@@ -23,7 +23,7 @@ func main() {
 	}
 
 	scriptName := filepath.Base(os.Args[0])
-	namebase := os.Args[1]
+	namebase := os.Args[1] + "-node"
 
 	rootauth := "root/root:" + perfutils.GetRequiredEnvVar("EXCHANGE_ROOTPW")
 	EXCHANGE_IAM_KEY := perfutils.GetRequiredEnvVar("EXCHANGE_IAM_KEY")
@@ -40,7 +40,6 @@ func main() {
 
 	// The length of the performance test, measured in the number of times each node heartbeats (by default 60 sec each)
 	numHeartbeats := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_HEARTBEATS", 15)
-	//perfutils.Debug("numHeartbeats=%d", numHeartbeats)
 	// How many nodes this instance should simulate
 	numNodes := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_NODES", 50)
 	// EX_PERF_NUM_NODE_AGREEMENTS can be explicitly set to how many nodes should be given an agreement each hb interval, otherwise it will be calculated below. An estimate of the average number of msgs a node will have in flight at 1 time
@@ -59,7 +58,7 @@ func main() {
 
 	// CURL_CA_BUNDLE can be exported in our parent if a self-signed cert is needed.
 
-	// This script will create just 1 org and put everything else under that. If you use wrapper.sh, all instances of this script and agbot.sh should use the same org.
+	// This script will create just 1 org and put everything else under that. If you use wrapper.sh, all instances of this script and agbot.go should use the same org.
 	org := perfutils.GetEnvVarWithDefault("EX_PERF_ORG", "performancenodeagbot")
 
 	// Determine whether we are using the public cloud or ICP
@@ -72,9 +71,7 @@ func main() {
 	}
 
 	nodebase := namebase + "-n"
-	//nodeid := nodebase + "1"
 	nodetoken := "abc123"
-	//nodeauth := org + "/" + nodeid + ":" + nodetoken
 
 	nodeagrbase := namebase + "-node-agr" // agreement ids must be unique
 
@@ -109,8 +106,6 @@ func main() {
 		}
 		numNodeAgreements = (numNodes / numHB) + 1 // with integer division, the result is rounded down, so add 1
 	}
-
-	//httpClient := perfutils.GetHTTPClient()
 
 	perfutils.ConfirmCmdsExist("curl", "jq")
 
@@ -196,8 +191,6 @@ func main() {
 	svcCheckCount := 0
 	versionCheckCount := 0
 	nextNodeAgreement := 1
-	//iterDeltaTotal := 0.0
-	//sleepTotal := 0.0
 	var iterDeltaTotal time.Duration = 0
 	var sleepTotal time.Duration = 0
 

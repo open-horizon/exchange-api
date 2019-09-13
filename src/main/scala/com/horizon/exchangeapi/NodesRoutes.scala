@@ -36,6 +36,11 @@ case class NodeHealthAgreementElement(lastUpdated: String)
 class NodeHealthHashElement(var lastHeartbeat: String, var agreements: Map[String,NodeHealthAgreementElement])
 case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
 
+// Leaving this here for the UI wanting to implement filtering later
+case class PostNodeErrorRequest() {
+  def validate() = {}
+}
+case class PostNodeErrorResponse(nodes: scala.Seq[String])
 
 /** Input for service-based (citizen scientist) search, POST /orgs/"+orgid+"/search/nodes */
 case class PostSearchNodesRequest(desiredServices: List[RegServiceSearch], secondsStale: Int, propertiesToReturn: Option[List[String]], startIndex: Int, numEntries: Int) {
@@ -128,18 +133,18 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { NodesTQ.validateServiceIds(userInput.getOrElse(List())) }
 
   /** Get the db actions to insert or update all parts of the node */
-  def getDbUpsert(id: String, orgid: String, owner: String): DBIO[_] = {
+  def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, token, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).upsert
+    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).upsert
   }
 
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
    * because we can't let a node create new nodes. */
-  def getDbUpdate(id: String, orgid: String, owner: String): DBIO[_] = {
+  def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, token, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).update
+    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).update
   }
 }
 
@@ -147,14 +152,14 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
-  def getDbUpdate(id: String): (DBIO[_],String) = {
+  def getDbUpdate(id: String, hashedPw: String): (DBIO[_],String) = {
     val lastHeartbeat = ApiTime.nowUTC
     //todo: support updating more than 1 attribute, but i think slick does not support dynamic db field names
     // find the 1st non-blank attribute and create a db action to update it for this node
     token match {
       case Some(token2) => if (token2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.cannot.be.empty.string")))
-        val tok = /*if (Password.isHashed(token2)) token2 else*/ Password.hash(token2)
-        return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, tok, lastHeartbeat)), "token")
+        //val tok = if (Password.isHashed(token2)) token2 else Password.hash(token2)
+        return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, hashedPw, lastHeartbeat)), "token")
       case _ => ;
     }
     softwareVersions match {
@@ -517,6 +522,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     })
   })
 
+
+
   //todo: remove this once anax 2.23.7 hits prod
   // ======== POST /orgs/{orgid}/search/nodes ========================
   val postSearchNodes =
@@ -585,6 +592,41 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       val nodes = new MutableHashMap[String,Node]    // the key is node id
       if (list.nonEmpty) for (a <- list) nodes.put(a.id, a.toNode(false))
       searchProps.matches(nodes.toMap, agHash)
+    })
+  })
+
+  // ======== POST /org/{orgid}/search/nodes/error ========================
+  val postSearchNodeError =
+    (apiOperation[PostNodeErrorResponse]("postSearchNodeError")
+      summary("Returns nodes in an error state")
+      description """Returns a list of the id's of nodes in an error state. Can be run by a user or agbot (but not a node). No request body is currently required."""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+    )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+  val postSearchNodeError2 = (apiOperation[PostNodeHealthRequest]("postSearchNodeError2") summary("a") description("a"))
+
+  /** Called by the UI to get the count of nodes in an error state. */
+  post("/orgs/:orgid/search/nodes/error", operation(postSearchNodeError)) ({
+    val orgid = params("orgid")
+    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
+    val resp = response
+    val q = for {
+      (n) <- NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]")
+    } yield n.nodeId
+
+    db.run(q.result).map({ list =>
+      logger.debug("POST /orgs/"+orgid+"/search/nodes/error result size: "+list.size)
+      if (list.nonEmpty) {
+        resp.setStatus(HttpCode.POST_OK)
+        PostNodeErrorResponse(list)
+      }
+      else {
+        resp.setStatus(HttpCode.NOT_FOUND)
+      }
     })
   })
 
@@ -720,6 +762,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val resp = response
     val patValidateAction = if (node.pattern != "") PatternsTQ.getPattern(node.pattern).length.result else DBIO.successful(1)
     val (valServiceIdActions, svcRefs) = node.validateServiceIds  // to check that the services referenced in userInput exist
+    val hashedTok = Password.hash(node.token)
     db.run(patValidateAction.asTry.flatMap({ xs =>
       // Check if pattern exists, then get services referenced
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
@@ -765,7 +808,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(numOwned) => val maxNodes = ExchConfig.getInt("api.limits.maxNodes")
           if (maxNodes == 0 || numOwned <= maxNodes || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
-            val action = if (owner == "") node.getDbUpdate(id, orgid, owner) else node.getDbUpsert(id, orgid, owner)
+            val action = if (owner == "") node.getDbUpdate(id, orgid, owner, hashedTok) else node.getDbUpsert(id, orgid, owner, hashedTok)
             action.transactionally.asTry
           }
           else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("over.max.limit.of.nodes", maxNodes))).asTry
@@ -775,7 +818,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       // Check creation/update of node, and other errors
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" result: "+xs.toString)
       xs match {
-        case Success(_) => AuthCache.nodes.putBoth(Creds(id,node.token),owner)    // the token passed in to the cache should be the non-hashed one
+        case Success(_) => AuthCache.putNodeAndOwner(id, hashedTok, node.token, owner)
+          //AuthCache.ids.putNode(id, hashedTok, node.token)
+          //AuthCache.nodesOwner.putOne(id, owner)
           resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.added.or.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -815,7 +860,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     //logger.trace("PATCH /orgs/"+orgid+"/nodes/"+bareId+" input: "+node.toString)
     val resp = response
-    val (action, attrName) = node.getDbUpdate(id)
+    val hashedPw = if (node.token.isDefined) Password.hash(node.token.get) else ""    // hash the token if that is what is being updated
+    val (action, attrName) = node.getDbUpdate(id, hashedPw)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.note.attr.specified")))
     val patValidateAction = if (attrName == "pattern" && node.pattern.get != "") PatternsTQ.getPattern(node.pattern.get).length.result else DBIO.successful(1)
     val (valServiceIdActions, svcRefs) = if (attrName == "userInput") NodesTQ.validateServiceIds(node.userInput.get)
@@ -865,7 +911,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(v) => try {
             val numUpdated = v.toString.toInt     // v comes to us as type Any
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              node.token match { case Some(tok) if (tok != "") => AuthCache.nodes.put(Creds(id, tok)); case _ => ; }    // the token passed in to the cache should be the non-hashed one. We do not need to run putOwner because patch does not change the owner
+              if (node.token.isDefined) AuthCache.putNode(id, hashedPw, node.token.get)  // We do not need to run putOwner because patch does not change the owner
+              //AuthCache.ids.putNode(id, hashedPw, node.token.get)
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.attribute.updated", attrName, id))
             } else {
@@ -965,7 +1012,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.nodes.removeBoth(id)
+            AuthCache.removeNodeAndOwner(id)
+            //AuthCache.ids.removeOne(id)
+            //AuthCache.nodesOwner.removeOne(id)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.deleted"))
           } else {

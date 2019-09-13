@@ -350,8 +350,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
-        case Success(_) => if (owner != "") AuthCache.patterns.putOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
-          AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
+        case Success(_) => if (owner != "") AuthCache.putPatternOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
+          AuthCache.putPatternIsPublic(pattern, patternReq.public.getOrElse(false))
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.created", pattern))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
@@ -448,8 +448,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Success(n) => try {
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
             if (numUpdated > 0) {
-              if (owner != "") AuthCache.patterns.putOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
-              AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
+              if (owner != "") AuthCache.putPatternOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
+              AuthCache.putPatternIsPublic(pattern, patternReq.public.getOrElse(false))
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.updated"))
             } else {
@@ -555,7 +555,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Success(v) => try {
             val numUpdated = v.toString.toInt     // v comes to us as type Any
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              if (attrName == "public") AuthCache.patterns.putIsPublic(pattern, patternReq.public.getOrElse(false))
+              if (attrName == "public") AuthCache.putPatternIsPublic(pattern, patternReq.public.getOrElse(false))
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.attribute.not.update", attrName, pattern))
             } else {
@@ -738,8 +738,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       logger.debug("DELETE /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.patterns.removeOwner(pattern)
-            AuthCache.patterns.removeIsPublic(pattern)
+            AuthCache.removePatternOwner(pattern)
+            AuthCache.removePatternIsPublic(pattern)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.deleted"))
           } else {

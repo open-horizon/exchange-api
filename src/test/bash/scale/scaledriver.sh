@@ -73,6 +73,17 @@ echo "Copying the exchange scripts, host scripts, and certs to /tmp on each scal
 exchScriptDir=$(dirname $0)
 pscp -h $hostsFile $exchScriptDir/* /tmp
 checkexitcode $? "copying $exchScriptDir"
+goos="$GOOS"  # set this explicitly to, for example, drive this process from mac but run the scale instances on linux
+if [[ -z "$goos" ]]; then       # then assume the scale instances are the same type as this machine
+    if [[ $(uname) == "Darwin" ]]; then
+        goos="darwin"
+    else
+        goos="linux"
+    fi
+fi
+exchBinDir="$exchScriptDir/../../go/$goos"
+pscp -h $hostsFile $exchBinDir/* /tmp
+checkexitcode $? "copying $exchBinDir"
 pscp -h $hostsFile *.sh /tmp
 checkexitcode $? "copying host scripts"
 pscp -h $hostsFile *.crt /tmp
@@ -91,7 +102,7 @@ if [[ $(cat $hostsFile) == "localhost" ]]; then
     printf "\nScale run completed, moving the output files from $EX_PERF_REPORT_DIR to $EX_PERF_REPORT_DIR/localhost on this host...\n"
     mkdir -p "$EX_PERF_REPORT_DIR/localhost"
     rm -rf "$EX_PERF_REPORT_DIR/localhost/*"
-    mv $EX_PERF_REPORT_DIR/*.sh $EX_PERF_REPORT_DIR/localhost
+    mv $(/bin/ls -d $EX_PERF_REPORT_DIR/* | grep -v localhost) $EX_PERF_REPORT_DIR/localhost
 else
     printf "\nScale run completed, gathering the output files from $EX_PERF_REPORT_DIR on the scale nodes to $EX_PERF_REPORT_DIR on this host...\n"
     rm -rf $EX_PERF_REPORT_DIR/*   # remove output files from previous runs

@@ -1178,7 +1178,13 @@ class PatternsSuite extends FunSuite {
     //assert(getPatternResp.patterns.size === 0)
   }
 
-  test("DELETE /orgs/"+orgid+"/users/"+user2+" - which should also delete pattern2") {
+  test("DELETE /orgs/"+orgid+"/patterns/"+pattern2+" - so its cache entry will also be deleted") {
+    val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern2).method("delete").headers(ACCEPT).headers(USER2AUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("DELETE /orgs/"+orgid+"/users/"+user2) {
     val response = Http(URL+"/users/"+user2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)

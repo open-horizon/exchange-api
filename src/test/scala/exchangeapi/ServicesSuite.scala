@@ -927,7 +927,13 @@ class ServicesSuite extends FunSuite {
     //assert(getServiceResp.services.size === 0)
   }
 
-  test("DELETE /orgs/"+orgid+"/users/"+user2+" - which should also delete service2") {
+  test("DELETE /orgs/"+orgid+"/services/"+service2+" - so its owner cache entry is also deleted") {
+    val response: HttpResponse[String] = Http(URL+"/services/"+service2).method("delete").headers(ACCEPT).headers(USER2AUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("DELETE /orgs/"+orgid+"/users/"+user2) {
     val response = Http(URL+"/users/"+user2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)

@@ -435,6 +435,7 @@ object IbmCloudAuth {
         delayedReturn  // if we tried the max times and never got a successful positive or negative, return what we last got
       } else {
         // An ICP platform api key, the iss field contains a url that includes the cluster name
+        // Note: we could just get the cluster name like the ICP token case above, but that would be an extra API call
         val issOrg = extractICPOrg(userInfo.iss.getOrElse(""))
         logger.trace("Org of ICP creds: "+issOrg+", org of request: "+authInfo.org)
         if (issOrg == authInfo.org) DBIO.successful(authInfo.org)

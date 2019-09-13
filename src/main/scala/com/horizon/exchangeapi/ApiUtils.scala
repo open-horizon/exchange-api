@@ -93,6 +93,7 @@ object ExchConfig {
   val logger: Logger = LoggerFactory.getLogger(LOGGER).asInstanceOf[Logger]     //todo: maybe add a custom layout that includes the date: http://logback.qos.ch/manual/layouts.html
   // Maps log levels expressed as strings in the config file to the slf4j log level enums
   val levels: Map[String,Level] = Map("OFF"->Level.OFF, "ERROR"->Level.ERROR, "WARN"->Level.WARN, "INFO"->Level.INFO, "DEBUG"->Level.DEBUG, "TRACE"->Level.TRACE, "ALL"->Level.ALL)
+  var rootHashedPw = ""   // so we can remember the hashed pw between load() and createRoot()
 
   /** Tries to load the user's external config file */
   def load(): Unit = {
@@ -113,16 +114,26 @@ object ExchConfig {
       }
     }
 
+    AuthCache.cacheType = config.getString("api.cache.type")  // need to do this before using the cache in the next step
+    logger.info("Using cache type: "+AuthCache.cacheType)
+
     createRootInCache()
   }
 
   // Put the root user in the auth cache in case the db has not been inited yet and they need to be able to run POST /admin/initdb
   def createRootInCache(): Unit = {
     val rootpw = config.getString("api.root.password")
-    if (rootpw != "") {
-      AuthCache.users.put(Creds(Role.superUser, rootpw))
-      logger.info("Root user from config.json added to the in-memory authentication cache")
+    if (rootpw == "") {
+      logger.error("Root password is not specified in config.json, you may not be able to do any exchange operations.")
+      return
     }
+    if (rootHashedPw == "") {
+      // this is the 1st time, we need to hash and save it
+      rootHashedPw = Password.hashIfNot(rootpw)
+    }
+    val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw    // this is the 1 case in which an id cache entry could not have an unhashed pw/tok
+    AuthCache.putUser(Role.superUser, rootHashedPw, rootUnhashedPw)
+    logger.info("Root user from config.json added to the in-memory authentication cache")
   }
 
   def reload(): Unit = load()
@@ -136,13 +147,16 @@ object ExchConfig {
     // If the root pw is set in the config file, create or update the root user in the db to match
     val rootpw = config.getString("api.root.password")
     if (rootpw != "") {
-      AuthCache.users.put(Creds(Role.superUser, rootpw))    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
+      //val hashedPw = Password.hashIfNot(rootpw)  <- can't hash this again, because it would be different
+      if (rootHashedPw == "") logger.error("Internal Error: rootHashedPw not already set")
+      val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw    // this is the 1 case in which an id cache entry could not have an unhashed pw/tok
+      AuthCache.putUser(Role.superUser, rootHashedPw, rootUnhashedPw)    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
       val rootemail = config.getString("api.root.email")
       // Create the root org, create the IBM org, and create the root user (all only if necessary)
       db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None).upsert.asTry.flatMap({ xs =>
         logger.debug("Upsert /orgs/root result: "+xs.toString)
         xs match {
-          case Success(_) => UserRow(Role.superUser, "root", rootpw, admin = true, rootemail, ApiTime.nowUTC, Role.superUser).upsertUser.asTry    // next action
+          case Success(_) => UserRow(Role.superUser, "root", rootHashedPw, admin = true, rootemail, ApiTime.nowUTC, Role.superUser).upsertUser.asTry    // next action
           case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
         }
       }).flatMap({ xs =>

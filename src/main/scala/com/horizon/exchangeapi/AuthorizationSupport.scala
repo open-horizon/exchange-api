@@ -224,11 +224,9 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
 
   /** Returns true if the token is correct for this user and not expired */
   def isTokenValid(token: String, username: String): Boolean = {
-    // Get their current pw to use as the secret
-    // Use the users hashed pw because that is consistently there, whereas the clear pw is not
-    AuthCache.users.get(username) match {
-      // case Some(userTok) => if (userTok.unhashed != "") Token.isValid(token, userTok.unhashed) else Token.isValid(token, userTok.hashed)
-      case Some(userTok) => Token.isValid(token, userTok.hashed)
+    // Get their current hashed pw to use as the secret
+    AuthCache.getUser(username) match {
+      case Some(userHashedTok) => Token.isValid(token, userHashedTok)
       case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.BADCREDS, ExchangeMessage.translateMessage("invalid.credentials")))
     }
   }
@@ -363,12 +361,19 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
         //else throw new InvalidCredentialsException("invalid token")  <- hint==token means it *could* be a token, not that it *must* be
       }
       //for ((k, v) <- AuthCache.users.things) { logger.debug("users cache entry: "+k+" "+v) }
-      //logger.trace("calling AuthCache.users.isValid(creds)")
-      if (AuthCache.users.isValid(creds)) {/*logger.trace("back from AuthCache.users.isValid(creds) true");*/ return toIUser }
-      //logger.trace("back from AuthCache.users.isValid(creds) false")
-      if (AuthCache.nodes.isValid(creds)) return toINode
-      if (AuthCache.agbots.isValid(creds)) return toIAgbot
-      throw new InvalidCredentialsException()   // will be caught by AuthenticationSupport.authenticate() and the proper halt() done
+      if (AuthCache.useNew) {
+        AuthCache.ids.getValidType(creds) match {
+          case CacheIdType.User => return toIUser
+          case CacheIdType.Node => return toINode
+          case CacheIdType.Agbot => return toIAgbot
+          case CacheIdType.None => throw new InvalidCredentialsException() // will be caught by AuthenticationSupport.authenticate() and the proper halt() done
+        }
+      } else {
+        if (AuthCache.users.isValid(creds)) return toIUser
+        if (AuthCache.nodes.isValid(creds)) return toINode
+        if (AuthCache.agbots.isValid(creds)) return toIAgbot
+        throw new InvalidCredentialsException()   // will be caught by AuthenticationSupport.authenticate() and the proper halt() done
+      }
     }
 
     def authorizeTo(target: Target, access: Access): Authorization
@@ -486,12 +491,10 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
 
     override def isAdmin: Boolean = {
       if (isSuperUser) return true
-      //println("AuthCache.users.owners: "+AuthCache.users.owners.toString())
-      //println("getting owner for "+creds.id+": "+AuthCache.users.getOwner(creds.id))
-      AuthCache.users.getOwner(creds.id) match {
-        case Some(s) => if (s == "admin") return true else return false
-        case None => return false
-      }
+      //println("getting admin for "+creds.id+" ...")
+      val resp = AuthCache.getUserIsAdmin(creds.id).getOrElse(false)
+      //println("... back from getting admin for "+creds.id+": "+resp)
+      resp
     }
 
     def iOwnTarget(target: Target): Boolean = {
@@ -501,11 +504,11 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
         //todo: should move these into the Target subclasses
         val owner = target match {
           case TUser(id) => return id == creds.id
-          case TNode(id) => AuthCache.nodes.getOwner(id)
-          case TAgbot(id) => AuthCache.agbots.getOwner(id)
-          case TService(id) => AuthCache.services.getOwner(id)
-          case TPattern(id) => AuthCache.patterns.getOwner(id)
-          case TBusiness(id) => AuthCache.business.getOwner(id)
+          case TNode(id) => AuthCache.getNodeOwner(id)
+          case TAgbot(id) => AuthCache.getAgbotOwner(id)
+          case TService(id) => AuthCache.getServiceOwner(id)
+          case TPattern(id) => AuthCache.getPatternOwner(id)
+          case TBusiness(id) => AuthCache.getBusinessOwner(id)
           case _ => return false
         }
         owner match {
@@ -761,13 +764,13 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
   case class TNode(id: String) extends Target
   case class TAgbot(id: String) extends Target
   case class TService(id: String) extends Target {      // for services only the user that created it can update/delete it
-    override def isPublic: Boolean = if (all) return true else return AuthCache.services.getIsPublic(id).getOrElse(false)
+    override def isPublic: Boolean = if (all) return true else return AuthCache.getServiceIsPublic(id).getOrElse(false)
   }
   case class TPattern(id: String) extends Target {      // for patterns only the user that created it can update/delete it
-    override def isPublic: Boolean = if (all) return true else return AuthCache.patterns.getIsPublic(id).getOrElse(false)
+    override def isPublic: Boolean = if (all) return true else return AuthCache.getPatternIsPublic(id).getOrElse(false)
   }
   case class TBusiness(id: String) extends Target {      // for business policies only the user that created it can update/delete it
-    override def isPublic: Boolean = if (all) return true else return AuthCache.business.getIsPublic(id).getOrElse(false)
+    override def isPublic: Boolean = if (all) return true else return AuthCache.getBusinessIsPublic(id).getOrElse(false)
   }
   case class TAction(id: String = "") extends Target    // for post rest api methods that do not target any specific resource (e.g. admin operations)
 }

@@ -56,7 +56,7 @@ func main() {
 	// How many agbots this instance should simulate
 	numAgbots := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_AGBOTS", 1)
 	// How many msgs should be created for each agbot (to simulate agreement negotiation)
-	numMsgs := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_MSGS", 10)
+	numMsgs := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_MSGS", 50)
 
 	/* These defaults are taken from /etc/horizon/anax.json
 	"NewContractIntervalS": 10, (gets patterns and policies, and do both /search apis)
@@ -251,9 +251,13 @@ func main() {
 							nid := perfutils.TrimOrg(n.Id) // the node ids are returned to us with the org prepended
 							perfutils.Verbose("Node %s", nid)
 
-							// the extra acceptable http codes below handle the case in which the node was deleted between the time of the search and now
+							// Simulate agreement negotiation by posting some short-lived msgs to the node
+							// the acceptable 404 http code below handle the case in which the node was deleted between the time of the search and now
 							perfutils.ExchangeGet("orgs/"+org+"/nodes/"+nid, myagbotauth, []int{404}, nil)
-							perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/nodes/"+nid+"/msgs", myagbotauth, []int{404}, `{"message": "hey there", "ttl": 8640000}`, nil, true) // ttl is 2400 hours - make sure they are there for the life of the test
+							for i := 1; i <= 2; i++ {
+								perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/nodes/"+nid+"/msgs", myagbotauth, []int{404}, `{"message": "hey there", "ttl": 5}`, nil, true)
+							}
+							// we query our own msgs below, so don't have to do that here
 						}
 					}
 				} // end of for patterns

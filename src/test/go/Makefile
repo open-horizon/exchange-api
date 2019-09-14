@@ -10,13 +10,23 @@ else
   export GOOS ?= linux
 endif
 
-$(GOOS)/node: node/node.go perfutils/perfutils.go
-	mkdir -p $(GOOS)
-	go build -o $@ $<
+all: darwin/node linux/node darwin/agbot linux/agbot
 
-$(GOOS)/agbot: agbot/agbot.go perfutils/perfutils.go
-	mkdir -p $(GOOS)
-	go build -o $@ $<
+darwin/node: node/node.go perfutils/perfutils.go
+	mkdir -p $(shell dirname $@)
+	GOOS=$(shell dirname $@) go build -o $@ $<
+
+linux/node: node/node.go perfutils/perfutils.go
+	mkdir -p $(shell dirname $@)
+	GOOS=$(shell dirname $@) go build -o $@ $<
+
+darwin/agbot: agbot/agbot.go perfutils/perfutils.go
+	mkdir -p $(shell dirname $@)
+	GOOS=$(shell dirname $@) go build -o $@ $<
+
+linux/agbot: agbot/agbot.go perfutils/perfutils.go
+	mkdir -p $(shell dirname $@)
+	GOOS=$(shell dirname $@) go build -o $@ $<
 
 $(GOOS)/smalltest: smalltest/smalltest.go
 	@echo GOOS=$(GOOS)

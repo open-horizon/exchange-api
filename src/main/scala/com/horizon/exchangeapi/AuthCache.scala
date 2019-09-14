@@ -50,7 +50,7 @@ object AuthCache extends Control with ServletApiImplicits {
     case class CacheVal(hashedToken: String, unhashedToken: String = "", idType: CacheIdType = CacheIdType.None)
 
     private val guavaCache = CacheBuilder.newBuilder()
-      .maximumSize(ExchConfig.getInt("api.cache.idsSize"))
+      .maximumSize(ExchConfig.getInt("api.cache.idsMaxSize"))
       .expireAfterWrite(ExchConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
       .build[String, Entry[CacheVal]]     // the cache key is org/id, and the value is CacheVal
     implicit val userCache = GuavaCache(guavaCache)   // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
@@ -154,7 +154,7 @@ object AuthCache extends Control with ServletApiImplicits {
 
     private val guavaCache = CacheBuilder.newBuilder()
       .maximumSize(maxSize)
-      .expireAfterWrite(ExchConfig.getInt("api.cache.resourceOwnersTtlSeconds"), TimeUnit.SECONDS)
+      .expireAfterWrite(ExchConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
       .build[String, Entry[Boolean]]     // the cache key is org/id, and the value is admin priv or isPublic
     implicit val userCache = GuavaCache(guavaCache)   // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
     private var db: Database = _
@@ -211,15 +211,15 @@ object AuthCache extends Control with ServletApiImplicits {
     }
   }   // end of class CacheBoolean
 
-  class CacheAdmin() extends CacheBoolean("admin", ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CacheAdmin() extends CacheBoolean("admin", ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[Boolean]] = UsersTQ.getAdmin(id).result
   }
 
-  class CachePublicService() extends CacheBoolean("public", ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CachePublicService() extends CacheBoolean("public", ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[Boolean]] = ServicesTQ.getPublic(id).result
   }
 
-  class CachePublicPattern() extends CacheBoolean("public", ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CachePublicPattern() extends CacheBoolean("public", ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[Boolean]] = PatternsTQ.getPublic(id).result
   }
 
@@ -238,7 +238,7 @@ object AuthCache extends Control with ServletApiImplicits {
 
     private val guavaCache = CacheBuilder.newBuilder()
       .maximumSize(maxSize)
-      .expireAfterWrite(ExchConfig.getInt("api.cache.resourceOwnersTtlSeconds"), TimeUnit.SECONDS)
+      .expireAfterWrite(ExchConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
       .build[String, Entry[String]]     // the cache key is org/id, and the value is the owner
     implicit val userCache = GuavaCache(guavaCache)   // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
     private var db: Database = _
@@ -294,23 +294,23 @@ object AuthCache extends Control with ServletApiImplicits {
     }
   }   // end of class CacheOwner
 
-  class CacheOwnerNode() extends CacheOwner(ExchConfig.getInt("api.cache.idsSize")) {
+  class CacheOwnerNode() extends CacheOwner(ExchConfig.getInt("api.cache.idsMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = NodesTQ.getOwner(id).result
   }
 
-  class CacheOwnerAgbot() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CacheOwnerAgbot() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = AgbotsTQ.getOwner(id).result
   }
 
-  class CacheOwnerService() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CacheOwnerService() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = ServicesTQ.getOwner(id).result
   }
 
-  class CacheOwnerPattern() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CacheOwnerPattern() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = PatternsTQ.getOwner(id).result
   }
 
-  class CacheOwnerBusiness() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CacheOwnerBusiness() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = BusinessPoliciesTQ.getOwner(id).result
   }
 

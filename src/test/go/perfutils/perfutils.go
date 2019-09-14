@@ -36,6 +36,7 @@ const (
 	CLI_GENERAL_ERROR  = 7
 	NOT_FOUND          = 8
 	EXEC_CMD_ERROR     = 10
+	HTTP_CLIENT_ERROR  = 598
 	INTERNAL_ERROR     = 99
 )
 
@@ -97,7 +98,7 @@ func Error(msg string, args ...interface{}) {
 	if !strings.HasSuffix(msg, "\n") {
 		msg += "\n"
 	}
-	errMsg := fmt.Sprintf("Error:==> "+time.Now().String()+" "+msg, args...)
+	errMsg := fmt.Sprintf("Error:==> "+time.Now().Format("2006.01.02 15:04:05")+" "+msg, args...)
 	// write error msg to both the summary file and stderr
 	Append2File(EX_PERF_REPORT_FILE, errMsg)
 	fmt.Fprint(os.Stderr, errMsg)
@@ -106,6 +107,14 @@ func Error(msg string, args ...interface{}) {
 func Fatal(exitCode int, msg string, args ...interface{}) {
 	Error(msg, args...)
 	os.Exit(exitCode)
+}
+
+func MaybeFatal(doContinue bool, exitCode int, msg string, args ...interface{}) {
+	if doContinue {
+		Error(msg, args...)
+	} else {
+		Fatal(exitCode, msg, args...)
+	}
 }
 
 func MinInt(a, b int) int {
@@ -269,7 +278,7 @@ func IsTransportError(err error) bool {
 	return false
 }
 
-func invokeRestApiWithRetry(httpClient *http.Client, req *http.Request) *http.Response {
+func invokeRestApiWithRetry(httpClient *http.Client, req *http.Request, doContinue bool) *http.Response {
 	retryCount := 0
 	for {
 		retryCount++
@@ -277,15 +286,18 @@ func invokeRestApiWithRetry(httpClient *http.Client, req *http.Request) *http.Re
 		if resp, err := httpClient.Do(req); err != nil {
 			if IsTransportError(err) {
 				if retryCount <= retryMax {
-					Verbose("error calling %s %s: %v. Will retry...", req.Method, req.URL, err)
+					//Verbose("error calling %s %s: %v. Will retry...", req.Method, req.URL, err)
+					Debug("error calling %s %s: %v. Will retry...", req.Method, req.URL, err)
 					// retry for network tranport errors
 					time.Sleep(retrySleep * time.Second)
 					continue
 				} else {
-					Fatal(HTTP_ERROR, "error calling %s %s: %v. At retry max, exiting.", req.Method, req.URL, err)
+					MaybeFatal(doContinue, HTTP_ERROR, "error calling %s %s: %v. At retry max, exiting.", req.Method, req.URL, err)
+					return nil
 				}
 			} else {
-				Fatal(HTTP_ERROR, "error calling %s %s: %v", req.Method, req.URL, err)
+				MaybeFatal(doContinue, HTTP_ERROR, "error calling %s %s: %v", req.Method, req.URL, err)
+				return nil
 			}
 		} else {
 			return resp
@@ -313,26 +325,33 @@ func ExchangeGet(urlSuffix, credentials string, goodHttpCodes []int, respStruct 
 
 	Verbose(apiMsg)
 	httpClient := GetHTTPClient()
+	httpCode = HTTP_CLIENT_ERROR // in case we return early
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		Fatal(HTTP_ERROR, "%s new request failed: %v", apiMsg, err)
+		Error("%s new request failed: %v", apiMsg, err)
+		return
 	}
 	req.Header.Add("Accept", "application/json")
 	if credentials != "" {
 		req.Header.Add("Authorization", fmt.Sprintf("Basic %v", base64.StdEncoding.EncodeToString([]byte(credentials))))
 	}
 
-	resp := invokeRestApiWithRetry(httpClient, req)
+	resp := invokeRestApiWithRetry(httpClient, req, true)
+	if resp == nil {
+		return
+	}
 	defer resp.Body.Close()
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		Fatal(HTTP_ERROR, "failed to read body response from %s: %v", apiMsg, err)
+		Error("failed to read body response from %s: %v", apiMsg, err)
+		return
 	}
 	httpCode = resp.StatusCode
 	Verbose("HTTP code: %d", httpCode)
 	if !isGoodCode(httpCode, append(goodHttpCodes, 200)) {
 		Error("bad HTTP code %d from %s, output: %s", httpCode, apiMsg, string(bodyBytes)) // always continue if a GET fails
+		return
 	}
 
 	if len(bodyBytes) > 0 && respStruct != nil { // some front-ends of exchange will return nothing when auth problem
@@ -371,6 +390,7 @@ func ExchangeP(method string, urlSuffix, credentials string, goodHttpCodes []int
 
 	Verbose(apiMsg)
 	httpClient := GetHTTPClient()
+	httpCode = HTTP_CLIENT_ERROR // in case we return early
 
 	// Prepare body
 	var requestBody io.Reader
@@ -385,7 +405,8 @@ func ExchangeP(method string, urlSuffix, credentials string, goodHttpCodes []int
 			var err error
 			jsonBytes, err = json.Marshal(body)
 			if err != nil {
-				Fatal(JSON_PARSING_ERROR, "failed to marshal exchange body for %s: %v", apiMsg, err)
+				MaybeFatal(doContinue, JSON_PARSING_ERROR, "failed to marshal exchange body for %s: %v", apiMsg, err)
+				return
 			}
 		}
 		requestBody = bytes.NewBuffer(jsonBytes)
@@ -394,7 +415,8 @@ func ExchangeP(method string, urlSuffix, credentials string, goodHttpCodes []int
 	// Create the request and run it
 	req, err := http.NewRequest(method, url, requestBody)
 	if err != nil {
-		Fatal(HTTP_ERROR, "%s new request failed: %v", apiMsg, err)
+		MaybeFatal(doContinue, HTTP_ERROR, "%s new request failed: %v", apiMsg, err)
+		return
 	}
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/json")
@@ -403,21 +425,22 @@ func ExchangeP(method string, urlSuffix, credentials string, goodHttpCodes []int
 		req.Header.Add("Authorization", fmt.Sprintf("Basic %v", base64.StdEncoding.EncodeToString([]byte(credentials))))
 	} // else it is an anonymous call
 
-	resp := invokeRestApiWithRetry(httpClient, req)
+	resp := invokeRestApiWithRetry(httpClient, req, doContinue)
+	if resp == nil {
+		return
+	}
 	defer resp.Body.Close()
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		Fatal(HTTP_ERROR, "failed to read body response from %s: %v", apiMsg, err)
+		MaybeFatal(doContinue, HTTP_ERROR, "failed to read body response from %s: %v", apiMsg, err)
+		return
 	}
 	httpCode = resp.StatusCode
 	Verbose("HTTP code: %d", httpCode)
 	if !isGoodCode(httpCode, append(goodHttpCodes, 201)) {
 		errMsg := fmt.Sprintf("bad HTTP code %d from %s, output: %s", httpCode, apiMsg, string(bodyBytes))
-		if doContinue {
-			Error(errMsg)
-		} else {
-			Fatal(HTTP_ERROR, errMsg)
-		}
+		MaybeFatal(doContinue, HTTP_ERROR, errMsg)
+		return
 	}
 
 	if len(bodyBytes) > 0 && respStruct != nil { // some front-ends of exchange will return nothing when auth problem
@@ -456,13 +479,18 @@ func ExchangeDelete(urlSuffix, credentials string, goodHttpCodes []int) (httpCod
 
 	Verbose(apiMsg)
 	httpClient := GetHTTPClient()
+	httpCode = HTTP_CLIENT_ERROR // in case we return early
 
 	req, err := http.NewRequest(http.MethodDelete, url, nil)
 	if err != nil {
-		Fatal(HTTP_ERROR, "%s new request failed: %v", apiMsg, err)
+		Error("%s new request failed: %v", apiMsg, err)
+		return
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Basic %v", base64.StdEncoding.EncodeToString([]byte(credentials))))
-	resp := invokeRestApiWithRetry(httpClient, req)
+	resp := invokeRestApiWithRetry(httpClient, req, true)
+	if resp == nil {
+		return
+	}
 	// delete never returns a body
 	httpCode = resp.StatusCode
 	Verbose("HTTP code: %d", httpCode)

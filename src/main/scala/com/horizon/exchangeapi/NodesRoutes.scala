@@ -239,33 +239,6 @@ case class PostNodeConfigStateRequest(org: String, url: String, configState: Str
 case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: List[OneService]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = { }
-  //TODO: remove these comments
-  """
-  {
-    "connectivity": {
-      "firmware.bluehorizon.network": true,
-      "images.bluehorizon.network": true
-    },
-    "services": [
-    {
-      "agreementId": "78d7912aafb6c11b7a776f77d958519a6dc718b9bd3da36a1442ebb18fe9da30",
-      "serviceUrl":"mydomain.com.location",
-      "orgid":"ling.com",
-      "version":"1.2",
-      "arch":"amd64",
-      "containers": [
-      {
-        "name": "/dc23c045eb64e1637d027c4b0236512e89b2fddd3f06290c7b2354421d9d8e0d-location",
-        "image": "summit.hovitos.engineering/x86/location:v1.2",
-        "created": 1506086099,
-        "state": "running"
-      }
-      ]
-    }
-    ]
-  }
-  """
-  //service id = <svc-name>_<svc-version>_<service-arch>
   var runningServices = "|"
   for(s <- services){
     runningServices = runningServices + s.orgid + "/" + s.serviceUrl + "_" + s.version + "_" + s.arch + "|"

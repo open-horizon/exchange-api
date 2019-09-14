@@ -27,7 +27,6 @@ case class GetServiceAttributeResponse(attribute: String, value: String)
 case class PostServiceSearchRequest() {
   def validate() = {}
 }
-//TODO: this is probably not the best type
 case class PostServiceSearchResponse(nodes: scala.collection.Seq[(String, String)])
 
 
@@ -1131,9 +1130,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val q = for {
       (n, s) <- (NodesTQ.rows.filter(_.orgid === orgid)) join (NodeStatusTQ.rows.filter(_.runningServices like orgService)) on (_.id === _.nodeId)
     } yield (n.id, n.lastHeartbeat)
-    //    val q = for {
-    //      (n, s) <- (NodesTQ.rows.filter(_.orgid === orgid)) joinLeft (NodeStatusTQ.rows.filter(_.runningServices like orgService)) on (_.id === _.nodeId)
-    //    } yield (n.id, n.lastHeartbeat)
+
     db.run(q.result).map({ list =>
       logger.debug("POST /orgs/"+orgid+"/services/"+service+"/search result size: "+list.size)
       if (list.nonEmpty) {

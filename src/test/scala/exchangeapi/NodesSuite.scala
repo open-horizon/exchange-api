@@ -1106,8 +1106,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postResp = parse(response.body).extract[PostNodeErrorResponse]
     assert(postResp.nodes.size === 2)
-    assert(postResp.nodes.head === "NodesSuiteTests/n1")
-    assert(postResp.nodes(1) === "NodesSuiteTests/n2")
+    assert(postResp.nodes.contains("NodesSuiteTests/n1"))
+    assert(postResp.nodes.contains("NodesSuiteTests/n2"))
   }
 
   test("POST /orgs/"+orgid+"/search/nodes/error/ - as agbot, list should have 2 nodes, no input body") {
@@ -1117,8 +1117,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postResp = parse(response.body).extract[PostNodeErrorResponse]
     assert(postResp.nodes.size === 2)
-    assert(postResp.nodes.head === "NodesSuiteTests/n1")
-    assert(postResp.nodes(1) === "NodesSuiteTests/n2")
+    assert(postResp.nodes.contains("NodesSuiteTests/n1"))
+    assert(postResp.nodes.contains("NodesSuiteTests/n2"))
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as first node again") {

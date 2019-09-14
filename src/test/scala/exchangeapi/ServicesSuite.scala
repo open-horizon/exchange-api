@@ -49,6 +49,9 @@ class ServicesSuite extends FunSuite {
   val nodeId = "9912"     // the 1st node created, that i will use to run some rest methods
   val nodeToken = nodeId+"tok"
   val NODEAUTH = ("Authorization","Basic "+authpref+nodeId+":"+nodeToken)
+  val nodeId2 = "9913"     // the 1st node created, that i will use to run some rest methods
+  val nodeToken2 = nodeId2+"tok"
+  val NODEAUTH2 = ("Authorization","Basic "+authpref+nodeId2+":"+nodeToken2)
   val agbotId = "9947"
   val agbotToken = agbotId+"tok"
   val AGBOTAUTH = ("Authorization","Basic "+authpref+agbotId+":"+agbotToken)
@@ -93,6 +96,10 @@ class ServicesSuite extends FunSuite {
   val ibmSvcArch = "arm"
   val ibmService = ibmSvcBase + "_" + ibmSvcVersion + "_" + ibmSvcArch
   val ibmOrgService = "IBM/"+ibmService
+  val patid = "p1"
+  val compositePatid = orgid+"/"+patid
+  val agProto = "ExchangeAutomatedTest"    // using this to avoid db entries from real users and predefined ones
+  val ALL_VERSIONS = "[0.0.0,INFINITY)"
   val keyId = "mykey.pem"
   val key = "abcdefghijk"
   val keyId2 = "mykey2.pem"
@@ -150,6 +157,11 @@ class ServicesSuite extends FunSuite {
     val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK)
+
+    val devInput2 = PutNodesRequest(nodeToken2, "bc dev test", "", None, None, None, None, "", None)
+    val devResponse2 = Http(URL+"/nodes/"+nodeId2).postData(write(devInput2)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+devResponse2.code)
+    assert(devResponse2.code === HttpCode.PUT_OK)
 
     val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", None, "ABC")
     val agbotResponse = Http(URL+"/agbots/"+agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -444,7 +456,6 @@ class ServicesSuite extends FunSuite {
   test("GET /orgs/"+orgid+"/services - as agbot") {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
     val respObj = parse(response.body).extract[GetServicesResponse]
     assert(respObj.services.size === 6)
@@ -613,6 +624,115 @@ class ServicesSuite extends FunSuite {
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
+  // ~~~~~ POST /orgs/{orgid}/services/{service}/search tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  // Step 1: get a service running on more than one node
+  // add a pattern that references a service
+  test("POST /orgs/"+orgid+"/patterns/"+patid+" - so nodes can reference it") {
+    val input = PostPutPatternRequest(patid, None, None,
+      List(
+        PServices(svcUrl, orgid, svcArch, None, List(PServiceVersions(svcVersion, None, None, None, None)), None, None ),
+      ),
+      None, None
+    )
+    val response = Http(URL+"/patterns/"+patid).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  // add two node that use that pattern
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal update - as node") {
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal", compositePatid,
+      Some(List(
+        RegService(service,1,Some("active"),"{json policy for "+nodeId+" sdr}",List(
+          Prop("arch","arm","string","in"),
+          Prop("memory","300","int",">="),
+          Prop("version","1.0.0","version","in"),
+          Prop("agreementProtocols",agProto,"list","in"),
+          Prop("dataVerification","true","boolean","="))),
+      )),
+      Some(List( OneUserInputService(orgid, svcUrl, Some(svcArch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(""), Some(Map("horizon"->"3.2.1")), "NodeABCD", Some("amd64"))
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
+    val oneService = OneService("agreementid", svcUrl, orgid, svcVersion, svcArch, List[ContainerStatus]())
+    val oneService2 = OneService("agreementid2", svcBase2, orgid, svcVersion2, svcArch2, List[ContainerStatus]())
+    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+" - normal update - as node") {
+    val input = PutNodesRequest(nodeToken2, "rpi"+nodeId2+"-normal", compositePatid,
+      Some(List(
+        RegService(service,1,Some("active"),"{json policy for "+nodeId2+" sdr}",List(
+          Prop("arch","arm","string","in"),
+          Prop("memory","300","int",">="),
+          Prop("version","1.0.0","version","in"),
+          Prop("agreementProtocols",agProto,"list","in"),
+          Prop("dataVerification","true","boolean","="))),
+      )),
+      Some(List( OneUserInputService(orgid, svcUrl, Some(svcArch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(""), Some(Map("horizon"->"3.2.1")), "NodeABCD", Some("amd64"))
+    val response = Http(URL+"/nodes/"+nodeId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH2).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+"/status - as node") {
+    val oneService = OneService("agreementid", svcUrl, orgid, svcVersion, svcArch, List[ContainerStatus]())
+    val oneService2 = OneService("agreementid2", svcBase2, orgid, svcVersion2, svcArch2, List[ContainerStatus]())
+    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val response = Http(URL+"/nodes/"+nodeId2+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH2).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
+    val response = Http(URL+"/nodes/"+nodeId+"/status").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getResp = parse(response.body).extract[NodeStatus]
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId2+"/status - as node") {
+    val response = Http(URL+"/nodes/"+nodeId2+"/status").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH2).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    val getResp = parse(response.body).extract[NodeStatus]
+  }
+
+  // test that the search route returns a list of more than one node
+  test("POST /orgs/"+orgid+"/services/"+service+"/search - should find " + service + " running on 2 nodes") {
+    val response = Http(URL+"/services/"+service+"/search").method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(response.body.contains(nodeId))
+    assert(response.body.contains(nodeId2))
+  }
+
+  test("POST /orgs/"+orgid+"/services/"+service2+"/search - should find " + service2 + " running on 2 nodes") {
+    val response = Http(URL+"/services/"+service2+"/search").method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(response.body.contains(nodeId))
+    assert(response.body.contains(nodeId2))
+  }
+
+  // test a service that no node is running has an empty resp
+  test("POST /orgs/"+orgid+"/services/"+service3+"/search - should find " + service3 + " running on 0 nodes") {
+    val response = Http(URL+"/services/"+service3+"/search").method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.body.isEmpty)
+  }
 
   // Key tests ==============================================
   test("GET /orgs/"+orgid+"/services/"+service+"/keys - no keys have been created yet - should fail") {
@@ -687,7 +807,6 @@ class ServicesSuite extends FunSuite {
     val resp = parse(response.body).extract[List[String]]
     assert(resp.size === 0)
   }
-
 
   // DockAuth tests ==============================================
   test("GET /orgs/"+orgid+"/services/"+service+"/dockauths - no dockauths have been created yet - should fail") {

@@ -239,8 +239,11 @@ case class PostNodeConfigStateRequest(org: String, url: String, configState: Str
 case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: List[OneService]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def validate() = { }
-
-  def toNodeStatusRow(nodeId: String) = NodeStatusRow(nodeId, write(connectivity), write(services), ApiTime.nowUTC)
+  var runningServices = "|"
+  for(s <- services){
+    runningServices = runningServices + s.orgid + "/" + s.serviceUrl + "_" + s.version + "_" + s.arch + "|"
+  }
+  def toNodeStatusRow(nodeId: String) = NodeStatusRow(nodeId, write(connectivity), write(services), runningServices, ApiTime.nowUTC)
 }
 
 case class PutNodeErrorRequest(errors: List[Any]) {

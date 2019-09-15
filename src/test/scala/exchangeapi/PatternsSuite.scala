@@ -946,7 +946,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - as agbot") {
-    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0)
+    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0, None)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -975,7 +975,7 @@ class PatternsSuite extends FunSuite {
 
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - agbot should find node with no arch") {
-    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0)
+    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0, None)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -1016,7 +1016,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid2+"/search - as agbot for "+PWSSPEC+" with no arch") {
-    val input = PostPatternSearchRequest(PWSSPEC, Some(List(orgid,orgid2)), 86400, 0, 0)
+    val input = PostPatternSearchRequest(PWSSPEC, Some(List(orgid,orgid2)), 86400, 0, 0, None)
     val response = Http(URL+"/patterns/"+patid2+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -1067,7 +1067,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid3+"/search - as agbot for "+SDRSPEC+" with two different arch's") {
-    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0)
+    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0, None)
     val response = Http(URL+"/patterns/"+patid3+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
@@ -1075,9 +1075,35 @@ class PatternsSuite extends FunSuite {
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 2)
     assert(nodes.count(d => d.id==orgnodeId5SearchTest5 || d.id==orgnodeId6SearchTest6) === 2)
-    val dev = nodes.find(d => d.id == orgnodeId5SearchTest5).get // the 2nd get turns the Some(val) into val
-    val dev2 = nodes.find(d => d.id == orgnodeId6SearchTest6).get // the 2nd get turns the Some(val) into val
+    val dev = nodes.find(d => d.id == orgnodeId5SearchTest5).get // arm32
+    val dev2 = nodes.find(d => d.id == orgnodeId6SearchTest6).get // amd64
     assert(dev.publicKey === "NODE5ABC")
+    assert(dev2.publicKey === "NODE6ABC")
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/"+patid3+"/search - as agbot for "+SDRSPEC+" with arch=arm32") {
+    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0, Some("arm32"))
+    val response = Http(URL+"/patterns/"+patid3+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
+    val nodes = postSearchDevResp.nodes
+    assert(nodes.length === 1)
+    assert(nodes.count(d => d.id==orgnodeId5SearchTest5) === 1)
+    val dev = nodes.find(d => d.id == orgnodeId5SearchTest5).get // arm32
+    assert(dev.publicKey === "NODE5ABC")
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/"+patid3+"/search - as agbot for "+SDRSPEC+" with arch=amd64") {
+    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0, Some("amd64"))
+    val response = Http(URL+"/patterns/"+patid3+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+    val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
+    val nodes = postSearchDevResp.nodes
+    assert(nodes.length === 1)
+    assert(nodes.count(d => d.id==orgnodeId6SearchTest6) === 1)
+    val dev2 = nodes.find(d => d.id == orgnodeId6SearchTest6).get // amd64
     assert(dev2.publicKey === "NODE6ABC")
   }
 

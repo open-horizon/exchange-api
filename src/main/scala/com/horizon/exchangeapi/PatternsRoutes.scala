@@ -22,7 +22,7 @@ case class GetPatternsResponse(patterns: Map[String,Pattern], lastIndex: Int)
 case class GetPatternAttributeResponse(attribute: String, value: String)
 
 /** Input for pattern-based search for nodes to make agreements with. */
-case class PostPatternSearchRequest(serviceUrl: String, nodeOrgids: Option[List[String]], secondsStale: Int, startIndex: Int, numEntries: Int) {
+case class PostPatternSearchRequest(serviceUrl: String, nodeOrgids: Option[List[String]], secondsStale: Int, startIndex: Int, numEntries: Int, arch: Option[String]) {
   def validate() = { }
 }
 
@@ -587,7 +587,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   "nodeOrgids": [ "org1", "org2", "..." ],   // if not specified, defaults to the same org the pattern is in
   "secondsStale": 60,     // max number of seconds since the exchange has heard from the node, 0 if you do not care
   "startIndex": 0,    // for pagination, ignored right now
-  "numEntries": 0    // ignored right now
+  "numEntries": 0,    // ignored right now
+  "arch": "arm"     // optional
 }
 ```"""
       parameters(
@@ -615,6 +616,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
     logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+searchProps.toString)
     val searchSvcUrl = searchProps.serviceUrl   // this now is a composite value (org/url), but plain url is supported for backward compat
+    val selectedServiceArch = searchProps.arch
     val resp = response
     /*
       Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
@@ -659,9 +661,19 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         archList += ""
         archList += "*"
         val archSet = archList.toSet
-        // archList.contains(n.arch.toString()
         if (found) {
-          if (svcArch == "" || svcArch == "*" || archSet("") || archSet("*")){
+          /*
+          1 - if the caller specified a non-wildcard arch in the body, that trumps everything, so filter on that arch
+          2 - else if the caller or any service specified a blank/wildcard arch, then don't filter on arch at all
+          3 - else filter on the arches in the services
+           */
+          if(selectedServiceArch.isDefined && !(selectedServiceArch.equals(Some("*")) || selectedServiceArch.equals(Some("")))){
+            val nodeQuery =
+              for {
+                (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(_.arch like selectedServiceArch) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+              } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+            nodeQuery.result.asTry
+          } else if (((archSet("") || archSet("*")) && selectedServiceArch.isEmpty) || selectedServiceArch.equals(Some("*")) || selectedServiceArch.equals(Some(""))){
             val nodeQuery =
               for {
                 (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)

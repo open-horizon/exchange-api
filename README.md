@@ -178,6 +178,9 @@ To build an exchange container with code that is targeted for a git branch:
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+## Changes in 1.112.0
+
+- Issue 214: Add optional `arch` field to body of pattern search so the search filters only on the arch passed in
 
 ## Changes in 1.111.0
 

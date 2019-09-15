@@ -236,7 +236,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+"/search - for "+SDRSPEC) {
-    val input = PostPatternSearchRequest(SDRSPEC, None, 86400, 0, 0)
+    val input = PostPatternSearchRequest(SDRSPEC, None, 86400, 0, 0, None)
     val response = Http(URL+"/patterns/"+pattern+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(TYPEUSER).headers(IDUSER).headers(ORGHEAD).headers(ISSUERHEAD).asString
     info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)

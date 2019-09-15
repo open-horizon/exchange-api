@@ -662,29 +662,29 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         archList += "*"
         val archSet = archList.toSet
         if (found) {
-          // if (the arch was not passed in AND one of the arches found was wildcard) OR the arch passed in was * OR the arch passed in was ""
-          if (((svcArch == "" || svcArch == "*" || archSet("") || archSet("*")) && selectedServiceArch.isEmpty) || selectedServiceArch.equals(Some("*")) || selectedServiceArch.equals(Some(""))){
+          /*
+          1 - if the caller specified a non-wildcard arch in the body, that trumps everything, so filter on that arch
+          2 - else if the caller or any service specified a blank/wildcard arch, then don't filter on arch at all
+          3 - else filter on the arches in the services
+           */
+          if(selectedServiceArch.isDefined && !(selectedServiceArch.equals(Some("*")) || selectedServiceArch.equals(Some("")))){
+            val nodeQuery =
+              for {
+                (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(_.arch like selectedServiceArch) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+              } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+            nodeQuery.result.asTry
+          } else if (((archSet("") || archSet("*")) && selectedServiceArch.isEmpty) || selectedServiceArch.equals(Some("*")) || selectedServiceArch.equals(Some(""))){
             val nodeQuery =
               for {
                 (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
               } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
             nodeQuery.result.asTry
           } else {
-            // if the arch was defined filter on that arch
-            if(selectedServiceArch.isDefined){
-              val nodeQuery =
-                for {
-                  (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(_.arch like selectedServiceArch) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-                } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
-              nodeQuery.result.asTry
-            } else{
-              // the arch was not defined so filter on the set of arch's built
-              val nodeQuery =
-                for {
-                  (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(_.arch inSet(archSet)) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-                } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
-              nodeQuery.result.asTry
-            }
+            val nodeQuery =
+              for {
+                (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(_.arch inSet(archSet)) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+              } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+            nodeQuery.result.asTry
           }
         }
 //        else DBIO.failed(new Throwable("the serviceUrl '"+searchSvcUrl+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry

@@ -47,6 +47,7 @@ object AuthCache extends Control with ServletApiImplicits {
   /** Holds recently authenticated users, node ids, agbot ids */
   class CacheId() {
     // For this cache the key is the id (already prefixed with the org) and the value is this class
+    // Note: unhashedToken isn't really unhashed, it is just bcrypted with less rounds for speed
     case class CacheVal(hashedToken: String, unhashedToken: String = "", idType: CacheIdType = CacheIdType.None)
 
     private val guavaCache = CacheBuilder.newBuilder()
@@ -62,10 +63,11 @@ object AuthCache extends Control with ServletApiImplicits {
     def getValidType(creds: Creds): CacheIdType = {
       logger.debug("CacheId:getValidType(): attempting to authenticate to the exchange with "+creds)
       val cacheValue = getCacheValue(creds)
+      logger.trace("cacheValue: "+cacheValue)
       if (cacheValue.isFailure) return CacheIdType.None
       // we got the hashed token from the cache or db, now verify the token passed in
       val cacheVal = cacheValue.get
-      if (cacheVal.unhashedToken != "" && creds.token == cacheVal.unhashedToken) {    // much faster than the bcrypt check below
+      if (cacheVal.unhashedToken != "" && Password.check(creds.token, cacheVal.unhashedToken)) {    // much faster than the bcrypt check below
         logger.debug("CacheId:getValidType(): successfully quick-validated "+creds.id+" and its pw using the cache/db")
         return cacheVal.idType
       } else if (Password.check(creds.token, cacheVal.hashedToken)) {
@@ -115,12 +117,13 @@ object AuthCache extends Control with ServletApiImplicits {
       // We found this id in the db. If the user-specified creds are valid, add the unhashed token to the cache entry
       if (creds.token!="" && Password.check(creds.token, dbHashedTok)) {
         logger.debug("CacheId:getId(): " + creds.id + " found in the db and user creds are valid, adding both to the cache")
-        Success(Some(CacheVal(dbHashedTok, creds.token, idType))) // we only get the hashed tok from the db, the unhashed will be added by getValidType()
+        // fast-bcrypt the token
+        Success(Some(CacheVal(dbHashedTok, Password.fastHash(creds.token), idType))) // we only get the hashed tok from the db, the unhashed will be added by getValidType()
       } else {
         logger.debug("CacheId:getId(): " + creds.id + " found in the db (but user creds are not valid), adding db entry to the cache")
         Success(Some(CacheVal(dbHashedTok, "", idType))) // we only get the hashed token from the db
         // In this case the cache value won't have the unhashed token, because the client didn't give us the right one. Until this entry
-        // expires from the cache, we will have to do the slower bcrypt check against this entry
+        // expires from the cache, we will have to do the slower bcrypt check against this entry up in getValidType()
       }
     }
 
@@ -131,10 +134,19 @@ object AuthCache extends Control with ServletApiImplicits {
       else None
     }
 
-    // The token passed in is already hashed.
-    def putUser(id: String, hashedPw: String, unhashedPw: String): Unit = { put(id)(CacheVal(hashedPw, unhashedPw, CacheIdType.User)) }    // we need these for the test suites, but in production it will only help in this 1 exchange instance
-    def putNode(id: String, hashedTok: String, unhashedTok: String): Unit = { put(id)(CacheVal(hashedTok, unhashedTok, CacheIdType.Node)) }
-    def putAgbot(id: String, hashedTok: String, unhashedTok: String): Unit = { put(id)(CacheVal(hashedTok, unhashedTok, CacheIdType.Agbot)) }
+    // we need these for the test suites, but in production it will only help in this 1 exchange instance
+    def putUser(id: String, hashedPw: String, unhashedPw: String): Unit = {
+      val fastHash = if (unhashedPw != "") Password.fastHash(unhashedPw) else ""
+      put(id)(CacheVal(hashedPw, fastHash, CacheIdType.User))
+    }
+    def putNode(id: String, hashedTok: String, unhashedTok: String): Unit = {
+      val fastHash = if (unhashedTok != "") Password.fastHash(unhashedTok) else ""
+      put(id)(CacheVal(hashedTok, fastHash, CacheIdType.Node))
+    }
+    def putAgbot(id: String, hashedTok: String, unhashedTok: String): Unit = {
+      val fastHash = if (unhashedTok != "") Password.fastHash(unhashedTok) else ""
+      put(id)(CacheVal(hashedTok, fastHash, CacheIdType.Agbot))
+    }
 
     def removeOne(id: String): Try[Any] = { remove(id) }
 

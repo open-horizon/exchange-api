@@ -73,7 +73,7 @@ func main() {
 	agbotHbInterval := perfutils.GetEnvVarIntWithDefault("EX_AGBOT_HB_INTERVAL", 60)
 	versionCheckInterval := perfutils.GetEnvVarIntWithDefault("EX_AGBOT_VERSION_CHECK_INTERVAL", 60)
 
-	shortCircuitChkInterval := perfutils.GetEnvVarIntWithDefault("EX_AGBOT_SHORT_CIRCUIT_CHK_INTERVAL", 10)
+	shortCircuitChkInterval := perfutils.GetEnvVarIntWithDefault("EX_AGBOT_SHORT_CIRCUIT_CHK_INTERVAL", 7)
 	requiredEmptyIntervals := perfutils.GetEnvVarIntWithDefault("EX_AGBOT_SHORT_CIRCUIT_EMPTY_INTERVALS", 3)
 	// EX_AGBOT_NO_SLEEP can be set to disable sleeping if it finishes an interval early
 	// EX_AGBOT_CREATE_PATTERN can be set to have this script create 1 pattern, so it finds something even if node.go is not running
@@ -216,7 +216,8 @@ func main() {
 				//perfutils.Debug("patterns: %v", patResp)
 				numPatterns := len(patResp.Patterns)
 				fmt.Printf("Agbot %d processing %d patterns\n", a, numPatterns)
-				if numPatterns == 0 {
+				if numPatterns == 0 || (os.Getenv("EX_AGBOT_CREATE_PATTERN") != "" && numPatterns == 1) {
+					// this will only be the case when all of the nodes have unregistered
 					emptyIntervals++
 				} else {
 					emptyIntervals = 0 // reset it
@@ -295,6 +296,7 @@ func main() {
 		iterDeltaTotal += iterDelta
 		if !shortCircuit && h >= shortCircuitChkInterval && emptyIntervals >= requiredEmptyIntervals {
 			// stop sleeping if we have done more than 10 intervals and the last 3 intervals have had 0 patterns
+			fmt.Printf("Found no patterns for %d agbot agreement checks, not sleeping for the rest of the run\n", emptyIntervals)
 			shortCircuit = true
 		}
 		if iterDelta > 0 && os.Getenv("EX_AGBOT_NO_SLEEP") == "" && !shortCircuit {

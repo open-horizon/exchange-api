@@ -131,7 +131,7 @@ object ExchConfig {
       // this is the 1st time, we need to hash and save it
       rootHashedPw = Password.hashIfNot(rootpw)
     }
-    val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw    // this is the 1 case in which an id cache entry could not have an unhashed pw/tok
+    val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw    // this is the 1 case in which an id cache entry could end up with a blank unhashed pw/tok
     AuthCache.putUser(Role.superUser, rootHashedPw, rootUnhashedPw)
     logger.info("Root user from config.json added to the in-memory authentication cache")
   }

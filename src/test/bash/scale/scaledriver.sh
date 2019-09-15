@@ -123,4 +123,5 @@ if [[ -z "$errorFiles" ]]; then
     echo "Scale node summaries can be viewed with: head -n 100 $EX_PERF_REPORT_DIR/*/*/*.summary"
 else
     printf "Errors occurred in the scale run, see files:\n$errorFiles\n"
+    echo "View the errors and summaries with: head -n 100 $EX_PERF_REPORT_DIR/*/*/*.summary"
 fi

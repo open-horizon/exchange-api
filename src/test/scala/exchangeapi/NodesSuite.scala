@@ -951,7 +951,8 @@ class NodesSuite extends FunSuite {
   //~~~~~ Node status ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
-    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService]())
+    val oneService = OneService("agreementid", "testService", orgid, "0.0.1", "arm", List[ContainerStatus]())
+    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService))
     val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -963,6 +964,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.OK)
     val getResp = parse(response.body).extract[NodeStatus]
     assert(getResp.connectivity("images.bluehorizon.network") === true)
+    // runningServices should look like : |NodesSuiteTests/testService_0.0.1_arm|
+    assert(getResp.runningServices.contains("|"+orgid+"/testService_0.0.1_arm|"))
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
@@ -1103,8 +1106,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postResp = parse(response.body).extract[PostNodeErrorResponse]
     assert(postResp.nodes.size === 2)
-    assert(postResp.nodes.head === "NodesSuiteTests/n1")
-    assert(postResp.nodes(1) === "NodesSuiteTests/n2")
+    assert(postResp.nodes.contains("NodesSuiteTests/n1"))
+    assert(postResp.nodes.contains("NodesSuiteTests/n2"))
   }
 
   test("POST /orgs/"+orgid+"/search/nodes/error/ - as agbot, list should have 2 nodes, no input body") {
@@ -1114,8 +1117,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     val postResp = parse(response.body).extract[PostNodeErrorResponse]
     assert(postResp.nodes.size === 2)
-    assert(postResp.nodes.head === "NodesSuiteTests/n1")
-    assert(postResp.nodes(1) === "NodesSuiteTests/n2")
+    assert(postResp.nodes.contains("NodesSuiteTests/n1"))
+    assert(postResp.nodes.contains("NodesSuiteTests/n2"))
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as first node again") {

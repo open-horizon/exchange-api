@@ -191,13 +191,13 @@ object NodesTQ {
 case class ContainerStatus(name: String, image: String, created: Int, state: String)
 case class OneService(agreementId: String, serviceUrl: String, orgid: String, version: String, arch: String, containerStatus: List[ContainerStatus])
 
-case class NodeStatusRow(nodeId: String, connectivity: String, services: String, lastUpdated: String) {
+case class NodeStatusRow(nodeId: String, connectivity: String, services: String, runningServices: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNodeStatus: NodeStatus = {
     val con = if (connectivity != "") read[Map[String,Boolean]](connectivity) else Map[String,Boolean]()
     val svc = if (services != "") read[List[OneService]](services) else List[OneService]()
-    return NodeStatus(con, svc, lastUpdated)
+    return NodeStatus(con, svc, runningServices, lastUpdated)
   }
 
   def upsert: DBIO[_] = NodeStatusTQ.rows.insertOrUpdate(this)
@@ -207,8 +207,9 @@ class NodeStatuses(tag: Tag) extends Table[NodeStatusRow](tag, "nodestatus") {
   def nodeId = column[String]("nodeid", O.PrimaryKey)
   def connectivity = column[String]("connectivity")
   def services = column[String]("services")
+  def runningServices = column[String]("runningservices")
   def lastUpdated = column[String]("lastUpdated")
-  def * = (nodeId, connectivity, services, lastUpdated) <> (NodeStatusRow.tupled, NodeStatusRow.unapply)
+  def * = (nodeId, connectivity, services, runningServices, lastUpdated) <> (NodeStatusRow.tupled, NodeStatusRow.unapply)
   def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
 }
 
@@ -217,7 +218,7 @@ object NodeStatusTQ {
   def getNodeStatus(nodeId: String) = rows.filter(_.nodeId === nodeId)
 }
 
-case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], lastUpdated: String)
+case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], runningServices: String, lastUpdated: String)
 
 //Node Errors
 // We are using the type Any instead of this case class so anax and the UI can change the fields w/o our code having to change

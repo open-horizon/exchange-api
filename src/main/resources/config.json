@@ -23,10 +23,10 @@
 			}
 		},
 		"cache": {
-			"idsSize": 1000,   // includes: users, nodes, agbots
+			"idsMaxSize": 3000,   // includes: users, nodes, agbots (all together)
 			"idsTtlSeconds": 300,
-			"resourceOwnersSize": 100,   // each of: users, services, patterns, policies
-			"resourceOwnersTtlSeconds": 300,
+			"resourcesMaxSize": 300,   // each of: users, agbots, services, patterns, policies
+			"resourcesTtlSeconds": 300,
 			"authDbTimeoutSeconds": 15,   // timeout for db access for critical auth info when cache missing
 			"type": "guava"    // either guava (default) or custom
 		},

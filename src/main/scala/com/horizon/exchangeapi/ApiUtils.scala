@@ -38,7 +38,7 @@ object HttpCode {
   val NOT_FOUND = 404   // resource not found
   val INTERNAL_ERROR = 500
   val NOT_IMPLEMENTED = 501
-  val BAD_GW = 502   // bad gateway, which for us means db connection error
+  val BAD_GW = 502   // bad gateway, which for us means db connection error or jetty refused connection
   val GW_TIMEOUT = 504   // gateway timeout, which for us means db timeout
 }
 
@@ -131,7 +131,7 @@ object ExchConfig {
       // this is the 1st time, we need to hash and save it
       rootHashedPw = Password.hashIfNot(rootpw)
     }
-    val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw    // this is the 1 case in which an id cache entry could not have an unhashed pw/tok
+    val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw    // this is the 1 case in which an id cache entry could end up with a blank unhashed pw/tok
     AuthCache.putUser(Role.superUser, rootHashedPw, rootUnhashedPw)
     logger.info("Root user from config.json added to the in-memory authentication cache")
   }

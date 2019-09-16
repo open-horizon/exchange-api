@@ -47,10 +47,11 @@ object AuthCache extends Control with ServletApiImplicits {
   /** Holds recently authenticated users, node ids, agbot ids */
   class CacheId() {
     // For this cache the key is the id (already prefixed with the org) and the value is this class
+    // Note: unhashedToken isn't really unhashed, it is just bcrypted with less rounds for speed
     case class CacheVal(hashedToken: String, unhashedToken: String = "", idType: CacheIdType = CacheIdType.None)
 
     private val guavaCache = CacheBuilder.newBuilder()
-      .maximumSize(ExchConfig.getInt("api.cache.idsSize"))
+      .maximumSize(ExchConfig.getInt("api.cache.idsMaxSize"))
       .expireAfterWrite(ExchConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
       .build[String, Entry[CacheVal]]     // the cache key is org/id, and the value is CacheVal
     implicit val userCache = GuavaCache(guavaCache)   // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
@@ -59,23 +60,32 @@ object AuthCache extends Control with ServletApiImplicits {
     def init(db: Database): Unit = { this.db = db }   // we intentionally don't prime the cache. We let it build on every access so we can add the unhashed token
 
     // Try to authenticate the creds and return the type (user/node/agbot) it is, or None
-    def getValidType(creds: Creds): CacheIdType = {
+    def getValidType(creds: Creds, retry: Boolean = false): CacheIdType = {
       logger.debug("CacheId:getValidType(): attempting to authenticate to the exchange with "+creds)
       val cacheValue = getCacheValue(creds)
+      logger.trace("cacheValue: "+cacheValue)
       if (cacheValue.isFailure) return CacheIdType.None
       // we got the hashed token from the cache or db, now verify the token passed in
       val cacheVal = cacheValue.get
-      if (cacheVal.unhashedToken != "" && creds.token == cacheVal.unhashedToken) {    // much faster than the bcrypt check below
+      if (cacheVal.unhashedToken != "" && Password.check(creds.token, cacheVal.unhashedToken)) {    // much faster than the bcrypt check below
         logger.debug("CacheId:getValidType(): successfully quick-validated "+creds.id+" and its pw using the cache/db")
         return cacheVal.idType
       } else if (Password.check(creds.token, cacheVal.hashedToken)) {
         logger.debug("CacheId:getValidType(): successfully validated "+creds.id+" and its pw using the cache/db")
         return cacheVal.idType
       } else {
-        //TODO: if we only used a non-expired cache entry to get here, the cache entry could be stale (e.g. they recently changed their pw/token via a different instance of the exchange).
-        //      So refresh they cache entry from the db.
-        logger.debug("CacheId:getValidType(): user "+creds.id+" not authenticated in the exchange")
-        return CacheIdType.None
+        // the creds were invalid
+        if (retry) {
+          // we already tried clearing the cache and retrying, so give up and return that they were bad creds
+          logger.debug("CacheId:getValidType(): user " + creds.id + " not authenticated in the exchange")
+          return CacheIdType.None
+        } else {
+          // If we only used a non-expired cache entry to get here, the cache entry could be stale (e.g. they recently changed their pw/token via a different instance of the exchange).
+          // So delete the cache entry from the db and try 1 more time
+          logger.debug("CacheId:getValidType(): user " + creds.id + " was not authenticated successfully, removing cache entry in case it was stale, and trying 1 more time")
+          removeOne(creds.id)
+          return getValidType(creds, retry = true)
+        }
       }
     }
 
@@ -114,13 +124,14 @@ object AuthCache extends Control with ServletApiImplicits {
       }
       // We found this id in the db. If the user-specified creds are valid, add the unhashed token to the cache entry
       if (creds.token!="" && Password.check(creds.token, dbHashedTok)) {
-        logger.debug("CacheId:getId(): " + creds.id + " found in the db and user creds are valid, adding both to the cache")
-        Success(Some(CacheVal(dbHashedTok, creds.token, idType))) // we only get the hashed tok from the db, the unhashed will be added by getValidType()
+        logger.debug("CacheId:getId(): " + creds.id + " found in the db and creds are valid, adding both to the cache")
+        // fast-bcrypt the token
+        Success(Some(CacheVal(dbHashedTok, Password.fastHash(creds.token), idType))) // we only get the hashed tok from the db, the unhashed will be added by getValidType()
       } else {
-        logger.debug("CacheId:getId(): " + creds.id + " found in the db (but user creds are not valid), adding db entry to the cache")
+        logger.debug("CacheId:getId(): " + creds.id + " found in the db (but creds are not valid), adding db entry to the cache")
         Success(Some(CacheVal(dbHashedTok, "", idType))) // we only get the hashed token from the db
         // In this case the cache value won't have the unhashed token, because the client didn't give us the right one. Until this entry
-        // expires from the cache, we will have to do the slower bcrypt check against this entry
+        // expires from the cache, we will have to do the slower bcrypt check against this entry up in getValidType()
       }
     }
 
@@ -131,10 +142,19 @@ object AuthCache extends Control with ServletApiImplicits {
       else None
     }
 
-    // The token passed in is already hashed.
-    def putUser(id: String, hashedPw: String, unhashedPw: String): Unit = { put(id)(CacheVal(hashedPw, unhashedPw, CacheIdType.User)) }    // we need these for the test suites, but in production it will only help in this 1 exchange instance
-    def putNode(id: String, hashedTok: String, unhashedTok: String): Unit = { put(id)(CacheVal(hashedTok, unhashedTok, CacheIdType.Node)) }
-    def putAgbot(id: String, hashedTok: String, unhashedTok: String): Unit = { put(id)(CacheVal(hashedTok, unhashedTok, CacheIdType.Agbot)) }
+    // we need these for the test suites, but in production it will only help in this 1 exchange instance
+    def putUser(id: String, hashedPw: String, unhashedPw: String): Unit = {
+      val fastHash = if (unhashedPw != "") Password.fastHash(unhashedPw) else ""
+      put(id)(CacheVal(hashedPw, fastHash, CacheIdType.User))
+    }
+    def putNode(id: String, hashedTok: String, unhashedTok: String): Unit = {
+      val fastHash = if (unhashedTok != "") Password.fastHash(unhashedTok) else ""
+      put(id)(CacheVal(hashedTok, fastHash, CacheIdType.Node))
+    }
+    def putAgbot(id: String, hashedTok: String, unhashedTok: String): Unit = {
+      val fastHash = if (unhashedTok != "") Password.fastHash(unhashedTok) else ""
+      put(id)(CacheVal(hashedTok, fastHash, CacheIdType.Agbot))
+    }
 
     def removeOne(id: String): Try[Any] = { remove(id) }
 
@@ -154,7 +174,7 @@ object AuthCache extends Control with ServletApiImplicits {
 
     private val guavaCache = CacheBuilder.newBuilder()
       .maximumSize(maxSize)
-      .expireAfterWrite(ExchConfig.getInt("api.cache.resourceOwnersTtlSeconds"), TimeUnit.SECONDS)
+      .expireAfterWrite(ExchConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
       .build[String, Entry[Boolean]]     // the cache key is org/id, and the value is admin priv or isPublic
     implicit val userCache = GuavaCache(guavaCache)   // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
     private var db: Database = _
@@ -211,15 +231,15 @@ object AuthCache extends Control with ServletApiImplicits {
     }
   }   // end of class CacheBoolean
 
-  class CacheAdmin() extends CacheBoolean("admin", ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CacheAdmin() extends CacheBoolean("admin", ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[Boolean]] = UsersTQ.getAdmin(id).result
   }
 
-  class CachePublicService() extends CacheBoolean("public", ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CachePublicService() extends CacheBoolean("public", ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[Boolean]] = ServicesTQ.getPublic(id).result
   }
 
-  class CachePublicPattern() extends CacheBoolean("public", ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CachePublicPattern() extends CacheBoolean("public", ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[Boolean]] = PatternsTQ.getPublic(id).result
   }
 
@@ -238,7 +258,7 @@ object AuthCache extends Control with ServletApiImplicits {
 
     private val guavaCache = CacheBuilder.newBuilder()
       .maximumSize(maxSize)
-      .expireAfterWrite(ExchConfig.getInt("api.cache.resourceOwnersTtlSeconds"), TimeUnit.SECONDS)
+      .expireAfterWrite(ExchConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
       .build[String, Entry[String]]     // the cache key is org/id, and the value is the owner
     implicit val userCache = GuavaCache(guavaCache)   // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
     private var db: Database = _
@@ -294,23 +314,23 @@ object AuthCache extends Control with ServletApiImplicits {
     }
   }   // end of class CacheOwner
 
-  class CacheOwnerNode() extends CacheOwner(ExchConfig.getInt("api.cache.idsSize")) {
+  class CacheOwnerNode() extends CacheOwner(ExchConfig.getInt("api.cache.idsMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = NodesTQ.getOwner(id).result
   }
 
-  class CacheOwnerAgbot() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CacheOwnerAgbot() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = AgbotsTQ.getOwner(id).result
   }
 
-  class CacheOwnerService() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CacheOwnerService() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = ServicesTQ.getOwner(id).result
   }
 
-  class CacheOwnerPattern() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CacheOwnerPattern() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = PatternsTQ.getOwner(id).result
   }
 
-  class CacheOwnerBusiness() extends CacheOwner(ExchConfig.getInt("api.cache.resourceOwnersSize")) {
+  class CacheOwnerBusiness() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = BusinessPoliciesTQ.getOwner(id).result
   }
 

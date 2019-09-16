@@ -44,11 +44,13 @@ func main() {
 	numNodes := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_NODES", 50)
 	// EX_PERF_NUM_NODE_AGREEMENTS can be explicitly set to how many nodes should be given an agreement each hb interval, otherwise it will be calculated below. An estimate of the average number of msgs a node will have in flight at 1 time
 	// How many msgs should be created for each node (to simulate agreement negotiation)
-	numMsgs := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_MSGS", 5)
+	//numMsgs := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_MSGS", 5)
 	// create this many extra svcs so the nodes and patterns have to search thru them, but we will just use a primary/common svc for the pattern this group of nodes will use
 	numSvcs := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_SVCS", 4)
 	// create multiple patterns so the agbot has to serve them all, but we will just use the 1st one for this group of nodes
 	numPatterns := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_PATTERNS", 2)
+	// how much to sleep (if any) between creation and registration of each node
+	createRegSleep := perfutils.GetEnvVarIntWithDefault("EX_PERF_CREATE_REG_SLEEP_MS", 0)
 
 	// These defaults are taken from /etc/horizon/anax.json
 	nodeHbInterval := perfutils.GetEnvVarIntWithDefault("EX_NODE_HB_INTERVAL", 60)
@@ -79,7 +81,7 @@ func main() {
 	agbotbase := namebase + "-a"
 	agbotid := agbotbase + "1"
 	agbottoken := "abc123"
-	agbotauth := org + "/" + agbotid + ":" + agbottoken
+	//agbotauth := org + "/" + agbotid + ":" + agbottoken
 
 	// svcurlbase is for creating the extra svcs. svcurl is the primary/common svc that all of the patterns will use
 	svcurlbase := namebase + "-svcurl"
@@ -168,21 +170,25 @@ func main() {
 		mynodeid := nodebase + strconv.Itoa(n)
 		mynodeauth := org + "/" + mynodeid + ":" + nodetoken
 
+		if createRegSleep > 0 {
+			time.Sleep(time.Duration(createRegSleep) * time.Millisecond)
+		}
+
 		// Make all the api calls a node makes during registration
 		perfutils.ExchangeGet("admin/version", mynodeauth, nil, nil)
 		perfutils.ExchangeP(http.MethodPut, "orgs/"+org+"/nodes/"+mynodeid, userauth, nil, `{"token": "`+nodetoken+`", "name": "pi", "pattern": "`+org+`/`+patternid+`", "arch": "`+svcarch+`", "publicKey": "ABC"}`, nil, false)
 		perfutils.ExchangeGet("orgs/"+org+"/nodes/"+mynodeid, mynodeauth, nil, nil)
 		perfutils.ExchangeGet("orgs/"+org, mynodeauth, nil, nil)
 		perfutils.ExchangeGet("orgs/"+org+"/patterns/"+patternid, mynodeauth, nil, nil)
-		perfutils.ExchangeP(http.MethodPatch, "orgs/"+org+"/nodes/"+mynodeid, mynodeauth, nil, `{ "registeredServices": [{"url": "`+org+`/`+svcurl+`", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "`+svcarch+`", "propType": "string", "op": "in"},{"name": "version", "value": "1.0.0", "propType": "version", "op": "in"}]}] }`, nil, false)
+		perfutils.ExchangeP(http.MethodPatch, "orgs/"+org+"/nodes/"+mynodeid, mynodeauth, nil, `{ "registeredServices": [{"url": "`+org+`/`+svcurl+`", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "`+svcarch+`", "propType": "string", "op": "in"},{"name": "version", "value": "1.0.0", "propType": "version", "op": "in"}]}] }`, nil, true)
 		perfutils.ExchangeGet("orgs/"+org+"/patterns/"+patternid, mynodeauth, nil, nil)
 		perfutils.ExchangeGet("orgs/"+org+"/services", mynodeauth, nil, nil)
 		perfutils.ExchangeP(http.MethodPut, "orgs/"+org+"/nodes/"+mynodeid+"/policy", mynodeauth, nil, `{ "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }`, nil, true)
 
-		// Create msgs to simulate agreement negotiation (agbot.go will do the same for the agbots)
-		for m := 1; m <= numMsgs; m++ {
+		// Do not need to create msgs here to simulate agreement negotiation - agbot.go will do this when it finds the node in a search
+		/* for m := 1; m <= numMsgs; m++ {
 			perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/nodes/"+mynodeid+"/msgs", agbotauth, nil, `{"message": "hey there", "ttl": 8640000}`, nil, true) // ttl is 2400 hours - make sure they are there for the life of the test
-		}
+		} */
 	}
 
 	// =========== Loop thru repeated exchange calls =================================================
@@ -207,7 +213,7 @@ func main() {
 
 			// These api methods are run every hb
 			perfutils.ExchangeGet("orgs/"+org+"/nodes/"+mynodeid, mynodeauth, nil, nil)
-			perfutils.ExchangeGet("orgs/"+org+"/nodes/"+mynodeid+"/msgs", mynodeauth, nil, nil)
+			perfutils.ExchangeGet("orgs/"+org+"/nodes/"+mynodeid+"/msgs", mynodeauth, []int{404}, nil)
 			perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/nodes/"+mynodeid+"/heartbeat", mynodeauth, nil, nil, nil, true)
 			perfutils.ExchangeGet("orgs/"+org+"/nodes/"+mynodeid+"/policy", mynodeauth, nil, nil)
 
@@ -225,7 +231,7 @@ func main() {
 		// Give some (numNodeAgreements) nodes an agreement, so they won't be returned again in the agbot searches
 		if nextNodeAgreement <= numNodes {
 			toNodeAgreement := perfutils.MinInt(nextNodeAgreement+numNodeAgreements-1, numNodes)
-			perfutils.Debug("creating agreements for %s[%d - %d]", nodebase, nextNodeAgreement, toNodeAgreement)
+			fmt.Printf("creating agreements for %s[%d - %d]", nodebase, nextNodeAgreement, toNodeAgreement) // was Debug()
 			for n := nextNodeAgreement; n <= toNodeAgreement; n++ {
 				mynodeid := nodebase + strconv.Itoa(n)
 				mynodeauth := org + "/" + mynodeid + ":" + nodetoken

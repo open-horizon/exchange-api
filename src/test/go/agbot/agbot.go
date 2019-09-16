@@ -56,7 +56,7 @@ func main() {
 	// How many agbots this instance should simulate
 	numAgbots := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_AGBOTS", 1)
 	// How many msgs should be created for each agbot (to simulate agreement negotiation)
-	numMsgs := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_MSGS", 10)
+	numMsgs := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_MSGS", 50)
 
 	/* These defaults are taken from /etc/horizon/anax.json
 	"NewContractIntervalS": 10, (gets patterns and policies, and do both /search apis)
@@ -73,7 +73,7 @@ func main() {
 	agbotHbInterval := perfutils.GetEnvVarIntWithDefault("EX_AGBOT_HB_INTERVAL", 60)
 	versionCheckInterval := perfutils.GetEnvVarIntWithDefault("EX_AGBOT_VERSION_CHECK_INTERVAL", 60)
 
-	shortCircuitChkInterval := perfutils.GetEnvVarIntWithDefault("EX_AGBOT_SHORT_CIRCUIT_CHK_INTERVAL", 10)
+	shortCircuitChkInterval := perfutils.GetEnvVarIntWithDefault("EX_AGBOT_SHORT_CIRCUIT_CHK_INTERVAL", 7)
 	requiredEmptyIntervals := perfutils.GetEnvVarIntWithDefault("EX_AGBOT_SHORT_CIRCUIT_EMPTY_INTERVALS", 3)
 	// EX_AGBOT_NO_SLEEP can be set to disable sleeping if it finishes an interval early
 	// EX_AGBOT_CREATE_PATTERN can be set to have this script create 1 pattern, so it finds something even if node.go is not running
@@ -216,7 +216,8 @@ func main() {
 				//perfutils.Debug("patterns: %v", patResp)
 				numPatterns := len(patResp.Patterns)
 				fmt.Printf("Agbot %d processing %d patterns\n", a, numPatterns)
-				if numPatterns == 0 {
+				if numPatterns == 0 || (os.Getenv("EX_AGBOT_CREATE_PATTERN") != "" && numPatterns == 1) {
+					// this will only be the case when all of the nodes have unregistered
 					emptyIntervals++
 				} else {
 					emptyIntervals = 0 // reset it
@@ -240,7 +241,7 @@ func main() {
 					if httpCode == 201 || httpCode == 404 { // even with 404 we get a valid response structure
 						//perfutils.Debug("pattern search: %v", nodeResp)
 						numNodes := len(nodeResp.Nodes)
-						perfutils.Debug("pattern %s search found %d nodes", pat, numNodes)
+						fmt.Printf("pattern %s search found %d nodes", pat, numNodes) // was Debug()
 						nodesProcessed += numNodes
 						numAgrChkNodes += numNodes
 						nodesMaxProcessed = perfutils.MaxInt(nodesMaxProcessed, numNodes)
@@ -251,9 +252,13 @@ func main() {
 							nid := perfutils.TrimOrg(n.Id) // the node ids are returned to us with the org prepended
 							perfutils.Verbose("Node %s", nid)
 
-							// the extra acceptable http codes below handle the case in which the node was deleted between the time of the search and now
+							// Simulate agreement negotiation by posting some short-lived msgs to the node
+							// the acceptable 404 http code below handle the case in which the node was deleted between the time of the search and now
 							perfutils.ExchangeGet("orgs/"+org+"/nodes/"+nid, myagbotauth, []int{404}, nil)
-							perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/nodes/"+nid+"/msgs", myagbotauth, []int{404}, `{"message": "hey there", "ttl": 8640000}`, nil, true) // ttl is 2400 hours - make sure they are there for the life of the test
+							for i := 1; i <= 2; i++ {
+								perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/nodes/"+nid+"/msgs", myagbotauth, []int{404}, `{"message": "hey there", "ttl": 5}`, nil, true)
+							}
+							// we query our own msgs below, so don't have to do that here
 						}
 					}
 				} // end of for patterns
@@ -291,6 +296,7 @@ func main() {
 		iterDeltaTotal += iterDelta
 		if !shortCircuit && h >= shortCircuitChkInterval && emptyIntervals >= requiredEmptyIntervals {
 			// stop sleeping if we have done more than 10 intervals and the last 3 intervals have had 0 patterns
+			fmt.Printf("Found no patterns for %d agbot agreement checks, not sleeping for the rest of the run\n", emptyIntervals)
 			shortCircuit = true
 		}
 		if iterDelta > 0 && os.Getenv("EX_AGBOT_NO_SLEEP") == "" && !shortCircuit {

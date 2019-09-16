@@ -49,6 +49,8 @@ func main() {
 	numSvcs := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_SVCS", 4)
 	// create multiple patterns so the agbot has to serve them all, but we will just use the 1st one for this group of nodes
 	numPatterns := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_PATTERNS", 2)
+	// how much to sleep (if any) between creation and registration of each node
+	createRegSleep := perfutils.GetEnvVarIntWithDefault("EX_PERF_CREATE_REG_SLEEP_MS", 0)
 
 	// These defaults are taken from /etc/horizon/anax.json
 	nodeHbInterval := perfutils.GetEnvVarIntWithDefault("EX_NODE_HB_INTERVAL", 60)
@@ -168,6 +170,10 @@ func main() {
 		mynodeid := nodebase + strconv.Itoa(n)
 		mynodeauth := org + "/" + mynodeid + ":" + nodetoken
 
+		if createRegSleep > 0 {
+			time.Sleep(time.Duration(createRegSleep) * time.Millisecond)
+		}
+
 		// Make all the api calls a node makes during registration
 		perfutils.ExchangeGet("admin/version", mynodeauth, nil, nil)
 		perfutils.ExchangeP(http.MethodPut, "orgs/"+org+"/nodes/"+mynodeid, userauth, nil, `{"token": "`+nodetoken+`", "name": "pi", "pattern": "`+org+`/`+patternid+`", "arch": "`+svcarch+`", "publicKey": "ABC"}`, nil, false)
@@ -225,7 +231,7 @@ func main() {
 		// Give some (numNodeAgreements) nodes an agreement, so they won't be returned again in the agbot searches
 		if nextNodeAgreement <= numNodes {
 			toNodeAgreement := perfutils.MinInt(nextNodeAgreement+numNodeAgreements-1, numNodes)
-			perfutils.Debug("creating agreements for %s[%d - %d]", nodebase, nextNodeAgreement, toNodeAgreement)
+			fmt.Printf("creating agreements for %s[%d - %d]", nodebase, nextNodeAgreement, toNodeAgreement) // was Debug()
 			for n := nextNodeAgreement; n <= toNodeAgreement; n++ {
 				mynodeid := nodebase + strconv.Itoa(n)
 				mynodeauth := org + "/" + mynodeid + ":" + nodetoken

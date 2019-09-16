@@ -241,7 +241,7 @@ func main() {
 					if httpCode == 201 || httpCode == 404 { // even with 404 we get a valid response structure
 						//perfutils.Debug("pattern search: %v", nodeResp)
 						numNodes := len(nodeResp.Nodes)
-						perfutils.Debug("pattern %s search found %d nodes", pat, numNodes)
+						fmt.Printf("pattern %s search found %d nodes", pat, numNodes) // was Debug()
 						nodesProcessed += numNodes
 						numAgrChkNodes += numNodes
 						nodesMaxProcessed = perfutils.MaxInt(nodesMaxProcessed, numNodes)

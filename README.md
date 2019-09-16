@@ -178,6 +178,16 @@ To build an exchange container with code that is targeted for a git branch:
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+
+## Changes in 1.113.0
+
+- Added fast hash to cached token/pw
+- Invalidate id cache entry when authentication fails
+- Re-implemented scale drivers in go
+- Changed scale node.go and agbot.go logic to have agbot create node msgs each time it finds it in the search
+- In the scale drivers added some more retryable errors, and made retry max and sleep configurable
+
 ## Changes in 1.112.0
 
 - Issue 214: Add optional `arch` field to body of pattern search so the search filters only on the arch passed in

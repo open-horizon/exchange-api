@@ -38,7 +38,7 @@ object HttpCode {
   val NOT_FOUND = 404   // resource not found
   val INTERNAL_ERROR = 500
   val NOT_IMPLEMENTED = 501
-  val BAD_GW = 502   // bad gateway, which for us means db connection error
+  val BAD_GW = 502   // bad gateway, which for us means db connection error or jetty refused connection
   val GW_TIMEOUT = 504   // gateway timeout, which for us means db timeout
 }
 

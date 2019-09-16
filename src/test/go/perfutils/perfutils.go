@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	retryMax                   = 5
-	retrySleep                 = 2
+	//retryMax                   = 5
+	//retrySleep                 = 2
 	HTTPRequestTimeoutS        = 30
 	MaxHTTPIdleConnections     = 20
 	HTTPIdleConnectionTimeoutS = 120
@@ -43,6 +43,13 @@ const (
 var EX_PERF_REPORT_FILE string
 var HttpClient *http.Client // holds the global client we reuse
 var TotalOps int            // holds the total number of rest apis we have run
+var retryMax int
+var retrySleep int
+
+func init() {
+	retryMax = GetEnvVarIntWithDefault("EX_PERF_HTTP_RETRY_MAX", 5)
+	retrySleep = GetEnvVarIntWithDefault("EX_PERF_HTTP_RETRY_SLEEP", 2)
+}
 
 func GetRequiredEnvVar(envVarName string) string {
 	envVarValue := os.Getenv(envVarName)
@@ -101,7 +108,8 @@ func Error(msg string, args ...interface{}) {
 	errMsg := fmt.Sprintf("Error:==> "+time.Now().Format("2006.01.02 15:04:05")+" "+msg, args...)
 	// write error msg to both the summary file and stderr
 	Append2File(EX_PERF_REPORT_FILE, errMsg)
-	fmt.Fprint(os.Stderr, errMsg)
+	//fmt.Fprint(os.Stderr, errMsg)  <- pssh doesn't seem to return stderr to the screen, so send to stdout instead
+	fmt.Print(errMsg)
 }
 
 func Fatal(exitCode int, msg string, args ...interface{}) {
@@ -268,14 +276,22 @@ func TrustIcpCert(httpClient *http.Client, certPath string) {
 	transport.TLSClientConfig.RootCAs = caCertPool
 }
 
-func IsTransportError(err error) bool {
+func IsRetryableError(err error) bool {
 	l_error_string := strings.ToLower(err.Error())
 	if strings.Contains(l_error_string, "time") && strings.Contains(l_error_string, "out") {
 		return true
 	} else if strings.Contains(l_error_string, "connection") && (strings.Contains(l_error_string, "refused") || strings.Contains(l_error_string, "reset")) {
 		return true
+	} else if strings.Contains(l_error_string, "body length 0") {
+		return true
+	} else if strings.Contains(l_error_string, "timeout") && strings.Contains(l_error_string, "exceeded") {
+		return true
 	}
 	return false
+}
+
+func IsRetryableHttpCode(httpCode int) bool {
+	return httpCode == 502
 }
 
 func invokeRestApiWithRetry(httpClient *http.Client, req *http.Request, doContinue bool) *http.Response {
@@ -283,23 +299,31 @@ func invokeRestApiWithRetry(httpClient *http.Client, req *http.Request, doContin
 	for {
 		retryCount++
 		TotalOps++
-		if resp, err := httpClient.Do(req); err != nil {
-			if IsTransportError(err) {
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			if IsRetryableError(err) {
 				if retryCount <= retryMax {
-					//Verbose("error calling %s %s: %v. Will retry...", req.Method, req.URL, err)
-					Debug("error calling %s %s: %v. Will retry...", req.Method, req.URL, err)
-					// retry for network tranport errors
-					time.Sleep(retrySleep * time.Second)
+					Debug("error calling %s %s: %v. Attempt %d so will sleep for %d and retry...", req.Method, req.URL, err, retryCount, retrySleep)
+					time.Sleep(time.Duration(retrySleep) * time.Second)
 					continue
 				} else {
-					MaybeFatal(doContinue, HTTP_ERROR, "error calling %s %s: %v. At retry max, exiting.", req.Method, req.URL, err)
+					MaybeFatal(doContinue, HTTP_ERROR, "error calling %s %s: %v. Over retry max of %d, returning error.", req.Method, req.URL, err, retryMax)
 					return nil
 				}
 			} else {
 				MaybeFatal(doContinue, HTTP_ERROR, "error calling %s %s: %v", req.Method, req.URL, err)
 				return nil
 			}
-		} else {
+		} else if IsRetryableHttpCode(resp.StatusCode) {
+			if retryCount <= retryMax {
+				Debug("bad HTTP code %d calling %s %s: %v. Attempt %d so will sleep for %d and retry...", resp.StatusCode, req.Method, req.URL, err, retryCount, retrySleep)
+				time.Sleep(time.Duration(retrySleep) * time.Second)
+				continue
+			} else {
+				MaybeFatal(doContinue, HTTP_ERROR, "bad HTTP code %d calling %s %s: %v. Over retry max of %d, returning error.", resp.StatusCode, req.Method, req.URL, err, retryMax)
+				return nil
+			}
+		} else { // at this point there was no err, and http code was either good or bad but not retryable
 			return resp
 		}
 	}

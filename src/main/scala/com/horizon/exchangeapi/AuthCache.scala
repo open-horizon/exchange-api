@@ -60,7 +60,7 @@ object AuthCache extends Control with ServletApiImplicits {
     def init(db: Database): Unit = { this.db = db }   // we intentionally don't prime the cache. We let it build on every access so we can add the unhashed token
 
     // Try to authenticate the creds and return the type (user/node/agbot) it is, or None
-    def getValidType(creds: Creds): CacheIdType = {
+    def getValidType(creds: Creds, retry: Boolean = false): CacheIdType = {
       logger.debug("CacheId:getValidType(): attempting to authenticate to the exchange with "+creds)
       val cacheValue = getCacheValue(creds)
       logger.trace("cacheValue: "+cacheValue)
@@ -74,10 +74,18 @@ object AuthCache extends Control with ServletApiImplicits {
         logger.debug("CacheId:getValidType(): successfully validated "+creds.id+" and its pw using the cache/db")
         return cacheVal.idType
       } else {
-        //TODO: if we only used a non-expired cache entry to get here, the cache entry could be stale (e.g. they recently changed their pw/token via a different instance of the exchange).
-        //      So refresh they cache entry from the db.
-        logger.debug("CacheId:getValidType(): user "+creds.id+" not authenticated in the exchange")
-        return CacheIdType.None
+        // the creds were invalid
+        if (retry) {
+          // we already tried clearing the cache and retrying, so give up and return that they were bad creds
+          logger.debug("CacheId:getValidType(): user " + creds.id + " not authenticated in the exchange")
+          return CacheIdType.None
+        } else {
+          // If we only used a non-expired cache entry to get here, the cache entry could be stale (e.g. they recently changed their pw/token via a different instance of the exchange).
+          // So delete the cache entry from the db and try 1 more time
+          logger.debug("CacheId:getValidType(): user " + creds.id + " was not authenticated successfully, removing cache entry in case it was stale, and trying 1 more time")
+          removeOne(creds.id)
+          return getValidType(creds, retry = true)
+        }
       }
     }
 
@@ -116,11 +124,11 @@ object AuthCache extends Control with ServletApiImplicits {
       }
       // We found this id in the db. If the user-specified creds are valid, add the unhashed token to the cache entry
       if (creds.token!="" && Password.check(creds.token, dbHashedTok)) {
-        logger.debug("CacheId:getId(): " + creds.id + " found in the db and user creds are valid, adding both to the cache")
+        logger.debug("CacheId:getId(): " + creds.id + " found in the db and creds are valid, adding both to the cache")
         // fast-bcrypt the token
         Success(Some(CacheVal(dbHashedTok, Password.fastHash(creds.token), idType))) // we only get the hashed tok from the db, the unhashed will be added by getValidType()
       } else {
-        logger.debug("CacheId:getId(): " + creds.id + " found in the db (but user creds are not valid), adding db entry to the cache")
+        logger.debug("CacheId:getId(): " + creds.id + " found in the db (but creds are not valid), adding db entry to the cache")
         Success(Some(CacheVal(dbHashedTok, "", idType))) // we only get the hashed token from the db
         // In this case the cache value won't have the unhashed token, because the client didn't give us the right one. Until this entry
         // expires from the cache, we will have to do the slower bcrypt check against this entry up in getValidType()

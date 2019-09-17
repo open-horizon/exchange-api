@@ -249,6 +249,16 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
+  test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" without services field -- see if this works") {
+    val input = PostPutPatternRequest(pattern, None, None,
+      List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
+      None, None
+    )
+    val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
   test("Add service for future tests") {
     val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val svcResponse = Http(URL+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -290,12 +300,29 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
-  test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" with no service versions - should fail") {
-    val input = PostPutPatternRequest(pattern, None, None,
-      List( PServices(svcurl, orgid, svcarch, None, List(), None, None )),
-      None, None
-    )
-    val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+  test("POST /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with no service - should fail") {
+    val input = """{
+                  |    "label":"PatternNoService",
+                  |    "description":"Test pattern with no service section to see if this is possible",
+                  |    "public":false,
+                  |    "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://bluehorizon.network/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+                  |    "agreementProtocols":[{"name":"Basic"}]
+                  |}""".stripMargin
+    val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/PatternNoService2 - add PatternNoService with empty service - should fail") {
+    val input = """{
+                  |    "label":"PatternNoService2",
+                  |    "description":"Test pattern with empty service section to see if this is possible",
+                  |    "public":false,
+                  |    "service": [],
+                  |    "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://bluehorizon.network/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+                  |    "agreementProtocols":[{"name":"Basic"}]
+                  |}""".stripMargin
+    val response = Http(URL+"/patterns/PatternNoService2").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
   }
@@ -317,6 +344,7 @@ class PatternsSuite extends FunSuite {
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       Some(List(Map("name" -> "Basic")))
     )
+    info("SADIYAH INPUT: " + write(input))
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)

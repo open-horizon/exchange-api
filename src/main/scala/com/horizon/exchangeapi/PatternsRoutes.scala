@@ -45,7 +45,10 @@ object PatternUtils {
 case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], services: List[PServices], userInput: Option[List[OneUserInputService]], agreementProtocols: Option[List[Map[String,String]]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def validate(): Unit = { PatternUtils.validatePatternServices(services) }
+  def validate(): Unit = {
+    if(services.isEmpty){ halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.services.defined.in.pattern"))) }
+    PatternUtils.validatePatternServices(services)
+  }
 
   // Build a list of db actions to verify that the referenced services exist
   def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { PatternsTQ.validateServiceIds(services, userInput.getOrElse(List())) }

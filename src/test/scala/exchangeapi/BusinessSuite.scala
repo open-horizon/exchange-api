@@ -211,12 +211,12 @@ class BusinessSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/BusPolNoService - add BusPolNoService as user -- test if service field required") {
     val input = """{
-                  |    "label":"BusPolNoService",
-                  |    "description":"Test buspol with no service section to see if this is possible",
-                  |    "userInput":[{"serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
-                  |    "properties":[{"name":"purpose","value":"location"}],
-                  |    "constraints":["a == b"]
-                  |}""".stripMargin
+                      "label":"BusPolNoService",
+                      "description":"Test buspol with no service section to see if this is possible",
+                      "userInput":[{"serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+                      "properties":[{"name":"purpose","value":"location"}],
+                      "constraints":["a == b"]
+                  }""".stripMargin
     val response = Http(URL+"/business/policies/BusPolNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
@@ -225,13 +225,13 @@ class BusinessSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/BusPolNoService2 - add BusPolNoService as user -- test if service field required") {
     val input = """{
-                  |    "label":"BusPolNoService2",
-                  |    "description":"Test buspol with empty service section to see if this is possible",
-                  |    "service":{},
-                  |    "userInput":[{"serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
-                  |    "properties":[{"name":"purpose","value":"location"}],
-                  |    "constraints":["a == b"]
-                  |}""".stripMargin
+                      "label":"BusPolNoService2",
+                      "description":"Test buspol with empty service section to see if this is possible",
+                      "service":{},
+                      "userInput":[{"serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+                      "properties":[{"name":"purpose","value":"location"}],
+                      "constraints":["a == b"]
+                  }""".stripMargin
     val response = Http(URL+"/business/policies/BusPolNoService2").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)

@@ -302,12 +302,12 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with no service - should fail") {
     val input = """{
-                  |    "label":"PatternNoService",
-                  |    "description":"Test pattern with no service section to see if this is possible",
-                  |    "public":false,
-                  |    "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://bluehorizon.network/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
-                  |    "agreementProtocols":[{"name":"Basic"}]
-                  |}""".stripMargin
+                      "label":"PatternNoService",
+                      "description":"Test pattern with no service section to see if this is possible",
+                      "public":false,
+                      "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://bluehorizon.network/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+                      "agreementProtocols":[{"name":"Basic"}]
+                  }""".stripMargin
     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
@@ -315,13 +315,13 @@ class PatternsSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/PatternNoService2 - add PatternNoService with empty service - should fail") {
     val input = """{
-                  |    "label":"PatternNoService2",
-                  |    "description":"Test pattern with empty service section to see if this is possible",
-                  |    "public":false,
-                  |    "service": [],
-                  |    "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://bluehorizon.network/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
-                  |    "agreementProtocols":[{"name":"Basic"}]
-                  |}""".stripMargin
+                      "label":"PatternNoService2",
+                      "description":"Test pattern with empty service section to see if this is possible",
+                      "public":false,
+                      "service": [],
+                      "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://bluehorizon.network/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+                      "agreementProtocols":[{"name":"Basic"}]
+                  }""".stripMargin
     val response = Http(URL+"/patterns/PatternNoService2").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)

@@ -42,6 +42,12 @@ case class PostNodeErrorRequest() {
 }
 case class PostNodeErrorResponse(nodes: scala.Seq[String])
 
+case class PostServiceSearchRequest(orgid: String, serviceURL: String, serviceVersion: String, serviceArch: String) {
+  def validate() = {}
+}
+case class PostServiceSearchResponse(nodes: scala.collection.Seq[(String, String)])
+
+
 /** Input for service-based (citizen scientist) search, POST /orgs/"+orgid+"/search/nodes */
 case class PostSearchNodesRequest(desiredServices: List[RegServiceSearch], secondsStale: Int, propertiesToReturn: Option[List[String]], startIndex: Int, numEntries: Int) {
   /** Halts the request with an error msg if the user input is invalid. */
@@ -596,6 +602,58 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       if (list.nonEmpty) {
         resp.setStatus(HttpCode.POST_OK)
         PostNodeErrorResponse(list)
+      }
+      else {
+        resp.setStatus(HttpCode.NOT_FOUND)
+      }
+    })
+  })
+
+  // =========== POST /orgs/{orgid}/search/nodes/service  ===============================
+
+  val postServiceSearch =
+    (apiOperation[PostServiceSearchResponse]("postServiceSearch")
+      summary("Returns the nodes a service is running on")
+      description
+      """Returns a list of all the nodes a service is running on. The **request body** structure:
+```
+{
+  "orgid": "string",   // orgid of the service to be searched on
+  "serviceURL": "string",
+  "serviceVersion": "string",
+  "serviceArch": "string"
+}
+```"""
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+    )
+      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+  val postServiceSearch2 = (apiOperation[PostNodeHealthRequest]("postSearchNodeHealth2") summary("a") description("a"))
+
+  /** Called by the agbot to get recent info about nodes with no pattern (and the agreements the node has). */
+  post("/orgs/:orgid/search/nodes/service", operation(postServiceSearch)) ({
+    val orgid = params("orgid")
+    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
+    val searchProps = try { parse(request.body).extract[PostServiceSearchRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    searchProps.validate()
+    // service = svcUrl_svcVersion_svcArch
+    val service = searchProps.serviceURL+"_"+searchProps.serviceVersion+"_"+searchProps.serviceArch
+    logger.debug("POST /orgs/"+orgid+"/search/nodehealth criteria: "+searchProps.toString)
+    val resp = response
+    val orgService = "%|"+searchProps.orgid+"/"+service+"|%"
+    val q = for {
+      (n, s) <- (NodesTQ.rows.filter(_.orgid === orgid)) join (NodeStatusTQ.rows.filter(_.runningServices like orgService)) on (_.id === _.nodeId)
+    } yield (n.id, n.lastHeartbeat)
+
+    db.run(q.result).map({ list =>
+      logger.debug("POST /orgs/"+orgid+"/services/"+service+"/search result size: "+list.size)
+      if (list.nonEmpty) {
+        resp.setStatus(HttpCode.POST_OK)
+        PostServiceSearchResponse(list)
       }
       else {
         resp.setStatus(HttpCode.NOT_FOUND)

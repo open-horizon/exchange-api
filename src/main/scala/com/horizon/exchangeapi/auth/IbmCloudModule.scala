@@ -110,7 +110,8 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
         // This looked like an ibm cred, but there was a problem with it, so throw the exception so it gets back to the user
         case e: AuthException => throw e
         //todo: using this instead of the specific Db exceptions above because i haven't figured out yet how to successfully not have Await.result() be the last line of getOrCreateUser().
-        case e => throw new DbConnectionException(e.getMessage)
+        //case e => throw new DbConnectionException(e.getMessage)
+        case e => throw e
       }
     }
     succeeded
@@ -368,15 +369,23 @@ object IbmCloudAuth {
         }
       }
     } yield userAction2
-    //todo: getOrCreateUser() is only called if this is not already in the cache, so its a problem if we cant get it in the db
-    //logger.trace("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.email+"...")
-    // Note: exceptions from this get caught in login() above
-    Await.result(db.run(userQuery.transactionally), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
-    /* it doesnt work to add this to our authorization cache, and causes some exceptions during automated tests
-    val awaitResult = Await.result(db.run(userQuery.transactionally), Duration(3000, MILLISECONDS))
-    AuthCache.users.putBoth(Creds(s"${authInfo.org}/${userInfo.email}", ""), "")
+
+    val awaitResult = try {
+      //logger.trace("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.user+"...")
+      Await.result(db.run(userQuery.transactionally), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
+      //logger.trace("...back from awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.user+".")
+    } catch {
+      // Handle any exceptions, including db problems. Note: exceptions from this get caught in login() above
+      case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting pw/token for '"+userInfo.user+"' . "+timeout.getMessage)
+        throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.token", userInfo.user, timeout.getMessage))
+      // catch any of ours and rethrow
+      case ourException: AuthException => throw ourException
+      // assume something we don't recognize is a db access problem
+      case other: Throwable => logger.error("db connection error getting pw/token for '"+userInfo.user+"': "+other.getMessage)
+        throw new DbConnectionException(ExchangeMessage.translateMessage("db.threw.exception", other.getMessage))
+    }
+    // Note: not sure how to know here whether we successfully add a user and therefore should add it to the admin cache, so we'll just let that get added next time it is needed
     awaitResult
-    */
   }
 
   // Get the associated ibm cloud id of the org that the client requested in the exchange api

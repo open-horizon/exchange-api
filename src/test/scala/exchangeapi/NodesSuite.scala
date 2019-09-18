@@ -101,6 +101,7 @@ class NodesSuite extends FunSuite {
   val AGBOT2AUTH = ("Authorization","Basic "+orgagbotId2+":"+agbotToken2)
   val agProto = "ExchangeAutomatedTest"    // using this to avoid db entries from real users and predefined ones
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
+  val ibmService = "TestIBMService"
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -203,6 +204,13 @@ class NodesSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/services - add "+svcid2+" so pattern can reference it") {
     val input = PostPutServiceRequest("test-service", None, public = false, None, NETSPEEDSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("POST /orgs/IBM/services - add "+ibmService+" to be used in search later") {
+    val input = PostPutServiceRequest("test-service", None, public = false, None, ibmService, svcversion2, svcarch2, "multiple", None, None, None, "", "", None)
+    val response = Http(urlRoot+"/v1/orgs/IBM/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
@@ -1893,8 +1901,167 @@ class NodesSuite extends FunSuite {
     }
   }
 
+  // ~~~~~ POST /orgs/{orgid}/search/nodes/service tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  // Step 1: get a service running on more than one node
+  // add a pattern that references a service
+  val searchPattern = "SearchPattern"
+  val compositeSearchPattern = orgid+"/"+searchPattern
+  val nid1 = "SearchTestsNode1"
+  val ntoken1 = "SeachTestsNode1Token"
+
+  test("POST /orgs/"+orgid+"/patterns/"+searchPattern+" - so nodes can reference it") {
+    val input = PostPutPatternRequest(searchPattern, None, None,
+      List(
+        PServices(SDRSPEC_URL, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ),
+      ),
+      None, None
+    )
+    val response = Http(URL+"/patterns/"+searchPattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - update running services to search later") {
+    val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus]())
+    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus]())
+    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+"/status - update running services to search later") {
+    val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus]())
+    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus]())
+    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val response = Http(URL+"/nodes/"+nodeId2+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  // test that the search route returns a list of more than one node
+  test("POST /orgs/"+orgid+"/search/nodes/service - should find " + SDRSPEC_URL + " running on 2 nodes") {
+    val input = PostServiceSearchRequest(orgid, SDRSPEC_URL, svcversion, svcarch)
+    val response = Http(URL+"/search/nodes/service").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(response.body.contains(nodeId))
+    assert(response.body.contains(nodeId2))
+  }
+
+  test("POST /orgs/"+orgid+"/search/nodes/service - should find " + NETSPEEDSPEC_URL + " running on 2 nodes") {
+    val input = PostServiceSearchRequest(orgid, NETSPEEDSPEC_URL, svcversion2, svcarch2)
+    val response = Http(URL+"/search/nodes/service").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(response.body.contains(nodeId))
+    assert(response.body.contains(nodeId2))
+  }
+
+  // test a service that no node is running has an empty resp
+  test("POST /orgs/"+orgid+"/search/nodes/service - should find " + PWSSPEC_URL + " running on 0 nodes") {
+    val input = PostServiceSearchRequest(orgid, PWSSPEC_URL, svcarch, svcversion)
+    val response = Http(URL+"/search/nodes/service").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.body.isEmpty)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+"/status - add "+ibmService+" to search on later") {
+    val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus]())
+    val oneService2 = OneService("agreementid2", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus]())
+    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val response = Http(URL+"/nodes/"+nodeId2+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  // test that search can find an org node running an IBM service
+  test("POST /orgs/"+orgid+"/search/nodes/service - should find " + ibmService + " running on 1 node") {
+    val input = PostServiceSearchRequest("IBM", ibmService, svcversion2, svcarch2)
+    val response = Http(URL+"/search/nodes/service").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(response.body.contains(nodeId2))
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - add \"+ibmService+\" to search on later") {
+    val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus]())
+    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus]())
+    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/search/nodes/service - should find " + ibmService + " running on 2 nodes") {
+    val input = PostServiceSearchRequest("IBM", ibmService, svcversion2, svcarch2)
+    val response = Http(URL+"/search/nodes/service").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(response.body.contains(nodeId))
+    assert(response.body.contains(nodeId2))
+  }
+
+  test("POST /orgs/"+orgid+"/search/nodes/service - should find " + SDRSPEC_URL + " running on 1 node") {
+    val input = PostServiceSearchRequest(orgid, SDRSPEC_URL, svcversion, svcarch)
+    val response = Http(URL+"/search/nodes/service").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(response.body.contains(nodeId2))
+    assert(!response.body.contains(nodeId))
+  }
+
+  test("POST /orgs/"+orgid+"/search/nodes/service - should find " + NETSPEEDSPEC_URL + " running on 1 node") {
+    val input = PostServiceSearchRequest(orgid, NETSPEEDSPEC_URL, svcversion2, svcarch2)
+    val response = Http(URL+"/search/nodes/service").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(response.body.contains(nodeId))
+    assert(!response.body.contains(nodeId2))
+  }
+
+  test("POST /orgs/"+orgid+"/search/nodes/service - should find " + PWSSPEC_URL + " running on 0 nodes still") {
+    val input = PostServiceSearchRequest(orgid, PWSSPEC_URL, svcarch, svcversion)
+    val response = Http(URL+"/search/nodes/service").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.body.isEmpty)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - change org of "+NETSPEEDSPEC_URL+" to test later") {
+    val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus]())
+    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, "FakeOrganization", svcversion2, svcarch2, List[ContainerStatus]())
+    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/search/nodes/service - should find " + NETSPEEDSPEC_URL + " running on 0 nodes") {
+    val input = PostServiceSearchRequest(orgid, NETSPEEDSPEC_URL, svcversion2, svcarch2)
+    val response = Http(URL+"/search/nodes/service").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.body.isEmpty)
+  }
+
   //~~~~~ Break down ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+  test("DELETE /orgs/IBM/services/"+ibmService+"_"+svcversion2+"_"+svcarch2) {
+    val response = Http(urlRoot+"/v1/orgs/IBM/services/"+ibmService+"_"+svcversion2+"_"+svcarch2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
   test("Cleanup - DELETE everything and confirm they are gone") {
     deleteAllOrgs()
   }

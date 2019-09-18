@@ -22,8 +22,6 @@ import (
 )
 
 const (
-	//retryMax                   = 5
-	//retrySleep                 = 2
 	HTTPRequestTimeoutS        = 30
 	MaxHTTPIdleConnections     = 20
 	HTTPIdleConnectionTimeoutS = 120
@@ -43,12 +41,12 @@ const (
 var EX_PERF_REPORT_FILE string
 var HttpClient *http.Client // holds the global client we reuse
 var TotalOps int            // holds the total number of rest apis we have run
-var retryMax int
-var retrySleep int
+var RetryMax int
+var RetrySleep int
 
 func init() {
-	retryMax = GetEnvVarIntWithDefault("EX_PERF_HTTP_RETRY_MAX", 5)
-	retrySleep = GetEnvVarIntWithDefault("EX_PERF_HTTP_RETRY_SLEEP", 2)
+	RetryMax = GetEnvVarIntWithDefault("EX_PERF_HTTP_RETRY_MAX", 5)
+	RetrySleep = GetEnvVarIntWithDefault("EX_PERF_HTTP_RETRY_SLEEP", 2)
 }
 
 func GetRequiredEnvVar(envVarName string) string {
@@ -98,7 +96,11 @@ func Debug(msg string, args ...interface{}) {
 	if !strings.HasSuffix(msg, "\n") {
 		msg += "\n"
 	}
-	fmt.Printf("DEBUG "+GetShortBinaryName()+": "+msg, args...)
+	//fmt.Printf("DEBUG "+GetShortBinaryName()+": "+time.Now().Format("2006.01.02 15:04:05")+" "+msg, args...)
+	errMsg := fmt.Sprintf("DEBUG "+GetShortBinaryName()+": "+time.Now().Format("2006.01.02 15:04:05")+" "+msg, args...)
+	// write error msg to both the summary file and stderr
+	Append2File(EX_PERF_REPORT_FILE, errMsg)
+	fmt.Print(errMsg)
 }
 
 func Error(msg string, args ...interface{}) {
@@ -220,12 +222,21 @@ func GetExchangeUrl() string {
 	return GetRequiredEnvVar("HZN_EXCHANGE_URL")
 }
 
-// Common function for getting an HTTP client connection object.
 func GetHTTPClient() *http.Client {
-	if os.Getenv("EX_PERF_DONT_REUSE_HTTP_CLIENT") == "" && HttpClient != nil {
+	if os.Getenv("EX_PERF_DONT_REUSE_HTTP_CLIENT") == "" {
+		// reuse the 1 global client
+		if HttpClient == nil {
+			HttpClient = NewHTTPClient()
+		}
 		return HttpClient
-	} // reuse the global instance
+	}
 
+	// make a new client every time
+	return NewHTTPClient()
+}
+
+// Common function for getting an HTTP client connection object.
+func NewHTTPClient() *http.Client {
 	// This env var should only be used in our test environments or in an emergency when there is a problem with the SSL certificate of a horizon service.
 	skipSSL := false
 	if os.Getenv("HZN_SSL_SKIP_VERIFY") != "" {
@@ -256,10 +267,6 @@ func GetHTTPClient() *http.Client {
 		TrustIcpCert(httpClient, ca)
 	}
 
-	// If we are reusing the client, store it
-	if os.Getenv("EX_PERF_DONT_REUSE_HTTP_CLIENT") == "" {
-		HttpClient = httpClient
-	}
 	return httpClient
 }
 
@@ -276,24 +283,7 @@ func TrustIcpCert(httpClient *http.Client, certPath string) {
 	transport.TLSClientConfig.RootCAs = caCertPool
 }
 
-func IsRetryableError(err error) bool {
-	l_error_string := strings.ToLower(err.Error())
-	if strings.Contains(l_error_string, "time") && strings.Contains(l_error_string, "out") {
-		return true
-	} else if strings.Contains(l_error_string, "connection") && (strings.Contains(l_error_string, "refused") || strings.Contains(l_error_string, "reset")) {
-		return true
-	} else if strings.Contains(l_error_string, "body length 0") {
-		return true
-	} else if strings.Contains(l_error_string, "timeout") && strings.Contains(l_error_string, "exceeded") {
-		return true
-	}
-	return false
-}
-
-func IsRetryableHttpCode(httpCode int) bool {
-	return httpCode == 502
-}
-
+/* not currently used, because retries need to use a new request too...
 func invokeRestApiWithRetry(httpClient *http.Client, req *http.Request, doContinue bool) *http.Response {
 	retryCount := 0
 	for {
@@ -302,12 +292,14 @@ func invokeRestApiWithRetry(httpClient *http.Client, req *http.Request, doContin
 		resp, err := httpClient.Do(req)
 		if err != nil {
 			if IsRetryableError(err) {
-				if retryCount <= retryMax {
-					Debug("error calling %s %s: %v. Attempt %d so will sleep for %d and retry...", req.Method, req.URL, err, retryCount, retrySleep)
-					time.Sleep(time.Duration(retrySleep) * time.Second)
+				if retryCount <= RetryMax {
+					//Debug("error calling %s %s: %v. Attempt %d so will sleep for %d and retry...", req.Method, req.URL, err, retryCount, RetrySleep)
+					Debug("error from HTTP request: %v. Attempt %d so will sleep for %d and retry...", err, retryCount, RetrySleep)
+					time.Sleep(time.Duration(RetrySleep) * time.Second)
+					httpClient = NewHTTPClient() // reusing the client when there was this kind of error seems to return the same error??
 					continue
 				} else {
-					MaybeFatal(doContinue, HTTP_ERROR, "error calling %s %s: %v. Over retry max of %d, returning error.", req.Method, req.URL, err, retryMax)
+					MaybeFatal(doContinue, HTTP_ERROR, "error calling %s %s: %v. Over retry max of %d, returning error.", req.Method, req.URL, err, RetryMax)
 					return nil
 				}
 			} else {
@@ -315,17 +307,82 @@ func invokeRestApiWithRetry(httpClient *http.Client, req *http.Request, doContin
 				return nil
 			}
 		} else if IsRetryableHttpCode(resp.StatusCode) {
-			if retryCount <= retryMax {
-				Debug("bad HTTP code %d calling %s %s: %v. Attempt %d so will sleep for %d and retry...", resp.StatusCode, req.Method, req.URL, err, retryCount, retrySleep)
-				time.Sleep(time.Duration(retrySleep) * time.Second)
+			if retryCount <= RetryMax {
+				Debug("bad HTTP code %d from %s %s. Attempt %d so will sleep for %d and retry...", resp.StatusCode, req.Method, req.URL, retryCount, RetrySleep)
+				time.Sleep(time.Duration(RetrySleep) * time.Second)
+				httpClient = NewHTTPClient() // reusing the client when there was this kind of error seems to return the same error??
 				continue
 			} else {
-				MaybeFatal(doContinue, HTTP_ERROR, "bad HTTP code %d calling %s %s: %v. Over retry max of %d, returning error.", resp.StatusCode, req.Method, req.URL, err, retryMax)
+				MaybeFatal(doContinue, HTTP_ERROR, "bad HTTP code %d calling %s %s: %v. Over retry max of %d, returning error.", resp.StatusCode, req.Method, req.URL, err, RetryMax)
 				return nil
 			}
 		} else { // at this point there was no err, and http code was either good or bad but not retryable
 			return resp
 		}
+	}
+}
+*/
+
+func IsRetryableError(err error) bool {
+	l_error_string := strings.ToLower(err.Error())
+	if strings.Contains(l_error_string, "time") && strings.Contains(l_error_string, "out") {
+		return true
+	} else if strings.Contains(l_error_string, "connection") && (strings.Contains(l_error_string, "refused") || strings.Contains(l_error_string, "reset")) {
+		return true
+	} else if strings.Contains(l_error_string, "body length 0") {
+		return true
+		//} else if strings.Contains(l_error_string, "timeout") && strings.Contains(l_error_string, "exceeded") {
+		//	return true
+	}
+	return false
+}
+
+func IsRetryableHttpCode(httpCode int) bool {
+	return httpCode == 502 || httpCode == 503 || httpCode == 504
+}
+
+// Will determine if the rest api needs to be retried.
+// If so, it will check the retry count, print the correct msg, sleep for the right amount of time, and return true, and the caller should retry.
+// If not, it will return false, and either they should continue on or just return
+func IsRetryable(resp *http.Response, req *http.Request, err error, retryCount int, doContinue bool) (bool, bool) {
+	if err != nil {
+		if IsRetryableError(err) {
+			if retryCount <= RetryMax {
+				//Debug("error calling %s %s: %v. Attempt %d so will sleep for %d and retry...", req.Method, req.URL, err, retryCount, RetrySleep)
+				Debug("error from HTTP request: %v. Attempt %d so will sleep for %d s and retry...", err, retryCount, RetrySleep)
+				time.Sleep(time.Duration(RetrySleep) * time.Second)
+				return true, false
+			} else {
+				MaybeFatal(doContinue, HTTP_ERROR, "error from HTTP request: %v. Over retry max of %d, returning error.", err, RetryMax)
+				return false, false
+			}
+		} else {
+			MaybeFatal(doContinue, HTTP_ERROR, "error from HTTP request: %v", err)
+			return false, false
+		}
+	} else if resp != nil && IsRetryableHttpCode(resp.StatusCode) {
+		if retryCount <= RetryMax {
+			bodyBytes, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				Debug("bad HTTP code %d from %s %s. Attempt %d so will sleep for %d s and retry...", resp.StatusCode, req.Method, req.URL, retryCount, RetrySleep)
+			} else {
+				Debug("bad HTTP code %d from %s %s: %s. Attempt %d so will sleep for %d s and retry...", resp.StatusCode, req.Method, req.URL, string(bodyBytes), retryCount, RetrySleep)
+			}
+			time.Sleep(time.Duration(RetrySleep) * time.Second)
+			resp.Body.Close() // the http.Client guarantees that Body is always non-nil, even if no output
+			return true, false
+		} else {
+			bodyBytes, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				MaybeFatal(doContinue, HTTP_ERROR, "bad HTTP code %d calling %s %s. Over retry max of %d, returning error.", resp.StatusCode, req.Method, req.URL, RetryMax)
+			} else {
+				MaybeFatal(doContinue, HTTP_ERROR, "bad HTTP code %d calling %s %s: %s. Over retry max of %d, returning error.", resp.StatusCode, req.Method, req.URL, string(bodyBytes), RetryMax)
+			}
+			resp.Body.Close() // the http.Client guarantees that Body is always non-nil, even if no output
+			return false, false
+		}
+	} else { // at this point there was no err, and http code was either good or bad but not retryable
+		return false, true
 	}
 }
 
@@ -351,19 +408,34 @@ func ExchangeGet(urlSuffix, credentials string, goodHttpCodes []int, respStruct 
 	httpClient := GetHTTPClient()
 	httpCode = HTTP_CLIENT_ERROR // in case we return early
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		Error("%s new request failed: %v", apiMsg, err)
-		return
-	}
-	req.Header.Add("Accept", "application/json")
-	if credentials != "" {
-		req.Header.Add("Authorization", fmt.Sprintf("Basic %v", base64.StdEncoding.EncodeToString([]byte(credentials))))
-	}
+	// Loop for potential retries
+	retryCount := 0
+	var resp *http.Response
+	for {
+		// Create the request
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		if err != nil {
+			Error("%s new request failed: %v", apiMsg, err)
+			return
+		}
+		req.Header.Add("Accept", "application/json")
+		if credentials != "" {
+			req.Header.Add("Authorization", fmt.Sprintf("Basic %v", base64.StdEncoding.EncodeToString([]byte(credentials))))
+		}
 
-	resp := invokeRestApiWithRetry(httpClient, req, true)
-	if resp == nil {
-		return
+		// Run it
+		//resp := invokeRestApiWithRetry(httpClient, req, true)
+		TotalOps++
+		retryCount++
+		resp, err = httpClient.Do(req)
+		retry, keepGoing := IsRetryable(resp, req, err, retryCount, true)
+		if retry {
+			continue
+		}
+		if resp == nil || !keepGoing {
+			return
+		}
+		break
 	}
 	defer resp.Body.Close()
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
@@ -416,42 +488,55 @@ func ExchangeP(method string, urlSuffix, credentials string, goodHttpCodes []int
 	httpClient := GetHTTPClient()
 	httpCode = HTTP_CLIENT_ERROR // in case we return early
 
-	// Prepare body
-	var requestBody io.Reader
-	if body == nil {
-		requestBody = nil
-	} else {
-		var jsonBytes []byte
-		switch b := body.(type) {
-		case string:
-			jsonBytes = []byte(b)
-		default:
-			var err error
-			jsonBytes, err = json.Marshal(body)
-			if err != nil {
-				MaybeFatal(doContinue, JSON_PARSING_ERROR, "failed to marshal exchange body for %s: %v", apiMsg, err)
-				return
+	// Loop for potential retries
+	retryCount := 0
+	var resp *http.Response
+	for {
+		// Prepare body
+		var requestBody io.Reader
+		if body == nil {
+			requestBody = nil
+		} else {
+			var jsonBytes []byte
+			switch b := body.(type) {
+			case string:
+				jsonBytes = []byte(b)
+			default:
+				var err error
+				jsonBytes, err = json.Marshal(body)
+				if err != nil {
+					MaybeFatal(doContinue, JSON_PARSING_ERROR, "failed to marshal exchange body for %s: %v", apiMsg, err)
+					return
+				}
 			}
+			requestBody = bytes.NewBuffer(jsonBytes)
 		}
-		requestBody = bytes.NewBuffer(jsonBytes)
-	}
 
-	// Create the request and run it
-	req, err := http.NewRequest(method, url, requestBody)
-	if err != nil {
-		MaybeFatal(doContinue, HTTP_ERROR, "%s new request failed: %v", apiMsg, err)
-		return
-	}
-	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Content-Type", "application/json")
+		// Create the request
+		req, err := http.NewRequest(method, url, requestBody)
+		if err != nil {
+			MaybeFatal(doContinue, HTTP_ERROR, "%s new request failed: %v", apiMsg, err)
+			return
+		}
+		req.Header.Add("Accept", "application/json")
+		req.Header.Add("Content-Type", "application/json")
 
-	if credentials != "" {
-		req.Header.Add("Authorization", fmt.Sprintf("Basic %v", base64.StdEncoding.EncodeToString([]byte(credentials))))
-	} // else it is an anonymous call
+		if credentials != "" {
+			req.Header.Add("Authorization", fmt.Sprintf("Basic %v", base64.StdEncoding.EncodeToString([]byte(credentials))))
+		} // else it is an anonymous call
 
-	resp := invokeRestApiWithRetry(httpClient, req, doContinue)
-	if resp == nil {
-		return
+		// Run it
+		TotalOps++
+		retryCount++
+		resp, err = httpClient.Do(req)
+		retry, keepGoing := IsRetryable(resp, req, err, retryCount, doContinue)
+		if retry {
+			continue
+		}
+		if resp == nil || !keepGoing {
+			return
+		}
+		break
 	}
 	defer resp.Body.Close()
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
@@ -505,15 +590,31 @@ func ExchangeDelete(urlSuffix, credentials string, goodHttpCodes []int) (httpCod
 	httpClient := GetHTTPClient()
 	httpCode = HTTP_CLIENT_ERROR // in case we return early
 
-	req, err := http.NewRequest(http.MethodDelete, url, nil)
-	if err != nil {
-		Error("%s new request failed: %v", apiMsg, err)
-		return
-	}
-	req.Header.Add("Authorization", fmt.Sprintf("Basic %v", base64.StdEncoding.EncodeToString([]byte(credentials))))
-	resp := invokeRestApiWithRetry(httpClient, req, true)
-	if resp == nil {
-		return
+	// Loop for potential retries
+	retryCount := 0
+	var resp *http.Response
+	for {
+		// Create the request
+		req, err := http.NewRequest(http.MethodDelete, url, nil)
+		if err != nil {
+			Error("%s new request failed: %v", apiMsg, err)
+			return
+		}
+		req.Header.Add("Authorization", fmt.Sprintf("Basic %v", base64.StdEncoding.EncodeToString([]byte(credentials))))
+
+		// Run it
+		//resp := invokeRestApiWithRetry(httpClient, req, true)
+		TotalOps++
+		retryCount++
+		resp, err = httpClient.Do(req)
+		retry, keepGoing := IsRetryable(resp, req, err, retryCount, true)
+		if retry {
+			continue
+		}
+		if resp == nil || !keepGoing {
+			return
+		}
+		break
 	}
 	// delete never returns a body
 	httpCode = resp.StatusCode

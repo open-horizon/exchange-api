@@ -619,9 +619,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 ```
 {
   "orgid": "string",   // orgid of the service to be searched on
-  "svcURL": "string",
-  "svcVersion": "string",
-  "svcArch": "string"
+  "serviceURL": "string",
+  "serviceVersion": "string",
+  "serviceArch": "string"
 }
 ```"""
       parameters(

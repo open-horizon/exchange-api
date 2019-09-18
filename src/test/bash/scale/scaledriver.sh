@@ -10,7 +10,7 @@ function usage {
 Usage: $0 <hosts-file> <host-script> [host-script-args ...]
 
 Drives the overall process of scale testing the Exchange by doing these main steps:
-- Uses pscp to copy the latest versions of the exchange scripts, host scripts, and certs to /tmp on each scale node
+- Uses prsync to copy the latest versions of the exchange scripts, host scripts, and certs to /tmp on each scale node
 - Removes exchange org $EX_PERF_ORG to eliminate any resource leftover from a previous run (means HZN_EXCHANGE_URL, EXCHANGE_ROOTPW, and possibly EX_PERF_CERT_FILE must be set in this shell)
 - Uses pssh to run the specified host script on each of the hosts in the hosts file
 - Uses pslurp to copy the output from the hosts $EX_PERF_REPORT_DIR dir to the same dir on this machine (separated by hostname subdirs)
@@ -67,12 +67,14 @@ if [[ ! -x "$hostScript" ]]; then
     exit 2
 fi
 
-confirmcmds pssh pscp pslurp
+confirmcmds pssh prsync pslurp
 
-echo "Copying the exchange scripts, host scripts, and certs to /tmp on each scale node..."
+echo "Copying the exchange scripts to /tmp on each scale node..."
 exchScriptDir=$(dirname $0)
-pscp -h $hostsFile $exchScriptDir/* /tmp
+#pscp -h $hostsFile $exchScriptDir/* /tmp
+prsync -h $hostsFile -r $exchScriptDir/ /tmp/
 checkexitcode $? "copying $exchScriptDir"
+
 goos="$GOOS"  # set this explicitly to, for example, drive this process from mac but run the scale instances on linux
 if [[ -z "$goos" ]]; then       # then assume the scale instances are the same type as this machine
     if [[ $(uname) == "Darwin" ]]; then
@@ -82,12 +84,19 @@ if [[ -z "$goos" ]]; then       # then assume the scale instances are the same t
     fi
 fi
 exchBinDir="$exchScriptDir/../../go/$goos"
-pscp -h $hostsFile $exchBinDir/* /tmp
+echo "Copying the exchange binaries from $exchBinDir to /tmp on each scale node..."
+#pscp -h $hostsFile $exchBinDir/* /tmp
+prsync -h $hostsFile -r $exchBinDir/ /tmp/
 checkexitcode $? "copying $exchBinDir"
-pscp -h $hostsFile *.sh /tmp
+
+echo "Copying the host scripts and certs to /tmp on each scale node..."
+#pscp -h $hostsFile *.sh /tmp
+prsync -h $hostsFile -r ./ /tmp
 checkexitcode $? "copying host scripts"
-pscp -h $hostsFile *.crt /tmp
-checkexitcode $? "copying certs"
+
+#echo "Copying the certs to /tmp on each scale node..."
+#pscp -h $hostsFile *.crt /tmp
+#checkexitcode $? "copying certs"
 
 echo "Removing orgs/$EX_PERF_ORG from exchange '$HZN_EXCHANGE_URL'..."
 $exchScriptDir/deleteperforg.sh

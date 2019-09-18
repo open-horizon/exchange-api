@@ -48,7 +48,7 @@ func main() {
 	// create this many extra svcs so the nodes and patterns have to search thru them, but we will just use a primary/common svc for the pattern this group of nodes will use
 	numSvcs := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_SVCS", 4)
 	// create multiple patterns so the agbot has to serve them all, but we will just use the 1st one for this group of nodes
-	numPatterns := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_PATTERNS", 2)
+	numPatterns := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_PATTERNS", 1)
 	// how much to sleep (if any) between creation and registration of each node
 	createRegSleep := perfutils.GetEnvVarIntWithDefault("EX_PERF_CREATE_REG_SLEEP_MS", 0)
 
@@ -142,7 +142,9 @@ func main() {
 
 	// Create extra services
 	for s := 1; s <= numSvcs; s++ {
-		perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/services", userauth, []int{403}, `{"label": "svc", "public": true, "url": "`+svcurlbase+strconv.Itoa(s)+`", "version": "`+svcversion+`", "sharable": "singleton",
+		/* perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/services", userauth, []int{403}, `{"label": "svc", "public": true, "url": "`+svcurlbase+strconv.Itoa(s)+`", "version": "`+svcversion+`", "sharable": "singleton",
+		"deployment": "{\"services\":{\"svc\":{\"image\":\"openhorizon/gps:1.2.3\"}}}", "deploymentSignature": "a", "arch": "`+svcarch+`" }`, nil, true) */
+		perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/services", userauth, nil, `{"label": "svc", "public": true, "url": "`+svcurlbase+strconv.Itoa(s)+`", "version": "`+svcversion+`", "sharable": "singleton",
 		  "deployment": "{\"services\":{\"svc\":{\"image\":\"openhorizon/gps:1.2.3\"}}}", "deploymentSignature": "a", "arch": "`+svcarch+`" }`, nil, true)
 	}
 
@@ -212,6 +214,10 @@ func main() {
 			mynodeauth := org + "/" + mynodeid + ":" + nodetoken
 
 			// These api methods are run every hb
+
+			// temporarily put this here to see if put node was the cause of the body length 0 error (it wasn't)
+			//perfutils.ExchangeP(http.MethodPut, "orgs/"+org+"/nodes/"+mynodeid, userauth, nil, `{"token": "`+nodetoken+`", "name": "pi", "pattern": "`+org+`/`+patternid+`", "arch": "`+svcarch+`", "publicKey": "ABC"}`, nil, true)
+
 			perfutils.ExchangeGet("orgs/"+org+"/nodes/"+mynodeid, mynodeauth, nil, nil)
 			perfutils.ExchangeGet("orgs/"+org+"/nodes/"+mynodeid+"/msgs", mynodeauth, []int{404}, nil)
 			perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/nodes/"+mynodeid+"/heartbeat", mynodeauth, nil, nil, nil, true)
@@ -296,7 +302,7 @@ func main() {
 	// Delete agbot
 	perfutils.ExchangeDelete("orgs/"+org+"/agbots/"+agbotid, userauth, nil)
 
-	// Can not delete the org in case other instances of this script are still using it. Whoever calls this script must delete it
+	// Can not delete the user or org in case other instances of this script are still using it. Whoever calls this script must delete it
 
 	// Note: need to do all of the time calculations in Durations (int64 nanaseconds), and only convert to float64 seconds to display
 	iterDeltaAvg := iterDeltaTotal / time.Duration(numHeartbeats)

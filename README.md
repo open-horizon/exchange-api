@@ -182,6 +182,7 @@ To build an exchange container with code that is targeted for a git branch:
 ## Changes in 1.116.0
 
 - Issue 224: New route `POST /v1/orgs/{orgid}/search/nodes/service` as the previous service search route did not account for IBM services.
+- Changes to scale driver for higher scale testing
 
 ## Changes in 1.115.0
 

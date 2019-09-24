@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -13,7 +12,7 @@ import (
 )
 
 func Usage(exitCode int) {
-	fmt.Printf("Usage: %s [<name base>]\n", perfutils.GetShortBinaryName())
+	fmt.Printf("Usage: %s <name base> [short-hostname]\n", perfutils.GetShortBinaryName())
 	os.Exit(exitCode)
 }
 
@@ -35,8 +34,13 @@ func main() {
 		Usage(1)
 	}
 
-	scriptName := filepath.Base(os.Args[0])
+	scriptName := perfutils.GetShortBinaryName()
 	namebase := os.Args[1] + "-agbot"
+	/* currently this doesn't need the hostname...
+	var hostname = "" // this is for exchange resources that should only be created 1 per host
+	if len(os.Args) >= 3 {
+		hostname = os.Args[2]
+	} */
 
 	rootauth := "root/root:" + perfutils.GetRequiredEnvVar("EXCHANGE_ROOTPW")
 	EXCHANGE_IAM_KEY := perfutils.GetRequiredEnvVar("EXCHANGE_IAM_KEY")
@@ -76,7 +80,12 @@ func main() {
 	shortCircuitChkInterval := perfutils.GetEnvVarIntWithDefault("EX_AGBOT_SHORT_CIRCUIT_CHK_INTERVAL", 7)
 	requiredEmptyIntervals := perfutils.GetEnvVarIntWithDefault("EX_AGBOT_SHORT_CIRCUIT_EMPTY_INTERVALS", 3)
 	// EX_AGBOT_NO_SLEEP can be set to disable sleeping if it finishes an interval early
+	// EX_AGBOT_CREATE_SERVICE can be set to have this script create 1 service, so the nodes finds something
 	// EX_AGBOT_CREATE_PATTERN can be set to have this script create 1 pattern, so it finds something even if node.go is not running
+	var createPattern bool = false
+	if os.Getenv("EX_AGBOT_CREATE_PATTERN") != "" && os.Getenv("EX_AGBOT_CREATE_SERVICE") != "" {
+		createPattern = true // can only create a pattern if the service exists
+	}
 
 	// CURL_CA_BUNDLE can be exported in our parent if a self-signed cert is needed.
 
@@ -151,10 +160,14 @@ func main() {
 		perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/agbots/"+myagbotid+"/patterns", userauth, nil, `{"patternOrgid": "IBM", "pattern": "*", "nodeOrgid": "`+org+`"}`, nil, false)
 	}
 
-	if os.Getenv("EX_AGBOT_CREATE_PATTERN") != "" {
-		// Create 1 svc, pattern, and node to be able to create agbot msgs, and to have pattern search return at least 1 node
+	if os.Getenv("EX_AGBOT_CREATE_SERVICE") != "" {
+		// Create 1 svc so the nodes find at least 1 svc
 		perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/services", userauth, []int{403}, `{"label": "svc", "public": true, "url": "`+svcurl+`", "version": "`+svcversion+`", "sharable": "singleton",
 		  "deployment": "{\"services\":{\"svc\":{\"image\":\"openhorizon/gps:1.2.3\"}}}", "deploymentSignature": "a", "arch": "`+svcarch+`" }`, nil, false)
+	}
+
+	if createPattern {
+		// Create 1 svc, pattern, and node to be able to create agbot msgs, and to have pattern search return at least 1 node
 		perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/patterns/"+patternid, userauth, nil, `{"label": "pat", "public": false, "services": [{ "serviceUrl": "`+svcurl+`", "serviceOrgid": "`+org+`", "serviceArch": "`+svcarch+`", "serviceVersions": [{ "version": "`+svcversion+`" }] }] }`, nil, false)
 		perfutils.ExchangeP(http.MethodPut, "orgs/"+org+"/nodes/"+nodeid, userauth, nil, `{"token": "`+nodetoken+`", "name": "pi", "pattern": "`+org+`/`+patternid+`", "arch": "`+svcarch+`", "publicKey": "ABC"}`, nil, false)
 	} else {
@@ -216,7 +229,7 @@ func main() {
 				//perfutils.Debug("patterns: %v", patResp)
 				numPatterns := len(patResp.Patterns)
 				fmt.Printf("Agbot %d processing %d patterns\n", a, numPatterns)
-				if numPatterns == 0 || (os.Getenv("EX_AGBOT_CREATE_PATTERN") != "" && numPatterns == 1) {
+				if numPatterns == 0 || (createPattern && numPatterns == 1) {
 					// this will only be the case when all of the nodes have unregistered
 					emptyIntervals++
 				} else {
@@ -253,7 +266,7 @@ func main() {
 							perfutils.Verbose("Node %s", nid)
 
 							// Simulate agreement negotiation by posting some short-lived msgs to the node
-							// the acceptable 404 http code below handle the case in which the node was deleted between the time of the search and now
+							// the acceptable 404 http codes below handle the case in which the node was deleted between the time of the search and now
 							perfutils.ExchangeGet("orgs/"+org+"/nodes/"+nid, myagbotauth, []int{404}, nil)
 							for i := 1; i <= 2; i++ {
 								perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/nodes/"+nid+"/msgs", myagbotauth, []int{404}, `{"message": "hey there", "ttl": 5}`, nil, true)
@@ -318,9 +331,12 @@ func main() {
 		perfutils.ExchangeDelete("orgs/"+org+"/agbots/"+myagbotid, userauth, nil)
 	}
 
-	if os.Getenv("EX_AGBOT_CREATE_PATTERN") != "" {
+	if createPattern {
 		// Delete the pattern and service
 		perfutils.ExchangeDelete("orgs/"+org+"/patterns/"+patternid, userauth, nil)
+	}
+
+	if os.Getenv("EX_AGBOT_CREATE_SERVICE") != "" {
 		perfutils.ExchangeDelete("orgs/"+org+"/services/"+svcid, userauth, []int{404})
 	}
 

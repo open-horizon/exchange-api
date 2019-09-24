@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -13,7 +12,7 @@ import (
 )
 
 func Usage(exitCode int) {
-	fmt.Printf("Usage: %s [<name base>]\n", perfutils.GetShortBinaryName())
+	fmt.Printf("Usage: %s <name base> [short-hostname]\n", perfutils.GetShortBinaryName())
 	os.Exit(exitCode)
 }
 
@@ -22,8 +21,12 @@ func main() {
 		Usage(1)
 	}
 
-	scriptName := filepath.Base(os.Args[0])
+	scriptName := perfutils.GetShortBinaryName()
 	namebase := os.Args[1] + "-node"
+	var hostname = "" // this is for exchange resources that should only be created 1 per host
+	if len(os.Args) >= 3 {
+		hostname = os.Args[2]
+	}
 
 	rootauth := "root/root:" + perfutils.GetRequiredEnvVar("EXCHANGE_ROOTPW")
 	EXCHANGE_IAM_KEY := perfutils.GetRequiredEnvVar("EXCHANGE_IAM_KEY")
@@ -46,7 +49,7 @@ func main() {
 	// How many msgs should be created for each node (to simulate agreement negotiation)
 	//numMsgs := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_MSGS", 5)
 	// create this many extra svcs so the nodes and patterns have to search thru them, but we will just use a primary/common svc for the pattern this group of nodes will use
-	numSvcs := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_SVCS", 4)
+	numSvcs := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_SVCS", 3)
 	// create multiple patterns so the agbot has to serve them all, but we will just use the 1st one for this group of nodes
 	numPatterns := perfutils.GetEnvVarIntWithDefault("EX_PERF_NUM_PATTERNS", 1)
 	// how much to sleep (if any) between creation and registration of each node
@@ -84,14 +87,24 @@ func main() {
 	//agbotauth := org + "/" + agbotid + ":" + agbottoken
 
 	// svcurlbase is for creating the extra svcs. svcurl is the primary/common svc that all of the patterns will use
-	svcurlbase := namebase + "-svcurl"
+	var svcurlbase string
+	if hostname != "" {
+		svcurlbase = hostname + "-svcurl" // share 1 set of services for all instances on this host
+	} else {
+		svcurlbase = namebase + "-svcurl" // create our own services
+	}
 	// The svcurl value must match what agbot.go is using
 	svcurl := "nodeagbotsvc"
 	svcversion := "1.2.3"
 	svcarch := "amd64"
 	svcid := svcurl + "_" + svcversion + "_" + svcarch
 
-	patternbase := namebase + "-p"
+	var patternbase string
+	if hostname != "" {
+		patternbase = hostname + "-p" // share 1 set of patterns for all instances on this host
+	} else {
+		patternbase = namebase + "-p" // create our own patterns
+	}
 	patternid := patternbase + "1"
 
 	//buspolbase := namebase + "-bp"
@@ -140,17 +153,20 @@ func main() {
 	perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/services", userauth, []int{403}, `{"label": "svc", "public": true, "url": "`+svcurl+`", "version": "`+svcversion+`", "sharable": "singleton",
 	  "deployment": "{\"services\":{\"svc\":{\"image\":\"openhorizon/gps:1.2.3\"}}}", "deploymentSignature": "a", "arch": "`+svcarch+`" }`, nil, false)
 
-	// Create extra services
-	for s := 1; s <= numSvcs; s++ {
-		/* perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/services", userauth, []int{403}, `{"label": "svc", "public": true, "url": "`+svcurlbase+strconv.Itoa(s)+`", "version": "`+svcversion+`", "sharable": "singleton",
-		"deployment": "{\"services\":{\"svc\":{\"image\":\"openhorizon/gps:1.2.3\"}}}", "deploymentSignature": "a", "arch": "`+svcarch+`" }`, nil, true) */
-		perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/services", userauth, nil, `{"label": "svc", "public": true, "url": "`+svcurlbase+strconv.Itoa(s)+`", "version": "`+svcversion+`", "sharable": "singleton",
-		  "deployment": "{\"services\":{\"svc\":{\"image\":\"openhorizon/gps:1.2.3\"}}}", "deploymentSignature": "a", "arch": "`+svcarch+`" }`, nil, true)
+	// For the creation of services and patterns, we will share them with every other instance on this host if hostname is set, so need to tolerate them already existing
+	var otherGoodHttpCodes []int
+	if hostname != "" {
+		otherGoodHttpCodes = []int{403}
 	}
 
+	// Create extra services
+	for s := 1; s <= numSvcs; s++ {
+		perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/services", userauth, otherGoodHttpCodes, `{"label": "svc", "public": true, "url": "`+svcurlbase+strconv.Itoa(s)+`", "version": "`+svcversion+`", "sharable": "singleton",
+		  "deployment": "{\"services\":{\"svc\":{\"image\":\"openhorizon/gps:1.2.3\"}}}", "deploymentSignature": "a", "arch": "`+svcarch+`" }`, nil, true)
+	}
 	// Create patterns p*, that all use the primary service
 	for p := 1; p <= numPatterns; p++ {
-		perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/patterns/"+patternbase+strconv.Itoa(p), userauth, nil, `{"label": "pat", "public": false, "services": [{ "serviceUrl": "`+svcurl+`", "serviceOrgid": "`+org+`", "serviceArch": "`+svcarch+`", "serviceVersions": [{ "version": "`+svcversion+`" }] }],
+		perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/patterns/"+patternbase+strconv.Itoa(p), userauth, otherGoodHttpCodes, `{"label": "pat", "public": false, "services": [{ "serviceUrl": "`+svcurl+`", "serviceOrgid": "`+org+`", "serviceArch": "`+svcarch+`", "serviceVersions": [{ "version": "`+svcversion+`" }] }],
 		"userInput": [{
 			"serviceOrgid": "`+org+`", "serviceUrl": "`+svcurl+`", "serviceArch": "", "serviceVersionRange": "[0.0.0,INFINITY)",
 			"inputs": [{ "name": "VERBOSE", "value": true }]
@@ -225,7 +241,7 @@ func main() {
 
 			// If it is time to do a service check, do that
 			if svcCheckCount >= svcCheckInterval {
-				perfutils.ExchangeGet("orgs/"+org+"/services", mynodeauth, nil, nil)
+				perfutils.ExchangeGet("orgs/"+org+"/services", mynodeauth, []int{404}, nil)
 			}
 
 			// If it is time to do a version check, do that
@@ -280,18 +296,26 @@ func main() {
 
 	// Don't need to delete the msgs, they'll get deleted with the node
 
+	// We are sharing services and patterns with every other instance on this host if hostname is set, so need to tolerate them already being deleted
+	otherGoodHttpCodes = nil // reset it
+	if hostname != "" {
+		otherGoodHttpCodes = []int{404}
+	}
+
 	// Delete patterns
 	for p := 1; p <= numPatterns; p++ {
 		mypatid := patternbase + strconv.Itoa(p)
-		perfutils.ExchangeDelete("orgs/"+org+"/patterns/"+mypatid, userauth, nil)
+		perfutils.ExchangeDelete("orgs/"+org+"/patterns/"+mypatid, userauth, otherGoodHttpCodes)
 	}
 
-	// Delete primary service and extra services
-	perfutils.ExchangeDelete("orgs/"+org+"/services/"+svcid, userauth, []int{404})
+	// Delete extra services
 	for s := 1; s <= numSvcs; s++ {
 		mysvcid := svcurlbase + strconv.Itoa(s) + "_" + svcversion + "_" + svcarch
-		perfutils.ExchangeDelete("orgs/"+org+"/services/"+mysvcid, userauth, nil)
+		perfutils.ExchangeDelete("orgs/"+org+"/services/"+mysvcid, userauth, otherGoodHttpCodes)
 	}
+
+	// Delete primary service
+	perfutils.ExchangeDelete("orgs/"+org+"/services/"+svcid, userauth, []int{404})
 
 	// Delete nodes
 	for n := 1; n <= numNodes; n++ {

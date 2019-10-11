@@ -426,8 +426,8 @@ object IbmCloudAuth {
               //val resp = parse(response.body).extract[List[TokenAccountResponse]]
               //val tokenOrg = if (resp.nonEmpty) extractICPTokenOrg(resp.head.id) else ""
               logger.trace("Org of ICP creds: " + tokenOrg + ", org of request: " + authInfo.org)
-              if (tokenOrg == authInfo.org) return DBIO.successful(authInfo.org)
-              else return DBIO.failed(IncorrectIcpOrgFound(authInfo.org, tokenOrg))
+              // no longer need to test org for ICP
+              return DBIO.successful(authInfo.org)
             }
             else if (response.code == HttpCode.BAD_INPUT || response.code == HttpCode.BADCREDS || response.code == HttpCode.ACCESS_DENIED || response.code == HttpCode.NOT_FOUND) {
               // This IAM API returns ACCESS_DENIED (403) when the mechanics of the api call were successful, but the token was invalid
@@ -445,10 +445,8 @@ object IbmCloudAuth {
       } else {
         // An ICP platform api key, the iss field contains a url that includes the cluster name
         // Note: we could just get the cluster name like the ICP token case above, but that would be an extra API call
-        val issOrg = extractICPOrg(userInfo.iss.getOrElse(""))
-        logger.trace("Org of ICP creds: "+issOrg+", org of request: "+authInfo.org)
-        if (issOrg == authInfo.org) DBIO.successful(authInfo.org)
-        else DBIO.failed(IncorrectIcpOrgFound(authInfo.org, issOrg))
+        // no longer need to test org for ICP
+        DBIO.successful(authInfo.org)
       }
     } else {
       // IBM Cloud - we already have the account id from iam from the creds, and the account id of the exchange org
@@ -500,14 +498,15 @@ object IbmCloudAuth {
     }
   } */
 
-  private def extractICPOrg(iss: String) = {
+// Currently not needed for verifying Org in the ICP case
+/*  private def extractICPOrg(iss: String) = {
     // ICP iss value looks like: https://major-peacock-icp-cluster.icp:9443/oidc/token
     val R = """https://(.+)\.icp:.+""".r
     iss match {
       case R(clusterName) => clusterName
       case _ => ""
     }
-  }
+  } */
 
   // Split an id in the form org/id and return both parts. If there is no / we assume it is an id without the org.
   def compositeIdSplit(compositeId: String): (String, String) = {

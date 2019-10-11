@@ -498,8 +498,8 @@ object IbmCloudAuth {
     }
   } */
 
-// Currently not needed for verifying Org in the ICP case
-/*  private def extractICPOrg(iss: String) = {
+  // Currently not needed for verifying Org in the ICP case
+  /* private def extractICPOrg(iss: String) = {
     // ICP iss value looks like: https://major-peacock-icp-cluster.icp:9443/oidc/token
     val R = """https://(.+)\.icp:.+""".r
     iss match {

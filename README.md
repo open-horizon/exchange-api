@@ -179,7 +179,7 @@ To build an exchange container with code that is targeted for a git branch:
     - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
-## Changes in 1.117.0
+## Changes in 1.116.1
 
 - Issue 231: Disable exchange org verification for ICP IAM authentication
 

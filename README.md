@@ -110,27 +110,27 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 ## Test the Exchange with Anax
 
 - If you will be testing with anax on another machine, push just the version-tagged exchange image to docker hub, so it will be available to the other machines: `make docker-push-version-only`
-- Just the first time: on an ubuntu machine, clone the anax repo and define this bash function:
+- Just the first time: on an ubuntu machine, clone the anax repo and define this e2edev script:
 ```
 mkdir -p ~/src/github.com/open-horizon && cd ~/src/github.com/open-horizon && git clone git@github.com:open-horizon/anax.git
 # See: https://github.com/open-horizon/anax/blob/master/test/README.md
-e2edev () {
-	if [[ -z "$1" ]]; then
-		echo "Usage: e2edev <exchange-version>"
-		return
-	fi
-	set -e
-	systemctl stop horizon.service   # this is only needed if you normally use this machine as a horizon edge node
-	cd ~/src/github.com/open-horizon/anax
-	git pull
-	make clean
-	make
-	cd test
-	make
-	make test TEST_VARS="NOLOOP=1 TEST_PATTERNS=sall" DOCKER_EXCH_TAG=$1
-	echo 'Now run: make realclean && systemctl start horizon.service'
-	set +e
-}
+if [[ -z "$1" ]]; then
+    echo "Usage: e2edev <exchange-version>"
+    return
+fi
+set -e
+sudo systemctl stop horizon.service   # this is only needed if you normally use this machine as a horizon edge node
+cd ~/src/github.com/open-horizon/anax
+git pull
+make clean
+make
+make fss
+cd test
+make
+make test TEST_VARS="NOLOOP=1 TEST_PATTERNS=sall" DOCKER_EXCH_TAG=$1
+make test TEST_VARS="NOLOOP=1" DOCKER_EXCH_TAG=$1
+echo 'Now run: cd $HOME/src/github.com/open-horizon/anax/test && make realclean && sudo systemctl start horizon.service && cd -'
+set +e
 ```
 - Now run the test (this will take about 10 minutes):
 ```
@@ -156,7 +156,33 @@ To build an exchange container with code that is targeted for a git branch:
 - The above command will push the container tagged like 1.2.3-B and latest-B
 - Create a PR to merge your dev branch A to canonical branch B
 
-### Todos that may be done in future versions
+## Exchange root User
+
+### Putting Hashed Password in config.json
+
+The exchange root user password is set in the config file (`/etc/horizon/exchange/config.json`). But the password doesn't need to be clear text. You can hash the password with:
+```
+curl -sS -X POST -H "Authorization:Basic $HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -H "Content-Type: application/json" -d '{ "password": "PUT-PW-HERE" }' $HZN_EXCHANGE_URL/admin/hashpw | jq
+```
+
+And then put that hashed value in `/etc/horizon/exchange/config.json` in the `api.root.password` field.
+
+### Disabling Root User
+
+If you want to reduce the attack surface of the exchange, you can disable the exchange root user, because it is only needed under special circumstances. Before disabling root, we suggest you do:
+- Create a local exchange user in the IBM org. (This can be used if you want to update the sample services, patterns, and policies at some point with `https://raw.githubusercontent.com/open-horizon/examples/master/tools/exchangePublishScript.sh`.):
+  ```bash
+  hzn exchange user create -u "root/root:PUT-ROOT-PW-HERE" -o IBM -A PUT-USER-HERE PUT-PW-HERE PUT-EMAIL-HERE
+  ```
+
+- Give 1 of the IBM Cloud users `admin` privilege:
+  ```
+  hzn exchange user setadmin -u "root/root:PUT-ROOT-PW-HERE" -o PUT-IBM-CLOUD-ORG-HERE PUT-USER-HERE true
+  ```
+
+Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horizon/exchange/config.json`.
+
+## Todos that may be done in future versions
 
 - Granular (per org) service ACL support:
     - add Access type of BROWSE that will allow to see these fields of services:
@@ -176,8 +202,13 @@ To build an exchange container with code that is targeted for a git branch:
 - Consider:
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
-    - If maxAgreements>1, for CS, in search don't return node to agbot if agbot from same org already has agreement for same service.
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 1.118.0
+
+- Implemented issue 202: Document using exchange root pw hash in config.json, and support disabling exchange root user
+- Improved IAM API key and UI token error handling in IbmCloudModule:getUserInfo()
+- Change /admin/hashpw so non-root users can run it
 
 ## Changes in 1.117.0
 

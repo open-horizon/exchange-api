@@ -31,9 +31,10 @@ case class IamToken(accessToken: String, tokenType: Option[String] = None)
 
 // For both IBM Cloud and ICP. All the rest apis that use this must be able to parse their results into this class.
 // The account field is set when using IBM Cloud, iss is set when using ICP.
-case class IamUserInfo(account: Option[IamAccount], sub: String, iss: Option[String], active: Option[Boolean]) {   // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
+case class IamUserInfo(account: Option[IamAccount], sub: Option[String], iss: Option[String], active: Option[Boolean]) {   // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
   def accountId = if (account.isDefined) account.get.bss else ""
-  def user = sub
+  def isActive = active.getOrElse(false)
+  def user = sub.getOrElse("")
 }
 case class IamAccount(bss: String)
 
@@ -280,11 +281,12 @@ object IbmCloudAuth {
             .header("Content-Type", "application/x-www-form-urlencoded")
             .postData("apikey=" + apiKey)
             .asString
+          logger.trace(iamUrl + " http code: " + response.code + ", body: " + response.body)
           if (response.code == HttpCode.OK) {
-            // This api returns 200 even for an invalid token. Have to determine its validity via the 'active' field
+            // This api returns 200 even for an invalid api key. Have to determine its validity via the 'active' field
             val userInfo = parse(response.body).extract[IamUserInfo]
-            if (userInfo.active.getOrElse(false)) return Success(userInfo)
-            else return Failure(new IamApiErrorException("invalid token"))
+            if (userInfo.isActive && userInfo.user != "") return Success(userInfo)
+            else return Failure(new IamApiErrorException("invalid API key"))
           }
           else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
         } catch {
@@ -304,9 +306,10 @@ object IbmCloudAuth {
             .header("Authorization", s"BEARER ${token.accessToken}")
             .header("Content-Type", "application/json")
             .asString
+          logger.trace(iamUrl + " http code: " + response.code + ", body: " + response.body)
           if (response.code == HttpCode.OK) return Success(parse(response.body).extract[IamUserInfo])
           else if (response.code == HttpCode.BAD_INPUT || response.code == HttpCode.BADCREDS || response.code == HttpCode.ACCESS_DENIED || response.code == HttpCode.NOT_FOUND) {
-            // This IAM API returns BAD_INPUT (400) when the mechanics of the api call were successful, but the api key was invalid
+            // This IAM API returns BAD_INPUT (400) when the mechanics of the api call were successful, but the token was invalid
             return Failure(new IamApiErrorException(response.body.toString))
           }
           else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
@@ -326,10 +329,11 @@ object IbmCloudAuth {
             .header("Authorization", s"BEARER ${token.accessToken}")
             .header("Content-Type", "application/json")
             .asString
+          logger.trace(iamUrl + " http code: " + response.code + ", body: " + response.body)
           if (response.code == HttpCode.OK) {
             // This api returns 200 even for an invalid token. Have to determine its validity via the 'active' field
             val userInfo = parse(response.body).extract[IamUserInfo]
-            if (userInfo.active.getOrElse(false)) return Success(userInfo)
+            if (userInfo.isActive && userInfo.user != "") return Success(userInfo)
             else return Failure(new IamApiErrorException("invalid token"))
           }
           else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
@@ -469,7 +473,7 @@ object IbmCloudAuth {
   private def fetchUser(org: String, userInfo: IamUserInfo) = {
     logger.trace("Fetching user: org="+org+", "+userInfo)
     UsersTQ.rows
-      .filter(u => u.orgid === org && u.username === s"$org/${userInfo.sub}")
+      .filter(u => u.orgid === org && u.username === s"$org/${userInfo.user}")
       //.take(1)  // not sure what the purpose of this was
       .result
       .headOption
@@ -478,13 +482,13 @@ object IbmCloudAuth {
   private def createUser(org: String, userInfo: IamUserInfo) = {
     logger.trace("Creating user: org="+org+", "+userInfo)
     val user = UserRow(
-      s"$org/${userInfo.sub}",
+      s"$org/${userInfo.user}",
       org,
       "",
       admin = false,
-      userInfo.sub,
+      userInfo.user,
       ApiTime.nowUTC,
-      s"$org/${userInfo.sub}"
+      s"$org/${userInfo.user}"
     )
     (UsersTQ.rows += user).asTry.map(count => count.map(_ => user))
   }

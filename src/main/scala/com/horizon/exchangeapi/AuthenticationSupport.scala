@@ -147,7 +147,10 @@ object Password {
   def fastHash(password: String): String = { BCrypt.hashpw(password, BCrypt.gensalt(minimumLogRounds)) }
 
   /** Returns true if plainPw matches hashedPw */
-  def check(plainPw: String, hashedPw: String): Boolean = { BCrypt.checkpw(plainPw, hashedPw) }
+  def check(plainPw: String, hashedPw: String): Boolean = {
+    if ( hashedPw == "" ) return false    // this covers the case when the root user is disabled
+    BCrypt.checkpw(plainPw, hashedPw)
+  }
 
   /** Returns true if this pw/token is already hashed */
   def isHashed(password: String): Boolean = {

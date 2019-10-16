@@ -123,8 +123,9 @@ object ExchConfig {
   // Put the root user in the auth cache in case the db has not been inited yet and they need to be able to run POST /admin/initdb
   def createRootInCache(): Unit = {
     val rootpw = config.getString("api.root.password")
-    if (rootpw == "") {
-      logger.error("Root password is not specified in config.json, you may not be able to do any exchange operations.")
+    val rootIsEnabled = config.getBoolean("api.root.enabled")
+    if (rootpw == "" || !rootIsEnabled) {
+      logger.warn("Root password is not specified in config.json or is not enabled. You will not be able to do exchange operations that require root privilege.")
       return
     }
     if (rootHashedPw == "") {
@@ -146,33 +147,37 @@ object ExchConfig {
   def createRoot(db: Database): Unit = {
     // If the root pw is set in the config file, create or update the root user in the db to match
     val rootpw = config.getString("api.root.password")
-    if (rootpw != "") {
+    val rootIsEnabled = config.getBoolean("api.root.enabled")
+    if (rootpw == "" || !rootIsEnabled) {
+      rootHashedPw = ""     // this should already be true, but just make sure
+    } else {    // there is a real, enabled root pw
       //val hashedPw = Password.hashIfNot(rootpw)  <- can't hash this again, because it would be different
       if (rootHashedPw == "") logger.error("Internal Error: rootHashedPw not already set")
       val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw    // this is the 1 case in which an id cache entry could not have an unhashed pw/tok
       AuthCache.putUser(Role.superUser, rootHashedPw, rootUnhashedPw)    // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
-      val rootemail = config.getString("api.root.email")
-      // Create the root org, create the IBM org, and create the root user (all only if necessary)
-      db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None).upsert.asTry.flatMap({ xs =>
-        logger.debug("Upsert /orgs/root result: "+xs.toString)
-        xs match {
-          case Success(_) => UserRow(Role.superUser, "root", rootHashedPw, admin = true, rootemail, ApiTime.nowUTC, Role.superUser).upsertUser.asTry    // next action
-          case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
-        }
-      }).flatMap({ xs =>
-        logger.debug("Upsert /orgs/root/users/root (root) result: "+xs.toString)
-        xs match {
-          case Success(_) => OrgRow("IBM", "IBM", "IBM Org", "Organization containing IBM services", ApiTime.nowUTC, None).upsert.asTry    // next action
-          case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
-        }
-      })).map({ xs =>
-        logger.debug("Upsert /orgs/IBM result: "+xs.toString)
-        xs match {
-          case Success(_) => logger.info("Root org and user from config.json was successfully created/updated in the DB")
-          case Failure(t) => logger.error("Failed to write the root user from config.json to the DB: "+t.toString)
-        }
-      })
     }
+    // Put the root org and user in the db, even if root is disabled (because in that case we want all exchange instances to know the root pw is blank
+    val rootemail = config.getString("api.root.email")
+    // Create the root org, create the IBM org, and create the root user (all only if necessary)
+    db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None).upsert.asTry.flatMap({ xs =>
+      logger.debug("Upsert /orgs/root result: "+xs.toString)
+      xs match {
+        case Success(_) => UserRow(Role.superUser, "root", rootHashedPw, admin = true, rootemail, ApiTime.nowUTC, Role.superUser).upsertUser.asTry    // next action
+        case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
+      }
+    }).flatMap({ xs =>
+      logger.debug("Upsert /orgs/root/users/root (root) result: "+xs.toString)
+      xs match {
+        case Success(_) => OrgRow("IBM", "IBM", "IBM Org", "Organization containing IBM services", ApiTime.nowUTC, None).upsert.asTry    // next action
+        case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
+      }
+    })).map({ xs =>
+      logger.debug("Upsert /orgs/IBM result: "+xs.toString)
+      xs match {
+        case Success(_) => logger.info("Root org and user from config.json was successfully created/updated in the DB")
+        case Failure(t) => logger.error("Failed to write the root user from config.json to the DB: "+t.toString)
+      }
+    })
   }
 
   //todo: we should catch ConfigException.Missing and ConfigException.WrongType, but they are always set by the built-in config.json

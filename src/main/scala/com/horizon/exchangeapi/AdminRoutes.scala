@@ -72,10 +72,10 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   val postAdminHashPw =
     (apiOperation[AdminHashpwResponse]("postAdminHashPw")
       summary "Returns a salted hash of a password"
-      description "Takes the password specified in the body, hashes it with a random salt, and returns the result. This can be useful if you to specify root's hash pw in the config file instead of the clear pw. Can only be run by the root user."
+      description "Takes the password specified in the body, hashes it with a random salt, and returns the result. This can be useful if you want to specify root's hash pw in the config file instead of the clear pw."
       parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+        Parameter("username", DataType.String, Option[String]("The username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
+        Parameter("password", DataType.String, Option[String]("The password. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
         Parameter("body", DataType[AdminHashpwRequest],
           Option[String]("The clear text password."),
           paramType = ParamType.Body)
@@ -86,7 +86,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   post("/admin/hashpw", operation(postAdminHashPw)) ({
     // validateUser(BaseAccess.ADMIN, "")
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
+    authenticate().authorizeTo(TAction(),Access.UTILITIES)
     val req = try { parse(request.body).extract[AdminHashpwRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     status_=(HttpCode.POST_OK)

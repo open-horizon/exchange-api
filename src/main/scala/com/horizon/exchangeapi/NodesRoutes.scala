@@ -888,7 +888,6 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     authenticate().authorizeTo(TNode(id),Access.WRITE)
-    //(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String])
     if((!request.body.contains("token") && !request.body.contains("name") && !request.body.contains("pattern") && !request.body.contains("registeredServices") && !request.body.contains("userInput") && !request.body.contains("msgEndPoint") && !request.body.contains("softwareVersions") && !request.body.contains("publicKey") && !request.body.contains("arch")) || (request.body.contains("name") && request.body.contains("value") && !request.body.contains("userInput"))){
       halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
     }

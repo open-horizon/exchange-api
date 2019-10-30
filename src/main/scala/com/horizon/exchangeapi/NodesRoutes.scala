@@ -157,7 +157,6 @@ case class PutNodesRequest(token: Option[String], name: String, pattern: String,
 
 case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  implicit val logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
 
   /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
   def getDbUpdate(id: String, hashedPw: String): (DBIO[_],String) = {
@@ -177,7 +176,6 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
     }
     registeredServices match {
       case Some(rsvc) => val regSvc = if (rsvc.nonEmpty) write(registeredServices) else ""
-        logger.debug("assumed registered services")
         return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat)).update((id, regSvc, lastHeartbeat)), "registeredServices")
       case _ => ;
     }

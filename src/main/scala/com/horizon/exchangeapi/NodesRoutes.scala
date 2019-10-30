@@ -118,12 +118,11 @@ case class NodeResponse(id: String, name: String, services: List[RegService], us
 case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
-case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String]) {
+case class PutNodesRequest(token: Option[String], name: String, pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
   def validate() = {
     // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
-    if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.must.not.be.blank")))
     if (pattern != "" && """.*/.*""".r.findFirstIn(pattern).isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("pattern.must.have.orgid.prepended")))
     for (m <- registeredServices.getOrElse(List())) {
       // now we support more than 1 agreement for a MS
@@ -142,6 +141,7 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
+    if(token.getOrElse("") == ""){NodeRowNoToken(id, orgid, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).upsert}
     NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).upsert
   }
 
@@ -150,12 +150,14 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
+    if(token.getOrElse("") == "") {NodeRowNoToken(id, orgid, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).update}
     NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).update
   }
 }
 
 case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
+  implicit val logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
 
   /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
   def getDbUpdate(id: String, hashedPw: String): (DBIO[_],String) = {
@@ -175,6 +177,7 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
     }
     registeredServices match {
       case Some(rsvc) => val regSvc = if (rsvc.nonEmpty) write(registeredServices) else ""
+        logger.debug("assumed registered services")
         return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat)).update((id, regSvc, lastHeartbeat)), "registeredServices")
       case _ => ;
     }
@@ -793,7 +796,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val resp = response
     val patValidateAction = if (node.pattern != "") PatternsTQ.getPattern(node.pattern).length.result else DBIO.successful(1)
     val (valServiceIdActions, svcRefs) = node.validateServiceIds  // to check that the services referenced in userInput exist
-    val hashedTok = Password.hash(node.token)
+    val hashedTok = Password.hash(node.token.getOrElse(""))
     db.run(patValidateAction.asTry.flatMap({ xs =>
       // Check if pattern exists, then get services referenced
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
@@ -849,7 +852,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       // Check creation/update of node, and other errors
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" result: "+xs.toString)
       xs match {
-        case Success(_) => AuthCache.putNodeAndOwner(id, hashedTok, node.token, owner)
+        case Success(_) => AuthCache.putNodeAndOwner(id, hashedTok, node.token.getOrElse(""), owner)
           //AuthCache.ids.putNode(id, hashedTok, node.token)
           //AuthCache.nodesOwner.putOne(id, owner)
           resp.setStatus(HttpCode.PUT_OK)
@@ -887,9 +890,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     authenticate().authorizeTo(TNode(id),Access.WRITE)
+    //(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String])
+    if((!request.body.contains("token") && !request.body.contains("name") && !request.body.contains("pattern") && !request.body.contains("registeredServices") && !request.body.contains("userInput") && !request.body.contains("msgEndPoint") && !request.body.contains("softwareVersions") && !request.body.contains("publicKey") && !request.body.contains("arch")) || (request.body.contains("name") && request.body.contains("value") && !request.body.contains("userInput"))){
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
+    }
     val node = try { parse(request.body).extract[PatchNodesRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    //logger.trace("PATCH /orgs/"+orgid+"/nodes/"+bareId+" input: "+node.toString)
+//    logger.trace("PATCH /orgs/"+orgid+"/nodes/"+bareId+" input: "+node.toString)
     val resp = response
     val hashedPw = if (node.token.isDefined) Password.hash(node.token.get) else ""    // hash the token if that is what is being updated
     val (action, attrName) = node.getDbUpdate(id, hashedPw)

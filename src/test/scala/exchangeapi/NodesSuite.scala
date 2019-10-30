@@ -74,6 +74,7 @@ class NodesSuite extends FunSuite {
   val orgnodeId5 = authpref+nodeId5
   val nodeId6 = "n6"
   val orgnodeId6 = authpref+nodeId6
+  val nodeId7 = "n7"
   val nodePubKey = "NODEABC"
   val patid = "p1"
   val businessPolicySdr = "mybuspolsdr"
@@ -2071,8 +2072,46 @@ class NodesSuite extends FunSuite {
   // Test PUT Nodes with no Token
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId6+" - add normal node as user, but with no token") {
-    val input = """{"arch": "amd64","msgEndPoint": "","name": "testnode6","owner": "NodesSuiteTests/u1","pattern": "","publicKey": "ABCDEF","registeredServices": [{"configState": "active","numAgreements": 0,"policy": "","properties": [],"url": "ibm.gps"},{"configState": "active","numAgreements": 0,"policy": "","properties": [],"url": "ibm.gps"},{"configState": "active","numAgreements": 0,"policy": "","properties": [],"url": "ibm.location"}],"softwareVersions": {},"userInput": [{"inputs": [{"name": "var1","value": "someString"},{"name": "var2","value": 5},{"name": "var3","value": 22.2}],"serviceArch": "amd64","serviceOrgid": "org2","serviceUrl": "ibm.gps","serviceVersionRange": "[2.2.0,INFINITY)"},{"inputs": [{"name": "var1","value": "node_String"},{"name": "var2","value": 20},{"name": "var3","value": 23.2}],"serviceArch": "amd64","serviceOrgid": "IBM","serviceUrl": "ibm.gps","serviceVersionRange": "2.2.0"},{"inputs": [{"name": "cpu_var1","value": "ibmnodevar1"}],"serviceArch": "amd64","serviceOrgid": "IBM","serviceUrl": "ibm.location","serviceVersionRange": "[0.0.0,INFINITY)"}]}""".stripMargin
+    //val input = PutNodesRequest(Some(nodeToken), "rpi"+nodeId+"-norm", "",
+    //      Some(List(
+    //        RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId+" pws}",List(
+    //          Prop("arch","arm","string","in"),
+    //          Prop("version","1.0.0","version","in"),
+    //          Prop("agreementProtocols",agProto,"list","in"),
+    //          Prop("dataVerification","true","boolean","="))),
+    //        RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId+" netspeed}",List(
+    //          Prop("arch","arm","string","in"),
+    //          Prop("cpus","2","int",">="),
+    //          Prop("version","1.0.0","version","in")))
+    //      )),
+    //      Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+    //      None, Some(Map("horizon"->"3.2.3")), nodePubKey, None)
+    val input = """{"arch": "amd64","msgEndPoint": "","name": "testnode6","owner": "NodesSuiteTests/u1","pattern": "","publicKey": "ABCDEF","registeredServices": [{"configState": "active","numAgreements": 0,"policy": "","properties": [],"url": "bluehorizon.network.sdr"}],"softwareVersions": {},"userInput": [{"inputs": [{"name": "var1","value": "someString"},{"name": "var2","value": 5},{"name": "var3","value": 22.2}],"serviceArch": "amd64","serviceOrgid": "NodesSuiteTests","serviceUrl": "bluehorizon.network.netspeed","serviceVersionRange": "[0.0.0,INFINITY)"}]}""".stripMargin
     val response = Http(URL+"/nodes/"+nodeId).postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    info("body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+    //  val SDRSPEC_URL = "bluehorizon.network.sdr"
+    //  val SDRSPEC = orgid+"/"+SDRSPEC_URL
+    //  val NETSPEEDSPEC_URL = "bluehorizon.network.netspeed"
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId7+" - add normal node as user, but with no token and using PutNodesRequest") {
+    val input = PutNodesRequest(None, "rpi"+nodeId7+"-norm", "",
+          Some(List(
+            RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId7+" pws}",List(
+              Prop("arch","arm","string","in"),
+              Prop("version","1.0.0","version","in"),
+              Prop("agreementProtocols",agProto,"list","in"),
+              Prop("dataVerification","true","boolean","="))),
+            RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId7+" netspeed}",List(
+              Prop("arch","arm","string","in"),
+              Prop("cpus","2","int",">="),
+              Prop("version","1.0.0","version","in")))
+          )),
+          Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+          None, Some(Map("horizon"->"3.2.3")), nodePubKey, None)
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     info("body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)

@@ -211,7 +211,7 @@ class PatternsSuite extends FunSuite {
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
-    val devInput = PutNodesRequest(Some(nodeToken), "bc dev test", "", Some(List(RegService("foo", 1, None, "{}", List(
+    val devInput = PutNodesRequest(nodeToken, "bc dev test", "", Some(List(RegService("foo", 1, None, "{}", List(
       Prop("arch", "arm", "string", "in"),
       Prop("version", "2.0.0", "version", "in"),
       Prop("blockchainProtocols", "agProto", "list", "in"))))), None, None, None, "NODEABC", None)
@@ -938,7 +938,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeIdSearchTest1+" - add normal node as user") {
-    val input = PutNodesRequest(Some(nodeTokenSearchTest1), "rpi"+nodeIdSearchTest1+"-norm", compositePatid,
+    val input = PutNodesRequest(nodeTokenSearchTest1, "rpi"+nodeIdSearchTest1+"-norm", compositePatid,
       Some(List(
         RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeIdSearchTest1+" pws}",List(
           Prop("arch","arm","string","in"),
@@ -958,7 +958,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2SearchTest2+" - node with higher memory 400, and version 2.0.0") {
-    val input = PutNodesRequest(Some(nodeToken2SearchTest2), "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
+    val input = PutNodesRequest(nodeToken2SearchTest2, "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
@@ -970,7 +970,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2SearchTest2+" - node with no arch") {
-    val input = PutNodesRequest(Some(nodeToken2SearchTest2), "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
+    val input = PutNodesRequest(nodeToken2SearchTest2, "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
@@ -998,7 +998,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId3SearchTest3+" - node with no arch") {
-    val input = PutNodesRequest(Some(nodeToken3SearchTest3), "rpi"+nodeId3SearchTest3+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId3SearchTest3+" sdr}",List(
+    val input = PutNodesRequest(nodeToken3SearchTest3, "rpi"+nodeId3SearchTest3+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId3SearchTest3+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
@@ -1028,7 +1028,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId4SearchTest4+" - node with "+PWSSPEC+" Service") {
-    val input = PutNodesRequest(Some(nodeToken4SearchTest4), "rpi"+nodeId4SearchTest4+"-mem-400-vers-2", compositePatid2, Some(List(RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId4SearchTest4+" sdr}",List(
+    val input = PutNodesRequest(nodeToken4SearchTest4, "rpi"+nodeId4SearchTest4+"-mem-400-vers-2", compositePatid2, Some(List(RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId4SearchTest4+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
@@ -1065,7 +1065,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId5SearchTest5+" - node with "+SDRSPEC+" Service arm32") {
-    val input = PutNodesRequest(Some(nodeToken5SearchTest5), "rpi"+nodeId5SearchTest5+"-mem-400-vers-2", compositePatid3, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId5SearchTest5+" sdr}",List(
+    val input = PutNodesRequest(nodeToken5SearchTest5, "rpi"+nodeId5SearchTest5+"-mem-400-vers-2", compositePatid3, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId5SearchTest5+" sdr}",List(
       Prop("arch","arm32","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
@@ -1077,7 +1077,7 @@ class PatternsSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId6SearchTest6+" - node with "+SDRSPEC+" Service the first one arm32") {
-    val input = PutNodesRequest(Some(nodeToken6SearchTest6), "rpi"+nodeId6SearchTest6+"-mem-400-vers-2", compositePatid3, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId6SearchTest6+" sdr}",List(
+    val input = PutNodesRequest(nodeToken6SearchTest6, "rpi"+nodeId6SearchTest6+"-mem-400-vers-2", compositePatid3, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId6SearchTest6+" sdr}",List(
       Prop("arch","amd64","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),

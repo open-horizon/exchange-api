@@ -132,7 +132,7 @@ class BusinessSuite extends FunSuite {
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK)
 
-    val devInput = PutNodesRequest(Some(nodeToken), "bc dev test", "", Some(List(RegService("foo", 1, None, "{}", List(
+    val devInput = PutNodesRequest(nodeToken, "bc dev test", "", Some(List(RegService("foo", 1, None, "{}", List(
       Prop("arch", "arm", "string", "in"),
       Prop("version", "2.0.0", "version", "in"),
       Prop("blockchainProtocols", "agProto", "list", "in"))))), None, None, None, "NODEABC", None)

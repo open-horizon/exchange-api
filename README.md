@@ -207,7 +207,6 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 ## Changes in 1.119.0
 
 - Fix issue 213: hzn exchange node update (PATCH) wipes out registeredServices if input bad
-- Implemented issue 239: Remove requirement of token in Node PUT for updates
 
 ## Changes in 1.118.0
 

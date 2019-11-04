@@ -492,6 +492,9 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
     authenticate().authorizeTo(TService(service),Access.WRITE)
+    if(!request.body.startsWith("{") && !request.body.endsWith("}")){
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
+    }
     val serviceReq = try { parse(request.body).extract[PatchServiceRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     //logger.trace("PATCH /orgs/"+orgid+"/services/"+bareService+" input: "+serviceReq.toString)

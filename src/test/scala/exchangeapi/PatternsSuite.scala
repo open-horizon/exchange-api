@@ -677,6 +677,14 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT)
   }
 
+  test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - userInput without header so invalid input") {
+    val jsonInput = """[{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": "fooarch", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }]"""
+    val response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.body.contains("invalid input"))
+  }
+
   test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - description and userInput as user") {
     var jsonInput = """{ "description": "this is now patched" }"""
     var response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

@@ -268,6 +268,14 @@ class AgbotsSuite extends FunSuite {
     */
   }
 
+  test("PATCH /orgs/"+orgid+"/agbots/"+agbotId+" - as agbot -- invalid input") {
+    val jsonInput = "badinput"
+    val response = Http(URL+"/agbots/"+agbotId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.body.contains("invalid input"))
+  }
+
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+" - as agbot, check patch by getting that 1 attr") {
     var response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"?attribute=publicKey").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)

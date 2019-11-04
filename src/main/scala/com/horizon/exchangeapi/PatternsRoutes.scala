@@ -496,6 +496,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
     val pattern = OrgAndId(orgid,barePattern).toString
     authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
+    if(!request.body.startsWith("{") && !request.body.endsWith("}")){
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
+    }
     val patternReq = try { parse(request.body).extract[PatchPatternRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     patternReq.validate()

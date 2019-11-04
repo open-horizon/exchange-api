@@ -275,6 +275,9 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
     val ident = authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
+    if(!request.body.startsWith("{") && !request.body.endsWith("}")){
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
+    }
     val user = try { parse(request.body).extract[PatchUsersRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     val resp = response

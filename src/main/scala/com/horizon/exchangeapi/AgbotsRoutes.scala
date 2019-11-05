@@ -285,7 +285,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val id = params("id")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,id).toString
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    if(!request.body.startsWith("{") && !request.body.endsWith("}")){
+    if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
       halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
     }
     val agbot = try { parse(request.body).extract[PatchAgbotsRequest] }

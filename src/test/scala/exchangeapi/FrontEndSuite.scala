@@ -165,7 +165,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - create node") {
-    val input = PutNodesRequest(nodeToken, nodeId+"-normal", orgpattern,
+    val input = PutNodesRequest(Some(nodeToken), nodeId+"-normal", orgpattern,
       Some(List(
         RegService(SDRSPEC,1,None,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),
@@ -180,7 +180,7 @@ class FrontEndSuite extends FunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - update node") {
-    val input = PutNodesRequest(nodeToken, nodeId+"-update", orgpattern,
+    val input = PutNodesRequest(Some(nodeToken), nodeId+"-update", orgpattern,
       Some(List(
         RegService(SDRSPEC,1,None,"{json policy for "+nodeId+" pws}",List(
           Prop("arch","arm","string","in"),

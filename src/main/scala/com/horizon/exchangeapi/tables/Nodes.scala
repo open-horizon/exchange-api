@@ -84,6 +84,41 @@ case class NodeRow(id: String, orgid: String, token: String, name: String, owner
   }
 }
 
+/**
+  * NodeRow class is a duplicate of the above NodeRow class except this one ignores the token parameter
+  */
+case class NodeRowNoToken(id: String, orgid: String, name: String, owner: String, pattern: String, regServices: String, userInput: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String, arch: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  def toNode(superUser: Boolean): Node = {
+    val swv = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
+    val rsvc = if (regServices != "") read[List[RegService]](regServices) else List[RegService]()
+    // Default new configState attr if it doesnt exist. This ends up being called by GET nodes, GET nodes/id, and POST search/nodes
+    val rsvc2 = rsvc.map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
+    val input = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
+    new Node("", name, owner, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat, publicKey, arch)
+  }
+
+  def putInHashMap(isSuperUser: Boolean, nodes: MutableHashMap[String,Node]): Unit = {
+    nodes.get(id) match {
+      case Some(_) => ; // do not need to add the node entry, because it is already there
+      case None => nodes.put(id, toNode(isSuperUser))
+    }
+  }
+
+  def upsert: DBIO[_] = {
+    //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
+    if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.name, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch)).insertOrUpdate((id, orgid, name, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch))
+    else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, "", name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch))
+  }
+
+  def update: DBIO[_] = {
+    //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
+    if (owner == "") (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.orgid,d.name,d.pattern,d.regServices,d.userInput,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey, d.arch)).update((id, orgid, name, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch))
+    else (for { d <- NodesTQ.rows if d.id === id } yield d).update(NodeRow(id, orgid, "", name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch))
+  }
+}
+
 /** Mapping of the nodes db table to a scala class */
 class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def id = column[String]("id", O.PrimaryKey)   // in the form org/nodeid

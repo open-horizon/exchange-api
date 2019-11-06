@@ -296,7 +296,6 @@ class NodesSuite extends FunSuite {
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       None, Some(Map("horizon"->"3.2.3")), nodePubKey, None)
-    info(write(input))
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)
@@ -597,7 +596,6 @@ class NodesSuite extends FunSuite {
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - change config state of sdr reg svc") {
     val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "suspended")
-    info(write(input))
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK)

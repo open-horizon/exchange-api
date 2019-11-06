@@ -204,6 +204,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 1.119.0
+
+- Implemented issue 239: Remove requirement of token in Node PUT for updates
+
 ## Changes in 1.118.0
 
 - Implemented issue 202: Document using exchange root pw hash in config.json, and support disabling exchange root user

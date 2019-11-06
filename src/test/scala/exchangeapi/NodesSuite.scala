@@ -72,6 +72,9 @@ class NodesSuite extends FunSuite {
   val orgnodeId4 = authpref+nodeId4
   val nodeId5 = "n5"      // not ever successfully created
   val orgnodeId5 = authpref+nodeId5
+  val nodeId6 = "n6"
+  val orgnodeId6 = authpref+nodeId6
+  val nodeId7 = "n7"
   val nodePubKey = "NODEABC"
   val patid = "p1"
   val businessPolicySdr = "mybuspolsdr"
@@ -2053,6 +2056,37 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND)
     assert(response.body.isEmpty)
+  }
+
+  // Test PATCH Nodes all attributes but token
+
+  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - patch node w/o token") {
+    val input = PatchNodesRequest(None, Some("rpi"+nodeId+"-update"), Some(""),
+      Some(List(
+        RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId+" pws}",List(
+          Prop("arch","arm","string","in"),
+          Prop("version","1.0.0","version","in"),
+          Prop("agreementProtocols",agProto,"list","in"),
+          Prop("dataVerification","true","boolean","="))),
+        RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId+" netspeed}",List(
+          Prop("arch","arm","string","in"),
+          Prop("cpus","2","int",">="),
+          Prop("version","1.0.0","version","in")))
+      )),
+      Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(""), Some(Map("horizon"->"3.2.3")), Some(nodePubKey), Some("amd64"))
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+    assert(response.body.contains("update all but token"))
+  }
+
+  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - patch node w/o token and not using PatchNodesRequest class") {
+    val input = """{"name":"rpin1-update","pattern":"","registeredServices":[{"url":"NodesSuiteTests/bluehorizon.network.pws","numAgreements":1,"configState":"active","policy":"{json policy for n1 pws}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"version","value":"1.0.0","propType":"version","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"dataVerification","value":"true","propType":"boolean","op":"="}]},{"url":"NodesSuiteTests/bluehorizon.network.netspeed","numAgreements":1,"configState":"active","policy":"{json policy for n1 netspeed}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"cpus","value":"2","propType":"int","op":">="},{"name":"version","value":"1.0.0","propType":"version","op":"in"}]}],"userInput":[{"serviceOrgid":"NodesSuiteTests","serviceUrl":"bluehorizon.network.sdr","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],"msgEndPoint":"","softwareVersions":{"horizon":"3.2.3"},"publicKey":"NODEABC","arch":"amd64"}"""
+    val response = Http(URL+"/nodes/"+nodeId).postData(input).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+    assert(response.body.contains("update all but token"))
   }
 
   //~~~~~ Break down ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

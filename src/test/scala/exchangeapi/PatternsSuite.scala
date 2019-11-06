@@ -697,6 +697,23 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
+  test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - description and userInput as user with whitespace") {
+    var jsonInput = """   { "description": "this is now patched" }    """
+    var response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+
+    jsonInput =
+      """
+        { "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": """"+svcarch+"""", "serviceVersionRange": """"+ALL_VERSIONS+
+        """", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }
+
+          """
+    response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
   test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - as user2 - should fail") {
     val jsonInput = """{
       "description": "bad patch"

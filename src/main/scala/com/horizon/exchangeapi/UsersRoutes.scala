@@ -275,7 +275,7 @@ trait UsersRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val username = params("username")
     val compositeId = OrgAndId(orgid,username).toString
     val ident = authenticate().authorizeTo(TUser(compositeId),Access.WRITE)
-    if(!request.body.startsWith("{") && !request.body.endsWith("}")){
+    if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
       halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
     }
     val user = try { parse(request.body).extract[PatchUsersRequest] }

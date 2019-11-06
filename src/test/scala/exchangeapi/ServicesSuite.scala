@@ -502,6 +502,23 @@ class ServicesSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
+  test("PATCH /orgs/"+orgid+"/services/"+service+" - as user with whitespace") {
+    val jsonInput = """    { "sharable": "exclusive" }      """
+    val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PATCH /orgs/"+orgid+"/services/"+service+" - as user with newlines") {
+    val jsonInput =
+      """
+        { "sharable": "exclusive" }
+        """
+    val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch required service -- bad input") {
     val jsonInput = write(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch)))
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

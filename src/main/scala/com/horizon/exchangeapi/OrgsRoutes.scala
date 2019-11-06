@@ -273,7 +273,7 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
   patch("/orgs/:orgid", operation(patchOrgs)) ({
     val orgId = params("orgid")
-    if(!request.body.startsWith("{") && !request.body.endsWith("}")){
+    if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
       halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
     }
     val orgReq = try { parse(request.body).extract[PatchOrgRequest] }

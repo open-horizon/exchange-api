@@ -887,7 +887,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     authenticate().authorizeTo(TNode(id),Access.WRITE)
-    if(!request.body.startsWith("{") && !request.body.endsWith("}")){
+    if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
       halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
     }
     val node = try { parse(request.body).extract[PatchNodesRequest] }

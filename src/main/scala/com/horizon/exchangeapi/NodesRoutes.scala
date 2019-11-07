@@ -122,8 +122,8 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
   def validate() = {
-    // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
     if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.must.not.be.blank")))
+    // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
     if (pattern != "" && """.*/.*""".r.findFirstIn(pattern).isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("pattern.must.have.orgid.prepended")))
     for (m <- registeredServices.getOrElse(List())) {
       // now we support more than 1 agreement for a MS
@@ -890,9 +890,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
     authenticate().authorizeTo(TNode(id),Access.WRITE)
+    if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
+    }
     val node = try { parse(request.body).extract[PatchNodesRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    //logger.trace("PATCH /orgs/"+orgid+"/nodes/"+bareId+" input: "+node.toString)
+//    logger.trace("PATCH /orgs/"+orgid+"/nodes/"+bareId+" input: "+node.toString)
     val resp = response
     val hashedPw = if (node.token.isDefined) Password.hash(node.token.get) else ""    // hash the token if that is what is being updated
     val (action, attrName) = node.getDbUpdate(id, hashedPw)

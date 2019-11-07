@@ -84,6 +84,7 @@ case class NodeRow(id: String, orgid: String, token: String, name: String, owner
   }
 }
 
+
 /** Mapping of the nodes db table to a scala class */
 class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def id = column[String]("id", O.PrimaryKey)   // in the form org/nodeid

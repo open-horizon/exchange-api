@@ -268,6 +268,31 @@ class UsersSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
+  test("PATCH /orgs/"+orgid+"/users/"+user+" - give user admin privilege - as root with whitespace") {
+    val jsonInput = """    { "admin": true }    """
+    val response = Http(URL+"/users/"+user).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PATCH /orgs/"+orgid+"/users/"+user+" - give user admin privilege - as root with newlines") {
+    val jsonInput =
+      """
+        { "admin": true }
+        """
+    val response = Http(URL+"/users/"+user).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("PATCH /orgs/"+orgid+"/users/"+user+" - invalid input") {
+    val jsonInput = """["true"]"""
+    val response = Http(URL+"/users/"+user).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.body.contains("invalid input"))
+  }
+
   test("GET /orgs - even with admin "+user+" should NOT be able to read all orgs") {
     val response: HttpResponse[String] = Http(NOORGURL+"/orgs").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)

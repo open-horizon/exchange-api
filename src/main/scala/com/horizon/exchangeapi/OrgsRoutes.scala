@@ -273,6 +273,9 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
 
   patch("/orgs/:orgid", operation(patchOrgs)) ({
     val orgId = params("orgid")
+    if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
+    }
     val orgReq = try { parse(request.body).extract[PatchOrgRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     val access = if (orgReq.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE

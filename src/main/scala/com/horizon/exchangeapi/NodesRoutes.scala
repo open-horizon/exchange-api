@@ -1753,7 +1753,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
             if (agbotPubKey != "") NodeMsgRow(0, nodeId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
             else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("message.sender.public.key.not.in.exchange"))).asTry
           }
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("invalid.input.agbot.not.found", agbotId))).asTry
+          // This message is overwritten in the Failure case, leaving it untranslated as the Failure case if checks won't work without it
+          // Refer to github issue 209 for more information
+          else DBIO.failed(new Throwable("Invalid Input: agbot "+agbotId+" not found")).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }
     })).map({ xs =>
@@ -1763,7 +1765,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.msg.inserted", v))
         case Failure(t) => if (t.getMessage.startsWith("Invalid Input:")) {
             resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, t.getMessage))
+            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, ExchangeMessage.translateMessage("invalid.input.agbot.not.found", agbotId)))
           } else if (t.getMessage.startsWith("Access Denied:")) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, t.getMessage))

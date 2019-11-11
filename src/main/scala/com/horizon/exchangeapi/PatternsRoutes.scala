@@ -429,7 +429,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               DBIO.successful(Vector("IBM")).asTry
             }
           } else {
-            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))).asTry //gives 500 instead of 404
+            // This message is overwritten in the Failure case, leaving it untranslated as the Failure case if checks won't work without it
+            // Refer to github issue 209 for more information
+            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")).asTry //gives 500 instead of 404
           }
 
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -539,7 +541,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               DBIO.successful(Vector("IBM")).asTry
             }
           } else {
-            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))).asTry
+            // This message is overwritten in the Failure case, leaving it untranslated as the Failure case if checks won't work without it
+            // Refer to github issue 209 for more information
+            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }

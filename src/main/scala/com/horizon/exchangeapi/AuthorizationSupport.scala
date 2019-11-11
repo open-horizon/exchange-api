@@ -349,7 +349,9 @@ trait AuthorizationSupport extends Control with ServletApiImplicits {
     def isAdmin = false       // IUser overrides this
     def isAnonymous = creds.isAnonymous
     def identityString = creds.id     // for error msgs
-    def accessDeniedMsg(access: Access) = ExchangeMessage.translateMessage("access.denied.no.auth", identityString, access)
+    // Not translating as none of the error checks for "Access Denied" will work otherwise
+    def accessDeniedMsg(access: Access) = "Access Denied: "+identityString+" does not have authorization: " + access
+    //    def accessDeniedMsg(access: Access) = ExchangeMessage.translateMessage("access.denied.no.auth", identityString, access)
     var hasFrontEndAuthority = false   // true if this identity was already vetted by the front end
     def isMultiTenantAgbot: Boolean = return false
 

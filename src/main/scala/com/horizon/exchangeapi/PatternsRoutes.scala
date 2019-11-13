@@ -1,6 +1,7 @@
 /** Services routes for all of the /orgs/{orgid}/patterns api methods. */
 package com.horizon.exchangeapi
 
+import com.horizon.exchangeapi.auth.DBProcessingError
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -301,7 +302,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   post("/orgs/:orgid/patterns/:pattern", operation(postPatterns)) ({
     val orgid = params("orgid")
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
-    val pattern = OrgAndId(orgid,barePattern).toString
+    val pattern = OrgAndId(orgid,barePattern).toString.trim
     val ident = authenticate().authorizeTo(TPattern(OrgAndId(orgid,"").toString),Access.CREATE)
     val patternReq = try { parse(request.body).extract[PostPutPatternRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }
@@ -347,7 +348,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           if (maxPatterns == 0 || numOwned <= maxPatterns) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
             patternReq.toPatternRow(pattern, orgid, owner).insert.asTry
           }
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("over.limit.of.max.patterns", maxPatterns))).asTry
+          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.limit.of.max.patterns", maxPatterns) )).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
@@ -357,10 +358,10 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           AuthCache.putPatternIsPublic(pattern, patternReq.public.getOrElse(false))
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.created", pattern))
-        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.ACCESS_DENIED)
           ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("pattern.not.created", pattern, t.getMessage))
-        } else if (t.getMessage.contains("duplicate key value violates unique constraint")) {   // "duplicate key value violates unique constraint" comes from postgres
+        case Failure(t) => if (t.getMessage.contains("duplicate key value violates unique constraint")) {   // "duplicate key value violates unique constraint" comes from postgres
           resp.setStatus(HttpCode.ALREADY_EXISTS)
           ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("pattern.already.exists", pattern, t.getMessage))
         } else {
@@ -392,7 +393,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   put("/orgs/:orgid/patterns/:pattern", operation(putPatterns)) ({
     val orgid = params("orgid")
     val barePattern = params("pattern")   // but do not have a hack/fix for the name
-    val pattern = OrgAndId(orgid,barePattern).toString
+    val pattern = OrgAndId(orgid,barePattern).toString.trim
     val ident = authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
     val patternReq = try { parse(request.body).extract[PostPutPatternRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }
@@ -429,11 +430,8 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               DBIO.successful(Vector("IBM")).asTry
             }
           } else {
-            // This message is overwritten in the Failure case, leaving it untranslated as the Failure case if checks won't work without it
-            // Refer to github issue 209 for more information
-            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")).asTry //gives 500 instead of 404
+            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))).asTry //gives 500 instead of 404
           }
-
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -462,15 +460,12 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("pattern.not.updated", pattern, e)) }    // the specific exception is NumberFormatException
+        case Failure(t: NotFoundException) =>
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
         case Failure(t) =>
-          if(t.getMessage.contains("not found")){
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
-          } else {
-            resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("pattern.not.updated", pattern, t.getMessage))
-          }
-
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("pattern.not.updated", pattern, t.getMessage))
       }
     })
   })
@@ -541,9 +536,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               DBIO.successful(Vector("IBM")).asTry
             }
           } else {
-            // This message is overwritten in the Failure case, leaving it untranslated as the Failure case if checks won't work without it
-            // Refer to github issue 209 for more information
-            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, "pattern '"+pattern+"' not found")).asTry
+            DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
@@ -573,14 +566,12 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
               ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e)) }
+        case Failure(t: NotFoundException) =>
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
         case Failure(t) =>
-          if(t.getMessage.contains("not found")){
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
-          } else {
-            resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("pattern.not.updated", pattern, t.getMessage))
-          }
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("pattern.not.updated", pattern, t.getMessage))
       }
     })
   })

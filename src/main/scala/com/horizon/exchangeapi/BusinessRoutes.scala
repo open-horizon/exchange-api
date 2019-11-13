@@ -1,6 +1,7 @@
 /** Services routes for all of the /orgs/{orgid}/business api methods. */
 package com.horizon.exchangeapi
 
+import com.horizon.exchangeapi.auth.DBProcessingError
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -303,7 +304,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           if (maxBusinessPolicies == 0 || numOwned <= maxBusinessPolicies) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
             policyReq.getDbInsert(businessPolicy, orgid, owner).asTry
           }
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("over.max.limit.buspols", maxBusinessPolicies))).asTry
+          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.buspols", maxBusinessPolicies) )).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
@@ -313,10 +314,10 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           AuthCache.putBusinessIsPublic(businessPolicy, isPublic = false)
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.created", businessPolicy))
-        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.ACCESS_DENIED)
           ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("buspol.not.created", businessPolicy, t.getMessage))
-        } else if (t.getMessage.contains("duplicate key value violates unique constraint")) {
+        case Failure(t) => if (t.getMessage.contains("duplicate key value violates unique constraint")) {
           resp.setStatus(HttpCode.ALREADY_EXISTS)
           ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("buspol.already.exists", businessPolicy, t.getMessage))
         } else {

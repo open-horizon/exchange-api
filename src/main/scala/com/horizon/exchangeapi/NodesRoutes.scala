@@ -1583,6 +1583,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   put("/orgs/:orgid/nodes/:id/agreements/:agid", operation(putNodeAgreement)) ({
     //todo: keep a running total of agreements for each MS so we can search quickly for available MSs
+    logger.debug("we are looking at the right method")
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
@@ -1604,7 +1605,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+xs.toString)
       xs match {
         case Success(_) => NodesTQ.setLastHeartbeat(id, ApiTime.nowUTC).asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+        case Failure(t) => DBIO.failed(t).asTry
       }
     })).map({ xs =>
       logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastHeartbeat result: "+xs.toString)
@@ -1753,8 +1754,6 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
             if (agbotPubKey != "") NodeMsgRow(0, nodeId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
             else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("message.sender.public.key.not.in.exchange"))).asTry
           }
-          // This message is overwritten in the Failure case, leaving it untranslated as the Failure case if checks won't work without it
-          // Refer to github issue 209 for more information
           else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.agbot.not.found", agbotId) )).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }

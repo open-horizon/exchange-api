@@ -710,7 +710,7 @@ class AgbotsSuite extends FunSuite {
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
       val respObj = parse(response.body).extract[ApiResponse]
-      assert(respObj.msg.contains("Access Denied"))
+      assert(respObj.msg.contains("Access Denied: you are over the limit of 1 agreements for this agbot"))
 
       // Restore the maxAgreements config value in the svr
       configInput = AdminConfigRequest("api.limits.maxAgreements", origMaxAgreements.toString)
@@ -838,7 +838,7 @@ class AgbotsSuite extends FunSuite {
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
       val respObj = parse(response.body).extract[ApiResponse]
-      assert(respObj.msg.contains("Access Denied"))
+      assert(respObj.msg.contains("Access Denied: you are over the limit of 1 agbots"))
 
       // Restore the maxAgbots config value in the svr
       configInput = AdminConfigRequest("api.limits.maxAgbots", origMaxAgbots.toString)

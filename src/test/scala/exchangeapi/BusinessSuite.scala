@@ -74,6 +74,7 @@ class BusinessSuite extends FunSuite {
   val service2 = svcurl2 + "_" + svcversion2 + "_" + svcarch2
   val org2Service = "IBM/"+service2
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
+  val NOORGURL = urlRoot+"/v1"
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -602,6 +603,52 @@ class BusinessSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
   }
+
+  /*
+  todo: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
+  ExchConfig.load()
+  test("POST /orgs/"+orgid+"/business/policies/anotherOne - with low maxMessagesInMailbox") {
+    if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
+      // Get the current config value so we can restore it afterward
+      // ExchConfig.load  <-- already do this earlier
+      val origMaxBusinessPolicies = ExchConfig.getInt("api.limits.maxBusinessPolicies")
+      info(origMaxBusinessPolicies.toString)
+      // Change the maxMessagesInMailbox config value in the svr
+      var configInput = AdminConfigRequest("api.limits.maxBusinessPolicies", "1")
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
+
+      // Now try adding another 2 buspol - expect the second one to be rejected
+      var input = PostPutBusinessPolicyRequest("anotherOne", Some("desc"),
+        BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
+        Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+        Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
+      )
+      response = Http(URL+"/business/policies/anotherOne").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.POST_OK)
+
+      input = PostPutBusinessPolicyRequest("anotherOne2", Some("desc"),
+        BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
+        Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+        Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
+      )
+      response = Http(URL+"/business/policies/anotherOne2").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED)
+      val respObj = parse(response.body).extract[ApiResponse]
+      assert(respObj.msg.contains("Access Denied: you are over the limit of 1 business policies"))
+
+      // Restore the maxMessagesInMailbox config value in the svr
+      configInput = AdminConfigRequest("api.limits.maxBusinessPolicies", origMaxBusinessPolicies.toString)
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK)
+    }
+  }
+
+   */
 
   //~~~~~ Clean up ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -349,7 +349,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             patternReq.toPatternRow(pattern, orgid, owner).insert.asTry
           }
           else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.limit.of.max.patterns", maxPatterns) )).asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+        case Failure(t) => DBIO.failed(t).asTry
       }
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
@@ -443,7 +443,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           } else {
             DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("only.ibm.patterns.can.be.public"))).asTry
           }
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+        case Failure(t) => DBIO.failed(t).asTry
       }
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
@@ -538,7 +538,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           } else {
             DBIO.failed(new NotFoundException(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))).asTry
           }
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+        case Failure(t) => DBIO.failed(t).asTry
       }
     }).flatMap({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/patterns"+barePattern+" checking orgType of "+orgid+": "+xs)
@@ -550,7 +550,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           else {
             DBIO.failed(new BadInputException(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("only.ibm.patterns.can.be.public"))).asTry
           }
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+        case Failure(t) => DBIO.failed(t).asTry
       }
     })).map({ xs =>
       logger.debug("PATCH /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)

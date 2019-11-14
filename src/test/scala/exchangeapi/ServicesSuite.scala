@@ -373,26 +373,39 @@ class ServicesSuite extends FunSuite {
       // Get the current config value so we can restore it afterward
       ExchConfig.load()
       val origMaxServices = ExchConfig.getInt("api.limits.maxServices")
+      info(origMaxServices.toString)
+      val NOORGURL = urlRoot+"/v1"
 
       // Change the maxServices config value in the svr
-      var configInput = AdminConfigRequest("api.limits.maxServices", "0")    // user only owns 1 currently
-      var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var configInput = AdminConfigRequest("api.limits.maxServices", "1")    // user only owns 1 currently
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
+      // Now try adding another 2 services - expect it to be rejected
+      var input = PostPutServiceRequest(svcBase4+" arm", None, public = true, None, svcUrl4, "0.0.1", "arm", "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+      response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.POST_OK)
+
       // Now try adding another service - expect it to be rejected
-      val input = PostPutServiceRequest(wkBase3+" arm", "desc", wkUrl3, "1.0.0", "arm", "", List(WServices(svcurl,orgid,svcversion,svcarch)), Some(List(Map("name" -> "foo"))), List(MDockerImages("{\"services\":{}}","a","a")))
-      response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+      input = PostPutServiceRequest(svcBase3+" arm", None, public = true, None, svcUrl3, "0.0.1", "arm", "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+      response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
       val respObj = parse(response.body).extract[ApiResponse]
-      assert(respObj.msg.contains("Access Denied"))
+      assert(respObj.msg.contains("Access Denied: you are over the limit of 1 services"))
 
       // Restore the maxServices config value in the svr
       configInput = AdminConfigRequest("api.limits.maxServices", origMaxServices.toString)
-      response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
+
+      //ServicesSuiteTests/svc9923_0.0.1_arm
+      response = Http(URL+"/services/svc9923_0.0.1_arm").method("delete").headers(ACCEPT).headers(USER2AUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED)
     }
   }
   */

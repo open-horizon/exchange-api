@@ -1178,8 +1178,6 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       xs match {
         case Success(v) => val nodePubKey = v.head
           if (nodePubKey != "") AgbotMsgRow(0, compositeId, nodeId, nodePubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
-            // This message is overwritten in the Failure case, leaving it untranslated as the Failure case if checks won't work without it
-            // Refer to github issue 209 for more information
           else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("agbot.message.invalid.input"))).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }

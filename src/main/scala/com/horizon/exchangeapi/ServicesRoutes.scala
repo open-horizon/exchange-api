@@ -355,7 +355,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
             serviceReq.toServiceRow(service, orgid, owner).insert.asTry
           }
           else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.the.limit.of.services", maxServices) )).asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+        case Failure(t) => DBIO.failed(t).asTry
       }
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/services result: "+xs.toString)

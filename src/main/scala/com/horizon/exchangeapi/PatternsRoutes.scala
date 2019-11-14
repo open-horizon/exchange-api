@@ -170,9 +170,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       )
 
   get("/orgs/:orgid/patterns/:pattern", operation(getOnePattern)) ({
-    val orgid = params("orgid").trim
-    val barePattern = params("pattern").trim   // but do not have a hack/fix for the name
-    val pattern = OrgAndId(orgid,barePattern).toString.trim
+    val orgid = params("orgid")
+    val barePattern = params("pattern")   // but do not have a hack/fix for the name
+    val pattern = OrgAndId(orgid,barePattern).toString
     authenticate().authorizeTo(TPattern(pattern),Access.READ)
     val resp = response
     params.get("attribute") match {
@@ -300,9 +300,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val postPatterns2 = (apiOperation[PostPutPatternRequest]("postPatterns2") summary("a") description("a"))  // for some bizarre reason, the PostPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   post("/orgs/:orgid/patterns/:pattern", operation(postPatterns)) ({
-    val orgid = params("orgid").trim
-    val barePattern = params("pattern").trim   // but do not have a hack/fix for the name
-    val pattern = OrgAndId(orgid,barePattern).toString.trim
+    val orgid = params("orgid")
+    val barePattern = params("pattern")   // but do not have a hack/fix for the name
+    val pattern = OrgAndId(orgid,barePattern).toString
     val ident = authenticate().authorizeTo(TPattern(OrgAndId(orgid,"").toString),Access.CREATE)
     val patternReq = try { parse(request.body).extract[PostPutPatternRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }
@@ -391,9 +391,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val putPatterns2 = (apiOperation[PostPutPatternRequest]("putPatterns2") summary("a") description("a"))  // for some bizarre reason, the PutPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   put("/orgs/:orgid/patterns/:pattern", operation(putPatterns)) ({
-    val orgid = params("orgid").trim
-    val barePattern = params("pattern").trim   // but do not have a hack/fix for the name
-    val pattern = OrgAndId(orgid,barePattern).toString.trim
+    val orgid = params("orgid")
+    val barePattern = params("pattern")   // but do not have a hack/fix for the name
+    val pattern = OrgAndId(orgid,barePattern).toString
     val ident = authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
     val patternReq = try { parse(request.body).extract[PostPutPatternRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }
@@ -489,9 +489,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
   val patchPatterns2 = (apiOperation[PatchPatternRequest]("patchPatterns2") summary("a") description("a"))  // for some bizarre reason, the PatchPatternRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
 
   patch("/orgs/:orgid/patterns/:pattern", operation(patchPatterns)) ({
-    val orgid = params("orgid").trim
-    val barePattern = params("pattern").trim   // but do not have a hack/fix for the name
-    val pattern = OrgAndId(orgid,barePattern).toString.trim
+    val orgid = params("orgid")
+    val barePattern = params("pattern")   // but do not have a hack/fix for the name
+    val pattern = OrgAndId(orgid,barePattern).toString
     authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
     if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
       halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
@@ -607,9 +607,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
   /** Normally called by the agbot to search for available nodes. */
   post("/orgs/:orgid/patterns/:pattern/search", operation(postPatternSearch)) ({
-    val orgid = params("orgid").trim
-    val pattern = params("pattern").trim
-    val compositePat = OrgAndId(orgid,pattern).toString.trim
+    val orgid = params("orgid")
+    val pattern = params("pattern")
+    val compositePat = OrgAndId(orgid,pattern).toString
     authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostPatternSearchRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
@@ -741,9 +741,9 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       )
 
   delete("/orgs/:orgid/patterns/:pattern", operation(deletePatterns)) ({
-    val orgid = params("orgid").trim
-    val barePattern = params("pattern").trim   // but do not have a hack/fix for the name
-    val pattern = OrgAndId(orgid,barePattern).toString.trim
+    val orgid = params("orgid")
+    val barePattern = params("pattern")   // but do not have a hack/fix for the name
+    val pattern = OrgAndId(orgid,barePattern).toString
     authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response

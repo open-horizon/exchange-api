@@ -168,12 +168,12 @@ case class Creds(id: String, token: String) {     // id and token are generic na
 }
 
 case class OrgAndId(org: String, id: String) {
-  override def toString = if (org == "" || id.startsWith(org + "/") || id.startsWith(Role.superUser)) id else org + "/" + id
+  override def toString = if (org == "" || id.startsWith(org + "/") || id.startsWith(Role.superUser)) id.trim else org.trim + "/" + id.trim
 }
 
 // This class is separate from the one above, because when the id is for a cred, we want automatically add the org only when a different org is not there
 case class OrgAndIdCred(org: String, id: String) {
-  override def toString = if (org == "" || id.contains("/") || id.startsWith(Role.superUser)) id else org + "/" + id    // we only check for slash, because they could already have on a different org
+  override def toString = if (org == "" || id.contains("/") || id.startsWith(Role.superUser)) id.trim else org.trim + "/" + id.trim    // we only check for slash, because they could already have on a different org
 }
 
 case class CompositeId(compositeId: String) {

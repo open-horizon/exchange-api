@@ -358,12 +358,23 @@ class PatternsSuite extends FunSuite {
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       Some(List(Map("name" -> "Basic")))
     )
-    val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/patterns/"+pattern+"  ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ALREADY_EXISTS)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("already exist"))
     assert(respObj.msg.contains("duplicate key value violates unique constraint"))
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/  "+pattern+" - try to add "+pattern+" again with whitespace in front") {
+    val input = PostPutPatternRequest("  "+pattern+" ", Some("desc"), Some(true),
+      List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
+      Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List(Map("name" -> "Basic")))
+    )
+    val response = Http(URL+"/patterns/"+"  "+pattern+" ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
   }
 
   /** This pattern sets up pattern5 used for testing functionality of public field in PUT and PATCH routes **/

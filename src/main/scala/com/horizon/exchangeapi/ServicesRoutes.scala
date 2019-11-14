@@ -4,6 +4,7 @@ package com.horizon.exchangeapi
 import com.horizon.exchangeapi.tables._
 import java.net.{MalformedURLException, URL}
 
+import com.horizon.exchangeapi.auth.DBProcessingError
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
@@ -353,8 +354,8 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           if (maxServices == 0 || maxServices >= numOwned) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
             serviceReq.toServiceRow(service, orgid, owner).insert.asTry
           }
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("over.the.limit.of.services", maxServices))).asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.the.limit.of.services", maxServices) )).asTry
+        case Failure(t) => DBIO.failed(t).asTry
       }
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/services result: "+xs.toString)
@@ -363,10 +364,10 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           AuthCache.putServiceIsPublic(service, serviceReq.public)
           resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.created", service))
-        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.ACCESS_DENIED)
           ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("service.not.created", service, t.getMessage))
-        } else if (t.getMessage.contains("duplicate key value violates unique constraint")) {
+        case Failure(t) => if (t.getMessage.contains("duplicate key value violates unique constraint")) {
           resp.setStatus(HttpCode.ALREADY_EXISTS)
           ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("service.already.exists", service, t.getMessage))
         } else {

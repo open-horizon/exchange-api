@@ -64,22 +64,30 @@ object ApiResponseType {
 object ExchangeMessage {
   //TODO: Refactor translateMessage so that it doesn't need to determine Messages call based on size of args array
   def translateMessage(key: String, args: Any*): String ={
-    implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en")))
-    if(args.nonEmpty){
-      if(args.size == 1){
-        return Messages(key, args(0))
-      } else if (args.size == 2) {
-        return Messages(key, args(0), args(1))
-      } else if (args.size == 3) {
-        return Messages(key, args(0), args(1), args(2))
-      } else if (args.size == 4) {
-        return Messages(key, args(0), args(1), args(2), args(3))
-      } else if (args.size == 5) {
-        return Messages(key, args(0), args(1), args(2), args(3), args(4))
+    try{
+      implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en")))
+      if(args.nonEmpty){
+        if(args.size == 1){
+          return Messages(key, args(0))
+        } else if (args.size == 2) {
+          return Messages(key, args(0), args(1))
+        } else if (args.size == 3) {
+          return Messages(key, args(0), args(1), args(2))
+        } else if (args.size == 4) {
+          return Messages(key, args(0), args(1), args(2), args(3))
+        } else if (args.size == 5) {
+          return Messages(key, args(0), args(1), args(2), args(3), args(4))
+        }
+      }
+      Messages(key)
+    } catch{
+      case x: Exception => {
+        // Display this if exception is found
+        "message key not found in the messages file"
       }
     }
-    Messages(key)
   }
+
 }
 
 /** Global config parameters for the exchange. See typesafe config classes: http://typesafehub.github.io/config/latest/api/ */

@@ -1,6 +1,7 @@
 /** Services routes for all of the /orgs/{orgid}/nodes api methods. */
 package com.horizon.exchangeapi
 
+import com.horizon.exchangeapi.auth.{AuthException, DBProcessingError}
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -783,6 +784,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   put("/orgs/:orgid/nodes/:id", operation(putNodes)) ({
     // consider writing a customer deserializer that will do error checking on the body, see: https://gist.github.com/fehguy/4191861#file-gistfile1-scala-L74
+    logger.debug("I am in fact running this method")
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
@@ -845,7 +847,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
             val action = if (owner == "") node.getDbUpdate(id, orgid, owner, hashedTok) else node.getDbUpsert(id, orgid, owner, hashedTok)
             action.transactionally.asTry
           }
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("over.max.limit.of.nodes", maxNodes))).asTry
+          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.of.nodes", maxNodes))).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     })).map({ xs =>
@@ -857,13 +859,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           //AuthCache.nodesOwner.putOne(id, owner)
           resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.added.or.updated"))
-        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-            resp.setStatus(HttpCode.ACCESS_DENIED)
-            ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.not.inserted.or.updated", id, t.getMessage))
-          } else {
-            resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.not.inserted.or.updated", id, t.getMessage))
-          }
+        case Failure(t: DBProcessingError) =>
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.not.inserted.or.updated", id, t.getMessage))
+        case Failure(t) =>
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.not.inserted.or.updated", id, t.getMessage))
       }
     })
   })
@@ -1582,6 +1583,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   put("/orgs/:orgid/nodes/:id/agreements/:agid", operation(putNodeAgreement)) ({
     //todo: keep a running total of agreements for each MS so we can search quickly for available MSs
+    logger.debug("we are looking at the right method")
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
@@ -1598,12 +1600,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       if (maxAgreements == 0 || numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
         agreement.toNodeAgreementRow(id, agId).upsert.asTry
       }
-      else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("over.limit.of.agreements.for.node", maxAgreements))).asTry
+      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.limit.of.agreements.for.node", maxAgreements) )).asTry
     }).flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+xs.toString)
       xs match {
         case Success(_) => NodesTQ.setLastHeartbeat(id, ApiTime.nowUTC).asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+        case Failure(t) => DBIO.failed(t).asTry
       }
     })).map({ xs =>
       logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastHeartbeat result: "+xs.toString)
@@ -1618,13 +1620,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
               ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
             }
           } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.agreement.not.updated", id, e)) }    // the specific exception is NumberFormatException
-        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-            resp.setStatus(HttpCode.ACCESS_DENIED)
-            ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.agreement.not.inserted.or.updated", agId, id, t.getMessage))
-          } else {
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t: DBProcessingError) =>
+          resp.setStatus(HttpCode.ACCESS_DENIED)
+          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.agreement.not.inserted.or.updated", agId, id, t.getMessage))
+        case Failure(t) =>
+          resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.agreement.not.inserted.or.updated", agId, id, t.toString))
-        }
       }
     })
   })
@@ -1744,16 +1745,16 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       val mailboxSize = xs
       val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
       if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) AgbotsTQ.getPublicKey(agbotId).result.asTry
-      else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("node.mailbox.full", nodeId, maxMessagesInMailbox))).asTry
+      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.mailbox.full", nodeId, maxMessagesInMailbox) )).asTry
     }).flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/msgs agbot publickey result: "+xs.toString)
       xs match {
         case Success(v) => if (v.nonEmpty) {    // it seems this returns success even when the agbot is not found
             val agbotPubKey = v.head
             if (agbotPubKey != "") NodeMsgRow(0, nodeId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
-            else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("message.sender.public.key.not.in.exchange"))).asTry
+            else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("message.sender.public.key.not.in.exchange"))).asTry
           }
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("invalid.input.agbot.not.found", agbotId))).asTry
+          else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.agbot.not.found", agbotId) )).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }
     })).map({ xs =>
@@ -1761,13 +1762,14 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(v) => resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.msg.inserted", v))
-        case Failure(t) => if (t.getMessage.startsWith("Invalid Input:")) {
-            resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, t.getMessage))
-          } else if (t.getMessage.startsWith("Access Denied:")) {
+        case Failure(t: DBProcessingError) => if(t.httpCode == HttpCode.ACCESS_DENIED) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, t.getMessage))
-          } else if (t.getMessage.contains("is not present in table")) {
+          } else if (t.httpCode == HttpCode.BAD_INPUT){
+            resp.setStatus(HttpCode.BAD_INPUT)
+            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, ExchangeMessage.translateMessage("invalid.input.agbot.not.found", agbotId)))
+          }
+        case Failure(t) => if (t.getMessage.contains("is not present in table")) {
             resp.setStatus(HttpCode.NOT_FOUND)
             ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.msg.nodeid.not.found", nodeId, t.getMessage))
           } else {

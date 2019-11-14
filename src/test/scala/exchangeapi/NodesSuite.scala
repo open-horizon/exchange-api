@@ -1845,7 +1845,7 @@ class NodesSuite extends FunSuite {
     assert(resp2.messages.size === 0)
   }
 
-  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - with low maxMessagesInMailbox") {
+  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+" - with low maxMessagesInMailbox") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- already do this earlier
@@ -1863,7 +1863,7 @@ class NodesSuite extends FunSuite {
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
       var apiResp = parse(response.body).extract[ApiResponse]
-      assert(apiResp.msg.contains("Access Denied"))
+      assert(apiResp.msg.contains("Access Denied: the message mailbox of NodesSuiteTests/a1 is full (3 messages)"))
 
       // But we should still be able to send a msg to agbot2, because his mailbox isn't full yet
       input = PostAgbotsMsgsRequest("{msg1 from node1 to agbot2}", 300)
@@ -1905,7 +1905,7 @@ class NodesSuite extends FunSuite {
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
       var apiResp = parse(response.body).extract[ApiResponse]
-      assert(apiResp.msg.contains("Access Denied"))
+      assert(apiResp.msg.contains("Access Denied: the message mailbox of NodesSuiteTests/n1 is full"))
 
       // But we should still be able to send a msg to node2, because his mailbox isn't full yet
       input = PostNodesMsgsRequest("{msg1 from agbot1 to node2}", 300)

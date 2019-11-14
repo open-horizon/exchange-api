@@ -288,6 +288,7 @@ class PatternsSuite extends FunSuite {
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.body.contains("pattern 'PatternsSuiteTests/pt9920' not found"))
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" that is not signed - should fail") {
@@ -344,12 +345,36 @@ class PatternsSuite extends FunSuite {
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       Some(List(Map("name" -> "Basic")))
     )
-    info("SADIYAH INPUT: " + write(input))
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("pattern '"+orgpattern+"' created"))
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/"+pattern+" - try to add "+pattern+" again with whitespace") {
+    val input = PostPutPatternRequest(pattern+" ", Some("desc"), Some(true),
+      List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
+      Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List(Map("name" -> "Basic")))
+    )
+    val response = Http(URL+"/patterns/"+pattern+"  ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ALREADY_EXISTS)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("already exist"))
+    assert(respObj.msg.contains("duplicate key value violates unique constraint"))
+  }
+
+  test("POST /orgs/"+orgid+"/patterns/  "+pattern+" - try to add "+pattern+" again with whitespace in front") {
+    val input = PostPutPatternRequest("  "+pattern+" ", Some("desc"), Some(true),
+      List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
+      Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List(Map("name" -> "Basic")))
+    )
+    val response = Http(URL+"/patterns/"+"  "+pattern+" ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT)
   }
 
   /** This pattern sets up pattern5 used for testing functionality of public field in PUT and PATCH routes **/
@@ -540,30 +565,46 @@ class PatternsSuite extends FunSuite {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       ExchConfig.load()
+      val NOORGURL = urlRoot+"/v1"
       val origMaxPatterns = ExchConfig.getInt("api.limits.maxPatterns")
 
       // Change the maxPatterns config value in the svr
-      var configInput = AdminConfigRequest("api.limits.maxPatterns", "0")    // user only owns 1 currently
-      var response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var configInput = AdminConfigRequest("api.limits.maxPatterns", "1")    // user only owns 1 currently
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
 
-      // Now try adding another pattern - expect it to be rejected
-      val input = PostPutPatternRequest(wkBase3+" arm", "desc", wkUrl3, "1.0.0", "arm", "", List(Map("specRef" -> "https://msurl")), List(Map("name" -> "foo")), List(Map("deployment" -> "{\"services\":{}}")))
-      response = Http(URL+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+      // Now try adding another 2 patterns - expect the second to be rejected
+      var input = PostPutPatternRequest(pattern5+" amd64", None, Some(true),
+        List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
+        None, None
+      )
+      response = Http(URL+"/patterns/"+pattern5).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.POST_OK)
+
+      input = PostPutPatternRequest(pattern2+" amd64", None, Some(true),
+        List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
+        None, None
+      )
+      response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED)
       val respObj = parse(response.body).extract[ApiResponse]
-      assert(respObj.msg.contains("Access Denied"))
+      assert(respObj.msg.contains("Access Denied: you are over the limit of 1 patterns"))
 
       // Restore the maxPatterns config value in the svr
       configInput = AdminConfigRequest("api.limits.maxPatterns", origMaxPatterns.toString)
-      response = Http(URL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK)
+
+      response = Http(URL+"/patterns/"+pattern5).method("delete").headers(ACCEPT).headers(USER2AUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED)
     }
   }
-  */
+//  */
 
   test("GET /orgs/"+orgid+"/patterns") {
     val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
@@ -721,6 +762,15 @@ class PatternsSuite extends FunSuite {
     val response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED)
+  }
+
+  test("PATCH /orgs/"+orgid+"/patterns/doesnotexist - pattern not found") {
+    val jsonInput = """{
+      "description": "bad patch"
+    }"""
+    val response = Http(URL+"/patterns/doesnotexist").postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND)
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+" - as agbot, check patch by getting 1 attr at a time") {

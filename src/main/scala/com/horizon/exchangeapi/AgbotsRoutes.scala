@@ -1,6 +1,7 @@
 /** Services routes for all of the /agbots api methods. */
 package com.horizon.exchangeapi
 
+import com.horizon.exchangeapi.auth.DBProcessingError
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -243,7 +244,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         val action = if (owner == "") agbot.getDbUpdate(compositeId, orgid, owner, hashedTok) else agbot.getDbUpsert(compositeId, orgid, owner, hashedTok)
         action.asTry
       }
-      else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("over.max.limit.of.agbots", maxAgbots))).asTry
+      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.of.agbots", maxAgbots) )).asTry
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
       xs match {
@@ -252,13 +253,12 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           //AuthCache.agbotsOwner.putOne(compositeId, owner)
           resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.added.updated"))
-        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+        case Failure(t: DBProcessingError) =>
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("agbot.not.inserted.or.updated", compositeId, t.getMessage))
-          } else {
+        case Failure(t) =>
             resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.not.inserted.or.updated", compositeId, t.toString))
-          }
       }
     })
   })
@@ -880,19 +880,18 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       if (maxAgreements == 0 || numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
         agreement.toAgbotAgreementRow(compositeId, agrId).upsert.asTry
       }
-      else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("over.max.limit.of.agreements", maxAgreements))).asTry
+      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.of.agreements", maxAgreements) )).asTry
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agreement.added.or.updated"))
-        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.ACCESS_DENIED)
           ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("agreement.not.inserted.or.updated", agrId, compositeId, t.getMessage))
-        } else {
+        case Failure(t) =>
           resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agreement.not.inserted.or.updated", agrId, compositeId, t.toString))
-        }
       }
     })
   })
@@ -1173,13 +1172,13 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       val mailboxSize = xs
       val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
       if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) NodesTQ.getPublicKey(nodeId).result.asTry
-      else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("agbot.mailbox.full", compositeId, maxMessagesInMailbox))).asTry
+      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("agbot.mailbox.full", compositeId, maxMessagesInMailbox) )).asTry
     }).flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs node publickey result: "+xs.toString)
       xs match {
         case Success(v) => val nodePubKey = v.head
           if (nodePubKey != "") AgbotMsgRow(0, compositeId, nodeId, nodePubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("agbot.message.invalid.input"))).asTry
+          else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("agbot.message.invalid.input"))).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }
     })).map({ xs =>
@@ -1187,15 +1186,16 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
       xs match {
         case Success(v) => resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, "agbot msg "+v+" inserted")
-        case Failure(t) => if (t.getMessage.startsWith("Invalid Input:")) {
+        case Failure(t: DBProcessingError) => if(t.httpCode == HttpCode.BAD_INPUT) {
             resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, t.getMessage))
-          } else if (t.getMessage.startsWith("Access Denied:")) {
+            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, ExchangeMessage.translateMessage("agbot.message.invalid.input")))
+          } else if (t.httpCode == HttpCode.ACCESS_DENIED){
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, t.getMessage))
-        } else if (t.getMessage.contains("is not present in table")) {
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.message.agbotid.not.found", compositeId, t.getMessage))
+          }
+        case Failure(t) => if (t.getMessage.contains("is not present in table")) {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.message.agbotid.not.found", compositeId, t.getMessage))
           } else {
             resp.setStatus(HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, t.toString))

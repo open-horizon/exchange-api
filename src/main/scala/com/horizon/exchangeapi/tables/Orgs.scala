@@ -3,6 +3,7 @@ package com.horizon.exchangeapi.tables
 import com.horizon.exchangeapi.ApiJsonUtil
 import org.json4s._
 import ExchangePostgresProfile.api._
+import slick.lifted.ProvenShape
 //import org.json4s.jackson.Serialization.read
 //import ExchangePostgresProfile.jsonMethods._
 
@@ -74,7 +75,6 @@ class Org(var orgType: String, var label: String, var description: String, var l
 }
 
 /** Contains the object representations of the DB tables related to resource changes. */
-
 case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
@@ -83,7 +83,7 @@ case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category:
   }
 
   // update returns a DB action to update this row
-  def update: DBIO[_] = (for { m <- ResourceChangesTQ.rows if m.orgid === orgId && m.changeid == m.changeid} yield m).update(this)
+  def update: DBIO[_] = (for { m <- ResourceChangesTQ.rows if m.changeId === changeId} yield m).update(this)
 
   // insert returns a DB action to insert this row
   def insert: DBIO[_] = ResourceChangesTQ.rows += this
@@ -93,37 +93,37 @@ case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category:
 }
 
 /** Mapping of the orgs db table to a scala class */
-class ResourceChanges(tag: Tag) extends Table[OrgRow](tag, "orgs") {
-  def changeid = column[Int]("changeid", O.PrimaryKey)
-  def orgid = column[String]("orgid")
+class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "orgs") {
+  def changeId = column[Int]("changeid", O.PrimaryKey)
+  def orgId = column[String]("orgid")
   def id = column[String]("id")
   def category = column[String]("category")
   def public = column[String]("public")
   def resource = column[String]("resource")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (changeid, orgid, id, category, public, resource, lastUpdated) <> (ResourceChangeRow.tupled, ResourceChangeRow.unapply)
+  def * = (changeId, orgId, id, category, public, resource, lastUpdated) <> (ResourceChangeRow.tupled, ResourceChangeRow.unapply)
 }
 
 // Instance to access the orgs table
 object ResourceChangesTQ {
   val rows = TableQuery[ResourceChanges]
 
-  def getChangeid(changeid: Int) = rows.filter(_.changeid === changeid).map(_.changeid)
-  def getOrgid(changeid: Int) = rows.filter(_.changeid === changeid).map(_.orgid)
-  def getId(changeid: Int) = rows.filter(_.changeid === changeid).map(_.id)
-  def getCategory(changeid: Int) = rows.filter(_.changeid === changeid).map(_.category)
-  def getPublic(changeid: Int) = rows.filter(_.changeid === changeid).map(_.public)
-  def getResource(changeid: Int) = rows.filter(_.changeid === changeid).map(_.resource)
-  def getLastUpdated(changeid: Int) = rows.filter(_.changeid === changeid).map(_.lastUpdated)
+  def getChangeId(changeid: Int) = rows.filter(_.changeId === changeid).map(_.changeId)
+  def getOrgid(changeid: Int) = rows.filter(_.changeId === changeid).map(_.orgId)
+  def getId(changeid: Int) = rows.filter(_.changeId === changeid).map(_.id)
+  def getCategory(changeid: Int) = rows.filter(_.changeId === changeid).map(_.category)
+  def getPublic(changeid: Int) = rows.filter(_.changeId === changeid).map(_.public)
+  def getResource(changeid: Int) = rows.filter(_.changeId=== changeid).map(_.resource)
+  def getLastUpdated(changeid: Int) = rows.filter(_.changeId === changeid).map(_.lastUpdated)
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(changeid: Int, attrName: String): Query[_,_,Seq] = {
-    val filter = rows.filter(_.changeid === changeid)
+    val filter = rows.filter(_.changeId === changeid)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
     return attrName match {
-      case "changeId" => filter.map(_.changeid)
-      case "orgId" => filter.map(_.orgid)
+      case "changeId" => filter.map(_.changeId)
+      case "orgId" => filter.map(_.orgId)
       case "id" => filter.map(_.id)
       case "category" => filter.map(_.category)
       case "public" => filter.map(_.public)
@@ -132,9 +132,6 @@ object ResourceChangesTQ {
       case _ => null
     }
   }
-
-  /** Returns the actions to delete the org and the blockchains that reference it */
-  def getDeleteActions(changeid: Int): DBIO[_] = getChangeid(changeid).delete   // with the foreign keys set up correctly and onDelete=cascade, the db will automatically delete these associated blockchain rows
 }
 
 // This is the org table minus the key - used as the data structure to return to the REST clients

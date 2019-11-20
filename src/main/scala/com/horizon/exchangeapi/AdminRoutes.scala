@@ -341,9 +341,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   get("/admin/version", operation(getAdminVersion)) ({
     credsAndLogForAnonymous()     // do not need to call authenticate().authorizeTo() because anyone can run this
-    val versionSource = Source.fromResource("version.txt")      // returns BufferedSource
-    val versionText : String = versionSource.getLines.next()
-    versionSource.close()
+    val versionText = ExchangeApiAppMethods.adminVersion()
     response.setStatus(HttpCode.OK)
     versionText + "\n"
   })

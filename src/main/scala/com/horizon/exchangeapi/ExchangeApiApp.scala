@@ -10,8 +10,10 @@ import slick.jdbc.PostgresProfile.api._
 import org.json4s._
 import org.scalatra.json._
 import org.scalatra.swagger._
-import org.scalatra.CorsSupport   // allow cross-domain requests. Note: this is pulled in automatically by SwaggerSupport
+import org.scalatra.CorsSupport
 import org.slf4j.LoggerFactory
+
+import scala.io.Source
 
 /** Servlet for the Exchange REST API.
  *
@@ -65,6 +67,14 @@ class ExchangeApiApp(val db: Database)(implicit val swagger: Swagger) extends Sc
   AuthCache.initAllCaches(db, includingIbmAuth=true)
 
   // All of the route implementations are in traits called *Routes
+}
+
+object ExchangeApiAppMethods {
+  // Loading version.txt only once and then storing the value
+  val versionSource = Source.fromResource("version.txt")      // returns BufferedSource
+  val versionText : String = versionSource.getLines.next()
+  versionSource.close()
+  def adminVersion(): String ={versionText}
 }
 
 class AccessDeniedException(var httpCode: Int, var apiResponse: String, msg: String) extends Exception(msg)

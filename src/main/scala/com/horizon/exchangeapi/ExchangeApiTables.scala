@@ -19,7 +19,7 @@ object ExchangeApiTables {
 
   // Create all of the current version's tables - used in /admin/initdb
   val initDB = DBIO.seq((
-    SchemaTQ.rows.schema ++ OrgsTQ.rows.schema ++ UsersTQ.rows.schema
+    SchemaTQ.rows.schema ++ OrgsTQ.rows.schema ++ UsersTQ.rows.schema ++ ResourceChangesTQ.rows.schema
       ++ NodesTQ.rows.schema ++ NodeAgreementsTQ.rows.schema ++ NodeStatusTQ.rows.schema ++ NodeErrorTQ.rows.schema ++ NodePolicyTQ.rows.schema
       ++ AgbotsTQ.rows.schema ++ AgbotAgreementsTQ.rows.schema ++ AgbotPatternsTQ.rows.schema ++ AgbotBusinessPolsTQ.rows.schema
       ++ NodeMsgsTQ.rows.schema ++ AgbotMsgsTQ.rows.schema
@@ -45,7 +45,7 @@ object ExchangeApiTables {
     sqlu"drop table if exists agbotbusinesspols", sqlu"drop table if exists agbotpatterns", sqlu"drop table if exists agbotagreements", sqlu"drop table if exists agbots",
     sqlu"drop table if exists nodeagreements", sqlu"drop table if exists nodestatus", sqlu"drop table if exists nodeerror", sqlu"drop table if exists nodepolicies",
     /* these are no longer used, but just in case they are still there */ sqlu"drop table if exists properties", sqlu"drop table if exists nodemicros",
-    sqlu"drop table if exists nodes",
+    sqlu"drop table if exists nodes", sqlu"drop table if exists resourcechanges",
     sqlu"drop table if exists users", sqlu"drop table if exists orgs", sqlu"drop table if exists schema",
     // these are no longer used, but here just in case they are still hanging around
     sqlu"drop table if exists microservicekeys", sqlu"drop table if exists microservices", sqlu"drop table if exists workloadkeys", sqlu"drop table if exists workloads", sqlu"drop table if exists blockchains", sqlu"drop table if exists bctypes"

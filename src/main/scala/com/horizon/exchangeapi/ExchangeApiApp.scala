@@ -75,31 +75,6 @@ object ExchangeApiAppMethods {
   val versionText : String = versionSource.getLines.next()
   versionSource.close()
   def adminVersion(): String ={versionText}
-
-  def prettyPrintListChanges(changes : List[ChangeEntry]): String ={
-    /*
-      "changes": [
-          {
-            "orgId": "",
-            "resource": "",
-            "id": "",
-            "operation": "",
-            "resourceChanges":
-            [
-              {"changeId": 0, "lastUpdated":  ""}
-            ]
-          }
-         */
-    var finalString = "changes: \n"
-    for(entry <- changes){
-      finalString = finalString + "   orgId: " + entry.orgId + " \n"
-      finalString = finalString + "   resource: " + entry.resource + " \n"
-      finalString = finalString + "   id: " + entry.id + " \n"
-      finalString = finalString + "   operation: " + entry.operation + " \n"
-      finalString = finalString + "   resourceChanges: " + entry.resourceChanges.size + "  --> " + entry.resourceChanges.toString() + " \n"
-    }
-    finalString + "\n"
-  }
 }
 
 class AccessDeniedException(var httpCode: Int, var apiResponse: String, msg: String) extends Exception(msg)

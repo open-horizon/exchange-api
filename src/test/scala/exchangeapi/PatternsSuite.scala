@@ -136,6 +136,8 @@ class PatternsSuite extends FunSuite {
   val svcid5 = "bluehorizon.network-services-sdr_1.0.0_arm32"
   val svcarch5 = "arm32"
   val svcversion5 = "1.0.0"
+  val maxRecords = 1000
+  val secondsAgo = 30
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -352,6 +354,17 @@ class PatternsSuite extends FunSuite {
     assert(respObj.msg.contains("pattern '"+orgpattern+"' created"))
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + pattern + " was created and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "pattern")}))
+  }
+
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - try to add "+pattern+" again with whitespace") {
     val input = PostPutPatternRequest(pattern+" ", Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
@@ -447,6 +460,17 @@ class PatternsSuite extends FunSuite {
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + pattern + " was updated and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "pattern")}))
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as 2nd user - should fail") {
@@ -736,6 +760,17 @@ class PatternsSuite extends FunSuite {
     response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + pattern + " was updated via PATCH and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.MODIFIED) && (y.resource == "pattern")}))
   }
 
   test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - description and userInput as user with whitespace") {
@@ -1233,6 +1268,17 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + pattern + "key was created and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "patternkeys")}))
+  }
+
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId2+" - add "+keyId2+" as user") {
     //val input = PutPatternKeyRequest(key2)
     val response = Http(URL+"/patterns/"+pattern+"/keys/"+keyId2).postData(key2).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
@@ -1265,9 +1311,22 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.DELETED)
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + pattern + "key was deleted and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "patternkeys")}))
+  }
+
   test("DELETE /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" try deleting it again - should fail") {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys/"+keyId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
+    info("body: "+response.body)
+    info("headers: "+response.headers)
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
@@ -1291,11 +1350,33 @@ class PatternsSuite extends FunSuite {
     assert(resp.size === 0)
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + pattern + "all keys were deleted and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "patternkeys")}))
+  }
+
 
   test("DELETE /orgs/"+orgid+"/patterns/"+pattern) {
     val response = Http(URL+"/patterns/"+pattern).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + pattern + "was deleted and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "pattern")}))
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+" - as user - verify gone") {
@@ -1345,6 +1426,15 @@ class PatternsSuite extends FunSuite {
 
   test("DELETE /orgs/IBM/services/"+ibmService) {
     val response = Http(IBMURL+"/services/"+ibmService).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  test("DELETE IBM changes") {
+    val res = List(ibmService+"_"+svcversion2+"_"+svcarch2, ibmService, ibmPattern)
+    val input = DeleteIBMChangesRequest(res)
+    info(write(input))
+    val response = Http(urlRoot+"/v1/orgs/IBM/changes/cleanup").postData(write(input)).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
   }

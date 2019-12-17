@@ -351,8 +351,18 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.limit.of.max.patterns", maxPatterns) )).asTry
         case Failure(t) => DBIO.failed(t).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("POST /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          val publicField = patternReq.public.getOrElse(false)
+          val patternChange = ResourceChangeRow(0, orgid, barePattern, "pattern", publicField.toString, "pattern", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+          patternChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/patterns/"+barePattern+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) => if (owner != "") AuthCache.putPatternOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
           AuthCache.putPatternIsPublic(pattern, patternReq.public.getOrElse(false))
@@ -400,6 +410,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     patternReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
+    var storedPatternPublic = false
     val (valServiceIdActions, svcRefs) = patternReq.validateServiceIds  // to check that the services referenced exist
     db.run(valServiceIdActions.asTry.flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/patterns"+barePattern+" service validation: "+xs.toString)
@@ -424,6 +435,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
       xs match {
         case Success(patternPublic) => val public = patternPublic
           if(public.nonEmpty){
+            storedPatternPublic = public.head
             if (public.head || patternReq.public.getOrElse(false)) {    // pattern is public so need to check orgType
               OrgsTQ.getOrgType(orgid).result.asTry // should return a vector of Strings
             } else { // pattern isn't public so skip orgType check
@@ -445,21 +457,40 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           }
         case Failure(t) => DBIO.failed(t).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("PUT /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
         case Success(n) => try {
-            val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
-            if (numUpdated > 0) {
-              if (owner != "") AuthCache.putPatternOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
-              AuthCache.putPatternIsPublic(pattern, patternReq.public.getOrElse(false))
+          val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
+          if (numUpdated > 0) {
+            if (owner != "") AuthCache.putPatternOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
+            AuthCache.putPatternIsPublic(pattern, patternReq.public.getOrElse(false))
+            var publicField = false
+            if (patternReq.public.isDefined) {publicField = patternReq.public.getOrElse(false)}
+            else {publicField = storedPatternPublic}
+            val patternChange = ResourceChangeRow(0, orgid, barePattern, "pattern", publicField.toString, "pattern", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+            patternChange.insert.asTry
+          } else {
+            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))).asTry
+          }
+        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("pattern.not.updated", pattern, e))).asTry}
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/patterns/"+barePattern+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.updated"))
-            } else {
+        case Failure(t: DBProcessingError) =>
+          if(t.httpCode == HttpCode.NOT_FOUND) {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
-            }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("pattern.not.updated", pattern, e)) }    // the specific exception is NumberFormatException
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
+          } else if (t.httpCode == HttpCode.INTERNAL_ERROR) {
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, t.getMessage) // the specific exception is NumberFormatException
+          }
         case Failure(t: NotFoundException) =>
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
@@ -502,6 +533,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     logger.trace("PATCH /orgs/"+orgid+"/patterns/"+barePattern+" input: "+patternReq.toString)
     val resp = response
     val (action, attrName) = patternReq.getDbUpdate(pattern, orgid)
+    var storedPatternPublic = false
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.pattern.attribute.specified")))
     val (valServiceIdActions, svcRefs) = if (attrName == "services") PatternsTQ.validateServiceIds(patternReq.services.get, List())
       else if (attrName == "userInput") PatternsTQ.validateServiceIds(List(), patternReq.userInput.get)
@@ -530,6 +562,7 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
         case Success(patternPublic) => val public = patternPublic
           if(public.nonEmpty) {
             val publicField = patternReq.public.getOrElse(false)
+            storedPatternPublic = public.head
             if ((public.head && publicField) || publicField) { // pattern is public so need to check owner
               OrgsTQ.getOrgType(orgid).result.asTry
             } else { // pattern isn't public so skip orgType check
@@ -552,20 +585,39 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           }
         case Failure(t) => DBIO.failed(t).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("PATCH /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
         case Success(v) => try {
-            val numUpdated = v.toString.toInt     // v comes to us as type Any
-            if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              if (attrName == "public") AuthCache.putPatternIsPublic(pattern, patternReq.public.getOrElse(false))
+          val numUpdated = v.toString.toInt     // v comes to us as type Any
+          if (numUpdated > 0) {    // there were no db errors, but determine if it actually found it or not
+            if (attrName == "public") AuthCache.putPatternIsPublic(pattern, patternReq.public.getOrElse(false))
+            var publicField = false
+            if (patternReq.public.isDefined) {publicField = patternReq.public.getOrElse(false)}
+            else {publicField = storedPatternPublic}
+            val patternChange = ResourceChangeRow(0, orgid, barePattern, "pattern", publicField.toString, "pattern", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+            patternChange.insert.asTry
+          } else {
+            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.attribute.not.update", attrName, pattern))).asTry
+          }
+        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e))).asTry}
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("PATCH /orgs/"+orgid+"/patterns/"+barePattern+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.attribute.not.update", attrName, pattern))
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
-            }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e)) }
+        case Failure(t: DBProcessingError) =>
+          if (t.httpCode == HttpCode.NOT_FOUND) {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
+          } else if (t.httpCode == HttpCode.INTERNAL_ERROR) {
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, t.getMessage)
+          }
         case Failure(t: NotFoundException) =>
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
@@ -746,19 +798,40 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val pattern = OrgAndId(orgid,barePattern).toString
     authenticate().authorizeTo(TPattern(pattern),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
+    var storedPublicField = false
     val resp = response
-    db.run(PatternsTQ.getPattern(pattern).delete.transactionally.asTry).map({ xs =>
+    db.run(PatternsTQ.getPublic(pattern).result.asTry.flatMap({ xs =>
+      // Get the value of the public field then do the delete
+      logger.debug("DELETE /orgs/"+orgid+"/patterns/"+barePattern+" public field is: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          storedPublicField = public.head
+          PatternsTQ.getPattern(pattern).delete.transactionally.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /orgs/"+orgid+"/patterns/"+barePattern+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.removePatternOwner(pattern)
-            AuthCache.removePatternIsPublic(pattern)
-            resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.deleted"))
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
-          }
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          AuthCache.removePatternOwner(pattern)
+          AuthCache.removePatternIsPublic(pattern)
+          val patternChange = ResourceChangeRow(0, orgid, barePattern, "pattern", storedPublicField.toString, "pattern", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          patternChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /orgs/"+orgid+"/patterns/"+barePattern+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.deleted"))
+        case Failure(t:DBProcessingError) =>
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.id.not.found", pattern))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("pattern.id.not.deleted", pattern, t.toString))
       }
@@ -866,8 +939,25 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     //catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     keyReq.validate(keyId)
     val resp = response
-    db.run(keyReq.toPatternKeyRow(compositeId, keyId).upsert.asTry).map({ xs =>
+    db.run(keyReq.toPatternKeyRow(compositeId, keyId).upsert.asTry.flatMap({ xs =>
+      // Get the value of the public field
       logger.debug("PUT /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" result: "+xs.toString)
+      xs match {
+        case Success(_) => PatternsTQ.getPublic(compositeId).result.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
+      logger.debug("PUT /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" public field: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          val publicField = public.head
+          val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", publicField.toString, "patternkeys", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+          patternChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("key.added.or.updated"))
@@ -900,18 +990,38 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val pattern = params("pattern")
     val compositeId = OrgAndId(orgid,pattern).toString
+    var storedPublicField = false
     authenticate().authorizeTo(TPattern(compositeId),Access.WRITE)
     val resp = response
-    db.run(PatternKeysTQ.getKeys(compositeId).delete.asTry).map({ xs =>
+    db.run(PatternsTQ.getPublic(compositeId).result.asTry.flatMap({ xs =>
+      // Get the public field before doing delete
+      logger.debug("DELETE /patterns/"+pattern+"/keys public field: "+xs.toString)
+      xs match {
+        case Success(public) => storedPublicField = public.head
+          PatternKeysTQ.getKeys(compositeId).delete.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /patterns/"+pattern+"/keys result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", storedPublicField.toString, "patternkeys", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          patternChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.pattern.keys.found", compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /patterns/"+pattern+"/keys result: "+xs.toString)
+      xs match {
+        case Success(v) =>
           resp.setStatus(HttpCode.DELETED)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.keys.deleted"))
-        } else {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.pattern.keys.found", compositeId))
-        }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("pattern.keys.not.deleted", compositeId, t.toString))
       }
@@ -940,17 +1050,44 @@ trait PatternRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val keyId = params("keyid")
     authenticate().authorizeTo(TPattern(compositeId),Access.WRITE)
     val resp = response
-    db.run(PatternKeysTQ.getKey(compositeId,keyId).delete.asTry).map({ xs =>
+    var storedPublicField = false
+    db.run(PatternsTQ.getPublic(compositeId).result.asTry.flatMap({ xs =>
+      // Get the public field before doing delete
+      logger.debug("DELETE /patterns/"+pattern+"/keys public field: "+xs.toString)
+      xs match {
+        case Success(public) => storedPublicField = public.head
+          PatternKeysTQ.getKey(compositeId,keyId).delete.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
+      logger.debug("DELETE /patterns/"+pattern+"/keys result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", storedPublicField.toString, "patternkeys", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          patternChange.insert.asTry
+        } else {
+          logger.debug("3 - getting to DBIO.failed")
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.key.not.found", keyId, compositeId))).asTry
+        }
+        case Failure(t) =>
+          logger.debug("3 -- Is it getting in this failure case?")
+          DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
       logger.debug("DELETE /patterns/"+pattern+"/keys/"+keyId+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(_) =>
           resp.setStatus(HttpCode.DELETED)
+          logger.debug("3 - Why isn't this getting here? - Success case ")
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.key.deleted"))
-        } else {
+        case Failure(k: DBProcessingError) =>
+          logger.debug("3 - Why isn't this getting here? DB Processing Error")
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.key.not.found", keyId, compositeId))
-        }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) =>
+          logger.debug("3 - in catch all failure case Catch All Fail Case")
+          resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("pattern.key.not.deleted", keyId, compositeId, t.toString))
       }
     })

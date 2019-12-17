@@ -75,11 +75,11 @@ class Org(var orgType: String, var label: String, var description: String, var l
 }
 
 /** Contains the object representations of the DB tables related to resource changes. */
-case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, lastUpdated: String) {
+case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toResourceChange: ResourceChange = {
-    new ResourceChange(changeId, orgId, id, category, public, resource, lastUpdated)
+    new ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)
   }
 
   // update returns a DB action to update this row
@@ -93,16 +93,19 @@ case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category:
 }
 
 /** Mapping of the orgs db table to a scala class */
-class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "orgs") {
-  def changeId = column[Int]("changeid", O.PrimaryKey)
+class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcechanges") {
+  def changeId = column[Int]("changeid", O.PrimaryKey, O.AutoInc)
   def orgId = column[String]("orgid")
   def id = column[String]("id")
   def category = column[String]("category")
   def public = column[String]("public")
   def resource = column[String]("resource")
+  def operation = column[String]("operation")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (changeId, orgId, id, category, public, resource, lastUpdated) <> (ResourceChangeRow.tupled, ResourceChangeRow.unapply)
+  def * = (changeId, orgId, id, category, public, resource, operation, lastUpdated) <> (ResourceChangeRow.tupled, ResourceChangeRow.unapply)
+  def orgidKey = foreignKey("orgid_fk", orgId, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+
 }
 
 // Instance to access the orgs table
@@ -114,7 +117,8 @@ object ResourceChangesTQ {
   def getId(changeid: Int) = rows.filter(_.changeId === changeid).map(_.id)
   def getCategory(changeid: Int) = rows.filter(_.changeId === changeid).map(_.category)
   def getPublic(changeid: Int) = rows.filter(_.changeId === changeid).map(_.public)
-  def getResource(changeid: Int) = rows.filter(_.changeId=== changeid).map(_.resource)
+  def getResource(changeid: Int) = rows.filter(_.changeId === changeid).map(_.resource)
+  def getOperation(changeid: Int) = rows.filter(_.changeId === changeid).map(_.operation)
   def getLastUpdated(changeid: Int) = rows.filter(_.changeId === changeid).map(_.lastUpdated)
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
@@ -128,13 +132,12 @@ object ResourceChangesTQ {
       case "category" => filter.map(_.category)
       case "public" => filter.map(_.public)
       case "resource" => filter.map(_.resource)
+      case "operation" => filter.map(_.operation)
       case "lastUpdated" => filter.map(_.lastUpdated)
       case _ => null
     }
   }
 }
 
-// This is the org table minus the key - used as the data structure to return to the REST clients
-class ResourceChange(var changeId: Int, var orgId: String, var id: String, var category: String, var public: String, var resource: String, var lastUpdated: String) {
-  //def copy = new Org(orgType, label, description, lastUpdated)
+class ResourceChange(var changeId: Int, var orgId: String, var id: String, var category: String, var public: String, var resource: String, var operation: String, var lastUpdated: String) {
 }

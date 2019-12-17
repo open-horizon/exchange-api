@@ -357,8 +357,19 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.the.limit.of.services", maxServices) )).asTry
         case Failure(t) => DBIO.failed(t).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("POST /orgs/"+orgid+"/services result: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          val serviceId = service.substring(service.indexOf("/")+1, service.length)
+          logger.debug("SERVICEID: " + serviceId)
+          val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", serviceReq.public.toString, "service", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+          serviceChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/services added to changes table: "+xs.toString)
       xs match {
         case Success(_) => if (owner != "") AuthCache.putServiceOwner(service, owner)     // currently only users are allowed to update service resources, so owner should never be blank
           AuthCache.putServiceIsPublic(service, serviceReq.public)
@@ -442,21 +453,37 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("PUT /orgs/"+orgid+"/services/"+bareService+" result: "+xs.toString)
       xs match {
         case Success(n) => try {
-            val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
-            if (numUpdated > 0) {
-              if (owner != "") AuthCache.putServiceOwner(service, owner)     // currently only users are allowed to update service resources, so owner should never be blank
-              AuthCache.putServiceIsPublic(service, serviceReq.public)
+          val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
+          if (numUpdated > 0) {
+            if (owner != "") AuthCache.putServiceOwner(service, owner)     // currently only users are allowed to update service resources, so owner should never be blank
+            AuthCache.putServiceIsPublic(service, serviceReq.public)
+            val serviceId = service.substring(service.indexOf("/")+1, service.length)
+            val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", serviceReq.public.toString, "service", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+            serviceChange.insert.asTry
+          } else {
+            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.not.found", service))).asTry
+          }
+        } catch { case e: Exception =>  DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("service.not.updated", service, e))).asTry}    // the specific exception is NumberFormatException
+        case Failure(t) => DBIO.failed(t).asTry
+    }})).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/services/"+bareService+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
               resp.setStatus(HttpCode.PUT_OK)
               ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.updated"))
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.not.found", service))
-            }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("service.not.updated", service, e)) }    // the specific exception is NumberFormatException
+        case Failure(t: DBProcessingError) =>
+          if (t.httpCode == HttpCode.NOT_FOUND){
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.not.found", service))
+          } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
+            resp.setStatus(HttpCode.INTERNAL_ERROR);
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, t.getMessage)
+          }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("service.not.updated", service, t.getMessage))
@@ -545,20 +572,46 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
-      logger.debug("PATCH /orgs/"+orgid+"/services/"+bareService+" result: "+xs.toString)
+    }).flatMap({ xs =>
+      // Get the value of the public field
+      logger.debug("PUT /orgs/"+orgid+"/services/"+bareService+" result: "+xs.toString)
       xs match {
         case Success(v) => try {
-            val numUpdated = v.toString.toInt     // v comes to us as type Any
-            if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              if (attrName == "public") AuthCache.putServiceIsPublic(service, serviceReq.public.getOrElse(false))
-              resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.attr.updated", attrName, service))
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.not.found", service))
-            }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e)) }
+          val numUpdated = v.toString.toInt     // v comes to us as type Any
+          if (numUpdated > 0){ // there were no db errors, but determine if it actually found it or not
+            if (attrName == "public") AuthCache.putServiceIsPublic(service, serviceReq.public.getOrElse(false))
+            ServicesTQ.getPublic(service).result.asTry
+          } else {
+            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.not.found", service))).asTry
+          }
+        } catch { case e: Exception =>  DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("service.not.updated", service, e))).asTry}    // the specific exception is NumberFormatException
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
+      logger.debug("PUT /orgs/"+orgid+"/services/"+bareService+" public field: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          val serviceId = service.substring(service.indexOf("/")+1, service.length)
+          var publicField = false
+          if (serviceReq.public.isDefined) {publicField = serviceReq.public.getOrElse(false)}
+          else {publicField = public.head}
+            val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", publicField.toString, "service", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+            serviceChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }})).map({ xs =>
+      logger.debug("PATCH /orgs/"+orgid+"/services/"+bareService+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.attr.updated", attrName, service))
+        case Failure(t: DBProcessingError) =>
+          if (t.httpCode == HttpCode.NOT_FOUND) {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.not.found", service))
+          } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, t.getMessage) }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
             ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("service.not.updated", service, t.getMessage))
@@ -588,21 +641,43 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val bareService = params("service")   // but do not have a hack/fix for the name
     val service = OrgAndId(orgid,bareService).toString
+    var publicField = false
     authenticate().authorizeTo(TService(service),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
-    db.run(ServicesTQ.getService(service).delete.transactionally.asTry).map({ xs =>
+    db.run(ServicesTQ.getPublic(service).result.asTry.flatMap({ xs =>
+      // Get the value of the public field before doing the deletion
+      logger.debug("DELETE /orgs/"+orgid+"/services/"+bareService+" public field: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          publicField =  public.head
+          ServicesTQ.getService(service).delete.transactionally.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /orgs/"+orgid+"/services/"+bareService+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.removeServiceOwner(service)
-            AuthCache.removeServiceIsPublic(service)
-            resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.deleted"))
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.not.found", service))
-          }
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          AuthCache.removeServiceOwner(service)
+          AuthCache.removeServiceIsPublic(service)
+          val serviceId = service.substring(service.indexOf("/")+1, service.length)
+          val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", publicField.toString, "service", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          serviceChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.not.found", service))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /orgs/"+orgid+"/services/"+bareService+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.deleted"))
+        case Failure(t: DBProcessingError) =>
+          resp.setStatus (HttpCode.NOT_FOUND)
+          ApiResponse (ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage ("service.not.found", service) )
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("service.not.deleted", service, t.toString))
       }
@@ -681,8 +756,25 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     policy.validate()
     val resp = response
-    db.run(policy.toServicePolicyRow(service).upsert.asTry).map({ xs =>
+    db.run(policy.toServicePolicyRow(service).upsert.asTry.flatMap({ xs =>
+      // Get the value of the public field
       logger.debug("PUT /orgs/"+orgid+"/services/"+bareService+"/policy result: "+xs.toString)
+      xs match {
+        case Success(_) => ServicesTQ.getPublic(service).result.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
+      logger.debug("PUT /orgs/"+orgid+"/services/"+bareService+"/policy public field: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          val serviceId = service.substring(service.indexOf("/")+1, service.length)
+          val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", public.head.toString, "servicepolicies", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+          serviceChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/services/"+bareService+"/policy updated in changes table: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("policy.added.or.updated"))
@@ -714,18 +806,40 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val bareService = params("service")
     val service = OrgAndId(orgid,bareService).toString
+    var publicField = false
     authenticate().authorizeTo(TService(service),Access.WRITE)
     val resp = response
-    db.run(ServicePolicyTQ.getServicePolicy(service).delete.asTry).map({ xs =>
+    db.run(ServicesTQ.getPublic(service).result.asTry.flatMap({ xs =>
+      // Get the value of the public field before doing the delete
+      logger.debug("DELETE /orgs/"+orgid+"/services/"+bareService+"/policy public field: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          publicField = public.head
+          ServicePolicyTQ.getServicePolicy(service).delete.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /orgs/"+orgid+"/services/"+bareService+"/policy result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val serviceId = service.substring(service.indexOf("/")+1, service.length)
+          val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", publicField.toString, "servicepolicies", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          serviceChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.policy.not.found", service))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /orgs/"+orgid+"/services/"+bareService+"/policy updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
           resp.setStatus(HttpCode.DELETED)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.policy.deleted"))
-        } else {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.policy.not.found", service))
-        }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("service.policy.not.deleted", service, t.toString))
       }
@@ -834,8 +948,25 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     //catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
     keyReq.validate(keyId)
     val resp = response
-    db.run(keyReq.toServiceKeyRow(compositeId, keyId).upsert.asTry).map({ xs =>
+    db.run(keyReq.toServiceKeyRow(compositeId, keyId).upsert.asTry.flatMap({ xs =>
+      // Get the value of the public field
       logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" result: "+xs.toString)
+      xs match {
+        case Success(_) => ServicesTQ.getPublic(compositeId).result.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
+      logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" public field: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          val serviceId = service.substring(service.indexOf("/")+1, service.length)
+          val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", public.head.toString, "servicekeys", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+          serviceChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("key.added.or.updated"))
@@ -868,18 +999,40 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
+    var publicField = false
     authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val resp = response
-    db.run(ServiceKeysTQ.getKeys(compositeId).delete.asTry).map({ xs =>
+    db.run(ServicesTQ.getPublic(compositeId).result.asTry.flatMap({ xs =>
+      // Get the value of the public field before delete
+      logger.debug("DELETE /services/"+service+"/keys public field: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          publicField = public.head
+          ServiceKeysTQ.getKeys(compositeId).delete.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /services/"+service+"/keys result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) {   // there were no db errors, but determine if it actually found it or not
+          val serviceId = service.substring(service.indexOf("/")+1, service.length)
+          val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", publicField.toString, "servicekeys", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          serviceChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.service.keys.found", compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /services/"+service+"/keys updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
           resp.setStatus(HttpCode.DELETED)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.keys.deleted"))
-        } else {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.service.keys.found", compositeId))
-        }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("service.keys.not.deleted", compositeId, t.toString))
       }
@@ -906,18 +1059,40 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
     val keyId = params("keyid")
+    var publicField = false
     authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val resp = response
-    db.run(ServiceKeysTQ.getKey(compositeId,keyId).delete.asTry).map({ xs =>
+    db.run(ServicesTQ.getPublic(compositeId).result.asTry.flatMap({ xs =>
+      // Get the value of the public field before delete
+      logger.debug("DELETE /services/"+service+"/keys public field: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          publicField = public.head
+          ServiceKeysTQ.getKey(compositeId,keyId).delete.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /services/"+service+"/keys/"+keyId+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val serviceId = service.substring(service.indexOf("/")+1, service.length)
+          val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", publicField.toString, "servicekeys", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          serviceChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.key.not.found", keyId, compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /services/"+service+"/keys/"+keyId+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
           resp.setStatus(HttpCode.DELETED)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.key.deleted"))
-        } else {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.key.not.found", keyId, compositeId))
-        }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("service.key.not.deleted", keyId, compositeId, t.toString))
       }
@@ -1020,6 +1195,7 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val dockAuthIdReq = try { parse(request.body).extract[PostPutServiceDockAuthRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     dockAuthIdReq.validate(dockAuthId)
+    var resultNum = 2
     val resp = response
     db.run(dockAuthIdReq.getDupDockAuth(compositeId).result.asTry.flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/services"+service+"/dockauths find duplicate: "+xs.toString)
@@ -1028,15 +1204,34 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
           else dockAuthIdReq.toServiceDockAuthRow(compositeId, dockAuthId).insert.asTry     // no duplicate entry so add the one they gave us
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Get the value of the public field
       logger.debug("POST /orgs/"+orgid+"/services/"+service+"/dockauths result: "+xs.toString)
       xs match {
-        case Success(n) => val num = n.toString.toInt     // num is either the id that was added, or (in the dup case) the number of rows that were updated (0 or 1)
+        case Success(n) => resultNum = n.toString.toInt     // num is either the id that was added, or (in the dup case) the number of rows that were updated (0 or 1)
+          ServicesTQ.getPublic(compositeId).result.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
+      logger.debug("POST /orgs/"+orgid+"/services/"+service+"/dockauths public field: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          val serviceId = service.substring(service.indexOf("/")+1, service.length)
+          val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", public.head.toString, "servicedockauths", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+          serviceChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/services/"+service+"/dockauths updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
           resp.setStatus(HttpCode.POST_OK)
-          num match {
+          resultNum match {
             case 0 => ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("duplicate.dockauth.resource.already.exists"))    // we don't expect this, but it is possible, but only means that the lastUpdated field didn't get updated
             case 1 => ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("dockauth.resource.updated"))    //todo: this can be 2 cases i dont know how to distinguish between: A) the 1st time anyone added a dockauth, or B) a dup was found and we updated it
-            case _ => ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("dockauth.num.added", num))    // we did not find a dup, so this is the dockauth id that was added
+            case 2 => ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("api.internal.error")) // this is meant to catch the case where the resultNum variable for some reason isn't set
+            case _ => ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("dockauth.num.added", resultNum))    // we did not find a dup, so this is the dockauth id that was added
           }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
@@ -1078,17 +1273,37 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     dockAuthIdReq.validate(dockAuthId)
     val resp = response
-    db.run(dockAuthIdReq.toServiceDockAuthRow(compositeId, dockAuthId).update.asTry).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" result: "+xs.toString)
+    db.run(dockAuthIdReq.toServiceDockAuthRow(compositeId, dockAuthId).update.asTry.flatMap({ xs =>
+      // Get the value of the public field
+      logger.debug("POST /orgs/"+orgid+"/services/"+service+"/dockauths result: "+xs.toString)
       xs match {
         case Success(n) => val numUpdated = n.toString.toInt     // n is an AnyRef so we have to do this to get it to an int
           if (numUpdated > 0) {
+            ServicesTQ.getPublic(compositeId).result.asTry
+          } else {
+            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.OK, ExchangeMessage.translateMessage("dockauth.not.found", dockAuthId))).asTry
+          }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
+      logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" public field: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          val serviceId = service.substring(service.indexOf("/")+1, service.length)
+          val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", public.head.toString, "servicedockauths", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+            serviceChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
             resp.setStatus(HttpCode.PUT_OK)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("dockauth.updated", dockAuthId))
-          } else {
+        case Failure(t: DBProcessingError) =>
             resp.setStatus(HttpCode.NOT_FOUND)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("dockauth.not.found", dockAuthId))
-          }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
           ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage))
@@ -1118,18 +1333,40 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
+    var publicField = false
     authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val resp = response
-    db.run(ServiceDockAuthsTQ.getDockAuths(compositeId).delete.asTry).map({ xs =>
+    db.run(ServicesTQ.getPublic(compositeId).result.asTry.flatMap({ xs =>
+      // Get the value of the public field before delete
+      logger.debug("DELETE /services/"+service+"/keys public field: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          publicField = public.head
+          ServiceDockAuthsTQ.getDockAuths(compositeId).delete.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
+      logger.debug("POST /orgs/"+orgid+"/services result: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val serviceId = service.substring(service.indexOf("/")+1, service.length)
+          val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", publicField.toString, "servicedockauths", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          serviceChange.insert.asTry
+        }else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.dockauths.found.for.service", compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
       logger.debug("DELETE /services/"+service+"/dockauths result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) =>
           resp.setStatus(HttpCode.DELETED)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.dockauths.deleted"))
-        } else {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.dockauths.found.for.service", compositeId))
-        }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("service.dockauths.not.deleted", compositeId, t.toString))
       }
@@ -1155,19 +1392,41 @@ trait ServiceRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     val orgid = params("orgid")
     val service = params("service")   // but do not have a hack/fix for the name
     val compositeId = OrgAndId(orgid,service).toString
+    var publicField = false
     val dockAuthId = try { params("dockauthid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "dockauthid must be an integer: "+e)) }    // the specific exception is NumberFormatException
     authenticate().authorizeTo(TService(compositeId),Access.WRITE)
     val resp = response
-    db.run(ServiceDockAuthsTQ.getDockAuth(compositeId,dockAuthId).delete.asTry).map({ xs =>
+    db.run(ServicesTQ.getPublic(compositeId).result.asTry.flatMap({ xs =>
+      // Get the value of the public field before delete
+      logger.debug("DELETE /services/"+service+"/dockauths/"+dockAuthId+" public field: "+xs.toString)
+      xs match {
+        case Success(public) =>
+          publicField = public.head
+          ServiceDockAuthsTQ.getDockAuth(compositeId,dockAuthId).delete.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /services/"+service+"/dockauths/"+dockAuthId+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val serviceId = service.substring(service.indexOf("/")+1, service.length)
+          val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", publicField.toString, "servicedockauths", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          serviceChange.insert.asTry
+        }else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.dockauths.not.found", dockAuthId, compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /services/"+service+"/dockauths/"+dockAuthId+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(v) =>
           resp.setStatus(HttpCode.DELETED)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("service.dockauths.deleted"))
-        } else {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("service.dockauths.not.found", dockAuthId, compositeId))
-        }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("service.dockauths.not.deleted", dockAuthId, compositeId, t.toString))
       }

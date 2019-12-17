@@ -136,8 +136,8 @@ class PatternsSuite extends FunSuite {
   val svcid5 = "bluehorizon.network-services-sdr_1.0.0_arm32"
   val svcarch5 = "arm32"
   val svcversion5 = "1.0.0"
-  val maxRecords = 1000
-  val secondsAgo = 30
+  val maxRecords = 10000
+  val secondsAgo = 120
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 

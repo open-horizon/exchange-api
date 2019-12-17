@@ -76,8 +76,8 @@ class AgbotsSuite extends FunSuite {
   val nodeId = "mynode"
   val nodeToken = nodeId+"tok"
   val NODEAUTH = ("Authorization","Basic "+authpref+nodeId+":"+nodeToken)
-  val maxRecords = 1000
-  val secondsAgo = 30
+  val maxRecords = 10000
+  val secondsAgo = 120
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 

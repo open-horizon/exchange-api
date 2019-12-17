@@ -110,8 +110,8 @@ class ServicesSuite extends FunSuite {
   val dockAuthRegistry2 = "registry.eu-de.bluemix.net"
   // we don't need dockAuthUsername2 because we will let it default to 'token'
   val dockAuthToken2 = "tok2"
-  val maxRecords = 1000
-  val secondsAgo = 30
+  val maxRecords = 10000
+  val secondsAgo = 120
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -540,9 +540,10 @@ class ServicesSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
-  test("POST /orgs/"+orgid+"/changes - verify " + service + " policy was updated via PATCH and stored") {
+  test("POST /orgs/"+orgid+"/changes - verify " + service + " was updated via PATCH and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    Thread.sleep(1000)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK)
@@ -973,7 +974,6 @@ class ServicesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    info(service)
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "servicedockauths")}))
   }
 

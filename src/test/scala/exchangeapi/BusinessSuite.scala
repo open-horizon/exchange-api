@@ -75,8 +75,8 @@ class BusinessSuite extends FunSuite {
   val org2Service = "IBM/"+service2
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
   val NOORGURL = urlRoot+"/v1"
-  val maxRecords = 1000
-  val secondsAgo = 30
+  val maxRecords = 10000
+  val secondsAgo = 120
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 

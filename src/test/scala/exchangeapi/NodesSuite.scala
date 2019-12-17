@@ -105,8 +105,8 @@ class NodesSuite extends FunSuite {
   val agProto = "ExchangeAutomatedTest"    // using this to avoid db entries from real users and predefined ones
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
   val ibmService = "TestIBMService"
-  val maxRecords = 1000
-  val secondsAgo = 30
+  val maxRecords = 10000
+  val secondsAgo = 120
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 

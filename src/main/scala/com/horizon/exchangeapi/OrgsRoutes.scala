@@ -15,7 +15,7 @@ import scala.collection.immutable._
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.concurrent.Future
 import scala.util._
-import scala.util.control.Breaks
+import scala.util.control.Breaks._
 //import java.net._
 
 //====== These are the input and output structures for /orgs routes. Swagger and/or json seem to require they be outside the trait.
@@ -354,46 +354,52 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
     val exchangeVersion = ExchangeApiAppMethods.adminVersion()
     val inputList = List(orgList, ibmList)
     val changesList = ListBuffer[ChangeEntry]()
-    var finalList = List[ChangeEntry]()
     var mostRecentChangeId = 0
-    var maxCounter = 0
-    for(input <- inputList) { //this for loop should only ever be of size 2
-      val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
-      for( entry <- input) {
-        /*
-        Example of what entry might look like
-          {
-            "_1":167,   --> changeId
-            "_2":"org2",    --> orgID
-            "_3":"resourcetest",    --> id
-            "_4":"node",    --> category
-            "_5":"false",   --> public
-            "_6":"node",    --> resource
-            "_7":"created/modified",  --> operation
-            "_8":"2019-12-12T19:28:05.309Z[UTC]",   --> lastUpdated
+    var entryCounter = 0
+    breakable {
+      for(input <- inputList) { //this for loop should only ever be of size 2
+        val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
+        for( entry <- input) {
+          /*
+          Example of what entry might look like
+            {
+              "_1":167,   --> changeId
+              "_2":"org2",    --> orgID
+              "_3":"resourcetest",    --> id
+              "_4":"node",    --> category
+              "_5":"false",   --> public
+              "_6":"node",    --> resource
+              "_7":"created/modified",  --> operation
+              "_8":"2019-12-12T19:28:05.309Z[UTC]",   --> lastUpdated
+            }
+           */
+          val resChange = ResourceChangesInnerObject(entry._1, entry._8)
+          if(changesMap.isDefinedAt(entry._3)){  // using the map allows for better searching and entry
+            if(changesMap(entry._3).resourceChanges.last.changeId < entry._1){
+              // the entry we are looking at actually happened later than the last entry in resourceChanges
+              // doing this check by changeId on the off chance two changes happen at the exact same time changeId tells which one is most updated
+              changesMap(entry._3).addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
+              changesMap(entry._3).setOperation(entry._7) // update the most recent operation performed
+              changesMap(entry._3).setResource(entry._6) // update exactly what resource was most recently touched
+            }
+          } else{
+            val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
+            changesMap(entry._3) = ChangeEntry(entry._2, entry._6, entry._3, entry._7, resChangeListBuffer)
           }
-         */
-        val resChange = ResourceChangesInnerObject(entry._1, entry._8)
-        if(changesMap.isDefinedAt(entry._3)){  // using the map allows for better searching and entry
-          changesMap(entry._3).addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
-          changesMap(entry._3).setOperation(entry._7) // update the most recent operation performed
-          changesMap(entry._3).setResource(entry._6) // update exactly what resource was most recently touched
-        } else{
-          val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
-          changesMap(entry._3) = ChangeEntry(entry._2, entry._6, entry._3, entry._7, resChangeListBuffer)
         }
-        if(entry._1 > mostRecentChangeId) {mostRecentChangeId = entry._1}
+        // convert changesMap to ListBuffer[ChangeEntry]
+        breakable {
+          for (entry <- changesMap) {
+            if (entryCounter > maxResp) break // if we are over the count of allowed entries just stop and go to outer loop
+            changesList += entry._2 // if we are not just continue adding to the changesList
+            if (mostRecentChangeId < entry._2.resourceChanges.last.changeId) { mostRecentChangeId = entry._2.resourceChanges.last.changeId } //set the mostRecentChangeId value
+            entryCounter += 1 // increment our count of how many entries there are in changesList
+          }
+        }
+        if (entryCounter > maxResp) break // if we are over the count of allowed entries just stop and return the list as is
       }
-      // convert changesMap to ListBuffer[ChangeEntry]
-      for(entry <- changesMap) {changesList += entry._2}
     }
-    //TODO: Get maxResp working
-    if(changesList.size > maxResp){
-      finalList = changesList.take(maxResp).toList
-      logger.info("MaxResp case hit")
-    } else { finalList = changesList.toList }
-//    finalList = changesList.toList
-    ResourceChangesRespObject(finalList, mostRecentChangeId, exchangeVersion)
+    ResourceChangesRespObject(changesList.toList, mostRecentChangeId, exchangeVersion)
   }
 
   /* ====== POST /orgs/{orgid}/changes ================================ */

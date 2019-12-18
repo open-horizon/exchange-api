@@ -42,6 +42,13 @@ object HttpCode {
   val GW_TIMEOUT = 504   // gateway timeout, which for us means db timeout
 }
 
+object ResourceChangeConfig {
+  val CREATED = "created"
+  val CREATEDMODIFIED = "created/modified"
+  val MODIFIED = "modified"
+  val DELETED = "deleted"
+}
+
 /** These are used as the response structure for most PUTs, POSTs, and DELETEs. */
 case class ApiResponse(code: String, msg: String)
 object ApiResponseType {

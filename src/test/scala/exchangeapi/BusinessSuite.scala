@@ -75,6 +75,8 @@ class BusinessSuite extends FunSuite {
   val org2Service = "IBM/"+service2
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
   val NOORGURL = urlRoot+"/v1"
+  val maxRecords = 10000
+  val secondsAgo = 120
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -173,6 +175,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
+    info("headers: "+response.headers)
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
@@ -224,6 +227,17 @@ class BusinessSuite extends FunSuite {
     assert(response.body.contains("No usable value for service"))
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was created and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == businessPolicy) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "policy")}))
+  }
+
   test("POST /orgs/"+orgid+"/business/policies/BusPolNoService2 - add BusPolNoService as user -- test if service field required") {
     val input = """{
                       "label":"BusPolNoService2",
@@ -271,6 +285,17 @@ class BusinessSuite extends FunSuite {
     assert(response.code === HttpCode.DELETED)
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy3 + " was deleted and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == businessPolicy3) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "policy")}))
+  }
+
   test("DELETE /orgs/"+orgid+"/business/policies/"+businessPolicy4) {
     val response = Http(URL+"/business/policies/"+businessPolicy4).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -296,6 +321,17 @@ class BusinessSuite extends FunSuite {
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was updated and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == businessPolicy) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "policy")}))
   }
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as 2nd user - should fail") {
@@ -466,6 +502,17 @@ class BusinessSuite extends FunSuite {
     response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was updated and stored via PATCH") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == businessPolicy) && (y.operation == ResourceChangeConfig.MODIFIED) && (y.resource == "policy")}))
   }
 
   test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - userInput but without heading so invalid input") {

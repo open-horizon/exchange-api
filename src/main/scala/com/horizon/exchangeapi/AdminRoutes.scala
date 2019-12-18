@@ -37,6 +37,10 @@ class AdminStatus() {
   def toGetAdminStatusResponse = GetAdminStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements, numberOfNodeMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs, dbSchemaVersion)
 }
 
+/** Case class for request body for deleting some of the IBM changes route */
+case class DeleteIBMChangesRequest(resources: List[String]){
+  def validate(): Unit ={if(resources.isEmpty){halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "resources list cannot be empty"))}}
+}
 
 /** Implementation for all of the /admin routes */
 trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
@@ -341,9 +345,7 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
   get("/admin/version", operation(getAdminVersion)) ({
     credsAndLogForAnonymous()     // do not need to call authenticate().authorizeTo() because anyone can run this
-    val versionSource = Source.fromResource("version.txt")      // returns BufferedSource
-    val versionText : String = versionSource.getLines.next()
-    versionSource.close()
+    val versionText = ExchangeApiAppMethods.adminVersion()
     response.setStatus(HttpCode.OK)
     versionText + "\n"
   })
@@ -488,6 +490,40 @@ trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     AuthCache.clearAllCaches(includingIbmAuth=true)
     response.setStatus(HttpCode.POST_OK)
     ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("cache.cleared"))
+  })
+
+
+  /* ====== DELETE /orgs/IBM/changes/all ================================ */
+  // This route is just for unit testing as a way to clean up the changes table once testing has completed
+  // Otherwise the changes table gets clogged with entries in the IBM org from testing
+  delete("/orgs/IBM/changes/cleanup") ({
+    /*
+    Add in array of resource id's to filter by so that the delete only deletes those
+    Also move this to admin routes
+     */
+    authenticate().authorizeTo(TAction(),Access.ADMIN)
+    val res = try { parse(request.body).extract[DeleteIBMChangesRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    res.validate()
+    val resourcesSet = res.resources.toSet
+    val resp = response
+    val q = ResourceChangesTQ.rows.filter(_.orgId === "IBM").filter(_.id inSet resourcesSet)
+    val action = q.delete
+    db.run(action.transactionally.asTry).map({ xs =>
+      logger.debug("Deleting specified IBM org entries in changes table ONLY FOR UNIT TESTS: "+xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) {
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, "IBM changes deleted")
+        } else {
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("org.not.found", "IBM"))
+        }
+        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+          ApiResponse(ApiResponseType.INTERNAL_ERROR, "IBM org changes not deleted: " + t.toString)
+      }
+    })
+
   })
 
 }

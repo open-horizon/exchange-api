@@ -3,6 +3,7 @@ package com.horizon.exchangeapi.tables
 import com.horizon.exchangeapi.ApiJsonUtil
 import org.json4s._
 import ExchangePostgresProfile.api._
+import slick.lifted.ProvenShape
 //import org.json4s.jackson.Serialization.read
 //import ExchangePostgresProfile.jsonMethods._
 
@@ -73,3 +74,70 @@ class Org(var orgType: String, var label: String, var description: String, var l
   //def copy = new Org(orgType, label, description, lastUpdated)
 }
 
+/** Contains the object representations of the DB tables related to resource changes. */
+case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  def toResourceChange: ResourceChange = {
+    new ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)
+  }
+
+  // update returns a DB action to update this row
+  def update: DBIO[_] = (for { m <- ResourceChangesTQ.rows if m.changeId === changeId} yield m).update(this)
+
+  // insert returns a DB action to insert this row
+  def insert: DBIO[_] = ResourceChangesTQ.rows += this
+
+  // Returns a DB action to insert or update this row
+  def upsert: DBIO[_] = ResourceChangesTQ.rows.insertOrUpdate(this)
+}
+
+/** Mapping of the orgs db table to a scala class */
+class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcechanges") {
+  def changeId = column[Int]("changeid", O.PrimaryKey, O.AutoInc)
+  def orgId = column[String]("orgid")
+  def id = column[String]("id")
+  def category = column[String]("category")
+  def public = column[String]("public")
+  def resource = column[String]("resource")
+  def operation = column[String]("operation")
+  def lastUpdated = column[String]("lastupdated")
+  // this describes what you get back when you return rows from a query
+  def * = (changeId, orgId, id, category, public, resource, operation, lastUpdated) <> (ResourceChangeRow.tupled, ResourceChangeRow.unapply)
+  def orgidKey = foreignKey("orgid_fk", orgId, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+
+}
+
+// Instance to access the orgs table
+object ResourceChangesTQ {
+  val rows = TableQuery[ResourceChanges]
+
+  def getChangeId(changeid: Int) = rows.filter(_.changeId === changeid).map(_.changeId)
+  def getOrgid(changeid: Int) = rows.filter(_.changeId === changeid).map(_.orgId)
+  def getId(changeid: Int) = rows.filter(_.changeId === changeid).map(_.id)
+  def getCategory(changeid: Int) = rows.filter(_.changeId === changeid).map(_.category)
+  def getPublic(changeid: Int) = rows.filter(_.changeId === changeid).map(_.public)
+  def getResource(changeid: Int) = rows.filter(_.changeId === changeid).map(_.resource)
+  def getOperation(changeid: Int) = rows.filter(_.changeId === changeid).map(_.operation)
+  def getLastUpdated(changeid: Int) = rows.filter(_.changeId === changeid).map(_.lastUpdated)
+
+  /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
+  def getAttribute(changeid: Int, attrName: String): Query[_,_,Seq] = {
+    val filter = rows.filter(_.changeId === changeid)
+    // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
+    return attrName match {
+      case "changeId" => filter.map(_.changeId)
+      case "orgId" => filter.map(_.orgId)
+      case "id" => filter.map(_.id)
+      case "category" => filter.map(_.category)
+      case "public" => filter.map(_.public)
+      case "resource" => filter.map(_.resource)
+      case "operation" => filter.map(_.operation)
+      case "lastUpdated" => filter.map(_.lastUpdated)
+      case _ => null
+    }
+  }
+}
+
+class ResourceChange(var changeId: Int, var orgId: String, var id: String, var category: String, var public: String, var resource: String, var operation: String, var lastUpdated: String) {
+}

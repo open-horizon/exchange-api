@@ -307,8 +307,17 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.buspols", maxBusinessPolicies) )).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          val policyChange = ResourceChangeRow(0, orgid, bareBusinessPolicy, "policy", "false", "policy", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+          policyChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) => if (owner != "") AuthCache.putBusinessOwner(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
           AuthCache.putBusinessIsPublic(businessPolicy, isPublic = false)
@@ -375,22 +384,34 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("PUT /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+xs.toString)
       xs match {
         case Success(n) => try {
-            val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
-            if (numUpdated > 0) {
-              if (owner != "") AuthCache.putBusinessOwner(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
-              AuthCache.putBusinessIsPublic(businessPolicy, isPublic = false)
-              resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.updated"))
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))
-            }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("buspol.not.updated", businessPolicy, e)) }    // the specific exception is NumberFormatException
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
+          if (numUpdated > 0) {
+            if (owner != "") AuthCache.putBusinessOwner(businessPolicy, owner) // currently only users are allowed to update business policy resources, so owner should never be blank
+            AuthCache.putBusinessIsPublic(businessPolicy, isPublic = false)
+            val policyChange = ResourceChangeRow(0, orgid, bareBusinessPolicy, "policy", "false", "policy", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+            policyChange.insert.asTry
+          } else {
+            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))).asTry
+          }
+        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("buspol.not.updated", businessPolicy, e))).asTry} // the specific exception is NumberFormatException
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          resp.setStatus(HttpCode.PUT_OK)
+            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.updated"))
+        case Failure(t: DBProcessingError) =>
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))
+        case Failure(t) =>
+          resp.setStatus(HttpCode.BAD_INPUT)
           ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("buspol.not.updated", businessPolicy, t.getMessage))
       }
     })
@@ -450,19 +471,35 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("PATCH /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+xs.toString)
       xs match {
-        case Success(v) => try {
-            val numUpdated = v.toString.toInt     // v comes to us as type Any
-            if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.attribute.updated", attrName, businessPolicy))
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))
-            }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e)) }
+        case Success(n) => try {
+          val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
+          if (numUpdated > 0) {  // there were no db errors, but determine if it actually found it or not
+            val policyChange = ResourceChangeRow(0, orgid, bareBusinessPolicy, "policy", "false", "policy", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+            policyChange.insert.asTry
+          } else {
+            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))).asTry
+          }
+        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e))).asTry}
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("PATCH /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.attribute.updated", attrName, businessPolicy))
+        case Failure(t:DBProcessingError) =>
+          if (t.httpCode == HttpCode.NOT_FOUND) {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))
+          } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, t.getMessage)
+          }
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
           ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("buspol.not.updated", businessPolicy, t.getMessage))
       }
@@ -490,18 +527,29 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     authenticate().authorizeTo(TBusiness(businessPolicy),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
-    db.run(BusinessPoliciesTQ.getBusinessPolicy(businessPolicy).delete.transactionally.asTry).map({ xs =>
+    db.run(BusinessPoliciesTQ.getBusinessPolicy(businessPolicy).delete.transactionally.asTry.flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.removeBusinessOwner(businessPolicy)
-            AuthCache.removeBusinessIsPublic(businessPolicy)
-            resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("business.policy.deleted"))
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))
-          }
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          AuthCache.removeBusinessOwner(businessPolicy)
+          AuthCache.removeBusinessIsPublic(businessPolicy)
+          val policyChange = ResourceChangeRow(0, orgid, bareBusinessPolicy, "policy", "false", "policy", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          policyChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(v) =>
+          resp.setStatus(HttpCode.DELETED)
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("business.policy.deleted"))
+        case Failure(t: DBProcessingError) =>
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("business.policy.not.deleted", businessPolicy, t.toString))
       }

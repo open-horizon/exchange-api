@@ -76,6 +76,8 @@ class AgbotsSuite extends FunSuite {
   val nodeId = "mynode"
   val nodeToken = nodeId+"tok"
   val NODEAUTH = ("Authorization","Basic "+authpref+nodeId+":"+nodeToken)
+  val maxRecords = 10000
+  val secondsAgo = 120
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -159,6 +161,17 @@ class AgbotsSuite extends FunSuite {
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " was created and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED)}))
   }
 
   /** Update normal agbot as user */
@@ -266,6 +279,17 @@ class AgbotsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
     */
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " was updated and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.MODIFIED)}))
   }
 
   test("PATCH /orgs/"+orgid+"/agbots/"+agbotId+" - as agbot -- invalid input") {
@@ -424,6 +448,17 @@ class AgbotsSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK)
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " patterns was added and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "agbotpatterns")}))
+  }
+
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - already exists, should get 409") {
     val input = PostAgbotPatternRequest(orgid, pattern, None)
     val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -485,6 +520,17 @@ class AgbotsSuite extends FunSuite {
     assert(response.code === HttpCode.DELETED)
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " patterns was deleted and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotpatterns")}))
+  }
+
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/patterns/"+orgid2+"_*_"+orgid+" - delete wildcard pattern") {
     val response = Http(URL+"/agbots/"+agbotId+"/patterns/"+orgid2+"_*_"+orgid).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -505,6 +551,17 @@ class AgbotsSuite extends FunSuite {
     val response = Http(URL+"/agbots/"+agbotId+"/patterns").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " all patterns were deleted and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotpatterns")}))
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - as agbot - should be all gone") {
@@ -531,6 +588,17 @@ class AgbotsSuite extends FunSuite {
     val response = Http(URL+"/agbots/"+agbotId+"/businesspols").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " businesspols was added and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "agbotbusinesspols")}))
   }
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - already exists, should get 409") {
@@ -593,6 +661,17 @@ class AgbotsSuite extends FunSuite {
     assert(response.code === HttpCode.DELETED)
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " businesspols was deleted and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotbusinesspols")}))
+  }
+
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as agbot - should be 1 less") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/businesspols").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
@@ -607,6 +686,17 @@ class AgbotsSuite extends FunSuite {
     val response = Http(URL+"/agbots/"+agbotId+"/businesspols").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " all businesspols were deleted and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotbusinesspols")}))
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as agbot - should be all gone") {
@@ -665,6 +755,17 @@ class AgbotsSuite extends FunSuite {
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " agreement was added and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "agbotagreements")}))
   }
 
   /** Update an agreement for agbot 9930 - as the agbot */
@@ -794,6 +895,17 @@ class AgbotsSuite extends FunSuite {
     assert(response.code === HttpCode.DELETED)
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " agreement was deleted and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotagreements")}))
+  }
+
   /** Confirm 1 agreement was deleted */
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/agreements - as agbot, confirm 1 gone") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/agreements").headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -808,6 +920,17 @@ class AgbotsSuite extends FunSuite {
     val response = Http(URL+"/agbots/"+agbotId+"/agreements").method("delete").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("DELETE "+agreementId+", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " all agreements were deleted and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotagreements")}))
   }
 
   /** Confirm all agreements were deleted */
@@ -859,6 +982,17 @@ class AgbotsSuite extends FunSuite {
     assert(response.code === HttpCode.NOT_FOUND)
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " was deleted and stored") {
+    val time = ApiTime.pastUTC(60)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbot")}))
+  }
+
   // Note: testing of msgs is in NodesSuite.scala
 
   /** Clean up, delete all the test agbots */
@@ -866,6 +1000,18 @@ class AgbotsSuite extends FunSuite {
     // deleteAllAgreements   <- these now get deleted when the user is deleted
     // deleteAllAgbots
     deleteAllUsers()
+  }
+
+  test("DELETE IBM changes") {
+    val ibmAgbotAuth = sys.env.getOrElse("EXCHANGE_AGBOTAUTH", "")
+    if(ibmAgbotAuth != ""){
+      val ibmAgbotId = """^[^:]+""".r.findFirstIn(ibmAgbotAuth).getOrElse("")     // get the id before the :
+      val res = List(ibmAgbotId)
+      val input = DeleteIBMChangesRequest(res)
+      val response = Http(urlRoot+"/v1/orgs/IBM/changes/cleanup").postData(write(input)).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED)
+    }
   }
 
   /** Delete the org we used for this test */

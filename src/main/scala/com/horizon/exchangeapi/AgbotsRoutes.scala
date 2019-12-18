@@ -245,8 +245,17 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         action.asTry
       }
       else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.of.agbots", maxAgbots) )).asTry
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) => AuthCache.putAgbotAndOwner(compositeId, hashedTok, agbot.token, owner)
           //AuthCache.ids.putAgbot(compositeId, hashedTok, agbot.token)
@@ -295,21 +304,36 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val hashedTok = if (agbot.token.isDefined) Password.hash(agbot.token.get) else ""    // hash the token if that is what is being updated
     val (action, attrName) = agbot.getDbUpdate(compositeId, orgid, hashedTok)
     if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.agbot.attribute.specified")))
-    db.run(action.transactionally.asTry).map({ xs =>
+    db.run(action.transactionally.asTry.flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("PATCH /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
       xs match {
         case Success(v) => try {
-            val numUpdated = v.toString.toInt     // v comes to us as type Any
-            if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              if (agbot.token.isDefined) AuthCache.putAgbot(compositeId, hashedTok, agbot.token.get)  // We do not need to run putOwner because patch does not change the owner
-              //AuthCache.ids.putAgbot(compositeId, hashedTok, agbot.token.get)
-              resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.attribute.updated", attrName, compositeId))
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))
-            }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e)) }
+          val numUpdated = v.toString.toInt // v comes to us as type Any
+          if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
+            if (agbot.token.isDefined) AuthCache.putAgbot(compositeId, hashedTok, agbot.token.get) // We do not need to run putOwner because patch does not change the owner
+            val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+            agbotChange.insert.asTry
+          } else {
+            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))).asTry
+          }
+        } catch { case e: Exception => DBIO.failed( new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e))) }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("PATCH /orgs/"+orgid+"/agbots/"+id+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          //AuthCache.ids.putAgbot(compositeId, hashedTok, agbot.token.get)
+          resp.setStatus(HttpCode.PUT_OK)
+          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.attribute.updated", attrName, compositeId))
+        case Failure(t: DBProcessingError) =>
+          if (t.httpCode == HttpCode.NOT_FOUND) {
+            resp.setStatus(HttpCode.NOT_FOUND)
+            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))
+          } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
+            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            ApiResponse(ApiResponseType.INTERNAL_ERROR, t.getMessage) }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.not.inserted.or.updated", compositeId, t.toString))
       }
@@ -336,19 +360,30 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     // remove does *not* throw an exception if the key does not exist
     val resp = response
-    db.run(AgbotsTQ.getAgbot(compositeId).delete.transactionally.asTry).map({ xs =>
+    db.run(AgbotsTQ.getAgbot(compositeId).delete.transactionally.asTry.flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            AuthCache.removeAgbotAndOwner(compositeId)
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          AuthCache.removeAgbotAndOwner(compositeId)
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /orgs/"+orgid+"/agbots/"+id+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
             //AuthCache.ids.removeOne(compositeId)
             //AuthCache.agbotsOwner.removeOne(compositeId)
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.deleted"))
-          } else {
+        case Failure(t: DBProcessingError) =>
             resp.setStatus(HttpCode.NOT_FOUND)
             ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))
-          }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.not.deleted", compositeId, t.toString))
         }
@@ -495,8 +530,17 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("pattern.not.in.exchange"))).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/patterns result: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotpatterns", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/patterns updated in changes table: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.added", patId))
@@ -533,16 +577,27 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val compositeId = OrgAndId(orgid,id).toString
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
-    db.run(AgbotPatternsTQ.getPatterns(compositeId).delete.asTry).map({ xs =>
+    db.run(AgbotPatternsTQ.getPatterns(compositeId).delete.asTry.flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /agbots/"+id+"/patterns result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotpatterns", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("patterns.not.found", compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/patterns updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("patterns.deleted"))
-          } else {
+        case Failure(t: DBProcessingError) =>
             resp.setStatus(HttpCode.NOT_FOUND)
             ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("patterns.not.found", compositeId))
-          }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("patterns.not.deleted", compositeId, t.toString))
         }
@@ -570,16 +625,27 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val patId = params("patid")
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
-    db.run(AgbotPatternsTQ.getPattern(compositeId,patId).delete.asTry).map({ xs =>
+    db.run(AgbotPatternsTQ.getPattern(compositeId,patId).delete.asTry.flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /agbots/"+id+"/patterns/"+patId+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotpatterns", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.not.found", patId, compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/patterns/"+patId+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.pattern.deleted"))
-          } else {
+        case Failure(t: DBProcessingError) =>
             resp.setStatus(HttpCode.NOT_FOUND)
             ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.not.found", patId, compositeId))
-          }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("pattern.not.deleted", patId, compositeId, t.toString))
         }
@@ -691,8 +757,17 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("buspol.not.in.exchange"))).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/businesspols result: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotbusinesspols", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/businesspols updated in changes table: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.added", busPolId))
@@ -729,16 +804,27 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val compositeId = OrgAndId(orgid,id).toString
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
-    db.run(AgbotBusinessPolsTQ.getBusinessPols(compositeId).delete.asTry).map({ xs =>
+    db.run(AgbotBusinessPolsTQ.getBusinessPols(compositeId).delete.asTry.flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /agbots/"+id+"/businesspols result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotbusinesspols", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("buspols.not.found", compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/businesspols updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
           resp.setStatus(HttpCode.DELETED)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspols.deleted"))
-        } else {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("buspols.not.found", compositeId))
-        }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("buspols.not.deleted", compositeId, t.toString))
       }
@@ -766,16 +852,27 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val busPolId = params("buspolid")
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
-    db.run(AgbotBusinessPolsTQ.getBusinessPol(compositeId,busPolId).delete.asTry).map({ xs =>
+    db.run(AgbotBusinessPolsTQ.getBusinessPol(compositeId,busPolId).delete.asTry.flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /agbots/"+id+"/businesspols/"+busPolId+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotbusinesspols", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("buspol.not.found", busPolId, compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/businesspols/"+busPolId+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
           resp.setStatus(HttpCode.DELETED)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.deleted"))
-        } else {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("buspol.not.found", busPolId, compositeId))
-        }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("buspol.not.deleted", busPolId, compositeId, t.toString))
       }
@@ -881,8 +978,17 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
         agreement.toAgbotAgreementRow(compositeId, agrId).upsert.asTry
       }
       else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.of.agreements", maxAgreements) )).asTry
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
+      xs match {
+        case Success(_) =>
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotagreements", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agreement.added.or.updated"))
@@ -915,16 +1021,27 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val compositeId = OrgAndId(orgid,id).toString
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
-    db.run(AgbotAgreementsTQ.getAgreements(compositeId).delete.asTry).map({ xs =>
+    db.run(AgbotAgreementsTQ.getAgreements(compositeId).delete.asTry.flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /agbots/"+id+"/agreements result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.agreements.found.for.agbot", compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/agreements updated in changes table: "+xs.toString)
+      xs match {
+        case Success(v) =>
           resp.setStatus(HttpCode.DELETED)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.agreements.deleted"))
-        } else {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.agreements.found.for.agbot", compositeId))
-        }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.agreements.not.deleted", compositeId, t.toString))
       }
@@ -952,16 +1069,27 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val agrId = params("agid")
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
-    db.run(AgbotAgreementsTQ.getAgreement(compositeId,agrId).delete.asTry).map({ xs =>
+    db.run(AgbotAgreementsTQ.getAgreement(compositeId,agrId).delete.asTry.flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agreement.for.agbot.not.found", agrId, compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/agreements/"+agrId+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(v) =>
           resp.setStatus(HttpCode.DELETED)
           ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.agreement.deleted"))
-        } else {
+        case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
           ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agreement.for.agbot.not.found", agrId, compositeId))
-        }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agreement.for.agbot.not.deleted", agrId, compositeId, t.toString))
       }
@@ -1160,6 +1288,7 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
     val compositeId = OrgAndId(orgid,id).toString
     val ident = authenticate().authorizeTo(TAgbot(compositeId),Access.SEND_MSG_TO_AGBOT)
     val nodeId = ident.creds.id      //todo: handle the case where the acls allow users to send msgs
+    var msgNum = ""
     val msg = try { parse(request.body).extract[PostAgbotsMsgsRequest] }
     catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
     val resp = response
@@ -1181,11 +1310,21 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
           else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("agbot.message.invalid.input"))).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("POST /orgs/{orgid}/agbots/"+id+"/msgs write row result: "+xs.toString)
       xs match {
-        case Success(v) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "agbot msg "+v+" inserted")
+        case Success(v) =>
+          msgNum = v.toString
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotmsgs", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("POST /orgs/{orgid}/agbots/"+id+"/msgs updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) => resp.setStatus(HttpCode.POST_OK)
+          ApiResponse(ApiResponseType.OK, "agbot msg "+msgNum+" inserted")
         case Failure(t: DBProcessingError) => if(t.httpCode == HttpCode.BAD_INPUT) {
             resp.setStatus(HttpCode.BAD_INPUT)
             ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, ExchangeMessage.translateMessage("agbot.message.invalid.input")))
@@ -1261,16 +1400,27 @@ trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport w
 
     authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
     val resp = response
-    db.run(AgbotMsgsTQ.getMsg(compositeId,msgId).delete.asTry).map({ xs =>
+    db.run(AgbotMsgsTQ.getMsg(compositeId,msgId).delete.asTry.flatMap({ xs =>
+      // Add the resource to the resourcechanges table
       logger.debug("DELETE /agbots/"+id+"/msgs/"+msgId+" result: "+xs.toString)
       xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotmsgs", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+          agbotChange.insert.asTry
+        } else {
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.message.not.found", msgId, compositeId))).asTry
+        }
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    })).map({ xs =>
+      logger.debug("DELETE /agbots/"+id+"/msgs/"+msgId+" updated in changes table: "+xs.toString)
+      xs match {
+        case Success(_) =>
             resp.setStatus(HttpCode.DELETED)
             ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.message.deleted"))
-          } else {
+        case Failure(t: DBProcessingError) =>
             resp.setStatus(HttpCode.NOT_FOUND)
             ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.message.not.found", msgId, compositeId))
-          }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.message.not.deleted", msgId, compositeId, t.toString))
         }

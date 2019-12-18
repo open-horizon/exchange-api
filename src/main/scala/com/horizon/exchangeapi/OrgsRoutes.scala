@@ -1,6 +1,7 @@
 /** Services routes for all of the /orgs api methods. */
 package com.horizon.exchangeapi
 
+import com.horizon.exchangeapi.auth.DBProcessingError
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
@@ -11,8 +12,10 @@ import org.slf4j._
 import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 
 import scala.collection.immutable._
-import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
+import scala.concurrent.Future
 import scala.util._
+import scala.util.control.Breaks._
 //import java.net._
 
 //====== These are the input and output structures for /orgs routes. Swagger and/or json seem to require they be outside the trait.
@@ -62,7 +65,17 @@ case class PatchOrgRequest(orgType: Option[String], label: Option[String], descr
   }
 }
 
+/** Case class for request body for ResourceChanges route */
+case class ResourceChangesRequest(changeId: Int, lastUpdated: Option[String], maxRecords: Int, ibmAgbot: Option[Boolean]){}
 
+/** The following classes are to build the response object for the ResourceChanges route */
+case class ResourceChangesInnerObject(changeId: Int, lastUpdated: String)
+case class ChangeEntry(orgId: String, var resource: String, id: String, var operation: String, resourceChanges: ListBuffer[ResourceChangesInnerObject]){
+  def addToResourceChanges(innerObject: ResourceChangesInnerObject): ListBuffer[ResourceChangesInnerObject] = { this.resourceChanges += innerObject}
+  def setOperation(newOp: String) {this.operation = newOp}
+  def setResource(newResource: String) {this.resource = newResource}
+}
+case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, exchangeVersion: String)
 
 /** Implementation for all of the /orgs routes */
 trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
@@ -333,6 +346,148 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
           }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("org.not.deleted", orgId, t.toString))
+      }
+    })
+  })
+
+  def buildResourceChangesResponse(orgList: scala.Seq[(Int, String, String, String, String, String, String, String)], ibmList: scala.Seq[(Int, String, String, String, String, String, String, String)], maxResp : Int): ResourceChangesRespObject ={
+    val exchangeVersion = ExchangeApiAppMethods.adminVersion()
+    val inputList = List(orgList, ibmList)
+    val changesList = ListBuffer[ChangeEntry]()
+    var mostRecentChangeId = 0
+    var entryCounter = 0
+    breakable {
+      for(input <- inputList) { //this for loop should only ever be of size 2
+        val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
+        for( entry <- input) {
+          /*
+          Example of what entry might look like
+            {
+              "_1":167,   --> changeId
+              "_2":"org2",    --> orgID
+              "_3":"resourcetest",    --> id
+              "_4":"node",    --> category
+              "_5":"false",   --> public
+              "_6":"node",    --> resource
+              "_7":"created/modified",  --> operation
+              "_8":"2019-12-12T19:28:05.309Z[UTC]",   --> lastUpdated
+            }
+           */
+          val resChange = ResourceChangesInnerObject(entry._1, entry._8)
+          if(changesMap.isDefinedAt(entry._3)){  // using the map allows for better searching and entry
+            if(changesMap(entry._3).resourceChanges.last.changeId < entry._1){
+              // the entry we are looking at actually happened later than the last entry in resourceChanges
+              // doing this check by changeId on the off chance two changes happen at the exact same time changeId tells which one is most updated
+              changesMap(entry._3).addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
+              changesMap(entry._3).setOperation(entry._7) // update the most recent operation performed
+              changesMap(entry._3).setResource(entry._6) // update exactly what resource was most recently touched
+            }
+          } else{
+            val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
+            changesMap(entry._3) = ChangeEntry(entry._2, entry._6, entry._3, entry._7, resChangeListBuffer)
+          }
+        }
+        // convert changesMap to ListBuffer[ChangeEntry]
+        breakable {
+          for (entry <- changesMap) {
+            if (entryCounter > maxResp) break // if we are over the count of allowed entries just stop and go to outer loop
+            changesList += entry._2 // if we are not just continue adding to the changesList
+            if (mostRecentChangeId < entry._2.resourceChanges.last.changeId) { mostRecentChangeId = entry._2.resourceChanges.last.changeId } //set the mostRecentChangeId value
+            entryCounter += 1 // increment our count of how many entries there are in changesList
+          }
+        }
+        if (entryCounter > maxResp) break // if we are over the count of allowed entries just stop and return the list as is
+      }
+    }
+    ResourceChangesRespObject(changesList.toList, mostRecentChangeId, exchangeVersion)
+  }
+
+  /* ====== POST /orgs/{orgid}/changes ================================ */
+  val orgChanges =
+    (apiOperation[GetOrgsResponse]("orgChanges")
+      summary("Returns recent changes per org")
+      description(
+      """Returns all the recent resource changes within an org that the caller has permissions to view. The **request body** structure:
+        |{
+        |  "changeId": <number-here>,
+        |  "lastUpdated": "<time-here>", --> optional field, only important if the caller doesn't know what changeId to use
+        |  "maxRecords": <number-here>, --> the maximum number of records the caller wants returned to them, NOT optional
+        |}
+        |""".stripMargin)
+      parameters(
+      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
+      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
+      Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire org resource will be returned."), paramType=ParamType.Query, required=false)
+    )
+      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
+      )
+
+  post("/orgs/:orgid/changes", operation(orgChanges)) ({
+    val orgId = params("orgid")
+    val ident = authenticate().authorizeTo(TOrg(orgId),Access.READ)
+    val resp = response
+    val resourceRequest = try { parse(request.body).extract[ResourceChangesRequest] }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    // Variables to help with building the query
+    val lastTime = resourceRequest.lastUpdated.getOrElse(ApiTime.beginningUTC)
+    val qOrg = for {
+      r <- ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.lastUpdated >= lastTime).filter(_.changeId >= resourceRequest.changeId)
+    } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
+
+    val qIBM = for {
+      r <- ResourceChangesTQ.rows.filter(_.orgId === "IBM").filter(_.public === "true").filter(_.lastUpdated >= lastTime).filter(_.changeId >= resourceRequest.changeId)
+    } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
+
+    var qOrgResp : scala.Seq[(Int, String, String, String, String, String, String, String)] = null
+    var qIBMResp : scala.Seq[(Int, String, String, String, String, String, String, String)] = null
+
+    db.run(qOrg.result.asTry.flatMap({ xs =>
+      // Check if pattern exists, then get services referenced
+      /*TODO: Decide if we want to keep this log statement, it can get pretty long, maybe log size?*/
+      logger.debug("POST /orgs/" + orgId + "/changes changes in caller org: " + xs.toString)
+      xs match {
+        case Success(qOrgResult) =>
+          qOrgResp = qOrgResult
+          qIBM.result.asTry
+        case Failure(t) => DBIO.failed(t).asTry
+      }
+    }).flatMap({ xs =>
+      // Check if referenced services exist, then get whether node is using policy
+      /*TODO: Decide if we want to keep this log statement, it can get pretty long*/
+    logger.debug("POST /orgs/" + orgId + "/changes public changes in IBM org: " + xs.toString)
+      xs match {
+        case Success(qIBMResult) => qIBMResp = qIBMResult
+          val id = orgId + "/" + ident.getIdentity
+          ident match {
+            case _: INode =>
+              NodesTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry
+            case _: IAgbot =>
+              AgbotsTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry
+            case _ =>
+              // Caller isn't a node or agbot so no need to heartbeat, just send a success in this step
+              // v in the next step must be > 0 so any n > 0 works
+              DBIO.successful(1).asTry
+          }
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      // Check creation/update of node, and other errors
+      logger.debug("POST /orgs/" + orgId + "/changes updating heartbeat if applicable: " + xs.toString)
+      xs match {
+        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
+          // heartbeat worked
+          resp.setStatus(HttpCode.POST_OK)
+          // function here to format output
+          write(buildResourceChangesResponse(qOrgResp, qIBMResp, resourceRequest.maxRecords))
+        } else {
+          // heartbeat failed
+          resp.setStatus(HttpCode.NOT_FOUND)
+          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.or.agbot.not.found", ident.getIdentity))
+        }
+        case Failure(t) =>
+          resp.setStatus(HttpCode.BAD_INPUT)
+          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", t.getMessage))
       }
     })
   })

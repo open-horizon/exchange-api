@@ -1,57 +1,64 @@
 package com.horizon.exchangeapi.auth
 
-import com.horizon.exchangeapi.{ApiResponseType, ExchangeMessage, HttpCode}
-import javax.security.auth.login.{FailedLoginException, LoginException}
+import akka.http.scaladsl.model.StatusCode
+import com.horizon.exchangeapi.{ ApiRespType, ExchMsg, HttpCode }
+import javax.security.auth.login.{ FailedLoginException, LoginException }
 
-//
-class AuthException(var httpCode: Int, var apiResponse: String, msg: String) extends LoginException(msg)
+// Base class for all of the exchange authentication and authorization failures
+class AuthException(var httpCode: StatusCode, var apiResponse: String, msg: String) extends LoginException(msg)
 
 // Auth errors we need to report to the user, like the creds looked like an ibm cloud cred, but their org didnt point to a cloud acct
-class UserFacingError(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
+class UserFacingError(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 
 // Error class to use to define specific error responses from problems happening in DB threads
 class DBProcessingError(httpCode: Int, apiResponse: String, msg: String) extends AuthException(httpCode, apiResponse, msg)
 
 // Only used internally: The creds werent ibm cloud creds, so return gracefully and move on to the next login module
-class NotIbmCredsException extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, "not IBM cloud credentials")
+class NotIbmCredsException extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, "not IBM cloud credentials")
 
 // The creds werent local exchange creds, so return gracefully and move on to the next login module
-class NotLocalCredsException extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, "User is iamapikey or iamtoken, so credentials are not local Exchange credentials")
+class NotLocalCredsException extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, "User is iamapikey or iamtoken, so credentials are not local Exchange credentials")
 
 // We are in the middle of a db migration, so cant authenticate/authorize anything else
-class IsDbMigrationException(msg: String = ExchangeMessage.translateMessage("in.process.db.migration")) extends AuthException(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, msg)
+class IsDbMigrationException(msg: String = ExchMsg.translate("in.process.db.migration")) extends AuthException(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, msg)
 
 // Exceptions for handling DB connection errors
-class DbTimeoutException(msg: String) extends AuthException(HttpCode.GW_TIMEOUT, ApiResponseType.GW_TIMEOUT, msg)
-class DbConnectionException(msg: String) extends AuthException(HttpCode.BAD_GW, ApiResponseType.BAD_GW, msg)
+class DbTimeoutException(msg: String) extends AuthException(HttpCode.GW_TIMEOUT, ApiRespType.GW_TIMEOUT, msg)
+class DbConnectionException(msg: String) extends AuthException(HttpCode.BAD_GW, ApiRespType.BAD_GW, msg)
 
-class InvalidCredentialsException(msg: String = ExchangeMessage.translateMessage("invalid.credentials")) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
+class InvalidCredentialsException(msg: String = ExchMsg.translate("invalid.credentials")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 
-class UserCreateException(msg: String = ExchangeMessage.translateMessage("error.creating.user.noargs")) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
+class AccessDeniedException(msg: String = ExchMsg.translate("access.denied")) extends AuthException(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, msg)
+
+class BadInputException(msg: String = ExchMsg.translate("bad.input")) extends AuthException(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, msg)
+
+class NotFoundException(msg: String = ExchMsg.translate("not.found")) extends AuthException(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, msg)
+
+class UserCreateException(msg: String = ExchMsg.translate("error.creating.user.noargs")) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
 
 // The IAM token we were given was expired, or some similar problem
-class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
+class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 
 // The keyword specified was for icp, but not in an icp environment (or vice versa)
-class IamApiErrorException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiResponseType.BADCREDS, msg)
+class IamApiErrorException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 
 // An error occurred while building the SSLSocketFactory with the self-signed cert
-class SelfSignedCertException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
+class SelfSignedCertException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
 
 // Only used internally: The local exchange id was not found in the db
-class IdNotFoundException extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, "id not found")
+class IdNotFoundException extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, "id not found")
 
-class AuthInternalErrorException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, msg)
+class AuthInternalErrorException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
 
 object AuthErrors {
-  def message(t: Throwable): (Int, String, String) = {
+  def message(t: Throwable): (StatusCode, String, String) = {
     t match {
       case t: AuthException => (t.httpCode, t.apiResponse, t.getMessage)
       // This is a catch all that probably doesnt get thrown
-      case t: FailedLoginException => (HttpCode.BADCREDS, ApiResponseType.BADCREDS, t.getMessage)
+      case t: FailedLoginException => (HttpCode.BADCREDS, ApiRespType.BADCREDS, t.getMessage)
       // Should not get here
-      case t: Throwable => (HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, t.toString)
-      case _ => (HttpCode.BADCREDS, ApiResponseType.BADCREDS, ExchangeMessage.translateMessage("unknown.error.invalid.creds"))
+      case t: Throwable => (HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, t.toString)
+      case _ => (HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("unknown.error.invalid.creds"))
     }
   }
 }

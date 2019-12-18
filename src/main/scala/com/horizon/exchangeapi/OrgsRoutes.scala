@@ -1,57 +1,82 @@
 /** Services routes for all of the /orgs api methods. */
 package com.horizon.exchangeapi
 
-import com.horizon.exchangeapi.auth.DBProcessingError
+import javax.ws.rs._ // this does not have the PATCH method
+import akka.actor.ActorSystem
+import akka.event.{ Logging, LoggingAdapter }
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+
+// Not using the built-in spray json
+//import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+//import spray.json.DefaultJsonProtocol
+//import spray.json._
+
+import de.heikoseeberger.akkahttpjackson._
 import org.json4s._
-import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization.write
+//import org.json4s.jackson.JsonMethods._
+
+import io.swagger.v3.oas.annotations.parameters.RequestBody
+import io.swagger.v3.oas.annotations.enums.ParameterIn
+import io.swagger.v3.oas.annotations.media.{ Content, Schema }
+//import io.swagger.v3.oas.annotations.responses.ApiResponse
+//import io.swagger.v3.oas.annotations.{ Operation, Parameter }
+import io.swagger.v3.oas.annotations._
+//import io.swagger.v3.jaxrs2   // this also does not have the PATCH method
+
 import com.horizon.exchangeapi.tables._
-import org.scalatra._
-import org.scalatra.swagger._
-import org.slf4j._
 import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 
 import scala.collection.immutable._
-import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
-import scala.concurrent.Future
 import scala.util._
-import scala.util.control.Breaks._
-//import java.net._
+//import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
-//====== These are the input and output structures for /orgs routes. Swagger and/or json seem to require they be outside the trait.
+/* when using actors
+import akka.actor.{ ActorRef, ActorSystem }
+import scala.concurrent.duration._
+import com.horizon.exchangeapi.OrgsActor._
+import akka.pattern.ask
+import akka.util.Timeout
+import scala.concurrent.ExecutionContext
+*/
+
+// Note: These are the input and output structures for /orgs routes. Swagger and/or json seem to require they be outside the trait.
 
 /** Output format for GET /orgs */
-case class GetOrgsResponse(orgs: Map[String,Org], lastIndex: Int)
-case class GetOrgAttributeResponse(attribute: String, value: String)
+final case class GetOrgsResponse(orgs: Map[String, Org], lastIndex: Int)
+final case class GetOrgAttributeResponse(attribute: String, value: String)
 
 /** Input format for PUT /orgs/<org-id> */
-case class PostPutOrgRequest(orgType: Option[String], label: String, description: String, tags: Option[Map[String, String]]) {
+final case class PostPutOrgRequest(orgType: Option[String], label: String, description: String, tags: Option[Map[String, String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = {}
+  def getAnyProblem: Option[String] = None // None means no problems with input
 
-  def toOrgRow(orgId: String) = OrgRow(orgId, orgType.getOrElse(""), label, description, ApiTime.nowUTC, tags.map(ts => ApiJsonUtil.asJValue(ts)))
+  def toOrgRow(orgId: String) = OrgRow(orgId, orgType.getOrElse(""), label, description, ApiTime.nowUTC, tags.map(ts => ApiUtil.asJValue(ts)))
 }
 
-case class PatchOrgRequest(orgType: Option[String], label: Option[String], description: Option[String], tags: Option[Map[String, Option[String]]]) {
-   protected implicit val jsonFormats: Formats = DefaultFormats
+final case class PatchOrgRequest(orgType: Option[String], label: Option[String], description: Option[String], tags: Option[Map[String, Option[String]]]) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
 
   /** Returns a tuple of the db action to update parts of the org, and the attribute name being updated. */
-  def getDbUpdate(orgId: String): (DBIO[_],String) = {
+  def getDbUpdate(orgId: String): (DBIO[_], String) = {
     import com.horizon.exchangeapi.tables.ExchangePostgresProfile.plainAPI._
     import scala.concurrent.ExecutionContext.Implicits.global
     val lastUpdated = ApiTime.nowUTC
     //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this org
-    orgType match { case Some(ot) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid,d.orgType,d.lastUpdated)).update((orgId, ot, lastUpdated)), "orgType"); case _ => ; }
-    label match { case Some(lab) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid,d.label,d.lastUpdated)).update((orgId, lab, lastUpdated)), "label"); case _ => ; }
-    description match { case Some(desc) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid,d.description,d.lastUpdated)).update((orgId, desc, lastUpdated)), "description"); case _ => ; }
+    orgType match { case Some(ot) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.orgType, d.lastUpdated)).update((orgId, ot, lastUpdated)), "orgType"); case _ => ; }
+    label match { case Some(lab) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.label, d.lastUpdated)).update((orgId, lab, lastUpdated)), "label"); case _ => ; }
+    description match { case Some(desc) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.description, d.lastUpdated)).update((orgId, desc, lastUpdated)), "description"); case _ => ; }
     tags match {
-      case Some(ts) => val (deletes, updates) = ts.partition {
-            case (_, v) => v.isEmpty
-          }
+      case Some(ts) =>
+        val (deletes, updates) = ts.partition {
+          case (_, v) => v.isEmpty
+        }
         val dbUpdates =
           if (updates.isEmpty) Seq()
-          else Seq(sqlu"update orgs set tags = coalesce(tags, '{}'::jsonb) || ${ApiJsonUtil.asJValue(updates)} where orgid = $orgId")
+          else Seq(sqlu"update orgs set tags = coalesce(tags, '{}'::jsonb) || ${ApiUtil.asJValue(updates)} where orgid = $orgId")
 
         val dbDeletes =
           for (tag <- deletes.keys.toSeq) yield {
@@ -65,118 +90,147 @@ case class PatchOrgRequest(orgType: Option[String], label: Option[String], descr
   }
 }
 
-/** Case class for request body for ResourceChanges route */
-case class ResourceChangesRequest(changeId: Int, lastUpdated: Option[String], maxRecords: Int, ibmAgbot: Option[Boolean]){}
+/** Routes for /orgs */
+@Path("/v1/orgs")
+class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport /* SprayJsonSupport with DefaultJsonProtocol */ with AuthenticationSupport {
+  // Tell spray how to marshal our types (models) to/from the rest client
+  // old way: protected implicit def jsonFormats: Formats
+  //import DefaultJsonProtocol._
+  // Note: it is important to use the immutable version of collections like Map
+  // Note: if you accidentally omit a class here, you may get a msg like: [error] /Users/bp/src/github.com/open-horizon/exchange-api/src/main/scala/com/horizon/exchangeapi/OrgsRoutes.scala:49:44: could not find implicit value for evidence parameter of type spray.json.DefaultJsonProtocol.JF[scala.collection.immutable.Seq[com.horizon.exchangeapi.TmpOrg]]
+  /* implicit val apiResponseJsonFormat = jsonFormat2(ApiResponse)
+  implicit val orgJsonFormat = jsonFormat5(Org)
+  implicit val getOrgsResponseJsonFormat = jsonFormat2(GetOrgsResponse)
+  implicit val getOrgAttributeResponseJsonFormat = jsonFormat2(GetOrgAttributeResponse)
+  implicit val postPutOrgRequestJsonFormat = jsonFormat4(PostPutOrgRequest) */
+  //implicit val actionPerformedJsonFormat = jsonFormat1(ActionPerformed)
 
-/** The following classes are to build the response object for the ResourceChanges route */
-case class ResourceChangesInnerObject(changeId: Int, lastUpdated: String)
-case class ChangeEntry(orgId: String, var resource: String, id: String, var operation: String, resourceChanges: ListBuffer[ResourceChangesInnerObject]){
-  def addToResourceChanges(innerObject: ResourceChangesInnerObject): ListBuffer[ResourceChangesInnerObject] = { this.resourceChanges += innerObject}
-  def setOperation(newOp: String) {this.operation = newOp}
-  def setResource(newResource: String) {this.resource = newResource}
-}
-case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, exchangeVersion: String)
+  def db: Database = ExchangeApiApp.getDb
+  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
 
-/** Implementation for all of the /orgs routes */
-trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
-  def db: Database      // get access to the db object in ExchangeApiApp
-  def logger: Logger    // get access to the logger object in ExchangeApiApp
-  protected implicit def jsonFormats: Formats
+  /* when using actors
+  implicit def system: ActorSystem
+  implicit val executionContext: ExecutionContext = context.system.dispatcher
+  val orgsActor: ActorRef = system.actorOf(OrgsActor.props, "orgsActor") // I think this will end up instantiating OrgsActor via the creator function that is part of props
+  logger.debug("OrgsActor created")
+  // Required by the `ask` (?) method below
+  implicit lazy val timeout = Timeout(5.seconds) //note: get this from the system's configuration
+  */
 
-  /* ====== GET /orgs ================================ */
-  val getOrgs =
-    (apiOperation[GetOrgsResponse]("getOrgs")
-      summary("Returns all orgs")
-      description("""Returns some or all org definitions in the exchange DB. Can be run by any user if filter orgType=IBM is used, otherwise can only be run by the root user.""")
-      parameters(
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("orgtype", DataType.String, Option[String]("Filter results to only include orgs with this org type. A common org type is 'IBM'."), paramType=ParamType.Query, required=false),
-        Parameter("label", DataType.String, Option[String]("Filter results to only include orgs with this label (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED, "access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+  // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
+  // Note: putting the orgs prefix here, because it might help performance by disqualifying all of these routes early
+  def routes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute
 
-  get("/orgs", operation(getOrgs)) ({
+  // ====== GET /orgs ================================
+
+  /* Akka-http Directives Notes:
+  * Directives reference: https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/alphabetically.html
+  * The path() directive gobbles up the rest of the url path (until the params at ?). So you can't have any other path directives after it (and path directives before it must be pathPrefix())
+  * Get variable parts of the route: ( get & pathPrefix("orgs") & path(Segment) ) { orgid=>
+  * Alternative to get variable parts of the route: path("orgs" / Segment) { orgid=>
+  * Get the request context: get { ctx => println(ctx.request.method.name)
+  * Get the request: extractRequest { request => println(request.headers.toString())
+  * Concatenate directive extractions: (path("order" / IntNumber) & get & extractMethod) { (id, m) =>
+  * For url query parameters, the single quote in scala means it is a symbol, the question mark means it's optional */
+
+  // Swagger annotation reference: https://github.com/swagger-api/swagger-core/wiki/Swagger-2.X---Annotations
+  // Note: i think these annotations can't have any comments between them and the method def
+  @GET
+  @Path("")
+  @Operation(summary = "Returns all orgs", description = """Returns some or all org definitions. Can be run by any user if filter orgType=IBM is used, otherwise can only be run by the root user.""",
+    parameters = Array(
+      new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this org type. A common org type is 'IBM'.",
+        content = Array(new Content(schema = new Schema(implementation = classOf[String], allowableValues = Array("IBM"))))),
+      new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this label (can include % for wildcard - the URL encoding for % is %25)")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetOrgsResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def orgsGetRoute: Route = (get & path("orgs") & parameter(('orgtype.?, 'label.?)) & extractCredentials) { (orgType, label, creds) =>
+    logger.debug(s"Doing GET /orgs with creds:$creds, orgType:$orgType, label:$label")
     // If filter is orgType=IBM then it is a different access required than reading all orgs
-    val access = if (params.get("orgtype").contains("IBM")) Access.READ_IBM_ORGS else Access.READ    // read all orgs
+    val access = if (orgType.getOrElse("").contains("IBM")) Access.READ_IBM_ORGS else Access.READ_OTHER_ORGS
+    auth(creds, TOrg("*"), access) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(identity) =>
+        validate(orgType.isEmpty || orgType.get == "IBM", ExchMsg.translate("org.get.orgtype")) {
+          complete({ // this is an anonymous function that returns Future[(StatusCode, GetOrgsResponse)]
+            logger.debug("GET /orgs identity: " + identity)
+            var q = OrgsTQ.rows.subquery
+            // If multiple filters are specified they are ANDed together by adding the next filter to the previous filter by using q.filter
+            orgType match {
+              case Some(oType) => if (oType.contains("%")) q = q.filter(_.orgType like oType) else q = q.filter(_.orgType === oType);
+              case _ => ;
+            }
+            label match {
+              case Some(lab) => if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab);
+              case _ => ;
+            }
 
-    authenticate().authorizeTo(TOrg("*"),access)
-    val resp = response
-    var q = OrgsTQ.rows.subquery
-    // If multiple filters are specified they are ANDed together by adding the next filter to the previous filter by using q.filter
-    params.get("orgtype").foreach(orgType => { if (orgType.contains("%")) q = q.filter(_.orgType like orgType) else q = q.filter(_.orgType === orgType) })
-    params.get("label").foreach(label => { if (label.contains("%")) q = q.filter(_.label like label) else q = q.filter(_.label === label) })
-
-    db.run(q.result).map({ list =>
-      logger.debug("GET /orgs result size: "+list.size)
-      val orgs = new MutableHashMap[String,Org]
-      if (list.nonEmpty) for (a <- list) orgs.put(a.orgId, a.toOrg)
-      if (orgs.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetOrgsResponse(orgs.toMap, 0)
-    })
-  })
-
-  def renderAttribute(attribute: scala.Seq[Any]): String = {
-    attribute.head match {
-      case attr: JValue => write(attr)
-      case attr => attr.toString
-    }
+            db.run(q.result).map({ list =>
+              logger.debug("GET /orgs result size: " + list.size)
+              val orgs = list.map(a => a.orgId -> a.toOrg).toMap
+              val code = if (orgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+              (code, GetOrgsResponse(orgs, 0))
+            })
+          }) // end of complete
+        } // end of validate
+    } // end of auth match
   }
 
-  /* ====== GET /orgs/{orgid} ================================ */
-  val getOneOrg =
-    (apiOperation[GetOrgsResponse]("getOneOrg")
-      summary("Returns a org")
-      description("""Returns the org with the specified id in the exchange DB. Can be run by any user in this org.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire org resource will be returned."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+  // ====== GET /orgs/{orgid} ================================
+  @GET
+  @Path("{orgid}")
+  @Operation(summary = "Returns an org", description = """Returns the org with the specified id. Can be run by any user in this org.""",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire org resource will be returned.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetOrgsResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def orgGetRoute: Route = (get & path("orgs" / Segment) & parameter('attribute.?) & extractCredentials) { (orgId, attribute, creds) =>
+    auth(creds, TOrg(orgId), Access.READ) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        //validate(orgType.isEmpty || orgType.get == "IBM", ExchMsg.translate("org.get.orgtype")) {
+        complete({
+          attribute match {
+            case Some(attr) => // Only returning 1 attr of the org
+              val q = OrgsTQ.getAttribute(orgId, attr) // get the proper db query for this attribute
+              if (q == null) (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("org.attr.not.part.of.org", attr)))
+              else db.run(q.result).map({ list =>
+                logger.debug("GET /orgs/" + orgId + " attribute result: " + list.toString)
+                val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+                // Note: scala is unhappy when db.run returns 2 different possible types, so we can't return ApiResponse in the case of not found
+                /* if (list.nonEmpty) */ (code, GetOrgAttributeResponse(attr, OrgsTQ.renderAttribute(list)))
+                //else (StatusCodes.NotFound, ApiResponse(ApiResponseType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+              })
 
-  get("/orgs/:orgid", operation(getOneOrg)) ({
-    val orgId = params("orgid")
-    authenticate().authorizeTo(TOrg(orgId),Access.READ)
-    val resp = response
-    params.get("attribute") match {
-      case Some(attribute) => ; // Only returning 1 attr of the org
-        val q = OrgsTQ.getAttribute(orgId, attribute)       // get the proper db query for this attribute
-        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("org.attr.not.part.of.org")))
-        db.run(q.result).map({ list =>
-          //logger.trace("GET /orgs/"+orgId+" attribute result: "+list.toString)
-          if (list.nonEmpty) {
-            resp.setStatus(HttpCode.OK)
-            GetOrgAttributeResponse(attribute, renderAttribute(list))
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("not.found"))
-          }
-        })
+            case None => // Return the whole org resource
+              db.run(OrgsTQ.getOrgid(orgId).result).map({ list =>
+                logger.debug("GET /orgs result size: " + list.size)
+                val orgs = list.map(a => a.orgId -> a.toOrg).toMap
+                val code = if (orgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+                (code, GetOrgsResponse(orgs, 0))
+              })
+          } // attribute match
+        }) // end of complete
+      //} // end of validate
+    } // end of auth match
+  }
 
-      case None => ;  // Return the whole org resource
-        db.run(OrgsTQ.getOrgid(orgId).result).map({ list =>
-          logger.debug("GET /orgs/"+orgId+" result: "+list.toString)
-          val orgs = new MutableHashMap[String,Org]
-          if (list.nonEmpty) for (a <- list) orgs.put(a.orgId, a.toOrg)
-          if (orgs.nonEmpty) resp.setStatus(HttpCode.OK)
-          else resp.setStatus(HttpCode.NOT_FOUND)
-          GetOrgsResponse(orgs.toMap, 0)
-        })
-    }
-  })
-
-  // =========== POST /orgs/{orgid} ===============================
-  val postOrgs =
-    (apiOperation[ApiResponse]("postOrgs")
-      summary "Adds a org"
-      description
-        """Creates an org resource. This can only be called by the root user. The **request body** structure:
-
+  // ====== POST /orgs/{orgid} ================================
+  @POST
+  @Path("{orgid}")
+  @Operation(summary = "Adds an org", description = """Creates an org resource. This can only be called by the root user.""",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
+    requestBody = new RequestBody(description = """
 ```
 {
   "orgType": "my org type",
@@ -184,312 +238,146 @@ trait OrgRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with
   "description": "blah blah",
   "tags": { "ibmcloud_id": "abc123def456" }
 }
-```""".stripMargin
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostPutOrgRequest],
-          Option[String]("Org object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val postOrgs2 = (apiOperation[PostPutOrgRequest]("postOrgs2") summary("a") description("a"))  // for some bizarre reason, the PostOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  post("/orgs/:orgid", operation(postOrgs)) ({
-    val orgId = params("orgid")
-    authenticate().authorizeTo(TOrg(""),Access.CREATE)
-    val orgReq = try { parse(request.body).extract[PostPutOrgRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }
-    orgReq.validate()
-    val resp = response
-    db.run(orgReq.toOrgRow(orgId).insert.asTry).map({ xs =>
-      logger.debug("POST /orgs result: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("org.created", orgId))
-        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("org.not.created", orgId, t.getMessage))
-        } else if (t.getMessage.contains("duplicate key value violates unique constraint")) {
-          resp.setStatus(HttpCode.ALREADY_EXISTS)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("org.already.exists", orgId, t.getMessage))
-        } else {
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("org.not.created", orgId, t.toString))
-        }
-      }
-    })
-  })
-
-  // =========== PUT /orgs/{orgid} ===============================
-  val putOrgs =
-    (apiOperation[ApiResponse]("putOrgs")
-      summary "Updates a org"
-      description """Does a full replace of an existing org. This can only be called by root or a user in the org with the admin role."""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostPutOrgRequest],
-          Option[String]("Org object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val putOrgs2 = (apiOperation[PostPutOrgRequest]("putOrgs2") summary("a") description("a"))  // for some bizarre reason, the PutOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  put("/orgs/:orgid", operation(putOrgs)) ({
-    val orgId = params("orgid")
-    val orgReq = try { parse(request.body).extract[PostPutOrgRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }
-    orgReq.validate()
-    val access = if (orgReq.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
-    authenticate().authorizeTo(TOrg(orgId),access)
-    val resp = response
-    db.run(orgReq.toOrgRow(orgId).update.asTry).map({ xs =>
-      logger.debug("PUT /orgs/"+orgId+" result: "+xs.toString)
-      xs match {
-        case Success(n) => try {
-            val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
-            if (numUpdated > 0) {
-              resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("org.updated"))
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("org.not.found", orgId))
-            }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("org.not.updated", orgId, e)) }    // the specific exception is NumberFormatException
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("org.not.updated", orgId, t.toString))
-      }
-    })
-  })
-
-  // =========== PATCH /orgs/{org} ===============================
-  val patchOrgs =
-    (apiOperation[Map[String,String]]("patchOrgs")
-      summary "Updates 1 attribute of a org"
-      description """Updates one attribute of a org in the exchange DB. This can only be called by root or a user in the org with the admin role."""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PatchOrgRequest],
-          Option[String]("Partial org object that contains an attribute to be updated in this org. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val patchOrgs2 = (apiOperation[PatchOrgRequest]("patchOrgs2") summary("a") description("a"))  // for some bizarre reason, the PatchOrgRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  patch("/orgs/:orgid", operation(patchOrgs)) ({
-    val orgId = params("orgid")
-    if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
-      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
-    }
-    val orgReq = try { parse(request.body).extract[PatchOrgRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    val access = if (orgReq.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
-    authenticate().authorizeTo(TOrg(orgId),access)
-    //logger.trace("PATCH /orgs/"+orgId+" input: "+orgReq.toString)
-    val resp = response
-    val (action, attrName) = orgReq.getDbUpdate(orgId)
-    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.org.attr.specified")))
-    db.run(action.transactionally.asTry).map({ xs =>
-      logger.debug("PATCH /orgs/"+orgId+" result: "+xs.toString)
-      xs match {
-        case Success(v) => try {
-            val numUpdated = v.toString.toInt     // v comes to us as type Any
-            if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("org.attr.updated", attrName, orgId))
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("org.not.found", orgId))
-            }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e)) }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("org.not.updated", orgId, t.toString))
-      }
-    })
-  })
-
-  // =========== DELETE /orgs/{org} ===============================
-  val deleteOrgs =
-    (apiOperation[ApiResponse]("deleteOrgs")
-      summary "Deletes a org"
-      description "Deletes a org from the exchange DB. This can only be called by root or a user in the org with the admin role."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid", operation(deleteOrgs)) ({
-    val orgId = params("orgid")
-    authenticate().authorizeTo(TOrg(orgId),Access.WRITE)
-    // remove does *not* throw an exception if the key does not exist
-    val resp = response
-    db.run(OrgsTQ.getOrgid(orgId).delete.transactionally.asTry).map({ xs =>
-      logger.debug("DELETE /orgs/"+orgId+" result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-            resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("org.deleted"))
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("org.not.found", orgId))
-          }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("org.not.deleted", orgId, t.toString))
-      }
-    })
-  })
-
-  def buildResourceChangesResponse(orgList: scala.Seq[(Int, String, String, String, String, String, String, String)], ibmList: scala.Seq[(Int, String, String, String, String, String, String, String)], maxResp : Int): ResourceChangesRespObject ={
-    val exchangeVersion = ExchangeApiAppMethods.adminVersion()
-    val inputList = List(orgList, ibmList)
-    val changesList = ListBuffer[ChangeEntry]()
-    var mostRecentChangeId = 0
-    var entryCounter = 0
-    breakable {
-      for(input <- inputList) { //this for loop should only ever be of size 2
-        val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
-        for( entry <- input) {
-          /*
-          Example of what entry might look like
-            {
-              "_1":167,   --> changeId
-              "_2":"org2",    --> orgID
-              "_3":"resourcetest",    --> id
-              "_4":"node",    --> category
-              "_5":"false",   --> public
-              "_6":"node",    --> resource
-              "_7":"created/modified",  --> operation
-              "_8":"2019-12-12T19:28:05.309Z[UTC]",   --> lastUpdated
-            }
-           */
-          val resChange = ResourceChangesInnerObject(entry._1, entry._8)
-          if(changesMap.isDefinedAt(entry._3)){  // using the map allows for better searching and entry
-            if(changesMap(entry._3).resourceChanges.last.changeId < entry._1){
-              // the entry we are looking at actually happened later than the last entry in resourceChanges
-              // doing this check by changeId on the off chance two changes happen at the exact same time changeId tells which one is most updated
-              changesMap(entry._3).addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
-              changesMap(entry._3).setOperation(entry._7) // update the most recent operation performed
-              changesMap(entry._3).setResource(entry._6) // update exactly what resource was most recently touched
-            }
-          } else{
-            val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
-            changesMap(entry._3) = ChangeEntry(entry._2, entry._6, entry._3, entry._7, resChangeListBuffer)
-          }
-        }
-        // convert changesMap to ListBuffer[ChangeEntry]
-        breakable {
-          for (entry <- changesMap) {
-            if (entryCounter > maxResp) break // if we are over the count of allowed entries just stop and go to outer loop
-            changesList += entry._2 // if we are not just continue adding to the changesList
-            if (mostRecentChangeId < entry._2.resourceChanges.last.changeId) { mostRecentChangeId = entry._2.resourceChanges.last.changeId } //set the mostRecentChangeId value
-            entryCounter += 1 // increment our count of how many entries there are in changesList
-          }
-        }
-        if (entryCounter > maxResp) break // if we are over the count of allowed entries just stop and return the list as is
-      }
-    }
-    ResourceChangesRespObject(changesList.toList, mostRecentChangeId, exchangeVersion)
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutOrgRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "resource created - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def orgPostRoute: Route = (post & path("orgs" / Segment) & extractCredentials) { (orgId, creds) =>
+    logger.debug(s"Doing POST /orgs/$orgId")
+    auth(creds, TOrg(""), Access.CREATE) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        entity(as[PostPutOrgRequest]) { orgReq =>
+          validate(orgReq.getAnyProblem.isEmpty, "Problem in request body") { //todo: create a custom validation directive so we can return the specific error msg from getAnyProblem to the client
+            complete({
+              db.run(orgReq.toOrgRow(orgId).insert.asTry).map({ xs =>
+                logger.debug(s"POST /orgs/$orgId result: " + xs.toString)
+                xs match {
+                  case Success(_) => (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.created", orgId)))
+                  case Failure(t) =>
+                    if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", orgId, t.getMessage)))
+                    else if (t.getMessage.contains("duplicate key value violates unique constraint")) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("org.already.exists", orgId, t.getMessage)))
+                    else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.created", orgId, t.toString)))
+                }
+              })
+            }) // end of complete
+          } // end of validate
+        } // end of entity
+    } // end of auth match
   }
 
-  /* ====== POST /orgs/{orgid}/changes ================================ */
-  val orgChanges =
-    (apiOperation[GetOrgsResponse]("orgChanges")
-      summary("Returns recent changes per org")
-      description(
-      """Returns all the recent resource changes within an org that the caller has permissions to view. The **request body** structure:
-        |{
-        |  "changeId": <number-here>,
-        |  "lastUpdated": "<time-here>", --> optional field, only important if the caller doesn't know what changeId to use
-        |  "maxRecords": <number-here>, --> the maximum number of records the caller wants returned to them, NOT optional
-        |}
-        |""".stripMargin)
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire org resource will be returned."), paramType=ParamType.Query, required=false)
-    )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+  // ====== PUT /orgs/{orgid} ================================
+  @PUT
+  @Path("{orgid}")
+  @Operation(summary = "Updates an org", description = """Does a full replace of an existing org. This can only be called by root or a user in the org with the admin role.""",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
+    requestBody = new RequestBody(description = "See details in the POST route.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutOrgRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def orgPutRoute: Route = (put & path("orgs" / Segment) & extractCredentials) { (orgId, creds) =>
+    logger.debug(s"Doing PUT /orgs/$orgId with orgId:$orgId")
+    entity(as[PostPutOrgRequest]) { orgReq =>
+      val access = if (orgReq.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
+      auth(creds, TOrg(orgId), access) match {
+        case Failure(t) => reject(AuthRejection(t))
+        case Success(_) =>
+          validate(orgReq.getAnyProblem.isEmpty, "Problem in request body") { //todo: create a custom validation directive so we can return the specific error msg from getAnyProblem to the client
+            complete({
+              db.run(orgReq.toOrgRow(orgId).update.asTry).map({ xs =>
+                logger.debug(s"PUT /orgs/$orgId result: " + xs.toString)
+                xs match {
+                  case Success(n) =>
+                    if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.updated")))
+                    else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+                  case Failure(t) =>
+                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
+                }
+              })
+            }) // end of complete
+          } // end of validate
+      } // end of auth match
+    } // end of entity
+  }
 
-  post("/orgs/:orgid/changes", operation(orgChanges)) ({
-    val orgId = params("orgid")
-    val ident = authenticate().authorizeTo(TOrg(orgId),Access.READ)
-    val resp = response
-    val resourceRequest = try { parse(request.body).extract[ResourceChangesRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    // Variables to help with building the query
-    val lastTime = resourceRequest.lastUpdated.getOrElse(ApiTime.beginningUTC)
-    val qOrg = for {
-      r <- ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.lastUpdated >= lastTime).filter(_.changeId >= resourceRequest.changeId)
-    } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
+  // ====== PATCH /orgs/{orgid} ================================
+  @PATCH
+  @Path("{orgid}")
+  @Operation(summary = "Updates 1 attribute of an org", description = """Updates one attribute of a org. This can only be called by root or a user in the org with the admin role.""",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
+    requestBody = new RequestBody(description = "Specify only **one** of the attributes:", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchOrgRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def orgPatchRoute: Route = (patch & path("orgs" / Segment) & extractCredentials) { (orgId, creds) =>
+    logger.debug(s"Doing PATCH /orgs/$orgId with orgId:$orgId")
+    entity(as[PatchOrgRequest]) { orgReq =>
+      val access = if (orgReq.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
+      auth(creds, TOrg(orgId), access) match {
+        case Failure(t) => reject(AuthRejection(t))
+        case Success(_) =>
+          complete({
+            val (action, attrName) = orgReq.getDbUpdate(orgId)
+            if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.org.attr.specified")))
+            else db.run(action.transactionally.asTry).map({ xs =>
+              logger.debug(s"PATCH /orgs/$orgId result: " + xs.toString)
+              xs match {
+                case Success(n) =>
+                  if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", attrName, orgId)))
+                  else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+                case Failure(t) =>
+                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
+              }
+            })
+          }) // end of complete
+      } // end of auth match
+    } // end of entity
+  }
 
-    val qIBM = for {
-      r <- ResourceChangesTQ.rows.filter(_.orgId === "IBM").filter(_.public === "true").filter(_.lastUpdated >= lastTime).filter(_.changeId >= resourceRequest.changeId)
-    } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
-
-    var qOrgResp : scala.Seq[(Int, String, String, String, String, String, String, String)] = null
-    var qIBMResp : scala.Seq[(Int, String, String, String, String, String, String, String)] = null
-
-    db.run(qOrg.result.asTry.flatMap({ xs =>
-      // Check if pattern exists, then get services referenced
-      /*TODO: Decide if we want to keep this log statement, it can get pretty long, maybe log size?*/
-      logger.debug("POST /orgs/" + orgId + "/changes changes in caller org: " + xs.toString)
-      xs match {
-        case Success(qOrgResult) =>
-          qOrgResp = qOrgResult
-          qIBM.result.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    }).flatMap({ xs =>
-      // Check if referenced services exist, then get whether node is using policy
-      /*TODO: Decide if we want to keep this log statement, it can get pretty long*/
-    logger.debug("POST /orgs/" + orgId + "/changes public changes in IBM org: " + xs.toString)
-      xs match {
-        case Success(qIBMResult) => qIBMResp = qIBMResult
-          val id = orgId + "/" + ident.getIdentity
-          ident match {
-            case _: INode =>
-              NodesTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry
-            case _: IAgbot =>
-              AgbotsTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry
-            case _ =>
-              // Caller isn't a node or agbot so no need to heartbeat, just send a success in this step
-              // v in the next step must be > 0 so any n > 0 works
-              DBIO.successful(1).asTry
-          }
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    })).map({ xs =>
-      // Check creation/update of node, and other errors
-      logger.debug("POST /orgs/" + orgId + "/changes updating heartbeat if applicable: " + xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
-          // heartbeat worked
-          resp.setStatus(HttpCode.POST_OK)
-          // function here to format output
-          write(buildResourceChangesResponse(qOrgResp, qIBMResp, resourceRequest.maxRecords))
-        } else {
-          // heartbeat failed
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.or.agbot.not.found", ident.getIdentity))
-        }
-        case Failure(t) =>
-          resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", t.getMessage))
-      }
-    })
-  })
+  // =========== DELETE /orgs/{org} ===============================
+  @DELETE
+  @Path("{orgid}")
+  @Operation(summary = "Deletes an org", description = """Deletes an org. This can only be called by root or a user in the org with the admin role.""",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def orgDeleteRoute: Route = (delete & path("orgs" / Segment) & extractCredentials) { (orgId, creds) =>
+    logger.debug(s"Doing DELETE /orgs/$orgId")
+    auth(creds, TOrg(orgId), Access.WRITE) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        complete({
+          // remove does *not* throw an exception if the key does not exist
+          db.run(OrgsTQ.getOrgid(orgId).delete.transactionally.asTry).map({ xs =>
+            logger.debug(s"DELETE /orgs/$orgId result: " + xs.toString)
+            xs match {
+              case Success(v) => // there were no db errors, but determine if it actually found it or not
+                if (v > 0) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
+                else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+              case Failure(t) =>
+                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.deleted", orgId, t.toString)))
+            }
+          })
+        }) // end of complete
+    } // end of auth match
+  }
 
 }

@@ -1,20 +1,20 @@
 package com.horizon.exchangeapi.auth
 
-import java.io.{BufferedInputStream, File, FileInputStream}
-import java.security.cert.{Certificate, CertificateFactory}
+import java.io.{ BufferedInputStream, File, FileInputStream }
+import java.security.cert.{ Certificate, CertificateFactory }
 import java.util.concurrent.TimeUnit
 import java.security.KeyStore
 
 import com.google.common.cache.CacheBuilder
 import com.horizon.exchangeapi._
-import com.horizon.exchangeapi.tables.{OrgsTQ, UserRow, UsersTQ}
-import javax.net.ssl.{SSLContext, SSLSocketFactory, TrustManagerFactory}
+import com.horizon.exchangeapi.tables.{ OrgsTQ, UserRow, UsersTQ }
+import javax.net.ssl.{ SSLContext, SSLSocketFactory, TrustManagerFactory }
 import javax.security.auth._
 import javax.security.auth.callback._
 import javax.security.auth.spi.LoginModule
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import org.slf4j.{Logger, LoggerFactory}
+//import org.slf4j.{ Logger, LoggerFactory }
 import scalacache._
 import scalacache.guava.GuavaCache
 import scalacache.modes.try_._
@@ -22,7 +22,7 @@ import scalaj.http._
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 
 case class IamAuthCredentials(org: String, keyType: String, key: String) {
   def cacheKey = org + "/" + keyType + ":" + key
@@ -31,7 +31,7 @@ case class IamToken(accessToken: String, tokenType: Option[String] = None)
 
 // For both IBM Cloud and ICP. All the rest apis that use this must be able to parse their results into this class.
 // The account field is set when using IBM Cloud, iss is set when using ICP.
-case class IamUserInfo(account: Option[IamAccount], sub: Option[String], iss: Option[String], active: Option[Boolean]) {   // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
+case class IamUserInfo(account: Option[IamAccount], sub: Option[String], iss: Option[String], active: Option[Boolean]) { // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
   def accountId = if (account.isDefined) account.get.bss else ""
   def isActive = active.getOrElse(false)
   def user = sub.getOrElse("")
@@ -47,34 +47,34 @@ case class ClusterConfigResponse(cluster_name: String, cluster_url: String, clus
 
 // These error msgs are matched by UsersSuite.scala, so change them there if you change them here
 case class OrgNotFound(authInfo: IamAuthCredentials)
-  extends UserFacingError(ExchangeMessage.translateMessage("org.not.found.user.facing.error", authInfo.org))
+  extends UserFacingError(ExchMsg.translate("org.not.found.user.facing.error", authInfo.org))
 case class IncorrectOrgFound(orgAcctId: String, userInfo: IamUserInfo)
-  extends UserFacingError(ExchangeMessage.translateMessage("incorrect.org.found.user.facing.error",orgAcctId, userInfo.accountId))
+  extends UserFacingError(ExchMsg.translate("incorrect.org.found.user.facing.error", orgAcctId, userInfo.accountId))
 case class IncorrectIcpOrgFound(requestOrg: String, userCredsOrg: String)
-  extends UserFacingError(ExchangeMessage.translateMessage("incorrect.org.found.user.facing.error.ICP", requestOrg, userCredsOrg))
+  extends UserFacingError(ExchMsg.translate("incorrect.org.found.user.facing.error.ICP", requestOrg, userCredsOrg))
 
-/** JAAS module to authenticate to the IBM cloud. Called from AuthenticationSupport:authenticate() because JAAS.config references this module.
-  */
+/**
+ * JAAS module to authenticate to the IBM cloud. Called from AuthenticationSupport:authenticate() because JAAS.config references this module.
+ */
 class IbmCloudModule extends LoginModule with AuthorizationSupport {
   private var subject: Subject = _
   private var handler: CallbackHandler = _
   private var identity: Identity = _
   private var succeeded = false
-  lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
-
+  //lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
+  def logger = ExchConfig.logger
 
   override def initialize(
     subject: Subject,
     handler: CallbackHandler,
     sharedState: java.util.Map[String, _],
-    options: java.util.Map[String, _]
-  ): Unit = {
+    options: java.util.Map[String, _]): Unit = {
     this.subject = subject
     this.handler = handler
   }
 
   override def login(): Boolean = {
-    logger.trace("in IbmCloudModule.login() to try to authenticate an IBM cloud user")
+    logger.debug("in IbmCloudModule.login() to try to authenticate an IBM cloud user")
     val reqCallback = new RequestCallback
 
     handler.handle(Array(reqCallback))
@@ -85,17 +85,17 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
     val loginResult = for {
       reqInfo <- Try(reqCallback.request.get)
       user <- {
-        val RequestInfo(req, _, isDbMigration, _, _) = reqInfo
-        val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
+        val RequestInfo(_, /*req, _,*/ isDbMigration /*, _*/ , _) = reqInfo
+        //val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
 
         for {
-          key <- extractApiKey(reqInfo)   // this will bail out of the outer for loop if the user isn't iamapikey or iamapitoken
+          key <- extractApiKey(reqInfo) // this will bail out of the outer for loop if the user isn't iamapikey or iamapitoken
           username <- IbmCloudAuth.authenticateUser(key)
         } yield {
           val user = IUser(Creds(username, ""))
-          logger.info("IBM User " + user.creds.id + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
+          //logger.info("IBM User " + user.creds.id + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
           if (isDbMigration && !Role.isSuperUser(user.creds.id)) throw new IsDbMigrationException()
-          identity = user
+          identity = user // so when the user is authenticating via apikey, we can know the associated username
           user
         }
       }
@@ -118,6 +118,7 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
     succeeded
   }
 
+  // Add the real identify of the api key in the subject so we can get it later during authorization
   override def logout(): Boolean = {
     subject.getPrivateCredentials().add(identity)
     true
@@ -128,13 +129,14 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
   override def commit(): Boolean = {
     if (succeeded) {
       subject.getPrivateCredentials().add(identity)
-      subject.getPrincipals().add(ExchangeRole(identity.role))
+      //subject.getPrincipals().add(ExchangeRole(identity.role)) // don't think we need this
     }
     succeeded
   }
 
   private def extractApiKey(reqInfo: RequestInfo): Try[IamAuthCredentials] = {
-    val creds = credentials(reqInfo)
+    //val creds = credentials(reqInfo)
+    val creds = reqInfo.creds
     val (org, id) = IbmCloudAuth.compositeIdSplit(creds.id)
     if ((id == "iamapikey" || id == "iamtoken") && creds.token.nonEmpty) Success(IamAuthCredentials(org, id, creds.token))
     else Failure(new NotIbmCredsException)
@@ -152,13 +154,14 @@ object IbmCloudAuth {
 
   private implicit val formats = DefaultFormats
 
-  lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
+  //lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
+  def logger = ExchConfig.logger
 
   private val guavaCache = CacheBuilder.newBuilder()
     .maximumSize(ExchConfig.getInt("api.cache.idsMaxSize"))
     .expireAfterWrite(ExchConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
-    .build[String, Entry[String]]     // the cache key is org/apikey, and the value is org/username
-  implicit val userCache = GuavaCache(guavaCache)   // the effect of this is that these methods don't need to be qualified
+    .build[String, Entry[String]] // the cache key is org/apikey, and the value is org/username
+  implicit val userCache = GuavaCache(guavaCache) // the effect of this is that these methods don't need to be qualified
 
   // Called by ExchangeApiApp
   def init(db: Database): Unit = {
@@ -167,7 +170,7 @@ object IbmCloudAuth {
   }
 
   def authenticateUser(authInfo: IamAuthCredentials): Try[String] = {
-    logger.debug("authenticateUser(): attempting to authenticate with IBM Cloud with "+authInfo.org+"/"+authInfo.keyType)
+    logger.debug("authenticateUser(): attempting to authenticate with IBM Cloud with " + authInfo.org + "/" + authInfo.keyType)
     /*
      * The caching library provides several functions that work on the cache defined above. The caching function takes a key and tries
      * to retrieve from the cache, and if it is not there runs the block of code provided, adds the result to the cache, and then returns it.
@@ -176,11 +179,11 @@ object IbmCloudAuth {
     cachingF(authInfo.cacheKey)(ttl = None) {
       for {
         token <- if (authInfo.keyType == "iamtoken") Success(IamToken(authInfo.key))
-          else if (isIcp && authInfo.keyType == "iamapikey") Success(IamToken(authInfo.key, Some(authInfo.keyType)))  // this is an apikey we are putting in IamToken, but it can be used like a token in the next step
-          else getIamToken(authInfo)
+        else if (isIcp && authInfo.keyType == "iamapikey") Success(IamToken(authInfo.key, Some(authInfo.keyType))) // this is an apikey we are putting in IamToken, but it can be used like a token in the next step
+        else getIamToken(authInfo)
         userInfo <- getUserInfo(token, authInfo)
         user <- getOrCreateUser(authInfo, userInfo)
-      } yield user.username   // this is the composite org/username
+      } yield user.username // this is the composite org/username
     }
   }
 
@@ -189,48 +192,59 @@ object IbmCloudAuth {
     removeAll().map(_ => ())
   }
 
+  // Note: we need these 2 methods because if the env var is set to "", sys.env.get() will return Some("") instead of None
+  private def isEnvSet(envVarName: String) = sys.env.get(envVarName) match {
+    case Some(v) => v != ""
+    case None => false
+  }
+  private def getEnv(envVarName: String, defaultVal: String) = sys.env.get(envVarName) match {
+    case Some(v) => if (v == "") defaultVal else v
+    case None => defaultVal
+  }
+
   private def isIcp = {
     // ICP kube automatically sets the 1st one, our development environment sets the 2nd one when locally testing
-    sys.env.get("PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT").nonEmpty || sys.env.get("ICP_EXTERNAL_MGMT_INGRESS").nonEmpty
+    logger.debug("isIcp: ICP_EXTERNAL_MGMT_INGRESS: " + sys.env.get("ICP_EXTERNAL_MGMT_INGRESS"))
+    isEnvSet("PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT") || isEnvSet("ICP_EXTERNAL_MGMT_INGRESS")
   }
 
   private def getIcpIdentityProviderUrl = {
     // https://$ICP_EXTERNAL_MGMT_INGRESS/idprovider  or  https://platform-identity-provider:$PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT
-    if (sys.env.get("ICP_EXTERNAL_MGMT_INGRESS").nonEmpty) {
-      val ICP_EXTERNAL_MGMT_INGRESS = sys.env.getOrElse("ICP_EXTERNAL_MGMT_INGRESS", "")
+    if (isEnvSet("ICP_EXTERNAL_MGMT_INGRESS")) {
+      val ICP_EXTERNAL_MGMT_INGRESS = getEnv("ICP_EXTERNAL_MGMT_INGRESS", "")
       s"https://$ICP_EXTERNAL_MGMT_INGRESS/idprovider"
     } else {
       // ICP kube automatically sets this env var and hostname
-      val PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT = sys.env.getOrElse("PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT", "4300")
+      val PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT = getEnv("PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT", "4300")
       s"https://platform-identity-provider:$PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT"
     }
   }
 
   /* private def getIcpIdentityMgmtUrl = {
     // https://$ICP_EXTERNAL_MGMT_INGRESS/idmgmt  or  https://platform-identity-management:$PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT
-    if (sys.env.get("ICP_EXTERNAL_MGMT_INGRESS").nonEmpty) {
-      val ICP_EXTERNAL_MGMT_INGRESS = sys.env.getOrElse("ICP_EXTERNAL_MGMT_INGRESS", "")
+    if (isEnvSet("ICP_EXTERNAL_MGMT_INGRESS")) {
+      val ICP_EXTERNAL_MGMT_INGRESS = getEnv("ICP_EXTERNAL_MGMT_INGRESS", "")
       s"https://$ICP_EXTERNAL_MGMT_INGRESS/idmgmt"
     } else {
       // ICP kube automatically sets this env var and hostname
-      val PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT = sys.env.getOrElse("PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT", "4500")
+      val PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT = getEnv("PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT", "4500")
       s"https://platform-identity-management:$PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT"
     }
   } */
 
   private def getIcpMgmtIngressUrl = {
     // https://$ICP_EXTERNAL_MGMT_INGRESS  or  https://icp-management-ingress.kube-system:$ICP_MANAGEMENT_INGRESS_SERVICE_PORT
-    if (sys.env.get("ICP_EXTERNAL_MGMT_INGRESS").nonEmpty) {
-      val ICP_EXTERNAL_MGMT_INGRESS = sys.env.getOrElse("ICP_EXTERNAL_MGMT_INGRESS", "")
+    if (isEnvSet("ICP_EXTERNAL_MGMT_INGRESS")) {
+      val ICP_EXTERNAL_MGMT_INGRESS = getEnv("ICP_EXTERNAL_MGMT_INGRESS", "")
       s"https://$ICP_EXTERNAL_MGMT_INGRESS"
     } else {
       // ICP kube automatically sets this env var and hostname
-      val ICP_MANAGEMENT_INGRESS_SERVICE_PORT = sys.env.getOrElse("ICP_MANAGEMENT_INGRESS_SERVICE_PORT", "8443")
+      val ICP_MANAGEMENT_INGRESS_SERVICE_PORT = getEnv("ICP_MANAGEMENT_INGRESS_SERVICE_PORT", "8443")
       s"https://icp-management-ingress.kube-system:$ICP_MANAGEMENT_INGRESS_SERVICE_PORT"
     }
   }
 
-  private def getIcpCertFile = "/etc/horizon/exchange/icp/ca.crt"   // our ICP provisioning creates this file
+  private def getIcpCertFile = "/etc/horizon/exchange/icp/ca.crt" // our ICP provisioning creates this file
   private def iamRetryNum = 5
 
   // Use the IBM IAM API to authenticate the iamapikey and get an IAM token. See: https://cloud.ibm.com/apidocs/iam-identity-token-api
@@ -241,27 +255,25 @@ object IbmCloudAuth {
       for (i <- 1 to iamRetryNum) {
         try {
           val iamUrl = "https://iam.cloud.ibm.com/identity/token"
-          logger.info("Attempt "+i+" retrieving IBM Cloud IAM token for "+authInfo.org+"/iamapikey from " + iamUrl)
+          logger.info("Attempt " + i + " retrieving IBM Cloud IAM token for " + authInfo.org + "/iamapikey from " + iamUrl)
           val response = Http(iamUrl)
             .header("Accept", "application/json")
             .postForm(Seq(
               "grant_type" -> "urn:ibm:params:oauth:grant-type:apikey",
-              "apikey" -> authInfo.key
-            ))
+              "apikey" -> authInfo.key))
             .asString
-          if (response.code == HttpCode.OK) return Success(parse(response.body).camelizeKeys.extract[IamToken])
-          else if (response.code == HttpCode.BAD_INPUT || response.code == HttpCode.BADCREDS || response.code == HttpCode.ACCESS_DENIED || response.code == HttpCode.NOT_FOUND) {
+          if (response.code == HttpCode.OK.intValue) return Success(parse(response.body).camelizeKeys.extract[IamToken])
+          else if (response.code == HttpCode.BAD_INPUT.intValue || response.code == HttpCode.BADCREDS.intValue || response.code == HttpCode.ACCESS_DENIED.intValue || response.code == HttpCode.NOT_FOUND.intValue) {
             // This IAM API returns BAD_INPUT (400) when the mechanics of the api call were successful, but the api key was invalid
             return Failure(new IamApiErrorException(response.body.toString))
-          }
-          else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
+          } else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
         } catch {
-          case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchangeMessage.translateMessage("error.getting.iam.token.from.api.key", e.getMessage)))
+          case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchMsg.translate("error.getting.iam.token.from.api.key", e.getMessage)))
         }
       }
-      delayedReturn  // if we tried the max times and never got a successful positive or negative, return what we last got
+      delayedReturn // if we tried the max times and never got a successful positive or negative, return what we last got
     } else {
-      Failure(new AuthInternalErrorException(ExchangeMessage.translateMessage("no.valid.iam.keyword")))
+      Failure(new AuthInternalErrorException(ExchMsg.translate("no.valid.iam.keyword")))
     }
   }
 
@@ -270,83 +282,80 @@ object IbmCloudAuth {
   private def getUserInfo(token: IamToken, authInfo: IamAuthCredentials): Try[IamUserInfo] = {
     if (isIcp && token.tokenType.getOrElse("") == "iamapikey") {
       // An icp platform apikey that we can use directly to authenticate and get the username
-      var delayedReturn: Try[IamUserInfo] = Failure(new AuthInternalErrorException(ExchangeMessage.translateMessage("iam.return.value.not.set")))
+      var delayedReturn: Try[IamUserInfo] = Failure(new AuthInternalErrorException(ExchMsg.translate("iam.return.value.not.set")))
       for (i <- 1 to iamRetryNum) {
         try {
           val iamUrl = getIcpMgmtIngressUrl + "/iam-token/oidc/introspect"
-          logger.info("Attempt "+i+" retrieving ICP IAM userinfo for "+authInfo.org+"/iamapikey from " + iamUrl)
+          logger.info("Attempt " + i + " retrieving ICP IAM userinfo for " + authInfo.org + "/iamapikey from " + iamUrl)
           val apiKey = token.accessToken
           // Have our http client use the ICP self-signed cert so we don't have to use the allowUnsafeSSL option
           val response = Http(iamUrl).method("post").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .postData("apikey=" + apiKey)
             .asString
-          logger.trace(iamUrl + " http code: " + response.code + ", body: " + response.body)
-          if (response.code == HttpCode.OK) {
+          logger.debug(iamUrl + " http code: " + response.code + ", body: " + response.body)
+          if (response.code == HttpCode.OK.intValue) {
             // This api returns 200 even for an invalid api key. Have to determine its validity via the 'active' field
             val userInfo = parse(response.body).extract[IamUserInfo]
             if (userInfo.isActive && userInfo.user != "") return Success(userInfo)
             else return Failure(new IamApiErrorException("invalid API key"))
-          }
-          else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
+          } else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
         } catch {
-          case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchangeMessage.translateMessage("error.authenticating.icp.iam.key", e.getMessage)))
+          case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchMsg.translate("error.authenticating.icp.iam.key", e.getMessage)))
         }
       }
-      delayedReturn  // if we tried the max times and never got a successful positive or negative, return what we last got
+      delayedReturn // if we tried the max times and never got a successful positive or negative, return what we last got
     } else if (isIcp) {
       // An icp token from the UI
-      var delayedReturn: Try[IamUserInfo] = Failure(new AuthInternalErrorException(ExchangeMessage.translateMessage("iam.return.value.not.set")))
+      var delayedReturn: Try[IamUserInfo] = Failure(new AuthInternalErrorException(ExchMsg.translate("iam.return.value.not.set")))
       for (i <- 1 to iamRetryNum) {
         try {
           val iamUrl = getIcpIdentityProviderUrl + "/v1/auth/userinfo"
           //logger.debug("Retrieving ICP IAM userinfo from " + iamUrl + ", token: " + token.accessToken)
-          logger.info("Attempt "+i+" retrieving ICP IAM userinfo for "+authInfo.org+"/iamtoken from " + iamUrl)
+          logger.info("Attempt " + i + " retrieving ICP IAM userinfo for " + authInfo.org + "/iamtoken from " + iamUrl)
           val response = Http(iamUrl).method("post").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
             .header("Authorization", s"BEARER ${token.accessToken}")
             .header("Content-Type", "application/json")
             .asString
-          logger.trace(iamUrl + " http code: " + response.code + ", body: " + response.body)
-          if (response.code == HttpCode.OK) return Success(parse(response.body).extract[IamUserInfo])
-          else if (response.code == HttpCode.BAD_INPUT || response.code == HttpCode.BADCREDS || response.code == HttpCode.ACCESS_DENIED || response.code == HttpCode.NOT_FOUND) {
+          logger.debug(iamUrl + " http code: " + response.code + ", body: " + response.body)
+          if (response.code == HttpCode.OK.intValue) return Success(parse(response.body).extract[IamUserInfo])
+          else if (response.code == HttpCode.BAD_INPUT.intValue || response.code == HttpCode.BADCREDS.intValue || response.code == HttpCode.ACCESS_DENIED.intValue || response.code == HttpCode.NOT_FOUND.intValue) {
             // This IAM API returns BAD_INPUT (400) when the mechanics of the api call were successful, but the token was invalid
             return Failure(new IamApiErrorException(response.body.toString))
-          }
-          else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
+          } else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
         } catch {
-          case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchangeMessage.translateMessage("error.authenticating.icp.iam.token", e.getMessage)))
+          case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchMsg.translate("error.authenticating.icp.iam.token", e.getMessage)))
         }
       }
-      delayedReturn  // if we tried the max times and never got a successful positive or negative, return what we last got
+      delayedReturn // if we tried the max times and never got a successful positive or negative, return what we last got
     } else {
       // An ibm public cloud token, either from the UI or from the platform apikey we were given
-      var delayedReturn: Try[IamUserInfo] = Failure(new AuthInternalErrorException(ExchangeMessage.translateMessage("iam.return.value.not.set")))
+      var delayedReturn: Try[IamUserInfo] = Failure(new AuthInternalErrorException(ExchMsg.translate("iam.return.value.not.set")))
       for (i <- 1 to iamRetryNum) {
         try {
           val iamUrl = "https://iam.cloud.ibm.com/identity/userinfo"
-          logger.info("Attempt "+i+" retrieving IBM Cloud IAM userinfo for "+authInfo.org+"/iamtoken from " + iamUrl)
+          logger.info("Attempt " + i + " retrieving IBM Cloud IAM userinfo for " + authInfo.org + "/iamtoken from " + iamUrl)
           val response = Http(iamUrl)
             .header("Authorization", s"BEARER ${token.accessToken}")
             .header("Content-Type", "application/json")
             .asString
-          logger.trace(iamUrl + " http code: " + response.code + ", body: " + response.body)
-          if (response.code == HttpCode.OK) {
+          logger.debug(iamUrl + " http code: " + response.code + ", body: " + response.body)
+          if (response.code == HttpCode.OK.intValue) {
             // This api returns 200 even for an invalid token. Have to determine its validity via the 'active' field
             val userInfo = parse(response.body).extract[IamUserInfo]
             if (userInfo.isActive && userInfo.user != "") return Success(userInfo)
             else return Failure(new IamApiErrorException("invalid token"))
-          }
-          else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
+          } else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
         } catch {
-          case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchangeMessage.translateMessage("error.authenticating.iam.token", e.getMessage)))
+          case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchMsg.translate("error.authenticating.iam.token", e.getMessage)))
         }
       }
-      delayedReturn  // if we tried the max times and never got a successful positive or negative, return what we last got
+      delayedReturn // if we tried the max times and never got a successful positive or negative, return what we last got
     }
   }
 
   private def getOrCreateUser(authInfo: IamAuthCredentials, userInfo: IamUserInfo): Try[UserRow] = {
-    logger.debug("Getting or creating exchange user from DB using IAM userinfo: "+userInfo)
+    logger.debug("Getting or creating exchange user from DB using IAM userinfo: " + userInfo)
     // Form a DB query with the right logic to verify the org and either get or create the user.
     // This can throw exceptions OrgNotFound or IncorrectOrgFound
     val userQuery = for {
@@ -357,36 +366,38 @@ object IbmCloudAuth {
       userRow <- fetchUser(orgId, userInfo)
       userAction <- {
         if (userRow.isEmpty) createUser(orgId, userInfo)
-        else DBIO.successful(Success(userRow.get))    // to produce error case below, instead use: createUser(orgId, userInfo)
+        else DBIO.successful(Success(userRow.get)) // to produce error case below, instead use: createUser(orgId, userInfo)
       }
       // This is to just handle errors from createUser
       userAction2 <- userAction match {
         case Success(v) => DBIO.successful(Success(v))
         case Failure(t) => if (t.getMessage.contains("duplicate key")) {
-            // This is the case in which between the call to fetchUser and createUser another client created the user, so this is a duplicate that is not needed.
-            // Instead of returning an error just create an artificial response in which the username is correct (that's the only field used from this).
-            // (We don't want to do an upsert in createUser in case the user has changed it since it was created, e.g. set admin true)
-            DBIO.successful(Success(UserRow(authInfo.org+"/"+userInfo.user, "", "", admin = false, "", "", "")))
-          } else {
-            DBIO.failed(new UserCreateException(ExchangeMessage.translateMessage("error.creating.user", authInfo.org, userInfo.user, t.getMessage)))
+          // This is the case in which between the call to fetchUser and createUser another client created the user, so this is a duplicate that is not needed.
+          // Instead of returning an error just create an artificial response in which the username is correct (that's the only field used from this).
+          // (We don't want to do an upsert in createUser in case the user has changed it since it was created, e.g. set admin true)
+          DBIO.successful(Success(UserRow(authInfo.org + "/" + userInfo.user, "", "", admin = false, "", "", "")))
+        } else {
+          DBIO.failed(new UserCreateException(ExchMsg.translate("error.creating.user", authInfo.org, userInfo.user, t.getMessage)))
 
         }
       }
     } yield userAction2
 
     val awaitResult = try {
-      //logger.trace("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.user+"...")
+      //logger.debug("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.user+"...")
       Await.result(db.run(userQuery.transactionally), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
-      //logger.trace("...back from awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.user+".")
+      //logger.debug("...back from awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.user+".")
     } catch {
       // Handle any exceptions, including db problems. Note: exceptions from this get caught in login() above
-      case timeout: java.util.concurrent.TimeoutException => logger.error("db timed out getting pw/token for '"+userInfo.user+"' . "+timeout.getMessage)
-        throw new DbTimeoutException(ExchangeMessage.translateMessage("db.timeout.getting.token", userInfo.user, timeout.getMessage))
+      case timeout: java.util.concurrent.TimeoutException =>
+        logger.error("db timed out getting pw/token for '" + userInfo.user + "' . " + timeout.getMessage)
+        throw new DbTimeoutException(ExchMsg.translate("db.timeout.getting.token", userInfo.user, timeout.getMessage))
       // catch any of ours and rethrow
       case ourException: AuthException => throw ourException
       // assume something we don't recognize is a db access problem
-      case other: Throwable => logger.error("db connection error getting pw/token for '"+userInfo.user+"': "+other.getMessage)
-        throw new DbConnectionException(ExchangeMessage.translateMessage("db.threw.exception", other.getMessage))
+      case other: Throwable =>
+        logger.error("db connection error getting pw/token for '" + userInfo.user + "': " + other.getMessage)
+        throw new DbConnectionException(ExchMsg.translate("db.threw.exception", other.getMessage))
     }
     // Note: not sure how to know here whether we successfully add a user and therefore should add it to the admin cache, so we'll just let that get added next time it is needed
     awaitResult
@@ -394,7 +405,7 @@ object IbmCloudAuth {
 
   // Get the associated ibm cloud id of the org that the client requested in the exchange api
   private def fetchOrg(org: String) = {
-    logger.trace("Fetching org: "+org)
+    logger.debug("Fetching org: " + org)
     OrgsTQ.getOrgid(org)
       .map(_.tags.+>>("ibmcloud_id"))
       //.take(1)  // not sure what the purpose of this was
@@ -405,16 +416,16 @@ object IbmCloudAuth {
   // Verify that the cloud acct id of the cloud api key and the exchange org entry match
   // authInfo is the creds they passed in, userInfo is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db
   private def verifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, orgAcctId: Option[String]): DBIOAction[String, NoStream, Effect] = {
-    //logger.trace("Verifying org: "+authInfo+", "+userInfo+", "+orgAcctId)
+    //logger.debug("Verifying org: "+authInfo+", "+userInfo+", "+orgAcctId)
     if (isIcp) {
       if (authInfo.keyType == "iamtoken") {
         // An ICP token, we don't have the org of the creds yet, need to get it
-        var delayedReturn: DBIOAction[String, NoStream, Effect] = DBIO.failed(new AuthInternalErrorException(ExchangeMessage.translateMessage("iam.return.value.not.set")))
+        var delayedReturn: DBIOAction[String, NoStream, Effect] = DBIO.failed(new AuthInternalErrorException(ExchMsg.translate("iam.return.value.not.set")))
         for (i <- 1 to iamRetryNum) {
           try {
             // If this token was authenticated via ICP IAM, we are associating that with the cluster-name org, so just get cluster name. Works for both ICP 3.2.0 and 3.2.1
             val iamUrl = getIcpMgmtIngressUrl + "/api/v1/config"
-            logger.info("Attempt "+i+" retrieving ICP IAM cluster name from " + iamUrl)
+            logger.info("Attempt " + i + " retrieving ICP IAM cluster name from " + iamUrl)
             val response = Http(iamUrl).method("get").option(HttpOptions.sslSocketFactory(this.sslSocketFactory)).asString
             /* old ICP 3.2.0 method of getting the token org
             val iamUrl = getIcpIdentityMgmtUrl + "/identity/api/v1/account"
@@ -424,28 +435,26 @@ object IbmCloudAuth {
             val response = Http(iamUrl).method("get").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
               .header("Authorization", s"bearer ${token.accessToken}") // Note: bearer MUST be lowercase for this rest api!!!
               .asString */
-            if (response.code == HttpCode.OK) {
+            if (response.code == HttpCode.OK.intValue) {
               val resp = parse(response.body).extract[ClusterConfigResponse]
               val tokenOrg = resp.cluster_name
               //val resp = parse(response.body).extract[List[TokenAccountResponse]]
               //val tokenOrg = if (resp.nonEmpty) extractICPTokenOrg(resp.head.id) else ""
-              logger.trace("Org of ICP creds: " + tokenOrg + ", org of request: " + authInfo.org)
+              logger.debug("Org of ICP creds: " + tokenOrg + ", org of request: " + authInfo.org)
               // no longer need to test org for ICP
               return DBIO.successful(authInfo.org)
-            }
-            else if (response.code == HttpCode.BAD_INPUT || response.code == HttpCode.BADCREDS || response.code == HttpCode.ACCESS_DENIED || response.code == HttpCode.NOT_FOUND) {
+            } else if (response.code == HttpCode.BAD_INPUT.intValue || response.code == HttpCode.BADCREDS.intValue || response.code == HttpCode.ACCESS_DENIED.intValue || response.code == HttpCode.NOT_FOUND.intValue) {
               // This IAM API returns ACCESS_DENIED (403) when the mechanics of the api call were successful, but the token was invalid
               return DBIO.failed(new IamApiErrorException(response.body.toString))
-            }
-            else {
+            } else {
               logger.debug("Org verification http code: " + response.code)
               delayedReturn = DBIO.failed(new IamApiErrorException(response.body.toString))
             }
           } catch {
-            case e: Exception => delayedReturn = DBIO.failed(new IamApiErrorException(ExchangeMessage.translateMessage("error.authenticating.icp.iam.token", e.getMessage)))
+            case e: Exception => delayedReturn = DBIO.failed(new IamApiErrorException(ExchMsg.translate("error.authenticating.icp.iam.token", e.getMessage)))
           }
         }
-        delayedReturn  // if we tried the max times and never got a successful positive or negative, return what we last got
+        delayedReturn // if we tried the max times and never got a successful positive or negative, return what we last got
       } else {
         // An ICP platform api key, the iss field contains a url that includes the cluster name
         // Note: we could just get the cluster name like the ICP token case above, but that would be an extra API call
@@ -471,7 +480,7 @@ object IbmCloudAuth {
   }
 
   private def fetchUser(org: String, userInfo: IamUserInfo) = {
-    logger.trace("Fetching user: org="+org+", "+userInfo)
+    logger.debug("Fetching user: org=" + org + ", " + userInfo)
     UsersTQ.rows
       .filter(u => u.orgid === org && u.username === s"$org/${userInfo.user}")
       //.take(1)  // not sure what the purpose of this was
@@ -480,7 +489,7 @@ object IbmCloudAuth {
   }
 
   private def createUser(org: String, userInfo: IamUserInfo) = {
-    logger.trace("Creating user: org="+org+", "+userInfo)
+    logger.debug("Creating user: org=" + org + ", " + userInfo)
     val user = UserRow(
       s"$org/${userInfo.user}",
       org,
@@ -488,8 +497,7 @@ object IbmCloudAuth {
       admin = false,
       userInfo.user,
       ApiTime.nowUTC,
-      s"$org/${userInfo.user}"
-    )
+      s"$org/${userInfo.user}")
     (UsersTQ.rows += user).asTry.map(count => count.map(_ => user))
   }
 
@@ -502,8 +510,8 @@ object IbmCloudAuth {
     }
   } */
 
-// Currently not needed for verifying Org in the ICP case
-/*  private def extractICPOrg(iss: String) = {
+  // Currently not needed for verifying Org in the ICP case
+  /*  private def extractICPOrg(iss: String) = {
     // ICP iss value looks like: https://major-peacock-icp-cluster.icp:9443/oidc/token
     val R = """https://(.+)\.icp:.+""".r
     iss match {
@@ -516,9 +524,9 @@ object IbmCloudAuth {
   def compositeIdSplit(compositeId: String): (String, String) = {
     val reg = """^(\S*?)/(\S*)$""".r
     compositeId match {
-      case reg(org,id) => return (org,id)
-      case reg(org,_) => return (org,"")
-      case reg(_,id) => return ("",id)
+      case reg(org, id) => return (org, id)
+      case reg(org, _) => return (org, "")
+      case reg(_, id) => return ("", id)
       case _ => return ("", compositeId)
     }
   }
@@ -532,7 +540,7 @@ object IbmCloudAuth {
       var ca: Certificate = null
       try {
         ca = cf.generateCertificate(caInput)
-        logger.debug("Loading self-signed CA from "+filePath+", type: "+ca.getType)
+        logger.debug("Loading self-signed CA from " + filePath + ", type: " + ca.getType)
       } finally { caInput.close() }
 
       // Create an in-memory KeyStore containing our self-signed cert

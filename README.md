@@ -17,7 +17,7 @@ services in the exchange.
     - `sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = 'my-ip'/" /usr/local/var/postgres/postgresql.conf`
     - `brew services start postgresql`
     - test: `psql "host=<my-ip> dbname=postgres user=<myuser> password=''"`
-- Add a config file on your development system at /etc/horizon/exchange/config.json with at least the following content (this is needed for the automated tests). Defaults and the full list of config variables are in `src/main/resources/config.json`:
+- Add a config file on your development system at /etc/horizon/exchange/config.json with at least the following content (this is needed for the automated tests. Defaults and the full list of config variables are in `src/main/resources/config.json`):
 
 ```
 {
@@ -27,17 +27,11 @@ services in the exchange.
 			"user": "myuser",
 			"password": ""
 		},
-		"smtp": {
-			"host": "mysmtp.relay.com",	 // the SMTP relay svr the exchange uses to send pw reset emails
-			"user": "myemail@email.net",    // email address
-			"password": "myemailpw"    // email pw
-		},
 		"logging": {
 			"level": "DEBUG"
 		},
 		"root": {
-			"password": "myrootpw",
-			"email": ""
+			"password": "myrootpw"
 		}
 	}
 }
@@ -59,8 +53,7 @@ make gen-key
 ## Building and Running in Local Sandbox
 
 - `sbt`
-- `jetty:start`
-- Or to have the server restart automatically when code changes: `~;jetty:stop;jetty:start`
+- `~reStart`
 - Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/admin/version](http://localhost:8080/v1/admin/version)
 - To see the swagger output, browse: [http://localhost:8080/api](http://localhost:8080/api)
 - A convenience script `src/test/bash/primedb.sh` can be run to prime the DB with some exchange resources to use in manually testing:
@@ -75,6 +68,16 @@ src/test/bash/primedb.sh
 export ICP_EXTERNAL_MGMT_INGRESS=<icp-external-host>:8443
 ```
 
+## Tips on Using Sbt
+
+When at the `sbt` sub-command prompt:
+
+- Get a list of tasks: `task -V`
+- Start your app such that it will restart on code changes: `~reStart`
+- Clean all built files (if the incremental build needs to be reset): `clean`
+- Build docker image: `sbt docker:publishLocal`
+- Create just the dockerfile to see its content: `sbt docker:stage`
+
 ## Running the Automated Tests in Local Sandbox
 
 - (Optional) To include tests for IBM agbot ACLs: `export EXCHANGE_AGBOTAUTH=myibmagbot:abcdef`
@@ -85,11 +88,13 @@ export EXCHANGE_IAM_EMAIL=myaccountemail@something.com
 export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 ```
 - Run the automated tests in a second shell (with the exchange server still running in the first): `sbt test`
-- Run just 1 of the the automated test suites (with the exchange server still running): `sbt "testOnly exchangeapi.AgbotsSuite"`
+- Run just 1 of the the automated test suites (with the exchange server still running): `sbt "testOnly **.AgbotsSuite"`
 - Run the performance tests: `src/test/bash/scale/test.sh` or `src/test/bash/scale/wrapper.sh 8`
 - Make sure to run `primedb.sh` before running the  `AgbotsSuite` test class to run all of the tests.
 
 ## Building and Running the Container
+
+**Todo: this section needs to be updated for akka-http. See: https://www.codemunity.io/tutorials/dockerising-akka-http/**
 
 - Update the version in `src/main/resources.version.txt`
 - To build the build container, compile your local code, build the exchange container, and run it, run: `make` . Or you can do the individual steps:
@@ -203,15 +208,6 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
-
-## Changes in 1.122.0
-
-- Implement part 1 of issue 232: add exchange notification system : Resource Changes Route
-
-## Changes in 1.121.0
-
-- Fix issue 209: Change all occurrences of exchange checking db error msg content
-- Fix issue 248: Pattern ID with trailing whitespace allowed
 
 ## Changes in 1.120.0
 

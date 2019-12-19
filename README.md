@@ -209,6 +209,19 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.0.x
+
+- Rebase exchange api server to akka-http
+
+## Changes in 1.122.0
+
+- Implement part 1 of issue 232: add exchange notification system : Resource Changes Route
+
+## Changes in 1.121.0
+
+- Fix issue 209: Change all occurrences of exchange checking db error msg content
+- Fix issue 248: Pattern ID with trailing whitespace allowed
+
 ## Changes in 1.120.0
 
 - Fix issue 213: hzn exchange node update (PATCH) wipes out registeredServices if input bad

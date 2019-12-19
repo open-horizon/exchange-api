@@ -4,7 +4,7 @@ import com.horizon.exchangeapi.ApiUtil
 import org.json4s._
 import org.json4s.jackson.Serialization.write
 import ExchangePostgresProfile.api._
-import slick.lifted.ProvenShape
+//import slick.lifted.ProvenShape
 //import org.json4s.jackson.Serialization.read
 //import ExchangePostgresProfile.jsonMethods._
 
@@ -14,9 +14,7 @@ import slick.lifted.ProvenShape
 case class OrgRow(orgId: String, orgType: String, label: String, description: String, lastUpdated: String, tags: Option[JValue]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def toOrg: Org = {
-    new Org(orgType, label, description, lastUpdated, tags.flatMap(_.extractOpt[Map[String, String]]))
-  }
+  def toOrg: Org = Org(orgType, label, description, lastUpdated, tags.flatMap(_.extractOpt[Map[String, String]]))
 
   // update returns a DB action to update this row
   def update: DBIO[_] = (for { m <- OrgsTQ.rows if m.orgid === orgId } yield m).update(this)
@@ -84,12 +82,10 @@ object OrgsTQ {
 final case class Org(orgType: String, label: String, description: String, lastUpdated: String, tags: Option[Map[String, String]])
 
 /** Contains the object representations of the DB tables related to resource changes. */
-case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String) {
+final case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def toResourceChange: ResourceChange = {
-    new ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)
-  }
+  def toResourceChange: ResourceChange = ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)
 
   // update returns a DB action to update this row
   def update: DBIO[_] = (for { m <- ResourceChangesTQ.rows if m.changeId === changeId} yield m).update(this)
@@ -148,5 +144,4 @@ object ResourceChangesTQ {
   }
 }
 
-class ResourceChange(var changeId: Int, var orgId: String, var id: String, var category: String, var public: String, var resource: String, var operation: String, var lastUpdated: String) {
-}
+final case class ResourceChange(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String)

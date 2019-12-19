@@ -27,13 +27,16 @@ import io.swagger.v3.oas.annotations._
 
 import com.horizon.exchangeapi.tables._
 import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
+//import com.horizon.exchangeapi.auth.DBProcessingError
 
 import scala.collection.immutable._
+import scala.collection.mutable.ListBuffer
 import scala.util._
+import scala.util.control.Breaks._
 //import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-/* when using actors
+/*someday: when we start using actors:
 import akka.actor.{ ActorRef, ActorSystem }
 import scala.concurrent.duration._
 import com.horizon.exchangeapi.OrgsActor._
@@ -90,6 +93,20 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
   }
 }
 
+/** Case class for request body for ResourceChanges route */
+case class ResourceChangesRequest(changeId: Int, lastUpdated: Option[String], maxRecords: Int, ibmAgbot: Option[Boolean]) {
+  def getAnyProblem: Option[String] = None // None means no problems with input
+}
+
+/** The following classes are to build the response object for the ResourceChanges route */
+case class ResourceChangesInnerObject(changeId: Int, lastUpdated: String)
+case class ChangeEntry(orgId: String, var resource: String, id: String, var operation: String, resourceChanges: ListBuffer[ResourceChangesInnerObject]){
+  def addToResourceChanges(innerObject: ResourceChangesInnerObject): ListBuffer[ResourceChangesInnerObject] = { this.resourceChanges += innerObject}
+  def setOperation(newOp: String) {this.operation = newOp}
+  def setResource(newResource: String) {this.resource = newResource}
+}
+case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, exchangeVersion: String)
+
 /** Routes for /orgs */
 @Path("/v1/orgs")
 class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport /* SprayJsonSupport with DefaultJsonProtocol */ with AuthenticationSupport {
@@ -119,7 +136,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport /* Spr
 
   // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
   // Note: putting the orgs prefix here, because it might help performance by disqualifying all of these routes early
-  def routes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute
+  def routes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgChangesRoute
 
   // ====== GET /orgs ================================
 
@@ -254,15 +271,14 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport /* Spr
         entity(as[PostPutOrgRequest]) { orgReq =>
           validate(orgReq.getAnyProblem.isEmpty, "Problem in request body") { //todo: create a custom validation directive so we can return the specific error msg from getAnyProblem to the client
             complete({
-              db.run(orgReq.toOrgRow(orgId).insert.asTry).map({ xs =>
-                logger.debug(s"POST /orgs/$orgId result: " + xs.toString)
-                xs match {
-                  case Success(_) => (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.created", orgId)))
-                  case Failure(t) =>
-                    if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", orgId, t.getMessage)))
-                    else if (t.getMessage.contains("duplicate key value violates unique constraint")) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("org.already.exists", orgId, t.getMessage)))
-                    else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.created", orgId, t.toString)))
-                }
+              db.run(orgReq.toOrgRow(orgId).insert.asTry).map({
+                case Success(n) =>
+                  logger.debug(s"POST /orgs/$orgId result: $n")
+                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.created", orgId)))
+                case Failure(t) =>
+                  if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", orgId, t.getMessage)))
+                  else if (t.getMessage.contains("duplicate key value violates unique constraint")) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("org.already.exists", orgId, t.getMessage)))
+                  else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.created", orgId, t.toString)))
               })
             }) // end of complete
           } // end of validate
@@ -293,15 +309,13 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport /* Spr
         case Success(_) =>
           validate(orgReq.getAnyProblem.isEmpty, "Problem in request body") { //todo: create a custom validation directive so we can return the specific error msg from getAnyProblem to the client
             complete({
-              db.run(orgReq.toOrgRow(orgId).update.asTry).map({ xs =>
-                logger.debug(s"PUT /orgs/$orgId result: " + xs.toString)
-                xs match {
-                  case Success(n) =>
-                    if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.updated")))
-                    else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
-                  case Failure(t) =>
-                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
-                }
+              db.run(orgReq.toOrgRow(orgId).update.asTry).map({
+                case Success(n) =>
+                  logger.debug(s"PUT /orgs/$orgId result: $n")
+                  if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.updated")))
+                  else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+                case Failure(t) =>
+                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
               })
             }) // end of complete
           } // end of validate
@@ -333,15 +347,13 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport /* Spr
           complete({
             val (action, attrName) = orgReq.getDbUpdate(orgId)
             if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.org.attr.specified")))
-            else db.run(action.transactionally.asTry).map({ xs =>
-              logger.debug(s"PATCH /orgs/$orgId result: " + xs.toString)
-              xs match {
-                case Success(n) =>
-                  if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", attrName, orgId)))
-                  else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
-                case Failure(t) =>
-                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
-              }
+            else db.run(action.transactionally.asTry).map({
+              case Success(n) =>
+                logger.debug(s"PATCH /orgs/$orgId result: $n")
+                if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", attrName, orgId)))
+                else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+              case Failure(t) =>
+                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
             })
           }) // end of complete
       } // end of auth match
@@ -366,17 +378,147 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport /* Spr
       case Success(_) =>
         complete({
           // remove does *not* throw an exception if the key does not exist
-          db.run(OrgsTQ.getOrgid(orgId).delete.transactionally.asTry).map({ xs =>
-            logger.debug(s"DELETE /orgs/$orgId result: " + xs.toString)
-            xs match {
-              case Success(v) => // there were no db errors, but determine if it actually found it or not
-                if (v > 0) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
-                else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
-              case Failure(t) =>
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.deleted", orgId, t.toString)))
-            }
+          db.run(OrgsTQ.getOrgid(orgId).delete.transactionally.asTry).map({
+            case Success(v) => // there were no db errors, but determine if it actually found it or not
+              logger.debug(s"DELETE /orgs/$orgId result: $v")
+              if (v > 0) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
+              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.deleted", orgId, t.toString)))
           })
         }) // end of complete
+    } // end of auth match
+  }
+
+  def buildResourceChangesResponse(orgList: scala.Seq[(Int, String, String, String, String, String, String, String)], ibmList: scala.Seq[(Int, String, String, String, String, String, String, String)], maxResp : Int): ResourceChangesRespObject ={
+    val exchangeVersion = ExchangeApiAppMethods.adminVersion()
+    val inputList = List(orgList, ibmList)
+    val changesList = ListBuffer[ChangeEntry]()
+    var mostRecentChangeId = 0
+    var entryCounter = 0
+    breakable {
+      for(input <- inputList) { //this for loop should only ever be of size 2
+        val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
+        for( entry <- input) {
+          /*
+          Example of what entry might look like
+            {
+              "_1":167,   --> changeId
+              "_2":"org2",    --> orgID
+              "_3":"resourcetest",    --> id
+              "_4":"node",    --> category
+              "_5":"false",   --> public
+              "_6":"node",    --> resource
+              "_7":"created/modified",  --> operation
+              "_8":"2019-12-12T19:28:05.309Z[UTC]",   --> lastUpdated
+            }
+           */
+          val resChange = ResourceChangesInnerObject(entry._1, entry._8)
+          if(changesMap.isDefinedAt(entry._3)){  // using the map allows for better searching and entry
+            if(changesMap(entry._3).resourceChanges.last.changeId < entry._1){
+              // the entry we are looking at actually happened later than the last entry in resourceChanges
+              // doing this check by changeId on the off chance two changes happen at the exact same time changeId tells which one is most updated
+              changesMap(entry._3).addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
+              changesMap(entry._3).setOperation(entry._7) // update the most recent operation performed
+              changesMap(entry._3).setResource(entry._6) // update exactly what resource was most recently touched
+            }
+          } else{
+            val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
+            changesMap(entry._3) = ChangeEntry(entry._2, entry._6, entry._3, entry._7, resChangeListBuffer)
+          }
+        }
+        // convert changesMap to ListBuffer[ChangeEntry]
+        breakable {
+          for (entry <- changesMap) {
+            if (entryCounter > maxResp) break // if we are over the count of allowed entries just stop and go to outer loop
+            changesList += entry._2 // if we are not just continue adding to the changesList
+            if (mostRecentChangeId < entry._2.resourceChanges.last.changeId) { mostRecentChangeId = entry._2.resourceChanges.last.changeId } //set the mostRecentChangeId value
+            entryCounter += 1 // increment our count of how many entries there are in changesList
+          }
+        }
+        if (entryCounter > maxResp) break // if we are over the count of allowed entries just stop and return the list as is
+      }
+    }
+    ResourceChangesRespObject(changesList.toList, mostRecentChangeId, exchangeVersion)
+  }
+
+  /* ====== POST /orgs/{orgid}/changes ================================ */
+  @POST
+  @Path("{orgid}/changes")
+  @Operation(summary = "Returns recent changes in this org", description = """Returns all the recent resource changes within an org that the caller has permissions to view.""",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
+    requestBody = new RequestBody(description = """
+```
+{
+  "changeId": <number-here>,
+  "lastUpdated": "<time-here>", --> optional field, only use if the caller doesn't know what changeId to use
+  "maxRecords": <number-here>, --> the maximum number of records the caller wants returned to them, NOT optional
+}
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[ResourceChangesRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "changes returned - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ResourceChangesRespObject])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def orgChangesRoute: Route = (post & path("orgs" / Segment / "changes") & extractCredentials) { (orgId, creds) =>
+    logger.debug(s"Doing POST /orgs/$orgId/changes")
+    auth(creds, TOrg(orgId), Access.READ) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(ident) =>
+        entity(as[ResourceChangesRequest]) { resourceRequest =>
+          validate(resourceRequest.getAnyProblem.isEmpty, "Problem in request body") { //todo: create a custom validation directive so we can return the specific error msg from getAnyProblem to the client
+            complete({
+              // Variables to help with building the query
+              val lastTime = resourceRequest.lastUpdated.getOrElse(ApiTime.beginningUTC)
+              //todo: reduce these 2 db queries to 1 db query
+              val qOrg = for {
+                r <- ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.lastUpdated >= lastTime).filter(_.changeId >= resourceRequest.changeId)
+              } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
+
+              val qIBM = for {
+                r <- ResourceChangesTQ.rows.filter(_.orgId === "IBM").filter(_.public === "true").filter(_.lastUpdated >= lastTime).filter(_.changeId >= resourceRequest.changeId)
+              } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
+
+              var qOrgResp : scala.Seq[(Int, String, String, String, String, String, String, String)] = null
+              var qIBMResp : scala.Seq[(Int, String, String, String, String, String, String, String)] = null
+
+              db.run(qOrg.result.asTry.flatMap({
+                case Success(qOrgResult) =>
+                  //logger.debug("POST /orgs/" + orgId + "/changes changes in caller org: " + qOrgResult.toString())
+                  logger.debug("POST /orgs/" + orgId + "/changes changes in caller org: " + qOrgResult.size)
+                  qOrgResp = qOrgResult
+                  qIBM.result.asTry
+                case Failure(t) => DBIO.failed(t).asTry
+              }).flatMap({
+                case Success(qIBMResult) => qIBMResp = qIBMResult
+                  //logger.debug("POST /orgs/" + orgId + "/changes public changes in IBM org: " + qIBMResult.toString())
+                  logger.debug("POST /orgs/" + orgId + "/changes public changes in IBM org: " + qIBMResult.size)
+                  val id = orgId + "/" + ident.getIdentity
+                  ident match {
+                    case _: INode =>
+                      NodesTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry
+                    case _: IAgbot =>
+                      AgbotsTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry
+                    case _ =>
+                      // Caller isn't a node or agbot so no need to heartbeat, just send a success in this step
+                      // v in the next step must be > 0 so any n > 0 works
+                      DBIO.successful(1).asTry
+                  }
+                case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+              })).map({
+                case Success(n) =>
+                  logger.debug(s"POST /orgs/$orgId result: $n")
+                  if (n > 0) (HttpCode.POST_OK, buildResourceChangesResponse(qOrgResp, qIBMResp, resourceRequest.maxRecords))
+                  else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", ident.getIdentity)))
+                case Failure(t) =>
+                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
+              })
+            }) // end of complete
+          } // end of validate
+        } // end of entity
     } // end of auth match
   }
 

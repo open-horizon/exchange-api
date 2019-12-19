@@ -59,7 +59,7 @@ final case class PatchUsersRequest(password: Option[String], admin: Option[Boole
   }
 }
 
-case class ChangePwRequest(newPassword: String) {
+final case class ChangePwRequest(newPassword: String) {
   def getAnyProblem: Option[String] = { //todo: use
     if (newPassword == "") Some(ExchMsg.translate("password.cannot.be.set.to.empty.string"))
     else None // None means no problems with input

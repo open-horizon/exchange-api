@@ -241,7 +241,7 @@ class AgbotsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val postHeartbeatResp = parse(response.body).extract[ApiResponse]
-    assert(postHeartbeatResp.code === ApiResponseType.OK)
+    assert(postHeartbeatResp.code === ApiRespType.OK)
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId) {
@@ -718,7 +718,7 @@ class AgbotsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
-    assert(postConfirmResp.code === ApiResponseType.NOT_FOUND)
+    assert(postConfirmResp.code === ApiRespType.NOT_FOUND)
   }
 
   /** Try to confirm the agreement that's not there for agbot 9930, as user */
@@ -728,7 +728,7 @@ class AgbotsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
-    assert(postConfirmResp.code === ApiResponseType.NOT_FOUND)
+    assert(postConfirmResp.code === ApiRespType.NOT_FOUND)
   }
 
   /** Add agbot2 */
@@ -746,7 +746,7 @@ class AgbotsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
-    assert(postConfirmResp.code === ApiResponseType.NOT_FOUND)
+    assert(postConfirmResp.code === ApiRespType.NOT_FOUND)
   }
 
   /** Add an agreement for agbot 9930 - as the agbot */
@@ -865,7 +865,7 @@ class AgbotsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
-    assert(postConfirmResp.code === ApiResponseType.OK)
+    assert(postConfirmResp.code === ApiRespType.OK)
   }
 
   /** Confirm the agreement for agbot 9930 */
@@ -875,7 +875,7 @@ class AgbotsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
-    assert(postConfirmResp.code === ApiResponseType.OK)
+    assert(postConfirmResp.code === ApiRespType.OK)
   }
 
   /** Confirm the agreement for agbot 9930 */
@@ -885,7 +885,7 @@ class AgbotsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
-    assert(postConfirmResp.code === ApiResponseType.OK)
+    assert(postConfirmResp.code === ApiRespType.OK)
   }
 
   /** Delete the 1st agreement for agbot 9930 */

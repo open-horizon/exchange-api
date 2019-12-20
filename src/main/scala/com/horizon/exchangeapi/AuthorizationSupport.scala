@@ -532,7 +532,7 @@ trait AuthorizationSupport {
   case class IApiKey(creds: Creds) extends Identity {
     def authorizeTo(target: Target, access: Access): Authorization = {
       if (hasFrontEndAuthority) return FrontendAuth // allow whatever it wants to do
-      halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiResponseType.ACCESS_DENIED, accessDeniedMsg(access))) // should not ever get here
+      halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, accessDeniedMsg(access))) // should not ever get here
     }
   }
   */

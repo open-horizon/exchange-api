@@ -43,7 +43,7 @@ object AuthenticationSupport {
     try {
       val decodedAuthStr = new String(Base64.getDecoder.decode(encodedAuth), "utf-8")
       decodedAuthStr match {
-        case decodedAuthRegex(id, tok) => /*logger.trace("id="+id+",tok="+tok+".");*/ Some(Creds(id, tok))
+        case decodedAuthRegex(id, tok) => /*logger.debug("id="+id+",tok="+tok+".");*/ Some(Creds(id, tok))
         case _ => None
       }
     } catch {
@@ -108,7 +108,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
 
   // Tries to do both authentication and then authorization. If successful, returns Identity. Otherwise returns an AuthException subclass
   def auth(optionalHttpCredentials: Option[HttpCredentials], target: Target, access: Access, hint: String = ""): Try[Identity] = {
-    authenticate(optionalHttpCredentials) match {
+    authenticate(optionalHttpCredentials, hint = hint) match {
       case Failure(t) => Failure(t)
       case Success(authenticatedIdentity) =>
         authenticatedIdentity.authorizeTo(target, access)

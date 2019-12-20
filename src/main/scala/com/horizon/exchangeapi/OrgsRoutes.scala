@@ -94,22 +94,22 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
 }
 
 /** Case class for request body for ResourceChanges route */
-case class ResourceChangesRequest(changeId: Int, lastUpdated: Option[String], maxRecords: Int, ibmAgbot: Option[Boolean]) {
+final case class ResourceChangesRequest(changeId: Int, lastUpdated: Option[String], maxRecords: Int, ibmAgbot: Option[Boolean]) {
   def getAnyProblem: Option[String] = None // None means no problems with input
 }
 
 /** The following classes are to build the response object for the ResourceChanges route */
-case class ResourceChangesInnerObject(changeId: Int, lastUpdated: String)
-case class ChangeEntry(orgId: String, var resource: String, id: String, var operation: String, resourceChanges: ListBuffer[ResourceChangesInnerObject]){
+final case class ResourceChangesInnerObject(changeId: Int, lastUpdated: String)
+final case class ChangeEntry(orgId: String, var resource: String, id: String, var operation: String, resourceChanges: ListBuffer[ResourceChangesInnerObject]){
   def addToResourceChanges(innerObject: ResourceChangesInnerObject): ListBuffer[ResourceChangesInnerObject] = { this.resourceChanges += innerObject}
   def setOperation(newOp: String) {this.operation = newOp}
   def setResource(newResource: String) {this.resource = newResource}
 }
-case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, exchangeVersion: String)
+final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, exchangeVersion: String)
 
 /** Routes for /orgs */
 @Path("/v1/orgs")
-class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport /* SprayJsonSupport with DefaultJsonProtocol */ with AuthenticationSupport {
+class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
   // Tell spray how to marshal our types (models) to/from the rest client
   // old way: protected implicit def jsonFormats: Formats
   //import DefaultJsonProtocol._
@@ -135,7 +135,6 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport /* Spr
   */
 
   // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
-  // Note: putting the orgs prefix here, because it might help performance by disqualifying all of these routes early
   def routes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgChangesRoute
 
   // ====== GET /orgs ================================
@@ -225,7 +224,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport /* Spr
                 val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
                 // Note: scala is unhappy when db.run returns 2 different possible types, so we can't return ApiResponse in the case of not found
                 /* if (list.nonEmpty) */ (code, GetOrgAttributeResponse(attr, OrgsTQ.renderAttribute(list)))
-                //else (StatusCodes.NotFound, ApiResponse(ApiResponseType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+                //else (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
               })
 
             case None => // Return the whole org resource

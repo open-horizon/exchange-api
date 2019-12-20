@@ -99,9 +99,9 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
       logger.debug(s"CacheId:getId(): ${creds.id} was not in the cache, so attempting to get it from the $idType db table")
       //val dbAction = NodesTQ.getToken(id).result
       val dbHashedTok: String = try {
-        //logger.trace("awaiting for DB query of local exchange creds for "+id+"...")
+        //logger.debug("awaiting for DB query of local exchange creds for "+id+"...")
         val respVector = Await.result(db.run(dbAction), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
-        //logger.trace("...back from awaiting for DB query of local exchange creds for "+id+".")
+        //logger.debug("...back from awaiting for DB query of local exchange creds for "+id+".")
         if (respVector.nonEmpty) respVector.head else ""
       } catch {
         // Handle db problems
@@ -191,9 +191,9 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
       logger.debug("CacheBoolean:getId(): " + id + " was not in the cache, so attempting to get it from the db")
       //val dbAction = UsersTQ.getAdmin(id).result
       try {
-        //logger.trace("CacheBoolean:getId(): awaiting for DB query of local exchange bool value for "+id+"...")
+        //logger.debug("CacheBoolean:getId(): awaiting for DB query of local exchange bool value for "+id+"...")
         val respVector = Await.result(db.run(getDbAction(id)), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
-        //logger.trace("CacheBoolean:getId(): ...back from awaiting for DB query of local exchange bool value for "+id+".")
+        //logger.debug("CacheBoolean:getId(): ...back from awaiting for DB query of local exchange bool value for "+id+".")
         if (respVector.nonEmpty) {
           val isValue = respVector.head
           logger.debug("CacheBoolean:getId(): " + id + " found in the db, adding it with value " + isValue + " to the cache")
@@ -274,9 +274,9 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
     private def getId(id: String): Try[String] = {
       logger.debug("CacheOwner:getId(): " + id + " was not in the cache, so attempting to get it from the db")
       try {
-        //logger.trace("CacheOwner:getId(): awaiting for DB query of local exchange admin value for "+id+"...")
+        //logger.debug("CacheOwner:getId(): awaiting for DB query of local exchange admin value for "+id+"...")
         val respVector = Await.result(db.run(getDbAction(id)), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
-        //logger.trace("CacheOwner:getId(): ...back from awaiting for DB query of local exchange admin value for "+id+".")
+        //logger.debug("CacheOwner:getId(): ...back from awaiting for DB query of local exchange admin value for "+id+".")
         if (respVector.nonEmpty) {
           val owner = respVector.head
           logger.debug("CacheOwner:getId(): " + id + " found in the db, adding it with value " + owner + " to the cache")

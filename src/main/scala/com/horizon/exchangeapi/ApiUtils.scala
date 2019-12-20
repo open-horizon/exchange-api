@@ -235,6 +235,7 @@ object ExchConfig {
     logger.info("Root user from config.json added to the in-memory authentication cache")
   }
 
+  //todo: investigate if this does the right things when called from POST /admin/reload
   def reload(): Unit = load()
 
   /**
@@ -404,15 +405,15 @@ case class VersionRange(range: String) {
     case _ => ("x", "x")
   }
   // split the leading [ or ( from the version number
-  val R1 = """([\[\(]?)(\d.*)""".r
+  val R1 = """([\[(]?)(\d.*)""".r
   val (floorInclusive, floor) = firstPart match {
     case "" => (true, Version("0.0.0"))
     case R1(i, f) => ((i != "("), Version(f))
     case _ => (false, Version("x")) // Version("x") is just an invalid version object
   }
   // separate the version number from the trailing ] or )
-  val R2 = """(.*\d)([\]\)]?)""".r
-  val R3 = """(infinity)([\]\)]?)""".r
+  val R2 = """(.*\d)([\])]?)""".r
+  val R3 = """(infinity)([\])]?)""".r
   val (ceiling, ceilingInclusive) = secondPart match {
     // case "" => (Version("infinity"), false)
     case R2(c, i) => (Version(c), (i == "]"))
@@ -458,7 +459,7 @@ object ApiUtil {
   def asJValue(src: AnyRef): JValue = {
     import org.json4s.{ Extraction, NoTypeHints }
     import org.json4s.jackson.Serialization
-    implicit val formats = Serialization.formats(NoTypeHints)
+    implicit val formats: AnyRef with Formats = Serialization.formats(NoTypeHints)
 
     Extraction.decompose(src)
   }

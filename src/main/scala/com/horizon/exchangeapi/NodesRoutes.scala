@@ -1,70 +1,73 @@
 /** Services routes for all of the /orgs/{orgid}/nodes api methods. */
 package com.horizon.exchangeapi
 
-import com.horizon.exchangeapi.auth.{AuthException, DBProcessingError}
+import javax.ws.rs._ // this does not have the PATCH method
+import akka.actor.ActorSystem
+import akka.event.{ Logging, LoggingAdapter }
+import de.heikoseeberger.akkahttpjackson._
+
+//import com.horizon.exchangeapi.auth.{AuthException, DBProcessingError}
 import com.horizon.exchangeapi.tables._
 import org.json4s._
-import org.json4s.jackson.JsonMethods._
+//import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.{read, write}
-import org.scalatra._
-import org.scalatra.swagger._
-import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
-import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
-import scala.util._
+//import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
+//import scala.util._
 import scala.util.control.Breaks._
 
 //====== These are the input and output structures for /orgs/{orgid}/nodes routes. Swagger and/or json seem to require they be outside the trait.
 
 /** Output format for GET /orgs/{orgid}/nodes */
-case class GetNodesResponse(nodes: Map[String,Node], lastIndex: Int)
-case class GetNodeAttributeResponse(attribute: String, value: String)
+final case class GetNodesResponse(nodes: Map[String,Node], lastIndex: Int)
+final case class GetNodeAttributeResponse(attribute: String, value: String)
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
-case class PatternSearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
+final case class PatternSearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
 
-case class PatternNodeResponse(id: String, msgEndPoint: String, publicKey: String)
-case class PostPatternSearchResponse(nodes: List[PatternNodeResponse], lastIndex: Int)
+final case class PatternNodeResponse(id: String, msgEndPoint: String, publicKey: String)
+final case class PostPatternSearchResponse(nodes: List[PatternNodeResponse], lastIndex: Int)
 
 
-case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List[String]]) {
-  def validate() = {}
+final case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List[String]]) {
+  def getAnyProblem: Option[String] = None
 }
 
-case class NodeHealthAgreementElement(lastUpdated: String)
+final case class NodeHealthAgreementElement(lastUpdated: String)
 class NodeHealthHashElement(var lastHeartbeat: String, var agreements: Map[String,NodeHealthAgreementElement])
-case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
+final case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
 
 // Leaving this here for the UI wanting to implement filtering later
-case class PostNodeErrorRequest() {
-  def validate() = {}
+final case class PostNodeErrorRequest() {
+  def getAnyProblem: Option[String] = None
 }
-case class PostNodeErrorResponse(nodes: scala.Seq[String])
+final case class PostNodeErrorResponse(nodes: scala.Seq[String])
 
-case class PostServiceSearchRequest(orgid: String, serviceURL: String, serviceVersion: String, serviceArch: String) {
-  def validate() = {}
+final case class PostServiceSearchRequest(orgid: String, serviceURL: String, serviceVersion: String, serviceArch: String) {
+  def getAnyProblem: Option[String] = None
 }
-case class PostServiceSearchResponse(nodes: scala.collection.Seq[(String, String)])
+final case class PostServiceSearchResponse(nodes: scala.collection.Seq[(String, String)])
 
 
 /** Input for service-based (citizen scientist) search, POST /orgs/"+orgid+"/search/nodes */
-case class PostSearchNodesRequest(desiredServices: List[RegServiceSearch], secondsStale: Int, propertiesToReturn: Option[List[String]], startIndex: Int, numEntries: Int) {
+final case class PostSearchNodesRequest(desiredServices: List[RegServiceSearch], secondsStale: Int, propertiesToReturn: Option[List[String]], startIndex: Int, numEntries: Int) {
   /** Halts the request with an error msg if the user input is invalid. */
-  def validate() = {
+  def getAnyProblem: Option[String] = {
     for (svc <- desiredServices) {
       // now we support more than 1 agreement for a service
       svc.validate match {
-        case Some(s) => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, s))
+        case Some(s) => return Some(s)
         case None => ;
       }
     }
+    return None
   }
 
   /** Returns the services that match all of the search criteria */
-  def matches(nodes: Map[String,Node], agHash: AgreementsHash)(implicit logger: Logger): PostSearchNodesResponse = {
-    // logger.trace(agHash.agHash.toString)
+  def matches(nodes: Map[String,Node], agHash: AgreementsHash)(implicit logger: LoggingAdapter): PostSearchNodesResponse = {
+    // logger.debug(agHash.agHash.toString)
 
     // Loop thru the existing nodes and services in the DB. (Should probably make this more FP style)
     var nodesResp: List[NodeResponse] = List()
@@ -115,25 +118,26 @@ case class PostSearchNodesRequest(desiredServices: List[RegServiceSearch], secon
   }
 }
 
-case class NodeResponse(id: String, name: String, services: List[RegService], userInput: List[OneUserInputService], msgEndPoint: String, publicKey: String, arch: String)
-case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
+final case class NodeResponse(id: String, name: String, services: List[RegService], userInput: List[OneUserInputService], msgEndPoint: String, publicKey: String, arch: String)
+final case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
-case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String]) {
+final case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
-  def validate() = {
-    if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.must.not.be.blank")))
-    // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
-    if (pattern != "" && """.*/.*""".r.findFirstIn(pattern).isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("pattern.must.have.orgid.prepended")))
+  def getAnyProblem: Option[String] = {
+    if (token == "") return Some(ExchMsg.translate("token.must.not.be.blank"))
+    // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
+    if (pattern != "" && """.*/.*""".r.findFirstIn(pattern).isEmpty) return Some(ExchMsg.translate("pattern.must.have.orgid.prepended"))
     for (m <- registeredServices.getOrElse(List())) {
       // now we support more than 1 agreement for a MS
-      // if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
+      // if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
       m.validate match {
-        case Some(s) => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, s))
+        case Some(s) => return Some(s)
         case None => ;
       }
     }
+    return None
   }
 
   // Build a list of db actions to verify that the referenced services exist
@@ -155,10 +159,14 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   }
 }
 
-case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
+final case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
+  def getAnyProblem: Option[String] = {
+    if (token.getOrElse("") == "") Some(ExchMsg.translate("token.cannot.be.empty.string"))
+    else None
+  }
+    /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
   def getDbUpdate(id: String, hashedPw: String): (DBIO[_],String) = {
     val lastHeartbeat = ApiTime.nowUTC
     //todo: support updating more than 1 attribute, but i think slick does not support dynamic db field names
@@ -167,7 +175,6 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
     if(token.isEmpty && softwareVersions.isDefined && registeredServices.isDefined && name.isDefined && pattern.isDefined && userInput.isDefined && msgEndPoint.isDefined && publicKey.isDefined && arch.isDefined){
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions, d.regServices, d.name, d.pattern, d.userInput, d.msgEndPoint, d.publicKey, d.arch, d.lastHeartbeat)).update((id, write(softwareVersions), write(registeredServices), name.get, pattern.get, write(userInput), msgEndPoint.get, publicKey.get, arch.get, lastHeartbeat)), "update all but token")
     } else if (token.isDefined){
-      if (token.getOrElse("") == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.cannot.be.empty.string")))
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, hashedPw, lastHeartbeat)), "token")
     } else if (softwareVersions.isDefined){
       val swVersions = if (softwareVersions.nonEmpty) write(softwareVersions) else ""
@@ -192,12 +199,13 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
   }
 }
 
-case class PostNodeConfigStateRequest(org: String, url: String, configState: String) {
+final case class PostNodeConfigStateRequest(org: String, url: String, configState: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   //def logger: Logger    // get access to the logger object in ExchangeApiApp
 
-  def validate() = {
-    if (configState != "suspended" && configState != "active") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("configstate.must.be.suspended.or.active")))
+  def getAnyProblem: Option[String] = {
+    if (configState != "suspended" && configState != "active") Some(ExchMsg.translate("configstate.must.be.suspended.or.active"))
+    else None
   }
 
   // Match registered service urls (which are org/url) to the input org and url
@@ -205,7 +213,7 @@ case class PostNodeConfigStateRequest(org: String, url: String, configState: Str
     val reg = """^(\S+?)/(\S+)$""".r
     val (comporg, compurl) = compositeUrl match {
       case reg(o,u) => (o, u)
-      case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("configstate.must.be.suspended.or.active", compositeUrl)))
+      case _ => return false   //todo: halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("configstate.must.be.suspended.or.active", compositeUrl)))
     }
     (org, url) match {
       case ("","") => return true
@@ -217,9 +225,9 @@ case class PostNodeConfigStateRequest(org: String, url: String, configState: Str
 
   // Given the existing list of registered svcs in the db for this node, determine the db update necessary to apply the new configState
   def getDbUpdate(regServices: String, id: String): DBIO[_] = {
-    if (regServices == "") halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.has.no.services")))
+    if (regServices == "") return DBIO.failed(new NotFoundException(ExchMsg.translate("node.has.no.services")))
     val regSvcs = read[List[RegService]](regServices)
-    if (regSvcs.isEmpty) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.has.no.services")))
+    if (regSvcs.isEmpty) return DBIO.failed(new NotFoundException(ExchMsg.translate("node.has.no.services")))
 
     // Copy the list of required svcs, changing configState wherever it applies
     var matchingSvcFound = false
@@ -232,10 +240,10 @@ case class PostNodeConfigStateRequest(org: String, url: String, configState: Str
       else rs
     })
     // this check is not ok, because we should not return NOT_FOUND if we find matching svc but their configState is already set the requested value
-    //if (newRegSvcs.sameElements(regSvcs)) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "did not find any registeredServices that matched the given org and url criteria."))
-    if (!matchingSvcFound) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("did.not.find.registered.services")))
+    //if (newRegSvcs.sameElements(regSvcs)) halt(HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, "did not find any registeredServices that matched the given org and url criteria."))
+    if (!matchingSvcFound) return DBIO.failed(new NotFoundException(ExchMsg.translate("did.not.find.registered.services")))
     if (newRegSvcs == regSvcs) {
-      println(ExchangeMessage.translateMessage("no.db.update.necessary"))
+      println(ExchMsg.translate("no.db.update.necessary"))
       //logger.debug("No db update necessary, all relevant config states already correct")
       return DBIO.successful(1)    // all the configStates were already set correctly, so nothing to do
     }
@@ -246,9 +254,9 @@ case class PostNodeConfigStateRequest(org: String, url: String, configState: Str
   }
 }
 
-case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: List[OneService]) {
+final case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: List[OneService]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = { }
+  def getAnyProblem: Option[String] = None
   var runningServices = "|"
   for(s <- services){
     runningServices = runningServices + s.orgid + "/" + s.serviceUrl + "_" + s.version + "_" + s.arch + "|"
@@ -256,22 +264,23 @@ case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: Lis
   def toNodeStatusRow(nodeId: String) = NodeStatusRow(nodeId, write(connectivity), write(services), runningServices, ApiTime.nowUTC)
 }
 
-case class PutNodeErrorRequest(errors: List[Any]) {
+final case class PutNodeErrorRequest(errors: List[Any]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = { }
+  def getAnyProblem: Option[String] = None
 
   def toNodeErrorRow(nodeId: String) = NodeErrorRow(nodeId, write(errors), ApiTime.nowUTC)
 }
 
-case class PutNodePolicyRequest(properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+final case class PutNodePolicyRequest(properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = {
+  def getAnyProblem: Option[String] = {
     val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of string", "version")
-      for (p <- properties.getOrElse(List())) {
-        if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
-          halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("property.type.must.be", p.`type`.get, validTypes.mkString(", "))))
-        }
+    for (p <- properties.getOrElse(List())) {
+      if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
+        return Some(ExchMsg.translate("property.type.must.be", p.`type`.get, validTypes.mkString(", ")))
       }
+    }
+    return None
   }
 
   def toNodePolicyRow(nodeId: String) = NodePolicyRow(nodeId, write(properties), write(constraints), ApiTime.nowUTC)
@@ -279,15 +288,16 @@ case class PutNodePolicyRequest(properties: Option[List[OneProperty]], constrain
 
 
 /** Output format for GET /orgs/{orgid}/nodes/{id}/agreements */
-case class GetNodeAgreementsResponse(agreements: Map[String,NodeAgreement], lastIndex: Int)
+final case class GetNodeAgreementsResponse(agreements: Map[String,NodeAgreement], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/{id}/agreements/<agreement-id> */
-case class PutNodeAgreementRequest(services: Option[List[NAService]], agreementService: Option[NAgrService], state: String) {
+final case class PutNodeAgreementRequest(services: Option[List[NAService]], agreementService: Option[NAgrService], state: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = {
+  def getAnyProblem: Option[String] = {
     if (services.isEmpty && agreementService.isEmpty) {
-      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("must.specify.service.or.agreementservice")))
+      return Some(ExchMsg.translate("must.specify.service.or.agreementservice"))
     }
+    return None
   }
 
   def toNodeAgreementRow(nodeId: String, agId: String) = {
@@ -298,19 +308,21 @@ case class PutNodeAgreementRequest(services: Option[List[NAService]], agreementS
 
 
 /** Input body for POST /orgs/{orgid}/nodes/{id}/msgs */
-case class PostNodesMsgsRequest(message: String, ttl: Int)
+final case class PostNodesMsgsRequest(message: String, ttl: Int)
 
 /** Response for GET /orgs/{orgid}/nodes/{id}/msgs */
-case class GetNodeMsgsResponse(messages: List[NodeMsg], lastIndex: Int)
+final case class GetNodeMsgsResponse(messages: List[NodeMsg], lastIndex: Int)
 
 
 /** Implementation for all of the /orgs/{orgid}/nodes routes */
-trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
-  def db: Database      // get access to the db object in ExchangeApiApp
-  implicit def logger: Logger    // get access to the logger object in ExchangeApiApp
-  protected implicit def jsonFormats: Formats
+@Path("/v1/orgs/{orgid}/nodes")
+class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
+  def db: Database = ExchangeApiApp.getDb
+  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
+  //protected implicit def jsonFormats: Formats
   // implicit def formats: org.json4s.Formats{val dateFormat: org.json4s.DateFormat; val typeHints: org.json4s.TypeHints}
 
+  /*
   /* ====== GET /orgs/{orgid}/nodes ================================
     This is of type org.scalatra.swagger.SwaggerOperation
     apiOperation() is a method of org.scalatra.swagger.SwaggerSupport. It returns org.scalatra.swagger.SwaggerSupportSyntax$$OperationBuilder
@@ -367,7 +379,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       else resp.setStatus(HttpCode.NOT_FOUND)
       GetNodesResponse(nodes, 0)
     })
-    // } catch { case e: Exception => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "Oops! Somthing unexpected happened: "+e)) }
+    // } catch { case e: Exception => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, "Oops! Somthing unexpected happened: "+e)) }
   })
 
   /* ====== GET /orgs/{orgid}/nodes/{id} ================================ */
@@ -394,7 +406,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the node
         val q = NodesTQ.getAttribute(id, attribute)
-        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("not.a.node.attribute", attribute)))
+        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("not.a.node.attribute", attribute)))
         db.run(q.result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+" attribute result: "+list.size)
           if (list.nonEmpty) {
@@ -402,7 +414,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
             GetNodeAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("not.found"))     // validateAccessToNode() will return ApiResponseType.NOT_FOUND to the client so do that here for consistency
+            ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))     // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
           }
         })
 
@@ -416,7 +428,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
             GetNodesResponse(nodes, 0)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("not.found"))     // validateAccessToNode() will return ApiResponseType.NOT_FOUND to the client so do that here for consistency
+            ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))     // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
           }
         })
     }
@@ -476,7 +488,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val compositePat = OrgAndId(orgid,pattern).toString
     authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostNodeHealthRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
     searchProps.validate()
     val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
     logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth criteria: "+searchProps.toString)
@@ -493,7 +505,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
     db.run(q.result).map({ list =>
       logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result size: "+list.size)
-      //logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
+      //logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
       if (list.nonEmpty) {
         resp.setStatus(HttpCode.POST_OK)
         PostNodeHealthResponse(buildNodeHealthHash(list))
@@ -551,7 +563,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostSearchNodesRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
     searchProps.validate()
     logger.debug("POST /orgs/"+orgid+"/search/nodes criteria: "+searchProps.desiredServices.toString)
     val resp = response
@@ -563,13 +575,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     var agHash: AgreementsHash = null
     db.run(NodeAgreementsTQ.getAgreementsWithState(orgid).result.flatMap({ agList =>
       logger.debug("POST /orgs/" + orgid + "/search/nodes aglist result size: " + agList.size)
-      //logger.trace("POST /orgs/" + orgid + "/search/nodes aglist result: " + agList.toString)
+      //logger.debug("POST /orgs/" + orgid + "/search/nodes aglist result: " + agList.toString)
       agHash = new AgreementsHash(agList)
       q.result // queue up our node query next
     })).map({ list =>
       logger.debug("POST /orgs/" + orgid + "/search/nodes result size: " + list.size)
-      // logger.trace("POST /orgs/"+orgid+"/search/nodes result: "+list.toString)
-      // logger.trace("POST /orgs/"+orgid+"/search/nodes agHash: "+agHash.agHash.toString)
+      // logger.debug("POST /orgs/"+orgid+"/search/nodes result: "+list.toString)
+      // logger.debug("POST /orgs/"+orgid+"/search/nodes agHash: "+agHash.agHash.toString)
       if (list.nonEmpty) resp.setStatus(HttpCode.POST_OK) //todo: this check only catches if there are no nodes at all, not the case in which there are some nodes, but they do not have the right services
       else resp.setStatus(HttpCode.NOT_FOUND)
       val nodes = new MutableHashMap[String,Node]    // the key is node id
@@ -642,7 +654,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostServiceSearchRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
     searchProps.validate()
     // service = svcUrl_svcVersion_svcArch
     val service = searchProps.serviceURL+"_"+searchProps.serviceVersion+"_"+searchProps.serviceArch
@@ -695,7 +707,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     //val compositePat = OrgAndId(orgid,pattern).toString
     authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostNodeHealthRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
     searchProps.validate()
     logger.debug("POST /orgs/"+orgid+"/search/nodehealth criteria: "+searchProps.toString)
     val resp = response
@@ -711,7 +723,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
 
     db.run(q.result).map({ list =>
       logger.debug("POST /orgs/"+orgid+"/search/nodehealth result size: "+list.size)
-      //logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
+      //logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
       if (list.nonEmpty) {
         resp.setStatus(HttpCode.POST_OK)
         PostNodeHealthResponse(buildNodeHealthHash(list))
@@ -790,7 +802,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val ident = authenticate().authorizeTo(TNode(id),Access.WRITE)
     val node = try { parse(request.body).extract[PutNodesRequest] }
     catch {
-      case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e)))
+      case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e)))
     }
     node.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
@@ -803,7 +815,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
       xs match {
         case Success(num) => if (num > 0) valServiceIdActions.asTry
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("pattern.not.in.exchange"))).asTry
+          else DBIO.failed(new Throwable(ExchMsg.translate("pattern.not.in.exchange"))).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -819,8 +831,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           } }
           if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(id).result.asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) ExchangeMessage.translateMessage("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-            else ExchangeMessage.translateMessage("service.not.in.exchange.index", Nth(invalidIndex+1))
+            val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+            else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex+1))
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -831,7 +843,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(v) => if (v.nonEmpty) {
             val (existingPattern, existingPublicKey) = v.head
-            if (node.pattern!="" && existingPattern=="" && existingPublicKey!="") DBIO.failed(new Throwable(ExchangeMessage.translateMessage("not.pattern.when.policy"))).asTry
+            if (node.pattern!="" && existingPattern=="" && existingPublicKey!="") DBIO.failed(new Throwable(ExchMsg.translate("not.pattern.when.policy"))).asTry
             else NodesTQ.getNumOwned(owner).result.asTry   // they are not trying to switch from policy to pattern, so we can continue
           }
           else NodesTQ.getNumOwned(owner).result.asTry    // node doesn't exit yet, we can continue
@@ -846,7 +858,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
             val action = if (owner == "") node.getDbUpdate(id, orgid, owner, hashedTok) else node.getDbUpsert(id, orgid, owner, hashedTok)
             action.transactionally.asTry
           }
-          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.of.nodes", maxNodes))).asTry
+          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.nodes", maxNodes))).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -867,13 +879,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           //AuthCache.ids.putNode(id, hashedTok, node.token)
           //AuthCache.nodesOwner.putOne(id, owner)
           resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.added.or.updated"))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated"))
         case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.not.inserted.or.updated", id, t.getMessage))
+          ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.not.inserted.or.updated", id, t.getMessage))
         case Failure(t) =>
           resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.not.inserted.or.updated", id, t.getMessage))
+          ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", id, t.getMessage))
       }
     })
   })
@@ -901,15 +913,15 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val id = OrgAndId(orgid,bareId).toString
     authenticate().authorizeTo(TNode(id),Access.WRITE)
     if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
-      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", request.body)))
     }
     val node = try { parse(request.body).extract[PatchNodesRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-//    logger.trace("PATCH /orgs/"+orgid+"/nodes/"+bareId+" input: "+node.toString)
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
+//    logger.debug("PATCH /orgs/"+orgid+"/nodes/"+bareId+" input: "+node.toString)
     val resp = response
     val hashedPw = if (node.token.isDefined) Password.hash(node.token.get) else ""    // hash the token if that is what is being updated
     val (action, attrName) = node.getDbUpdate(id, hashedPw)
-    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.note.attr.specified")))
+    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.note.attr.specified")))
     val patValidateAction = if (attrName == "pattern" && node.pattern.get != "") PatternsTQ.getPattern(node.pattern.get).length.result else DBIO.successful(1)
     val (valServiceIdActions, svcRefs) = if (attrName == "userInput") NodesTQ.validateServiceIds(node.userInput.get)
       else (DBIO.successful(Vector()), Vector())
@@ -918,7 +930,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("PATCH /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
       xs match {
         case Success(num) => if (num > 0) valServiceIdActions.asTry
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("pattern.not.in.exchange"))).asTry
+          else DBIO.failed(new Throwable(ExchMsg.translate("pattern.not.in.exchange"))).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -934,8 +946,8 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           } }
           if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(id).result.asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) ExchangeMessage.translateMessage("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-            else ExchangeMessage.translateMessage("service.not.in.exchange.index", Nth(invalidIndex+1))
+            val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+            else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex+1))
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -946,7 +958,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(v) => if (v.nonEmpty) {
           val (existingPattern, existingPublicKey) = v.head
-          if (node.pattern.getOrElse("")!="" && existingPattern=="" && existingPublicKey!="") DBIO.failed(new Throwable(ExchangeMessage.translateMessage("not.pattern.when.policy"))).asTry
+          if (node.pattern.getOrElse("")!="" && existingPattern=="" && existingPublicKey!="") DBIO.failed(new Throwable(ExchMsg.translate("not.pattern.when.policy"))).asTry
           else action.transactionally.asTry   // they are not trying to switch from policy to pattern, so we can continue
         }
         else action.transactionally.asTry    // node doesn't exit yet, we can continue
@@ -970,15 +982,15 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
               if (node.token.isDefined) AuthCache.putNode(id, hashedPw, node.token.get)  // We do not need to run putOwner because patch does not change the owner
               //AuthCache.ids.putNode(id, hashedPw, node.token.get)
               resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.attribute.updated", attrName, id))
+              ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", attrName, id))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
+              ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e)) }
-          //          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unexpected.result.from.update", e)) }
+          //          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiRespType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.not.inserted.or.updated", id, t.getMessage))
+          ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", id, t.getMessage))
       }
     })
   })
@@ -1013,7 +1025,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val bareId = params("id")
     val nodeId = OrgAndId(orgid,bareId).toString
     val configStateReq = try { parse(request.body).extract[PostNodeConfigStateRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
     configStateReq.validate()
     val resp = response
 
@@ -1039,14 +1051,14 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(i) => //try {     // i comes to us as type Any
           if (i.toString.toInt > 0) {        // there were no db errors, but determine if it actually found it or not
             resp.setStatus(HttpCode.PUT_OK)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.services.updated", nodeId))
+            ApiResponse(ApiRespType.OK, ExchMsg.translate("node.services.updated", nodeId))
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", nodeId))
+            ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", nodeId))
           }
-          //} catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
+          //} catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiRespType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.not.inserted.or.updated", nodeId, t.getMessage))
+          ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", nodeId, t.getMessage))
       }
     })
 
@@ -1080,7 +1092,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "node", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
           nodeChange.insert.asTry
         } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))).asTry
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))).asTry
         }
         case Failure(t) => DBIO.failed(t).asTry
       }
@@ -1093,21 +1105,21 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           //AuthCache.ids.removeOne(id)
           //AuthCache.nodesOwner.removeOne(id)
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.deleted"))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("node.deleted"))
         case Failure(t: DBProcessingError) =>
           logger.debug("Nodes4 - getting to failure - dbprocessingerror")
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
+          ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))
         case Failure(t) =>
           logger.debug("Nodes4 - getting to failure catch all case")
           if(t.getMessage.contains("couldn't find node")){
             logger.debug("Nodes4 - getting to failure catch all if case")
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
+            ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))
           } else {
             logger.debug("Nodes4 - getting to failure catch all other case")
             resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.not.deleted", id, t.toString))
+            ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.deleted", id, t.toString))
           }
 
         }
@@ -1138,13 +1150,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(v) => if (v > 0) {       // there were no db errors, but determine if it actually found it or not
               resp.setStatus(HttpCode.POST_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.updated"))
+              ApiResponse(ApiRespType.OK, ExchMsg.translate("node.updated"))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
+              ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))
             }
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.not.updated", id, t.toString))
+          ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.updated", id, t.toString))
         }
     })
   })
@@ -1216,7 +1228,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val id = OrgAndId(orgid,bareId).toString
     authenticate().authorizeTo(TNode(id),Access.WRITE)
     val error = try { parse(request.body).extract[PutNodeErrorRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
     error.validate()
     val resp = response
     db.run(error.toNodeErrorRow(id).upsert.asTry.flatMap({ xs =>
@@ -1232,13 +1244,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" updating resource status table: "+xs)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.errors.added"))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("node.errors.added"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.errors.not.inserted", id, t.getMessage))
+          ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.errors.not.inserted", id, t.getMessage))
         } else {
           resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.errors.not.inserted", id, t.toString))
+          ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.errors.not.inserted", id, t.toString))
         }
       }
     })
@@ -1271,7 +1283,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodeerrors", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
           nodeChange.insert.asTry
         } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))).asTry
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))).asTry
         }
         case Failure(t) => DBIO.failed(t).asTry
       }
@@ -1280,12 +1292,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(v) =>        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.errors.deleted"))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("node.errors.deleted"))
         case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.errors.not.found", id))
+          ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.errors.not.found", id))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.errors.not.deleted", id, t.toString))
+          ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.errors.not.deleted", id, t.toString))
       }
     })
   })
@@ -1368,7 +1380,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val id = OrgAndId(orgid,bareId).toString
     authenticate().authorizeTo(TNode(id),Access.WRITE)
     val status = try { parse(request.body).extract[PutNodeStatusRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
     status.validate()
     val resp = response
     db.run(status.toNodeStatusRow(id).upsert.asTry.flatMap({ xs =>
@@ -1384,13 +1396,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/status updating resource status table: "+xs)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("status.added.or.updated"))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("status.added.or.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.status.not.inserted.or.updated", id, t.getMessage))
+          ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.status.not.inserted.or.updated", id, t.getMessage))
         } else {
           resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.status.not.inserted.or.updated", id, t.toString))
+          ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.status.not.inserted.or.updated", id, t.toString))
         }
       }
     })
@@ -1423,7 +1435,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodestatus", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
           nodeChange.insert.asTry
         } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.status.not.found", id))).asTry
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.status.not.found", id))).asTry
         }
         case Failure(t) => DBIO.failed(t).asTry
       }
@@ -1432,12 +1444,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(_) =>
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.status.deleted"))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("node.status.deleted"))
         case Failure(t:DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.status.not.found", id))
+          ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.status.not.found", id))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.status.not.deleted", id, t.toString))
+          ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.status.not.deleted", id, t.toString))
       }
     })
   })
@@ -1509,7 +1521,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val id = OrgAndId(orgid,bareId).toString
     authenticate().authorizeTo(TNode(id),Access.WRITE)
     val policy = try { parse(request.body).extract[PutNodePolicyRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
     policy.validate()
     val resp = response
     db.run(policy.toNodePolicyRow(id).upsert.asTry.flatMap({ xs =>
@@ -1528,9 +1540,9 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
             val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodepolicies", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
             nodeChange.insert.asTry
           } else {
-            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))).asTry
+            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))).asTry
           }
-        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.policy.not.updated", id, e))).asTry }
+        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.policy.not.updated", id, e))).asTry }
         case Failure(t) => DBIO.failed(t).asTry
       }
     })).map({ xs =>
@@ -1538,21 +1550,21 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(_) =>
           resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.policy.added.or.updated"))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("node.policy.added.or.updated"))
         case Failure(t: DBProcessingError) =>
           if (t.httpCode == HttpCode.NOT_FOUND){
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
+            ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))
           } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
             resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, t.getMessage)
+            ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage)
           }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.policy.not.inserted.or.updated", id, t.getMessage))
+          ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.policy.not.inserted.or.updated", id, t.getMessage))
         } else {
           resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.policy.not.inserted.or.updated", id, t.toString))
+          ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.policy.not.inserted.or.updated", id, t.toString))
         }
       }
     })
@@ -1585,7 +1597,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodepolicies", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
           nodeChange.insert.asTry
         } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.policy.not.found", id) )).asTry
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.policy.not.found", id) )).asTry
         }
         case Failure(t) => DBIO.failed(t).asTry
       }
@@ -1594,12 +1606,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(_) =>        // there were no db errors, but determine if it actually found it or not
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.policy.deleted"))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("node.policy.deleted"))
         case Failure(t:DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.policy.not.found", id))
+          ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.policy.not.found", id))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.policy.not.deleted", id, t.toString))
+          ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.policy.not.deleted", id, t.toString))
       }
     })
   })
@@ -1706,7 +1718,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val agId = params("agid")
     authenticate().authorizeTo(TNode(id),Access.WRITE)
     val agreement = try { parse(request.body).extract[PutNodeAgreementRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
     agreement.validate()
     val resp = response
     db.run(NodeAgreementsTQ.getNumOwned(id).result.flatMap({ xs =>
@@ -1716,7 +1728,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       if (maxAgreements == 0 || numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
         agreement.toNodeAgreementRow(id, agId).upsert.asTry
       }
-      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.limit.of.agreements.for.node", maxAgreements) )).asTry
+      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.limit.of.agreements.for.node", maxAgreements) )).asTry
     }).flatMap({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+xs.toString)
       xs match {
@@ -1739,18 +1751,18 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
             if (numUpdated > 0) {
               resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.agreement.added.or.updated"))
+              ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.added.or.updated"))
             } else {
               resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
+              ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.agreement.not.updated", id, e)) }    // the specific exception is NumberFormatException
+          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.updated", id, e)) }    // the specific exception is NumberFormatException
         case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.agreement.not.inserted.or.updated", agId, id, t.getMessage))
+          ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.agreement.not.inserted.or.updated", agId, id, t.getMessage))
         case Failure(t) =>
           resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.agreement.not.inserted.or.updated", agId, id, t.toString))
+          ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.inserted.or.updated", agId, id, t.toString))
       }
     })
   })
@@ -1781,7 +1793,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodeagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
           nodeChange.insert.asTry
         } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.node.agreements.found", id))).asTry
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.node.agreements.found", id))).asTry
         }
         case Failure(t) => DBIO.failed(t).asTry
       }
@@ -1790,13 +1802,13 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(_) =>
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.agreements.deleted"))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreements.deleted"))
         case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.node.agreements.found", id))
-        //            ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for node '"+id+"' found")
+          ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("no.node.agreements.found", id))
+        //            ApiResponse(ApiRespType.NOT_FOUND, "no agreements for node '"+id+"' found")
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.agreements.not.deleted", id, t.toString))
+          ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreements.not.deleted", id, t.toString))
         }
     })
   })
@@ -1830,7 +1842,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodeagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
           nodeChange.insert.asTry
         } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.agreement.not.found", agId, id))).asTry
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.agreement.not.found", agId, id))).asTry
         }
         case Failure(t) => DBIO.failed(t).asTry
       }
@@ -1839,12 +1851,12 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(v) =>
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.agreement.deleted"))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.deleted"))
         case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.agreement.not.found", agId, id))
+          ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.agreement.not.found", agId, id))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.agreement.not.deleted", agId, id, t.toString))
+          ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.deleted", agId, id, t.toString))
         }
     })
   })
@@ -1882,7 +1894,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val agbotId = ident.creds.id
     var msgNum = ""
     val msg = try { parse(request.body).extract[PostNodesMsgsRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
     val resp = response
     // Remove msgs whose TTL is past, then check the mailbox is not full, then get the agbot publicKey, then write the nodemsgs row, all in the same db.run thread
     db.run(NodeMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
@@ -1893,16 +1905,16 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       val mailboxSize = xs
       val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
       if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) AgbotsTQ.getPublicKey(agbotId).result.asTry
-      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.mailbox.full", nodeId, maxMessagesInMailbox) )).asTry
+      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.mailbox.full", nodeId, maxMessagesInMailbox) )).asTry
     }).flatMap({ xs =>
       logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/msgs agbot publickey result: "+xs.toString)
       xs match {
         case Success(v) => if (v.nonEmpty) {    // it seems this returns success even when the agbot is not found
             val agbotPubKey = v.head
             if (agbotPubKey != "") NodeMsgRow(0, nodeId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
-            else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("message.sender.public.key.not.in.exchange"))).asTry
+            else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, ExchMsg.translate("message.sender.public.key.not.in.exchange"))).asTry
           }
-          else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.agbot.not.found", agbotId) )).asTry
+          else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.agbot.not.found", agbotId) )).asTry
         case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
       }
     }).flatMap({ xs =>
@@ -1919,20 +1931,20 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/msgs update changes table : "+xs.toString)
       xs match {
         case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.msg.inserted", msgNum))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.inserted", msgNum))
         case Failure(t: DBProcessingError) => if(t.httpCode == HttpCode.ACCESS_DENIED) {
             resp.setStatus(HttpCode.ACCESS_DENIED)
-            ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, t.getMessage))
+            ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.msg.not.inserted", nodeId, t.getMessage))
           } else if (t.httpCode == HttpCode.BAD_INPUT){
             resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, ExchangeMessage.translateMessage("invalid.input.agbot.not.found", agbotId)))
+            ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.msg.not.inserted", nodeId, ExchMsg.translate("invalid.input.agbot.not.found", agbotId)))
           }
         case Failure(t) => if (t.getMessage.contains("is not present in table")) {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.msg.nodeid.not.found", nodeId, t.getMessage))
+            ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.nodeid.not.found", nodeId, t.getMessage))
           } else {
             resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, t.toString))
+            ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.inserted", nodeId, t.toString))
           }
         }
     })
@@ -1990,7 +2002,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     val orgid = params("orgid")
     val bareId = params("id")
     val id = OrgAndId(orgid,bareId).toString
-    val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("msgid.must.be.int", e))) }    // the specific exception is NumberFormatException
+    val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", e))) }    // the specific exception is NumberFormatException
     authenticate().authorizeTo(TNode(id),Access.WRITE)
     val resp = response
     db.run(NodeMsgsTQ.getMsg(id,msgId).delete.asTry.flatMap({ xs =>
@@ -2001,7 +2013,7 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
           val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodemsgs", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
           nodeChange.insert.asTry
         } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.msg.not.found", msgId, id))).asTry
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.not.found", msgId, id))).asTry
         }
         case Failure(t) => DBIO.failed(t).asTry
       }
@@ -2010,14 +2022,15 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
       xs match {
         case Success(_) =>
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.msg.deleted"))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.deleted"))
         case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.msg.not.found", msgId, id))
+          ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.not.found", msgId, id))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.msg.not.deleted", msgId, id, t.toString))
+          ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.deleted", msgId, id, t.toString))
         }
     })
   })
 
+   */
 }

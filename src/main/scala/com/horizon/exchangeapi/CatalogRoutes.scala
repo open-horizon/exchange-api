@@ -1,21 +1,24 @@
 package com.horizon.exchangeapi
 
-import com.horizon.exchangeapi.tables._
-import org.json4s._
-import org.scalatra._
-import org.scalatra.swagger._
-import org.slf4j._
+import javax.ws.rs._ // this does not have the PATCH method
+import akka.actor.ActorSystem
+import akka.event.{ Logging, LoggingAdapter }
+import de.heikoseeberger.akkahttpjackson._
+
+//import com.horizon.exchangeapi.tables._
+//import org.json4s._
 import slick.jdbc.PostgresProfile.api._
 
-import scala.collection.mutable.{HashMap => MutableHashMap}
+//import scala.collection.mutable.{HashMap => MutableHashMap}
 
 // Provides routes for browsing the services and patterns in the IBM catalog
+@Path("/v1/catalog")
+class CatalogRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
+  def db: Database = ExchangeApiApp.getDb
+  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
+  //protected implicit def jsonFormats: Formats
 
-trait CatalogRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
-  def db: Database      // get access to the db object in ExchangeApiApp
-  def logger: Logger    // get access to the logger object in ExchangeApiApp
-  protected implicit def jsonFormats: Formats
-
+  /*
   // ====== GET /catalog/services ================================
   val getCatalogServices =
     (apiOperation[GetServicesResponse]("getCatalogServices")
@@ -40,7 +43,7 @@ trait CatalogRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
     db.run(svcQuery.result).map({ list =>
       logger.debug("GET /catalog/services result size: "+list.size)
-      //logger.trace("GET /catalog/services result: "+list.toString())
+      //logger.debug("GET /catalog/services result: "+list.toString())
       val services = new MutableHashMap[String,Service]
       if (list.nonEmpty) for (a <- list) services.put(a.service, a.toService)
       if (services.nonEmpty) resp.setStatus(HttpCode.OK)
@@ -73,7 +76,7 @@ trait CatalogRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
 
     db.run(svcQuery.result).map({ list =>
       logger.debug("GET /catalog/patterns result size: "+list.size)
-      //logger.trace("GET /catalog/patterns result: "+list.toString())
+      //logger.debug("GET /catalog/patterns result: "+list.toString())
       val patterns = new MutableHashMap[String,Pattern]
       if (list.nonEmpty) for (a <- list) patterns.put(a.pattern, a.toPattern)
       if (patterns.nonEmpty) resp.setStatus(HttpCode.OK)
@@ -82,4 +85,5 @@ trait CatalogRoutes extends ScalatraBase with FutureSupport with SwaggerSupport 
     })
   })
 
+   */
 }

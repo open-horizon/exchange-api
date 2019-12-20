@@ -154,7 +154,7 @@ case class PermissionCheck(permission: String) extends PrivilegedAction[Unit] {
 
   private def isAdminAllowed(permission: String) = {
     if (adminNotAllowed.contains(permission)) {
-      Failure(new Exception(ExchangeMessage.translateMessage("admins.not.given.permission", permission)))
+      Failure(new Exception(ExchMsg.translate("admins.not.given.permission", permission)))
     } else {
       Success(())
     }

@@ -1,43 +1,46 @@
 /** Services routes for all of the /orgs/{orgid}/business api methods. */
 package com.horizon.exchangeapi
 
-import com.horizon.exchangeapi.auth.DBProcessingError
+import javax.ws.rs._ // this does not have the PATCH method
+import akka.actor.ActorSystem
+import akka.event.{ Logging, LoggingAdapter }
+import de.heikoseeberger.akkahttpjackson._
+
+//import com.horizon.exchangeapi.auth.DBProcessingError
 import com.horizon.exchangeapi.tables._
 import org.json4s._
-import org.json4s.jackson.JsonMethods._
+//import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
-import org.scalatra._
-import org.scalatra.swagger._
-import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
-import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
-import scala.util._
-import scala.util.control.Breaks._
+//import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
+//import scala.util._
+//import scala.util.control.Breaks._
 
 //====== These are the input and output structures for /orgs/{orgid}/business/policies routes. Swagger and/or json seem to require they be outside the trait.
 
 /** Output format for GET /orgs/{orgid}/business/policies */
-case class GetBusinessPoliciesResponse(businessPolicy: Map[String,BusinessPolicy], lastIndex: Int)
-case class GetBusinessPolicyAttributeResponse(attribute: String, value: String)
+final case class GetBusinessPoliciesResponse(businessPolicy: Map[String,BusinessPolicy], lastIndex: Int)
+final case class GetBusinessPolicyAttributeResponse(attribute: String, value: String)
 
 object BusinessUtils {
-  def validateBusinessService(service: BService): Unit = {
+  def getAnyProblem(service: BService): Option[String] = {
     // Check they specified at least 1 service version
-    if (service.serviceVersions.isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.version.specified.for.service2")))
+    if (service.serviceVersions.isEmpty) return Some(ExchMsg.translate("no.version.specified.for.service2"))
     // Check the version syntax
     for (sv <- service.serviceVersions) {
-      if (!Version(sv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("version.not.valid.format", sv.version)))
+      if (!Version(sv.version).isValid) return Some(ExchMsg.translate("version.not.valid.format", sv.version))
     }
+    return None
   }
 }
 
 /** Input format for POST/PUT /orgs/{orgid}/business/policies/<bus-pol-id> */
-case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+final case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def validate(): Unit = { BusinessUtils.validateBusinessService(service) }
+  def getAnyProblem: Option[String] = { BusinessUtils.getAnyProblem(service) }
 
   // Build a list of db actions to verify that the referenced services exist
   def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { BusinessPoliciesTQ.validateServiceIds(service, userInput.getOrElse(List())) }
@@ -61,11 +64,12 @@ case class PostPutBusinessPolicyRequest(label: String, description: Option[Strin
   }
 }
 
-case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+final case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def validate(): Unit = {
-    if (service.isDefined) BusinessUtils.validateBusinessService(service.get)
+  def getAnyProblem: Option[String] = {
+    if (service.isDefined) BusinessUtils.getAnyProblem(service.get)
+    else None
   }
 
   /** Returns a tuple of the db action to update parts of the businessPolicy, and the attribute name being updated. */
@@ -85,24 +89,26 @@ case class PatchBusinessPolicyRequest(label: Option[String], description: Option
 
 
 /** Input for business policy-based search for nodes to make agreements with. */
-case class PostBusinessPolicySearchRequest(nodeOrgids: Option[List[String]], changedSince: Long, startIndex: Option[Int], numEntries: Option[Int]) {
-  def validate() = { }
+final case class PostBusinessPolicySearchRequest(nodeOrgids: Option[List[String]], changedSince: Long, startIndex: Option[Int], numEntries: Option[Int]) {
+  def getAnyProblem: Option[String] = None
 }
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
-case class BusinessPolicySearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
+final case class BusinessPolicySearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
 
-case class BusinessPolicyNodeResponse(id: String, msgEndPoint: String, publicKey: String)
-case class PostBusinessPolicySearchResponse(nodes: List[BusinessPolicyNodeResponse], lastIndex: Int)
+final case class BusinessPolicyNodeResponse(id: String, msgEndPoint: String, publicKey: String)
+final case class PostBusinessPolicySearchResponse(nodes: List[BusinessPolicyNodeResponse], lastIndex: Int)
 
 
 
 /** Implementation for all of the /orgs/{orgid}/business/policies routes */
-trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
-  def db: Database      // get access to the db object in ExchangeApiApp
-  def logger: Logger    // get access to the logger object in ExchangeApiApp
-  protected implicit def jsonFormats: Formats
+@Path("/v1/orgs/{orgid}/business/policies")
+class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
+  def db: Database = ExchangeApiApp.getDb
+  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
+  //protected implicit def jsonFormats: Formats
 
+  /*
   /* ====== GET /orgs/{orgid}/business/policies ================================ */
   val getBusinessPolicies =
     (apiOperation[GetBusinessPoliciesResponse]("getBusinessPolicies")
@@ -165,15 +171,15 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     params.get("attribute") match {
       case Some(attribute) => ; // Only returning 1 attr of the businessPolicy
         val q = BusinessPoliciesTQ.getAttribute(businessPolicy, attribute)       // get the proper db query for this attribute
-        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("buspol.wrong.attribute", attribute)))
+        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.wrong.attribute", attribute)))
         db.run(q.result).map({ list =>
-          logger.trace("GET /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" attribute result: "+list.toString)
+          logger.debug("GET /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" attribute result: "+list.toString)
           if (list.nonEmpty) {
             resp.setStatus(HttpCode.OK)
             GetBusinessPolicyAttributeResponse(attribute, list.head.toString)
           } else {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("not.found"))
+            ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))
           }
         })
 
@@ -273,7 +279,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
     val ident = authenticate().authorizeTo(TBusiness(OrgAndId(orgid,"").toString),Access.CREATE)
     val policyReq = try { parse(request.body).extract[PostPutBusinessPolicyRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }
     policyReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
@@ -290,8 +296,8 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           } }
           if (invalidIndex < 0) BusinessPoliciesTQ.getNumOwned(owner).result.asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) ExchangeMessage.translateMessage("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-              else ExchangeMessage.translateMessage("service.not.in.exchange.index", Nth(invalidIndex+1))
+            val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+              else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex+1))
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -304,7 +310,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           if (maxBusinessPolicies == 0 || numOwned <= maxBusinessPolicies) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
             policyReq.getDbInsert(businessPolicy, orgid, owner).asTry
           }
-          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.buspols", maxBusinessPolicies) )).asTry
+          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.buspols", maxBusinessPolicies) )).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
     }).flatMap({ xs =>
@@ -322,16 +328,16 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
         case Success(_) => if (owner != "") AuthCache.putBusinessOwner(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
           AuthCache.putBusinessIsPublic(businessPolicy, isPublic = false)
           resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.created", businessPolicy))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.created", businessPolicy))
         case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("buspol.not.created", businessPolicy, t.getMessage))
+          ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.created", businessPolicy, t.getMessage))
         case Failure(t) => if (t.getMessage.contains("duplicate key value violates unique constraint")) {
           resp.setStatus(HttpCode.ALREADY_EXISTS)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("buspol.already.exists", businessPolicy, t.getMessage))
+          ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.already.exists", businessPolicy, t.getMessage))
         } else {
           resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("buspol.not.created", businessPolicy, t.getMessage))
+          ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.created", businessPolicy, t.getMessage))
         }
       }
     })
@@ -361,7 +367,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
     val ident = authenticate().authorizeTo(TBusiness(businessPolicy),Access.WRITE)
     val policyReq = try { parse(request.body).extract[PostPutBusinessPolicyRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }
     policyReq.validate()
     val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
     val resp = response
@@ -378,8 +384,8 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           } }
           if (invalidIndex < 0) policyReq.getDbUpdate(businessPolicy, orgid, owner).asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) ExchangeMessage.translateMessage("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-              else ExchangeMessage.translateMessage("service.not.in.exchange.index", Nth(invalidIndex+1))
+            val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+              else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex+1))
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -396,9 +402,9 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
             val policyChange = ResourceChangeRow(0, orgid, bareBusinessPolicy, "policy", "false", "policy", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
             policyChange.insert.asTry
           } else {
-            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))).asTry
+            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", businessPolicy))).asTry
           }
-        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("buspol.not.updated", businessPolicy, e))).asTry} // the specific exception is NumberFormatException
+        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, ExchMsg.translate("buspol.not.updated", businessPolicy, e))).asTry} // the specific exception is NumberFormatException
         case Failure(t) => DBIO.failed(t).asTry
       }
     })).map({ xs =>
@@ -406,13 +412,13 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       xs match {
         case Success(_) =>
           resp.setStatus(HttpCode.PUT_OK)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.updated"))
+            ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.updated"))
         case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))
+          ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", businessPolicy))
         case Failure(t) =>
           resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("buspol.not.updated", businessPolicy, t.getMessage))
+          ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", businessPolicy, t.getMessage))
       }
     })
   })
@@ -441,15 +447,15 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
     authenticate().authorizeTo(TBusiness(businessPolicy),Access.WRITE)
     if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
-      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
+      halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", request.body)))
     }
     val policyReq = try { parse(request.body).extract[PatchBusinessPolicyRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
     policyReq.validate()
-    logger.trace("PATCH /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" input: "+policyReq.toString)
+    logger.debug("PATCH /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" input: "+policyReq.toString)
     val resp = response
     val (action, attrName) = policyReq.getDbUpdate(businessPolicy, orgid)
-    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.buspol.attribute.specified")))
+    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.buspol.attribute.specified")))
     val (valServiceIdActions, svcRefs) = if (attrName == "service") BusinessPoliciesTQ.validateServiceIds(policyReq.service.get, List())
       else if (attrName == "userInput") BusinessPoliciesTQ.validateServiceIds(BService("","","",List(),None), policyReq.userInput.get)
       else (DBIO.successful(Vector()), Vector())
@@ -465,8 +471,8 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           } }
           if (invalidIndex < 0) action.transactionally.asTry
           else {
-            val errStr = if (invalidIndex < svcRefs.length) ExchangeMessage.translateMessage("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-              else ExchangeMessage.translateMessage("service.not.in.exchange.index", Nth(invalidIndex+1))
+            val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+              else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex+1))
             DBIO.failed(new Throwable(errStr)).asTry
           }
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -481,9 +487,9 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
             val policyChange = ResourceChangeRow(0, orgid, bareBusinessPolicy, "policy", "false", "policy", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
             policyChange.insert.asTry
           } else {
-            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))).asTry
+            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", businessPolicy))).asTry
           }
-        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e))).asTry}
+        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unexpected.result.from.update", e))).asTry}
         case Failure(t) => DBIO.failed(t).asTry
       }
     })).map({ xs =>
@@ -491,17 +497,17 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       xs match {
         case Success(_) =>
           resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.attribute.updated", attrName, businessPolicy))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.attribute.updated", attrName, businessPolicy))
         case Failure(t:DBProcessingError) =>
           if (t.httpCode == HttpCode.NOT_FOUND) {
             resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))
+            ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", businessPolicy))
           } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
             resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, t.getMessage)
+            ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage)
           }
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("buspol.not.updated", businessPolicy, t.getMessage))
+          ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", businessPolicy, t.getMessage))
       }
     })
   })
@@ -537,7 +543,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           val policyChange = ResourceChangeRow(0, orgid, bareBusinessPolicy, "policy", "false", "policy", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
           policyChange.insert.asTry
         } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))).asTry
+          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", businessPolicy))).asTry
         }
         case Failure(t) => DBIO.failed(t).asTry
       }
@@ -546,12 +552,12 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
       xs match {
         case Success(v) =>
           resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("business.policy.deleted"))
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("business.policy.deleted"))
         case Failure(t: DBProcessingError) =>
           resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))
+          ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", businessPolicy))
         case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("business.policy.not.deleted", businessPolicy, t.toString))
+          ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("business.policy.not.deleted", businessPolicy, t.toString))
       }
     })
   })
@@ -590,7 +596,7 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
     authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
     val searchProps = try { parse(request.body).extract[PostBusinessPolicySearchRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
+    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("error.parsing.input.json", e))) }    // the specific exception is MappingException
     searchProps.validate()
     logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search criteria: "+searchProps.toString)
     val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
@@ -618,21 +624,21 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
         nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
       }
-      else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))).asTry
+      else DBIO.failed(new Throwable(ExchMsg.translate("business.policy.not.found", businessPolicy))).asTry
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search result size: "+xs.getOrElse(Vector()).size)
-      //logger.trace("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search result: "+xs.toString)
-      logger.trace("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search: looking for nodes w/o agreement for '"+searchSvcUrl)
+      //logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search result: "+xs.toString)
+      logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search: looking for nodes w/o agreement for '"+searchSvcUrl)
       xs match {
         case Success(list) => if (list.nonEmpty) {
           // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
           //todo: factor in num agreements??
           val nodeHash = new MutableHashMap[String,BusinessPolicySearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
           for ( (nodeid, msgEndPoint, publicKey, agrSvcUrlOpt, stateOpt) <- list ) {
-            //logger.trace("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
+            //logger.debug("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
             nodeHash.get(nodeid) match {
               // This node is already in the hash. Only replace it if this is an agreement for the service, because the absence of an agr for this svc isn't useful info
-              case Some(_) => if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
+              case Some(_) => if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") { /*logger.debug("setting to false");*/ nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
               // This node is not yet in the hash. Add it with whatever value it has for agreement - this may be overridden later
               case None => val noAgr = if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") false else true
                 nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgr))   // this node not in the hash yet, add it
@@ -650,9 +656,10 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), 0)
         }
         case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", t.getMessage))
+          ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage))
       }
     })
   })
 
+   */
 }

@@ -1,29 +1,45 @@
 /** Services routes for all of the /admin api methods. */
 package com.horizon.exchangeapi
 
+import javax.ws.rs._
+import akka.actor.ActorSystem
+import akka.event.{Logging, LoggingAdapter}
+import akka.http.scaladsl.model.{HttpEntity, HttpResponse}
+//import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.ContentTypes
+import akka.http.scaladsl.model.headers.`Content-Type`
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+
 import java.util.Properties
 
 import com.horizon.exchangeapi.tables._
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
-import org.scalatra._
-import org.scalatra.swagger._
-import org.slf4j._
+import de.heikoseeberger.akkahttpjackson._
+//import org.json4s._
+//import org.json4s.jackson.JsonMethods._
 import slick.jdbc.PostgresProfile.api._
 
-import scala.io.Source
+import io.swagger.v3.oas.annotations.parameters.RequestBody
+//import io.swagger.v3.oas.annotations.enums.ParameterIn
+import io.swagger.v3.oas.annotations.media.{ Content, Schema }
+//import io.swagger.v3.oas.annotations.responses.ApiResponse
+//import io.swagger.v3.oas.annotations.{ Operation, Parameter }
+import io.swagger.v3.oas.annotations._
+
+import scala.concurrent.ExecutionContext.Implicits.global
+
 import scala.util._
 
-case class AdminHashpwRequest(password: String)
-case class AdminHashpwResponse(hashedPassword: String)
+final case class AdminHashpwRequest(password: String)
+final case class AdminHashpwResponse(hashedPassword: String)
 
-case class AdminLogLevelRequest(loggingLevel: String)
+final case class AdminLogLevelRequest(loggingLevel: String)
 
-case class AdminConfigRequest(varPath: String, value: String)
+final case class AdminConfigRequest(varPath: String, value: String)
 
-case class AdminDropdbTokenResponse(token: String)
+final case class AdminDropdbTokenResponse(token: String)
 
-case class GetAdminStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfNodeMsgs: Int, numberOfAgbots: Int, numberOfAgbotAgreements: Int, numberOfAgbotMsgs: Int, dbSchemaVersion: Int)
+final case class GetAdminStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfNodeMsgs: Int, numberOfAgbots: Int, numberOfAgbotAgreements: Int, numberOfAgbotMsgs: Int, dbSchemaVersion: Int)
 class AdminStatus() {
   var msg: String = ""
   var numberOfUsers: Int = 0
@@ -38,492 +54,307 @@ class AdminStatus() {
 }
 
 /** Case class for request body for deleting some of the IBM changes route */
-case class DeleteIBMChangesRequest(resources: List[String]){
-  def validate(): Unit ={if(resources.isEmpty){halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "resources list cannot be empty"))}}
+final case class DeleteIBMChangesRequest(resources: List[String]) {
+  def getAnyProblem: Option[String] = {
+    if (resources.isEmpty) Some("resources list cannot be empty")
+    else None
+  }
 }
 
 /** Implementation for all of the /admin routes */
-trait AdminRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
-  def db: Database      // get access to the db object in ExchangeApiApp
-  implicit def logger: Logger    // get access to the logger object in ExchangeApiApp
-  protected implicit def jsonFormats: Formats
+@Path("/v1/admin")
+class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
+  def db: Database = ExchangeApiApp.getDb
+  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
+  //protected implicit def jsonFormats: Formats
 
-  val dumpDir = "/tmp/exchange-tables"
-  val dumpSuffix = ".json"
+  def routes: Route = adminReloadRoute ~ adminHashPwRoute ~ adminGetDbTokenRoute ~ adminDropDbRoute ~ adminInitDbRoute ~ adminGetVersionRoute ~ adminGetStatusRoute ~ adminConfigRoute ~ adminClearCacheRoute ~ adminDeleteIbmChangesRoute
 
   // =========== POST /admin/reload ===============================
-  val postAdminReload =
-    (apiOperation[ApiResponse]("postAdminReload")
-      summary "Tells the exchange reread its config file"
-      description "Directs the exchange server to reread /etc/horizon/exchange/config.json and continue running with those new settings. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
-      )
-
-  post("/admin/reload", operation(postAdminReload)) ({
-    // validateUser(BaseAccess.ADMIN, "")
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
-    ExchConfig.reload()
-    logger.debug("POST /admin/reload completed successfully.")
-    status_=(HttpCode.POST_OK)
-    ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("reload.successful"))
-  })
+  @POST
+  @Path("reload")
+  @Operation(summary = "Tells the exchange reread its config file", description = """Directs the exchange server to reread /etc/horizon/exchange/config.json and continue running with those new settings. Can only be run by the root user.""",
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+  def adminReloadRoute: Route = (post & path("admin" / "reload") & extractCredentials) { creds =>
+    logger.debug("Doing POST /admin/reload")
+    auth(creds, TAction(), Access.ADMIN) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        complete({
+          ExchConfig.reload()
+          (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("reload.successful")))
+        }) // end of complete
+    } // end of auth match
+  }
 
   // =========== POST /admin/hashpw ===============================
-  val postAdminHashPw =
-    (apiOperation[AdminHashpwResponse]("postAdminHashPw")
-      summary "Returns a salted hash of a password"
-      description "Takes the password specified in the body, hashes it with a random salt, and returns the result. This can be useful if you want to specify root's hash pw in the config file instead of the clear pw."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("The password. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[AdminHashpwRequest],
-          Option[String]("The clear text password."),
-          paramType = ParamType.Body)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
-      )
-  val postAdminHashPw2 = (apiOperation[AdminHashpwRequest]("postAdminHashPw2") summary("a") description("a"))
+  @POST
+  @Path("hashpw")
+  @Operation(summary = "Returns a bcrypted hash of a password", description = """Takes the password specified in the request body, bcrypts it with a random salt, and returns the result. This can be useful if you want to specify root's hash pw in the config file instead of the clear pw.""",
+    requestBody = new RequestBody(description = """
+```
+{
+  "password": "pw to bcrypt"
+}
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[AdminHashpwRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+  def adminHashPwRoute: Route = (post & path("admin" / "hashpw") & extractCredentials) { creds =>
+    logger.debug("Doing POST /admin/hashpw")
+    auth(creds, TAction(), Access.UTILITIES) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        entity(as[AdminHashpwRequest]) { req =>
+          complete({
+            (HttpCode.POST_OK, AdminHashpwResponse(Password.hash(req.password)))
+          }) // end of complete
+        } // end of entity
+    } // end of auth match
+  }
 
-  post("/admin/hashpw", operation(postAdminHashPw)) ({
-    // validateUser(BaseAccess.ADMIN, "")
-    authenticate().authorizeTo(TAction(),Access.UTILITIES)
-    val req = try { parse(request.body).extract[AdminHashpwRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    status_=(HttpCode.POST_OK)
-    AdminHashpwResponse(Password.hash(req.password))
-  })
-
-  // =========== PUT /admin/loglevel ===============================
-  val putAdminLogLevel =
-    (apiOperation[ApiResponse]("putAdminLogLevel")
-      summary "Sets the logging level of the exchange"
-      description "Dynamically set the logging level of the data exchange server, taking effect immediately. If POST /admin/reload is run at a later time, and logging.level is specified in the config.json file, that will overrided this setting. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[AdminLogLevelRequest],
-          Option[String]("The new logging level: OFF, ERROR, WARN, INFO, DEBUG, TRACE, or ALL"),
-          paramType = ParamType.Body)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"))
-      )
-  val putAdminLogLevel2 = (apiOperation[AdminLogLevelRequest]("putAdminLogLevel2") summary("a") description("a"))
-
-  post("/admin/loglevel", operation(putAdminLogLevel)) ({
-    // validateUser(BaseAccess.ADMIN, "")
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val req = try { parse(request.body).extract[AdminLogLevelRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    ExchConfig.levels.get(req.loggingLevel.toUpperCase) match {
-      case Some(level) => ExchConfig.logger.setLevel(level)
-      case None => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.logging.level", req.loggingLevel)))
-    }
-    status_=(HttpCode.PUT_OK)
-    ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("logging.level.set"))
-  })
+  /* =========== POST /admin/loglevel ===============================
+  @POST
+  @Path("loglevel")
+  @Operation(summary = "Sets the logging level of the exchange", description = """Dynamically set the logging level of this instance of the exchange server, taking effect immediately. If POST /admin/reload is run at a later time, and logging.level is specified in the config.json file, that will override this setting. Can only be run by the root user.""",
+    requestBody = new RequestBody(description = """
+```
+{
+  "loggingLevel": "DEBUG"   // OFF, ERROR, WARN, INFO, or DEBUG
+}
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[AdminLogLevelRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+  def adminLogLevelRoute: Route = (post & path("admin/loglevel") & extractCredentials) { creds =>
+    logger.debug(s"Doing POST /admin/loglevel")
+    auth(creds, TAction(), Access.UTILITIES) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        entity(as[AdminLogLevelRequest]) { req =>
+          complete({
+            if (LogLevel.validLevels.contains(req.loggingLevel)) {
+              //todo: not sure yet how to change the log level while the app is running
+              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("logging.level.set")))
+            } else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.logging.level", req.loggingLevel)))
+          }) // end of complete
+        } // end of entity
+    } // end of auth match
+  }
+  */
 
   // =========== GET /admin/dropdb/token ===============================
-  val getDropdbToken =
-    (apiOperation[AdminDropdbTokenResponse]("getDropdbToken")
-      summary "Gets a 1-time token for dropping the DB"
-      description "Returns a timed token that can be given to POST /admin/dropdb. The token is good for 10 minutes. Since dropping the DB tables deletes all of their data, this is a way of confirming you really want to do it. This can only be run as root."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
-      )
-
-  get("/admin/dropdb/token", operation(getDropdbToken)) ({
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
-    response.setStatus(HttpCode.OK)
-    AdminDropdbTokenResponse(createToken(Role.superUser))
-  })
+  @GET
+  @Path("dropdb/token")
+  @Operation(summary = "Gets a 1-time token for deleting the DB", description = """Returns a timed token that can be given to POST /admin/dropdb. The token is good for 10 minutes. Since dropping the DB tables deletes all of their data, this is a way of confirming you really want to do it. This can only be run as root.""",
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[AdminDropdbTokenResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+  def adminGetDbTokenRoute: Route = (get & path("admin" / "dropdb" / "token") & extractCredentials) { creds =>
+    logger.debug("Doing GET /admin/dropdb/token")
+    auth(creds, TAction(), Access.ADMIN) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        complete({
+          (HttpCode.OK, AdminDropdbTokenResponse(createToken(Role.superUser)))
+        }) // end of complete
+    } // end of auth match
+  }
 
   // =========== POST /admin/dropdb ===============================
-  val postAdminDropDb =
-    (apiOperation[ApiResponse]("postAdminDropDb")
-      summary "Deletes the tables from the DB"
-      description "Deletes the tables from the Exchange DB. **Warning: this will delete the data too!** Because this is a dangerous method, you must first get a 1-time token using GET /admin/dropdb/token, and use that to authenticate to this REST API method. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("The token received from GET /admin/dropdb/token. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
-      )
-
-  post("/admin/dropdb", operation(postAdminDropDb)) ({
-    authenticate(hint = "token").authorizeTo(TAction(),Access.ADMIN)
-    val resp = response
-    db.run(ExchangeApiTables.dropDB.transactionally.asTry).map({ xs =>
-      logger.debug("POST /admin/dropdb result: "+xs.toString)
-      xs match {
-        case Success(_) => AuthCache.clearAllCaches(includingIbmAuth=true)
-          resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.deleted"))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.not.deleted", t.toString))
-      }
-    })
-  })
+  @POST
+  @Path("dropdb")
+  @Operation(summary = "Deletes the tables from the DB", description = """Deletes the tables from the Exchange DB. **Warning: this will delete the data too!** Because this is a dangerous method, you must first get a 1-time token using GET /admin/dropdb/token, and use that to authenticate to this REST API method. Can only be run by the root user.""",
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+  def adminDropDbRoute: Route = (post & path("admin" / "dropdb") & extractCredentials) { creds =>
+    logger.debug("Doing POST /admin/dropdb")
+    auth(creds, TAction(), Access.ADMIN, hint = "token") match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        complete({
+          db.run(ExchangeApiTables.dropDB.transactionally.asTry).map({
+            case Success(v) =>
+              logger.debug(s"POST /admin/dropdb result: $v")
+              AuthCache.clearAllCaches(includingIbmAuth=true)
+              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("db.deleted")))
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.not.deleted", t.toString)))
+          })
+        }) // end of complete
+    } // end of auth match
+  }
 
   // =========== POST /admin/initdb ===============================
-  val postAdminInitDb =
-    (apiOperation[ApiResponse]("postAdminInitDb")
-      summary "Creates the table schema in the DB"
-      description "Creates the tables with the necessary schema in the Exchange DB. This is now called at exchange startup, if necessary. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
-      )
-
-  post("/admin/initdb", operation(postAdminInitDb)) ({
-    ExchConfig.createRootInCache()  // need to do this before authenticating, because dropdb cleared it out (can do this in dropdb, because it might expire)
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val resp = response
-    db.run(ExchangeApiTables.initDB.transactionally.asTry).map({ xs =>
-      logger.debug("POST /admin/initdb init table schemas result: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ExchConfig.createRoot(db)         // initialize the users table with the root user from config.json
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.init"))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.not.init", t.toString))
-      }
-    })
-  })
-
-  // =========== POST /admin/upgradedb ===============================
-  /* They do not ever need to explicitly run this anymore, because it is always run on startup...
-  val postAdminUpgradeDb =
-    (apiOperation[ApiResponse]("postAdminUpgradeDb")
-      summary "Upgrades the DB schema"
-      description "Updates (alters) the schemas of the DB tables as necessary (w/o losing any data) to get to the latest DB schema. This is now called at exchange startup, if necessary. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
-      )
-
-  post("/admin/upgradedb", operation(postAdminUpgradeDb)) ({
-  */
-  post("/admin/upgradedb") ({
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
-    try { ExchangeApiTables.upgradeDb(db) }
-    catch {
-      // Handle db problems
-      case timeout: java.util.concurrent.TimeoutException => halt(HttpCode.GW_TIMEOUT, ApiResponse(ApiResponseType.GW_TIMEOUT, ExchangeMessage.translateMessage("db.timeout.upgrading", timeout.getMessage)))
-      case other: Throwable => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.exception.upgrading", other.getMessage)))
-    }
-  })
-
-  /* Just for re-testing upgrade...
-  // =========== POST /admin/downgradedb ===============================
-  val postAdminDowngradeDb =
-    (apiOperation[ApiResponse]("postAdminDowngradeDb")
-      summary "Undoes the upgrades of the DB schema"
-      description "Undoes the updates (alters) of the schemas of the db tables in case we need to fix the upgradedb code and try it again. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      )
-  */
-
-  post("/admin/downgradedb" /*, operation(postAdminDowngradeDb)*/) ({
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val resp = response
-
-    // Get the list of db actions to: delete tables that are new in this version, and unalter schema changes made to existing tables
-    // val dbActions = DBIO.seq(ExchangeApiTables.deleteNewTables, ExchangeApiTables.unAlterTables)
-    val dbActions = ExchangeApiTables.deleteNewTables
-
-    // This should stop performing the actions if any of them fail. Currently intentionally not running it all as a transaction
-    db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
-      logger.debug("POST /admin/upgradedb current schema result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v.nonEmpty) {
-          val schemaRow = v.head
-          // Probably should do the dbActions 1st, but this is more convenient because we have the schemaVersion right now
-          SchemaTQ.getDecrementVersionAction(schemaRow.schemaVersion).asTry
-        }
-        else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("db.downgrade.error"))).asTry
-        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
-      }
-    }).flatMap({ xs =>
-      logger.debug("POST get schema row result: "+xs.toString)
-      xs match {
-        case Success(_) => dbActions.asTry
-        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
-      }
-    })).map({ xs =>
-      logger.debug("POST /admin/downgrade result: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("db.downgrade.success"))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("db.table.schemas.not.downgraded", t.toString))
-      }
-    })
-  })
-
-  /* Someday we should clean this up and support this...
-  // =========== POST /admin/dumptables ===============================
-  val postAdminDumpTables =
-    (apiOperation[Seq[String]]("postAdminDumpTables")
-      summary "Dumps all the DB tables"
-      description "Dumps all the DB tables to files in "+dumpDir+" in json format. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      )
-
-  post("/admin/dumptables" /*, operation(postAdminDumpTables)*/ ) ({
-    // validateUser(BaseAccess.ADMIN, "")
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val resp = response
-    val dbAction = ExchangeApiTables.dump(dumpDir, dumpSuffix)    // this action queries all the tables and writes them to files
-    db.run(dbAction.asTry).map({ xs =>
-      logger.debug("POST /admin/dumptables result: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "tables dumped to "+dumpDir+" successfully")
-        case Failure(t) => logger.error("error in dumping tables: "+t.toString)
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "error in dumping tables: "+t.toString)
-      }
-    })
-  })
-
-  // =========== POST /admin/loadtables ===============================
-  val postAdminLoadTables =
-    (apiOperation[Seq[String]]("postAdminLoadTables")
-      summary "Loads content for all the DB tables"
-      description "Loads content for all the DB tables from files in "+dumpDir+" in json format. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      )
-
-  post("/admin/loadtables" /*, operation(postAdminLoadTables) */) ({
-    // validateUser(BaseAccess.ADMIN, "")
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val resp = response
-    val dbActions = try { ExchangeApiTables.load(dumpDir, dumpSuffix) }   // read/parse all the json files and create actions to put the contents in the tables
-    catch { case e: Exception => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "Error parsing json table file: "+e)) }  // to catch the json parsing exception from TableIo.load()
-
-    val dbio = DBIO.seq(dbActions: _*)      // convert the list of actions to a DBIO seq
-    db.run(dbio.asTry).map({ xs =>      // currently not doing it transactionally because it is easier to find the error that way, and they can always drop the db and try again
-      logger.debug("POST /admin/loadtables result: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)    // let the auth cache build up gradually
-          ApiResponse(ApiResponseType.OK, "tables restored successfully")
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "tables not fully restored: "+t.toString)
-      }
-    })
-  })
-      */
+  @POST
+  @Path("initdb")
+  @Operation(summary = "Creates the table schema in the DB", description = """Creates the tables with the necessary schema in the Exchange DB. This is now called at exchange startup, if necessary. Can only be run by the root user.""",
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+  def adminInitDbRoute: Route = (post & path("admin" / "initdb") & extractCredentials) { creds =>
+    logger.debug("Doing POST /admin/initdb")
+    ExchConfig.createRootInCache()  // need to do this before authenticating, because dropdb cleared it out (can not do this in dropdb, because it might expire)
+    auth(creds, TAction(), Access.ADMIN, hint = "token") match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        complete({
+          db.run(ExchangeApiTables.initDB.transactionally.asTry).map({
+            case Success(v) =>
+              logger.debug(s"POST /admin/initdb result: $v")
+              ExchConfig.createRoot(db)         // initialize the users table with the root user from config.json
+              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("db.init")))
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.not.init", t.toString)))
+          })
+        }) // end of complete
+    } // end of auth match
+  }
 
   // =========== GET /admin/version ===============================
-  val getAdminVersion =
-    (apiOperation[String]("getAdminVersion")
-      summary "Returns the version of the Exchange server"
-      description "Returns the version of the Exchange server as a simple string (no JSON or quotes). Can be run by anyone."
-      produces "text/plain"
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"))
-      )
-
-  get("/admin/version", operation(getAdminVersion)) ({
-    credsAndLogForAnonymous()     // do not need to call authenticate().authorizeTo() because anyone can run this
-    val versionText = ExchangeApiAppMethods.adminVersion()
-    response.setStatus(HttpCode.OK)
-    versionText + "\n"
-  })
-
+  @GET
+  @Path("version")
+  @Operation(summary = "Returns the version of the Exchange server", description = """Returns the version of the Exchange server as a simple string (no JSON or quotes). Can be run by anyone.""",
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[String]))))))
+  def adminGetVersionRoute: Route = (get & path("admin" / "version")) {
+    logger.debug("Doing POST /admin/version")
+    val version = ExchangeApiAppMethods.adminVersion() + "\n"
+    //complete({ (HttpCode.POST_OK, version) }) // <- this sends it as json, so with double quotes around it and \n explicitly in the string
+    //complete(HttpCode.POST_OK, List(`Content-Type`(ContentTypes.`text/plain(UTF-8)`)), ExchangeApiAppMethods.adminVersion() + "\n") // <- this tells me i can't explicitly set header Content-Type
+    complete(HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, version)))
+  }
 
   // =========== GET /admin/status ===============================
-  val getAdminStatus =
-    (apiOperation[GetAdminStatusResponse]("getAdminStatus")
-      summary "Returns status of the Exchange server"
-      description "Returns a dictionary of statuses/statistics. Can be run by any user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("The password. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
-      )
-
-  get("/admin/status", operation(getAdminStatus)) ({
-    authenticate().authorizeTo(TAction(),Access.STATUS)
-    val resp = response
-    val statusResp = new AdminStatus()
-    //TODO: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
-    db.run(UsersTQ.rows.length.result.asTry.flatMap({ xs =>
-      logger.debug("GET /admin/status users length: "+xs)
-      xs match {
-        case Success(v) => statusResp.numberOfUsers = v
-          NodesTQ.rows.length.result.asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      logger.debug("GET /admin/status nodes length: "+xs)
-      xs match {
-        case Success(v) => statusResp.numberOfNodes = v
-          AgbotsTQ.rows.length.result.asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      logger.debug("GET /admin/status agbots length: "+xs)
-      xs match {
-        case Success(v) => statusResp.numberOfAgbots = v
-          NodeAgreementsTQ.rows.length.result.asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      logger.debug("GET /admin/status devagreements length: "+xs)
-      xs match {
-        case Success(v) => statusResp.numberOfNodeAgreements = v
-          AgbotAgreementsTQ.rows.length.result.asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      logger.debug("GET /admin/status agbotagreements length: "+xs)
-      xs match {
-        case Success(v) => statusResp.numberOfAgbotAgreements = v
-          NodeMsgsTQ.rows.length.result.asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      logger.debug("GET /admin/status devmsgs length: "+xs)
-      xs match {
-        case Success(v) => statusResp.numberOfNodeMsgs = v
-          AgbotMsgsTQ.rows.length.result.asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      logger.debug("GET /admin/status agbotmsgs length: "+xs)
-      xs match {
-        case Success(v) => statusResp.numberOfAgbotMsgs = v
-          SchemaTQ.getSchemaVersion.result.asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    })).map({ xs =>
-      logger.debug("GET /admin/status schemaversion: "+xs)
-      xs match {
-        case Success(v) => statusResp.dbSchemaVersion = v.head
-          statusResp.msg = "Exchange server operating normally"
-          resp.setStatus(HttpCode.OK)
-        case Failure(t) => statusResp.msg = t.getMessage
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
-      }
-      statusResp.toGetAdminStatusResponse
-    })
-  })
+  @GET
+  @Path("status")
+  @Operation(summary = "Returns status of the Exchange server", description = """Returns a dictionary of statuses/statistics. Can be run by any user.""",
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetAdminStatusResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+  def adminGetStatusRoute: Route = (get & path("admin" / "status") & extractCredentials) { creds =>
+    logger.debug("Doing GET /admin/status")
+    auth(creds, TAction(), Access.STATUS) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        complete({
+          val statusResp = new AdminStatus()
+          //TODO: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
+          db.run(UsersTQ.rows.length.result.asTry.flatMap({
+            case Success(v) => statusResp.numberOfUsers = v
+              NodesTQ.rows.length.result.asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) => statusResp.numberOfNodes = v
+              AgbotsTQ.rows.length.result.asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) => statusResp.numberOfAgbots = v
+              NodeAgreementsTQ.rows.length.result.asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) => statusResp.numberOfNodeAgreements = v
+              AgbotAgreementsTQ.rows.length.result.asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) => statusResp.numberOfAgbotAgreements = v
+              NodeMsgsTQ.rows.length.result.asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) => statusResp.numberOfNodeMsgs = v
+              AgbotMsgsTQ.rows.length.result.asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) => statusResp.numberOfAgbotMsgs = v
+              SchemaTQ.getSchemaVersion.result.asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          })).map({
+            case Success(v) => statusResp.dbSchemaVersion = v.head
+              statusResp.msg = "Exchange server operating normally"
+              (HttpCode.OK, statusResp.toGetAdminStatusResponse)
+            case Failure(t) => statusResp.msg = t.getMessage
+              (HttpCode.INTERNAL_ERROR, statusResp.toGetAdminStatusResponse)
+          })
+        }) // end of complete
+    } // end of auth match
+  }
 
   /** set 1 or more variables in the in-memory config (so it does not do the right thing in multi-node mode).
    * Intentionally not put swagger, because only used by automated tests. */
-  put("/admin/config") ({
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val resp = response
-    val mod = try { parse(request.body).extract[AdminConfigRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    logger.debug("PUT /admin/config mod: "+mod)
-    val props = new Properties()
-    props.setProperty(mod.varPath, mod.value)
-    ExchConfig.mod(props)
-    // logger.debug("config value: "+ExchConfig.getInt(mod.varPath))
-    resp.setStatus(HttpCode.PUT_OK)    // let the auth cache build up gradually
-    ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("config.value.set"))
-  })
-
-  /** Dev testing of db access */
-  post("/admin/test") ({
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
-    //val resp = response
-
-    ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("done"))
-
-    /*
-    // ApiResponse(ApiResponseType.OK, "Now: "+ApiTime.nowUTC+", Then: "+ApiTime.pastUTC(100)+".")
-    val ttl = 2 * 86400
-    val oldestTime = ApiTime.pastUTC(ttl)
-    val q = NodeMsgsTQ.rows.filter(_.timeSent < oldestTime)
-    db.run(q.result).map({ list =>
-      logger.debug("GET /admin/gettest result size: "+list.size)
-      logger.trace("GET /admin/gettest result: "+list.toString)
-      val listSorted = list.sortWith(_.msgId < _.msgId)
-      val msgs = new ListBuffer[NodeMsg]
-      if (listSorted.size > 0) for (m <- listSorted) { msgs += m.toNodeMsg }
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetNodeMsgsResponse(msgs.toList, 0)
-    })
-    */
-  })
+  def adminConfigRoute: Route = (put & path("admin" / "config") & extractCredentials) { creds =>
+    logger.debug(s"Doing POST /admin/config")
+    auth(creds, TAction(), Access.ADMIN) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        entity(as[AdminConfigRequest]) { req =>
+          complete({
+            val props = new Properties()
+            props.setProperty(req.varPath, req.value)
+            ExchConfig.mod(props)
+            (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("config.value.set")))
+          }) // end of complete
+        } // end of entity
+    } // end of auth match
+  }
 
   // =========== POST /admin/clearAuthCaches ===============================
-  /*
-  val postAdminClearAuthCaches =
-    (apiOperation[ApiResponse]("postAdminClearAuthCaches")
-      summary "Tells the exchange clear its authentication cache"
-      description "Directs the exchange server to clear its authentication cache. Can only be run by the root user."
-      parameters(
-        Parameter("username", DataType.String, Option[String]("The root username. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of root. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"))
-    )
-  */
-
-  post("/admin/clearauthcaches") ({
-    authenticate().authorizeTo(TAction(), Access.ADMIN)
-    //todo: ensure other client requests are not updating the cache at the same time
-    AuthCache.clearAllCaches(includingIbmAuth=true)
-    response.setStatus(HttpCode.POST_OK)
-    ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("cache.cleared"))
-  })
-
+  def adminClearCacheRoute: Route = (post & path("admin" / "clearauthcaches") & extractCredentials) { creds =>
+    logger.debug("Doing POST /admin/clearauthcaches")
+    auth(creds, TAction(), Access.ADMIN) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        complete({
+          //todo: ensure other client requests are not updating the cache at the same time
+          AuthCache.clearAllCaches(includingIbmAuth=true)
+          (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("cache.cleared")))
+        }) // end of complete
+    } // end of auth match
+  }
 
   /* ====== DELETE /orgs/IBM/changes/all ================================ */
   // This route is just for unit testing as a way to clean up the changes table once testing has completed
   // Otherwise the changes table gets clogged with entries in the IBM org from testing
-  delete("/orgs/IBM/changes/cleanup") ({
-    /*
-    Add in array of resource id's to filter by so that the delete only deletes those
-    Also move this to admin routes
-     */
-    authenticate().authorizeTo(TAction(),Access.ADMIN)
-    val res = try { parse(request.body).extract[DeleteIBMChangesRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    res.validate()
-    val resourcesSet = res.resources.toSet
-    val resp = response
-    val q = ResourceChangesTQ.rows.filter(_.orgId === "IBM").filter(_.id inSet resourcesSet)
-    val action = q.delete
-    db.run(action.transactionally.asTry).map({ xs =>
-      logger.debug("Deleting specified IBM org entries in changes table ONLY FOR UNIT TESTS: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) {
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, "IBM changes deleted")
-        } else {
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("org.not.found", "IBM"))
-        }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, "IBM org changes not deleted: " + t.toString)
-      }
-    })
-
-  })
+  def adminDeleteIbmChangesRoute: Route = (delete & path("orgs" / "IBM" / "changes" / "cleanup") & extractCredentials) { creds =>
+    logger.debug("Doing POST /orgs/IBM/changes/cleanup")
+    auth(creds, TAction(), Access.ADMIN) match {
+      case Failure(t) => reject(AuthRejection(t))
+      case Success(_) =>
+        entity(as[DeleteIBMChangesRequest]) { req =>
+          validate(req.getAnyProblem.isEmpty, "Problem in request body") {
+            complete({
+              val resourcesSet = req.resources.toSet
+              val action = ResourceChangesTQ.rows.filter(_.orgId === "IBM").filter(_.id inSet resourcesSet).delete
+              db.run(action.transactionally.asTry).map({
+                case Success(v) =>
+                  logger.debug(s"Deleted specified IBM org entries in changes table ONLY FOR UNIT TESTS: $v")
+                  if (v > 0) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, "IBM changes deleted"))
+                  else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", "IBM")))
+                case Failure(t) =>
+                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, "IBM org changes not deleted: " + t.toString))
+              })
+            }) // end of complete
+          } // end of validate
+        } // end of entity
+    } // end of auth match
+  }
 
 }

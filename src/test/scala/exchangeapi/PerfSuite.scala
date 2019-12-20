@@ -9,7 +9,7 @@ import scalaj.http._
 import com.horizon.exchangeapi._
 import org.json4s.native.Serialization.write
 
-//TODO: have not decided if i should use this or stick with the scr/test/bash/scale scripts (which can easily have multiple instances run concurrently, and from different clients)
+//someday: do some short perf tests here (in addition to scr/test/go) so we get some automatic perf info
 
 /** Run some performance tests on the exchange. */
 @RunWith(classOf[JUnitRunner])

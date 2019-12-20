@@ -409,7 +409,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT)
     val putDevResp = parse(response.body).extract[ApiResponse]
-    assert(putDevResp.code === ApiResponseType.BAD_INPUT)
+    assert(putDevResp.code === ApiRespType.BAD_INPUT)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId4+" - bad body format") {
@@ -726,7 +726,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val devResp = parse(response.body).extract[ApiResponse]
-    assert(devResp.code === ApiResponseType.OK)
+    assert(devResp.code === ApiRespType.OK)
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId) {
@@ -1602,7 +1602,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val devResp = parse(response.body).extract[ApiResponse]
-    assert(devResp.code === ApiResponseType.OK)
+    assert(devResp.code === ApiRespType.OK)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/nodehealth - as agbot, after heartbeat - should find 1 node and 1 agreement for "+nodeId) {
@@ -1659,7 +1659,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val devResp = parse(response.body).extract[ApiResponse]
-    assert(devResp.code === ApiResponseType.OK)
+    assert(devResp.code === ApiRespType.OK)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - so this node won't be stale either") {
@@ -1809,7 +1809,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val resp = parse(response.body).extract[ApiResponse]
-    assert(resp.code === ApiResponseType.OK)
+    assert(resp.code === ApiRespType.OK)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " msg added and stored") {
@@ -1829,7 +1829,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val resp = parse(response.body).extract[ApiResponse]
-    assert(resp.code === ApiResponseType.OK)
+    assert(resp.code === ApiRespType.OK)
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/msgs - 2nd msg from agbot1 to node1") {
@@ -1838,7 +1838,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val resp = parse(response.body).extract[ApiResponse]
-    assert(resp.code === ApiResponseType.OK)
+    assert(resp.code === ApiRespType.OK)
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/msgs - from agbot2 to node1") {
@@ -1847,7 +1847,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val resp = parse(response.body).extract[ApiResponse]
-    assert(resp.code === ApiResponseType.OK)
+    assert(resp.code === ApiRespType.OK)
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId2+"/msgs - from agbot2 to node2") {
@@ -1856,7 +1856,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val resp = parse(response.body).extract[ApiResponse]
-    assert(resp.code === ApiResponseType.OK)
+    assert(resp.code === ApiRespType.OK)
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/msgs") {
@@ -1929,7 +1929,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val resp = parse(response.body).extract[ApiResponse]
-    assert(resp.code === ApiResponseType.OK)
+    assert(resp.code === ApiRespType.OK)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " msg added and stored") {
@@ -1949,7 +1949,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val resp = parse(response.body).extract[ApiResponse]
-    assert(resp.code === ApiResponseType.OK)
+    assert(resp.code === ApiRespType.OK)
   }
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - 2nd msg from node1 to agbot1") {
@@ -1958,7 +1958,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val resp = parse(response.body).extract[ApiResponse]
-    assert(resp.code === ApiResponseType.OK)
+    assert(resp.code === ApiRespType.OK)
   }
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - from node2 to agbot1") {
@@ -1967,7 +1967,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val resp = parse(response.body).extract[ApiResponse]
-    assert(resp.code === ApiResponseType.OK)
+    assert(resp.code === ApiRespType.OK)
   }
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId2+"/msgs - from node2 to agbot2") {
@@ -1976,7 +1976,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK)
     val resp = parse(response.body).extract[ApiResponse]
-    assert(resp.code === ApiResponseType.OK)
+    assert(resp.code === ApiRespType.OK)
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/msgs") {
@@ -2061,7 +2061,7 @@ class NodesSuite extends FunSuite {
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.POST_OK)
       apiResp = parse(response.body).extract[ApiResponse]
-      assert(apiResp.code === ApiResponseType.OK)
+      assert(apiResp.code === ApiRespType.OK)
 
       response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("get").headers(ACCEPT).headers(AGBOT2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
@@ -2103,7 +2103,7 @@ class NodesSuite extends FunSuite {
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.POST_OK)
       apiResp = parse(response.body).extract[ApiResponse]
-      assert(apiResp.code === ApiResponseType.OK)
+      assert(apiResp.code === ApiRespType.OK)
 
       response = Http(URL+"/nodes/"+nodeId2+"/msgs").method("get").headers(ACCEPT).headers(NODE2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)

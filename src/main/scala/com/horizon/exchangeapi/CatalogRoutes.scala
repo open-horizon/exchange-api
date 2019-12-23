@@ -46,8 +46,8 @@ class CatalogRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       //logger.debug("GET /catalog/services result: "+list.toString())
       val services = new MutableHashMap[String,Service]
       if (list.nonEmpty) for (a <- list) services.put(a.service, a.toService)
-      if (services.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (services.nonEmpty) (HttpCode.OK)
+      else (HttpCode.NOT_FOUND)
       GetServicesResponse(services.toMap, 0)
     })
   })
@@ -79,8 +79,8 @@ class CatalogRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       //logger.debug("GET /catalog/patterns result: "+list.toString())
       val patterns = new MutableHashMap[String,Pattern]
       if (list.nonEmpty) for (a <- list) patterns.put(a.pattern, a.toPattern)
-      if (patterns.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (patterns.nonEmpty) (HttpCode.OK)
+      else (HttpCode.NOT_FOUND)
       GetPatternsResponse(patterns.toMap, 0)
     })
   })

@@ -111,6 +111,11 @@ final case class AuthRejection(t: Throwable) extends ExchangeRejection {
   }
 }
 
+final case class BadCredsRejection(apiRespMsg: String) extends ExchangeRejection {
+  def httpCode = StatusCodes.Unauthorized
+  def apiRespCode = ApiRespType.BADCREDS
+}
+
 final case class BadInputRejection(apiRespMsg: String) extends ExchangeRejection {
   def httpCode = StatusCodes.BadRequest
   def apiRespCode = ApiRespType.BAD_INPUT

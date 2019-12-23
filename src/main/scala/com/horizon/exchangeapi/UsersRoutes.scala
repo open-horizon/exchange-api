@@ -12,14 +12,15 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{ Content, Schema }
 import io.swagger.v3.oas.annotations._
+import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
 import org.json4s._
+import scala.collection.immutable._
+import scala.util._
+
 //import org.json4s.jackson.JsonMethods._
 import slick.jdbc.PostgresProfile.api._
 
-import scala.collection.immutable._
-import scala.util._
-import scala.concurrent.ExecutionContext.Implicits.global
 
 //====== These are the input and output structures for /users routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -84,7 +85,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
   /* ====== GET /orgs/{orgid}/users ================================ */
   @GET
   @Path("")
-  @Operation(summary = "Returns all users", description = """Returns all users. Can only be run by the root user.""",
+  @Operation(summary = "Returns all users", description = "Returns all users. Can only be run by the root user.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     responses = Array(
@@ -93,67 +94,63 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def usersGetRoute: Route = (get & path("orgs" / Segment / "users") & extractCredentials) { (orgid, creds) =>
+  def usersGetRoute: Route = (get & path("orgs" / Segment / "users")) { (orgid) =>
     logger.debug(s"Doing GET /orgs/$orgid/users")
-    auth(creds, TUser(OrgAndId(orgid, "*").toString), Access.READ) match {
-      case Failure(t) => reject(AuthRejection(t))
-      case Success(ident) =>
-        complete({
-          logger.debug(s"GET /orgs/$orgid/users identity: $ident")
-          db.run(UsersTQ.getAllUsers(orgid).result).map({ list =>
-            logger.debug(s"GET /orgs/$orgid/users result size: ${list.size}")
-            val users = list.map(e => e.username -> User(if (ident.isSuperUser) e.hashedPw else StrConstants.hiddenPw, e.admin, e.email, e.lastUpdated, e.updatedBy)).toMap
-            val code = if (users.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-            (code, GetUsersResponse(users, 0))
-          })
-        }) // end of complete
-    } // end of auth match
+    exchAuth(TUser(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
+      complete({
+        logger.debug(s"GET /orgs/$orgid/users identity: $ident")
+        db.run(UsersTQ.getAllUsers(orgid).result).map({ list =>
+          logger.debug(s"GET /orgs/$orgid/users result size: ${list.size}")
+          val users = list.map(e => e.username -> User(if (ident.isSuperUser) e.hashedPw else StrConstants.hiddenPw, e.admin, e.email, e.lastUpdated, e.updatedBy)).toMap
+          val code = if (users.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetUsersResponse(users, 0))
+        })
+      }) // end of complete
+    } // end of exchAuth
   }
 
   /* ====== GET /orgs/{orgid}/users/{username} ================================ */
   @GET
   @Path("{username}")
-  @Operation(summary = "Returns a user", description = """Returns the specified username. Can only be run by that user or root.""",
+  @Operation(summary = "Returns a user", description = "Returns the specified username. Can only be run by that user or root.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username (orgid/username) of the user.")),
+      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[GetUsersResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def userGetRoute: Route = (get & path("orgs" / Segment / "users" / Segment) & extractCredentials) { (orgid, username, creds) =>
+  def userGetRoute: Route = (get & path("orgs" / Segment / "users" / Segment)) { (orgid, username) =>
     logger.debug(s"Doing GET /orgs/$orgid/users/$username")
     var compositeId = OrgAndId(orgid, username).toString
-    auth(creds, TUser(compositeId), Access.READ) match {
-      case Failure(t) => reject(AuthRejection(t))
-      case Success(ident) =>
-        complete({
-          logger.debug(s"GET /orgs/$orgid/users/$username identity: $ident")
-          var realUsername = username
-          if (username == "iamapikey" || username == "iamtoken") {
-            // Need to change the target into the username that the key resolved to
-            realUsername = ident.getIdentity
-            compositeId = OrgAndId(ident.getOrg, ident.getIdentity).toString
-          }
-          db.run(UsersTQ.getUser(compositeId).result).map({ list =>
-            logger.debug(s"GET /orgs/$orgid/users/$realUsername result size: ${list.size}")
-            val users = list.map(e => e.username -> User(if (ident.isSuperUser) e.hashedPw else StrConstants.hiddenPw, e.admin, e.email, e.lastUpdated, e.updatedBy)).toMap
-            val code = if (users.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-            (code, GetUsersResponse(users, 0))
-          })
-        }) // end of complete
-    } // end of auth match
+    exchAuth(TUser(compositeId), Access.READ) { ident =>
+      complete({
+        logger.debug(s"GET /orgs/$orgid/users/$username identity: $ident")
+        var realUsername = username
+        if (username == "iamapikey" || username == "iamtoken") {
+          // Need to change the target into the username that the key resolved to
+          realUsername = ident.getIdentity
+          compositeId = OrgAndId(ident.getOrg, ident.getIdentity).toString
+        }
+        db.run(UsersTQ.getUser(compositeId).result).map({ list =>
+          logger.debug(s"GET /orgs/$orgid/users/$realUsername result size: ${list.size}")
+          val users = list.map(e => e.username -> User(if (ident.isSuperUser) e.hashedPw else StrConstants.hiddenPw, e.admin, e.email, e.lastUpdated, e.updatedBy)).toMap
+          val code = if (users.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetUsersResponse(users, 0))
+        })
+      }) // end of complete
+    } // end of exchAuth
   }
 
   // =========== POST /orgs/{orgid}/users/{username} ===============================
   @POST
   @Path("{username}")
-  @Operation(summary = "Adds a user", description = """Creates a new user. This can be run root/root, or a user with admin privilege.""",
+  @Operation(summary = "Adds a user", description = "Creates a new user. This can be run root/root, or a user with admin privilege.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username (orgid/username) of the user.")),
+      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
     requestBody = new RequestBody(description = """
 ```
 {
@@ -169,40 +166,36 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def userPostRoute: Route = (post & path("orgs" / Segment / "users" / Segment) & extractCredentials) { (orgid, username, creds) =>
+  def userPostRoute: Route = (post & path("orgs" / Segment / "users" / Segment) & entity(as[PostPutUsersRequest])) { (orgid, username, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
     val compositeId = OrgAndId(orgid, username).toString
-    auth(creds, TUser(compositeId), Access.CREATE) match {
-      case Failure(t) => reject(AuthRejection(t))
-      case Success(ident) =>
-        entity(as[PostPutUsersRequest]) { userReq =>
-          validate(userReq.getAnyProblem(ident.isAdmin).isEmpty, "Problem in request body") { //todo: create a custom validation directive so we can return the specific error msg from getAnyProblem to the client
-            complete({
-              val updatedBy = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
-              val hashedPw = Password.hash(userReq.password)
-              db.run(UserRow(compositeId, orgid, hashedPw, userReq.admin, userReq.email, ApiTime.nowUTC, updatedBy).insertUser().asTry).map({ xs =>
-                logger.debug("POST /orgs/" + orgid + "/users/" + username + " result: " + xs.toString)
-                xs match {
-                  case Success(v) =>
-                    AuthCache.putUserAndIsAdmin(compositeId, hashedPw, userReq.password, userReq.admin)
-                    (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.added.successfully", v)))
-                  case Failure(t) =>
-                    (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.added", t.toString)))
-                }
-              })
-            }) // end of complete
-          } // end of validate
-        } // end of entity
-    } // end of auth match
+    exchAuth(TUser(compositeId), Access.CREATE) { ident =>
+      validate(reqBody.getAnyProblem(ident.isAdmin).isEmpty, "Problem in request body") {
+        complete({
+          val updatedBy = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
+          val hashedPw = Password.hash(reqBody.password)
+          db.run(UserRow(compositeId, orgid, hashedPw, reqBody.admin, reqBody.email, ApiTime.nowUTC, updatedBy).insertUser().asTry).map({ xs =>
+            logger.debug("POST /orgs/" + orgid + "/users/" + username + " result: " + xs.toString)
+            xs match {
+              case Success(v) =>
+                AuthCache.putUserAndIsAdmin(compositeId, hashedPw, reqBody.password, reqBody.admin)
+                (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.added.successfully", v)))
+              case Failure(t) =>
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.added", t.toString)))
+            }
+          })
+        }) // end of complete
+      } // end of validate
+    } // end of exchAuth
   }
 
   // =========== PUT /orgs/{orgid}/users/{username} ===============================
   @PUT
   @Path("{username}")
-  @Operation(summary = "Updates a user", description = """Updates an existing user. Only the user itself, root, or a user with admin privilege can update an existing user.""",
+  @Operation(summary = "Updates a user", description = "Updates an existing user. Only the user itself, root, or a user with admin privilege can update an existing user.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username (orgid/username) of the user.")),
+      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
     requestBody = new RequestBody(description = "See details in the POST route.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutUsersRequest])))),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
@@ -211,44 +204,40 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def userPutRoute: Route = (put & path("orgs" / Segment / "users" / Segment) & extractCredentials) { (orgid, username, creds) =>
+  def userPutRoute: Route = (put & path("orgs" / Segment / "users" / Segment) & entity(as[PostPutUsersRequest])) { (orgid, username, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
     val compositeId = OrgAndId(orgid, username).toString
-    auth(creds, TUser(compositeId), Access.WRITE) match {
-      case Failure(t) => reject(AuthRejection(t))
-      case Success(ident) =>
-        entity(as[PostPutUsersRequest]) { userReq =>
-          validate(userReq.getAnyProblem(ident.isAdmin).isEmpty, "Problem in request body") { //todo: create a custom validation directive so we can return the specific error msg from getAnyProblem to the client
-            complete({
-              val updatedBy = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
-              val hashedPw = Password.hash(userReq.password)
-              db.run(UserRow(compositeId, orgid, hashedPw, userReq.admin, userReq.email, ApiTime.nowUTC, updatedBy).updateUser().asTry).map({ xs =>
-                logger.debug("PUT /orgs/" + orgid + "/users/" + username + " result: " + xs.toString)
-                xs match {
-                  case Success(n) =>
-                    if (n.asInstanceOf[Int] > 0) {
-                      AuthCache.putUserAndIsAdmin(compositeId, hashedPw, userReq.password, userReq.admin)
-                      (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.updated.successfully")))
-                    } else {
-                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
-                    }
-                  case Failure(t) =>
-                    (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
+    exchAuth(TUser(compositeId), Access.WRITE) { ident =>
+      validate(reqBody.getAnyProblem(ident.isAdmin).isEmpty, "Problem in request body") {
+        complete({
+          val updatedBy = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
+          val hashedPw = Password.hash(reqBody.password)
+          db.run(UserRow(compositeId, orgid, hashedPw, reqBody.admin, reqBody.email, ApiTime.nowUTC, updatedBy).updateUser().asTry).map({ xs =>
+            logger.debug("PUT /orgs/" + orgid + "/users/" + username + " result: " + xs.toString)
+            xs match {
+              case Success(n) =>
+                if (n.asInstanceOf[Int] > 0) {
+                  AuthCache.putUserAndIsAdmin(compositeId, hashedPw, reqBody.password, reqBody.admin)
+                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.updated.successfully")))
+                } else {
+                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
                 }
-              })
-            }) // end of complete
-          } // end of validate
-        } // end of entity
-    } // end of auth match
+              case Failure(t) =>
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
+            }
+          })
+        }) // end of complete
+      } // end of validate
+    } // end of exchAuth
   }
 
   // =========== PATCH /orgs/{orgid}/users/{username} ===============================
   @PATCH
   @Path("{username}")
-  @Operation(summary = "Updates 1 attribute of a user", description = """Updates 1 attribute of an existing user. Only the user itself, root, or a user with admin privilege can update an existing user.""",
+  @Operation(summary = "Updates 1 attribute of a user", description = "Updates 1 attribute of an existing user. Only the user itself, root, or a user with admin privilege can update an existing user.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username (orgid/username) of the user.")),
+      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
     requestBody = new RequestBody(description = "Specify only **one** of the attributes:", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchUsersRequest])))),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
@@ -257,108 +246,98 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def userPatchRoute: Route = (patch & path("orgs" / Segment / "users" / Segment) & extractCredentials) { (orgid, username, creds) =>
+  def userPatchRoute: Route = (patch & path("orgs" / Segment / "users" / Segment) & entity(as[PatchUsersRequest])) { (orgid, username, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
     val compositeId = OrgAndId(orgid, username).toString
-    auth(creds, TUser(compositeId), Access.WRITE) match {
-      case Failure(t) => reject(AuthRejection(t))
-      case Success(ident) =>
-        entity(as[PatchUsersRequest]) { userReq =>
-          validate(userReq.getAnyProblem(ident.isAdmin).isEmpty, "Problem in request body") { //todo: create a custom validation directive so we can return the specific error msg from getAnyProblem to the client
-            complete({
-              val updatedBy = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
-              val hashedPw = if (userReq.password.isDefined) Password.hash(userReq.password.get) else "" // hash the pw if that is what is being updated
-              val (action, attrName) = userReq.getDbUpdate(compositeId, orgid, updatedBy, hashedPw)
-              if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attr.specified")))
-              else db.run(action.transactionally.asTry).map({ xs =>
-                logger.debug("PATCH /orgs/" + orgid + "/users/" + username + " result: " + xs.toString)
-                xs match {
-                  case Success(n) =>
-                    if (n.asInstanceOf[Int] > 0) {
-                      if (userReq.password.isDefined) AuthCache.putUser(compositeId, hashedPw, userReq.password.get)
-                      if (userReq.admin.isDefined) AuthCache.putUserIsAdmin(compositeId, userReq.admin.get)
-                      (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.attr.updated", attrName, compositeId)))
-                    } else {
-                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
-                    }
-                  case Failure(t) =>
-                    (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
+    exchAuth(TUser(compositeId), Access.WRITE) { ident =>
+      validate(reqBody.getAnyProblem(ident.isAdmin).isEmpty, "Problem in request body") {
+        complete({
+          val updatedBy = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
+          val hashedPw = if (reqBody.password.isDefined) Password.hash(reqBody.password.get) else "" // hash the pw if that is what is being updated
+          val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid, updatedBy, hashedPw)
+          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attr.specified")))
+          else db.run(action.transactionally.asTry).map({ xs =>
+            logger.debug("PATCH /orgs/" + orgid + "/users/" + username + " result: " + xs.toString)
+            xs match {
+              case Success(n) =>
+                if (n.asInstanceOf[Int] > 0) {
+                  if (reqBody.password.isDefined) AuthCache.putUser(compositeId, hashedPw, reqBody.password.get)
+                  if (reqBody.admin.isDefined) AuthCache.putUserIsAdmin(compositeId, reqBody.admin.get)
+                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.attr.updated", attrName, compositeId)))
+                } else {
+                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
                 }
-              })
-            }) // end of complete
-          } // end of validate
-        } // end of entity
-    } // end of auth match
+              case Failure(t) =>
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
+            }
+          })
+        }) // end of complete
+      } // end of validate
+    } // end of exchAuth
   }
 
   // =========== DELETE /orgs/{orgid}/users/{username} ===============================
   @DELETE
   @Path("{username}")
-  @Operation(summary = "Deletes an user", description = """Deletes a user and all of its nodes and agbots. This can only be called by root or a user in the org with the admin role.""",
+  @Operation(summary = "Deletes a user", description = "Deletes a user and all of its nodes and agbots. This can only be called by root or a user in the org with the admin role.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username (orgid/username) of the user.")),
+      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def userDeleteRoute: Route = (delete & path("orgs" / Segment / "users" / Segment) & extractCredentials) { (orgid, username, creds) =>
+  def userDeleteRoute: Route = (delete & path("orgs" / Segment / "users" / Segment)) { (orgid, username) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/users/$username")
     val compositeId = OrgAndId(orgid, username).toString
-    auth(creds, TUser(compositeId), Access.WRITE) match {
-      case Failure(t) => reject(AuthRejection(t))
-      case Success(_) =>
-        complete({
-          // remove does *not* throw an exception if the key does not exist
-          db.run(UsersTQ.getUser(compositeId).delete.transactionally.asTry).map({ xs =>
-            logger.debug(s"DELETE /orgs/$orgid/users/$username result: " + xs.toString)
-            xs match {
-              case Success(v) => // there were no db errors, but determine if it actually found it or not
-                if (v > 0) {
-                  AuthCache.removeUserAndIsAdmin(compositeId)
-                  (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.deleted")))
-                } else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
-              case Failure(t) =>
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.deleted", compositeId, t.toString)))
-            }
-          })
-        }) // end of complete
-    } // end of auth match
+    exchAuth(TUser(compositeId), Access.WRITE) { _ =>
+      complete({
+        // remove does *not* throw an exception if the key does not exist
+        db.run(UsersTQ.getUser(compositeId).delete.transactionally.asTry).map({
+          case Success(v) => // there were no db errors, but determine if it actually found it or not
+            logger.debug(s"DELETE /orgs/$orgid/users/$username result: $v")
+            if (v > 0) {
+              AuthCache.removeUserAndIsAdmin(compositeId)
+              (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.deleted")))
+            } else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
   }
 
   // =========== POST /orgs/{orgid}/users/{username}/confirm ===============================
   @POST
   @Path("{username}/confirm")
-  @Operation(summary = "Confirms if this username/password is valid", description = """Confirms whether or not this username exists and has the specified password. This can only be called by root or a user in the org with the admin role.""",
+  @Operation(summary = "Confirms if this username/password is valid", description = "Confirms whether or not this username exists and has the specified password. This can only be called by root or a user in the org with the admin role.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username (orgid/username) of the user.")),
+      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "post ok"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def userConfirmRoute: Route = (post & path("orgs" / Segment / "users" / Segment / "confirm") & extractCredentials) { (orgid, username, creds) =>
+  def userConfirmRoute: Route = (post & path("orgs" / Segment / "users" / Segment / "confirm")) { (orgid, username) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$username/confirm")
     val compositeId = OrgAndId(orgid, username).toString
-    auth(creds, TUser(compositeId), Access.READ) match {
-      case Failure(t) => reject(AuthRejection(t))
-      case Success(_) =>
-        complete({
-          // if we get here, the user/pw has been confirmed
-          (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("confirmation.successful")))
-        }) // end of complete
-    } // end of auth match
+    exchAuth(TUser(compositeId), Access.READ) { _ =>
+      complete({
+        // if we get here, the user/pw has been confirmed
+        (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("confirmation.successful")))
+      }) // end of complete
+    } // end of exchAuth
   }
 
   // =========== POST /orgs/{orgid}/users/{username}/changepw ===============================
   @POST
   @Path("{username}/changepw")
-  @Operation(summary = "Changes the user's password", description = """Changes the user's password. Only the user itself, root, or a user with admin privilege can update an existing user's password.""",
+  @Operation(summary = "Changes the user's password", description = "Changes the user's password. Only the user itself, root, or a user with admin privilege can update an existing user's password.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username (orgid/username) of the user.")),
+      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
     requestBody = new RequestBody(description = """
 ```
 {
@@ -372,35 +351,31 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def userChangePwRoute: Route = (post & path("orgs" / Segment / "users" / Segment / "changepw") & extractCredentials) { (orgid, username, creds) =>
+  def userChangePwRoute: Route = (post & path("orgs" / Segment / "users" / Segment / "changepw") & entity(as[ChangePwRequest])) { (orgid, username, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
     val compositeId = OrgAndId(orgid, username).toString
-    auth(creds, TUser(compositeId), Access.WRITE) match {
-      case Failure(t) => reject(AuthRejection(t))
-      case Success(_) =>
-        entity(as[ChangePwRequest]) { req =>
-          validate(req.getAnyProblem.isEmpty, "Problem in request body") { //todo: create a custom validation directive so we can return the specific error msg from getAnyProblem to the client
-            complete({
-              val hashedPw = Password.hash(req.newPassword)
-              val action = req.getDbUpdate(compositeId, orgid, hashedPw)
-              db.run(action.transactionally.asTry).map({ xs =>
-                logger.debug("POST /orgs/" + orgid + "/users/" + username + "/changepw result: " + xs.toString)
-                xs match {
-                  case Success(n) =>
-                    if (n.asInstanceOf[Int] > 0) {
-                      AuthCache.putUser(compositeId, hashedPw, req.newPassword)
-                      (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("password.updated.successfully")))
-                    } else {
-                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
-                    }
-                  case Failure(t) =>
-                    (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.password.not.updated", compositeId, t.toString)))
+    exchAuth(TUser(compositeId), Access.WRITE) { _ =>
+      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+        complete({
+          val hashedPw = Password.hash(reqBody.newPassword)
+          val action = reqBody.getDbUpdate(compositeId, orgid, hashedPw)
+          db.run(action.transactionally.asTry).map({ xs =>
+            logger.debug("POST /orgs/" + orgid + "/users/" + username + "/changepw result: " + xs.toString)
+            xs match {
+              case Success(n) =>
+                if (n.asInstanceOf[Int] > 0) {
+                  AuthCache.putUser(compositeId, hashedPw, reqBody.newPassword)
+                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("password.updated.successfully")))
+                } else {
+                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
                 }
-              })
-            }) // end of complete
-          } // end of validate
-        } // end of entity
-    } // end of auth match
+              case Failure(t) =>
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.password.not.updated", compositeId, t.toString)))
+            }
+          })
+        }) // end of complete
+      } // end of validate
+    } // end of exchAuth
   }
 
 }

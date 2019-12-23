@@ -197,8 +197,8 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       //logger.debug("GET /orgs/"+orgid+"/services result: "+list.toString())
       val services = new MutableHashMap[String,Service]
       if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public || ident.isSuperUser || ident.isMultiTenantAgbot) services.put(a.service, a.toService)
-      if (services.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (services.nonEmpty) (HttpCode.OK)
+      else (HttpCode.NOT_FOUND)
       GetServicesResponse(services.toMap, 0)
     })
   })
@@ -231,10 +231,10 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
         db.run(q.result).map({ list =>
           //logger.debug("GET /orgs/"+orgid+"/services/"+bareService+" attribute result: "+list.toString)
           if (list.nonEmpty) {
-            resp.setStatus(HttpCode.OK)
+            (HttpCode.OK)
             GetServiceAttributeResponse(attribute, list.head.toString)
           } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))
           }
         })
@@ -244,8 +244,8 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
           logger.debug("GET /orgs/"+orgid+"/services/"+bareService+" result: "+list.toString)
           val services = new MutableHashMap[String,Service]
           if (list.nonEmpty) for (a <- list) services.put(a.service, a.toService)
-          if (services.nonEmpty) resp.setStatus(HttpCode.OK)
-          else resp.setStatus(HttpCode.NOT_FOUND)
+          if (services.nonEmpty) (HttpCode.OK)
+          else (HttpCode.NOT_FOUND)
           GetServicesResponse(services.toMap, 0)
         })
     }
@@ -380,16 +380,16 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       xs match {
         case Success(_) => if (owner != "") AuthCache.putServiceOwner(service, owner)     // currently only users are allowed to update service resources, so owner should never be blank
           AuthCache.putServiceIsPublic(service, serviceReq.public)
-          resp.setStatus(HttpCode.POST_OK)
+          (HttpCode.POST_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("service.created", service))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.created", service, t.getMessage))
         case Failure(t) => if (t.getMessage.contains("duplicate key value violates unique constraint")) {
-          resp.setStatus(HttpCode.ALREADY_EXISTS)
+          (HttpCode.ALREADY_EXISTS)
           ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("service.already.exists", service, t.getMessage))
         } else {
-          resp.setStatus(HttpCode.BAD_INPUT)
+          (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.created", service, t.getMessage))
         }
       }
@@ -481,22 +481,22 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("PUT /orgs/"+orgid+"/services/"+bareService+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-              resp.setStatus(HttpCode.PUT_OK)
+              (HttpCode.PUT_OK)
               ApiResponse(ApiRespType.OK, ExchMsg.translate("service.updated"))
         case Failure(t: DBProcessingError) =>
           if (t.httpCode == HttpCode.NOT_FOUND){
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", service))
           } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
-            resp.setStatus(HttpCode.INTERNAL_ERROR);
+            (HttpCode.INTERNAL_ERROR);
             ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage)
           }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-            resp.setStatus(HttpCode.ACCESS_DENIED)
+            (HttpCode.ACCESS_DENIED)
             ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", service, t.getMessage))
           //            ApiResponse(ApiRespType.ACCESS_DENIED, "service '" + service + "' not updated: " + t.getMessage)
           } else {
-            resp.setStatus(HttpCode.BAD_INPUT)
+            (HttpCode.BAD_INPUT)
             ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", service, t.getMessage))
           //            ApiResponse(ApiRespType.BAD_INPUT, "service '" + service + "' not updated: " + t.getMessage)
           }
@@ -610,20 +610,20 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("PATCH /orgs/"+orgid+"/services/"+bareService+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.PUT_OK)
+          (HttpCode.PUT_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("service.attr.updated", attrName, service))
         case Failure(t: DBProcessingError) =>
           if (t.httpCode == HttpCode.NOT_FOUND) {
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", service))
           } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            (HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage) }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-            resp.setStatus(HttpCode.ACCESS_DENIED)
+            (HttpCode.ACCESS_DENIED)
             ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", service, t.getMessage))
           } else {
-            resp.setStatus(HttpCode.BAD_INPUT)
+            (HttpCode.BAD_INPUT)
             ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", service, t.getMessage))
           }
       }
@@ -680,12 +680,12 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("DELETE /orgs/"+orgid+"/services/"+bareService+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("service.deleted"))
         case Failure(t: DBProcessingError) =>
           resp.setStatus (HttpCode.NOT_FOUND)
           ApiResponse (ApiRespType.NOT_FOUND, ExchMsg.translate ("service.not.found", service) )
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", service, t.toString))
       }
     })
@@ -715,10 +715,10 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
     db.run(ServicePolicyTQ.getServicePolicy(service).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/services/"+bareService+"/policy result size: "+list.size)
       if (list.nonEmpty) {
-        resp.setStatus(HttpCode.OK)
+        (HttpCode.OK)
         list.head.toServicePolicy
       }
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      else (HttpCode.NOT_FOUND)
     })
   })
 
@@ -783,13 +783,13 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/services/"+bareService+"/policy updated in changes table: "+xs.toString)
       xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+        case Success(_) => (HttpCode.PUT_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("policy.added.or.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("policy.not.inserted.or.updated", service, t.getMessage))
         } else {
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
+          (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("policy.not.inserted.or.updated", service, t.toString))
         }
       }
@@ -842,12 +842,12 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("DELETE /orgs/"+orgid+"/services/"+bareService+"/policy updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("service.policy.deleted"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.policy.not.found", service))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.policy.not.deleted", service, t.toString))
       }
     })
@@ -879,8 +879,8 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
     db.run(ServiceKeysTQ.getKeys(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/keys result size: "+list.size)
       //logger.debug("GET /orgs/"+orgid+"/services/"+id+"/keys result: "+list.toString)
-      if (list.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (list.nonEmpty) (HttpCode.OK)
+      else (HttpCode.NOT_FOUND)
       list.map(_.keyId)
     })
   })
@@ -912,14 +912,14 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" result: "+list.size)
       if (list.nonEmpty) {
         // Return the raw key, not json
-        resp.setStatus(HttpCode.OK)
+        (HttpCode.OK)
         resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
         resp.setHeader("Content-Type", "text/plain")
         resp.setHeader("Content-Length", list.head.key.length.toString)
         list.head.key
       }
       else {
-        resp.setStatus(HttpCode.NOT_FOUND)
+        (HttpCode.NOT_FOUND)
         ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("key.not.found", keyId))
       }
     })
@@ -975,13 +975,13 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" updated in changes table: "+xs.toString)
       xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+        case Success(_) => (HttpCode.PUT_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("key.added.or.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage))
         } else {
-          resp.setStatus(HttpCode.BAD_INPUT)
+          (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage))
         }
       }
@@ -1035,12 +1035,12 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("DELETE /services/"+service+"/keys updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("service.keys.deleted"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("no.service.keys.found", compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.keys.not.deleted", compositeId, t.toString))
       }
     })
@@ -1095,12 +1095,12 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("DELETE /services/"+service+"/keys/"+keyId+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("service.key.deleted"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.key.not.found", keyId, compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.key.not.deleted", keyId, compositeId, t.toString))
       }
     })
@@ -1133,8 +1133,8 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/dockauths result size: "+list.size)
       //logger.debug("GET /orgs/"+orgid+"/services/"+id+"/dockauths result: "+list.toString)
       val listSorted = list.sortWith(_.dockAuthId < _.dockAuthId)
-      if (listSorted.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (listSorted.nonEmpty) (HttpCode.OK)
+      else (HttpCode.NOT_FOUND)
       listSorted.map(_.toServiceDockAuth)
     })
   })
@@ -1165,11 +1165,11 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
     db.run(ServiceDockAuthsTQ.getDockAuth(compositeId, dockAuthId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" result: "+list.size)
       if (list.nonEmpty) {
-        resp.setStatus(HttpCode.OK)
+        (HttpCode.OK)
         list.head.toServiceDockAuth
       }
       else {
-        resp.setStatus(HttpCode.NOT_FOUND)
+        (HttpCode.NOT_FOUND)
         list
       }
     })
@@ -1233,7 +1233,7 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("POST /orgs/"+orgid+"/services/"+service+"/dockauths updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.POST_OK)
+          (HttpCode.POST_OK)
           resultNum match {
             case 0 => ApiResponse(ApiRespType.OK, ExchMsg.translate("duplicate.dockauth.resource.already.exists"))    // we don't expect this, but it is possible, but only means that the lastUpdated field didn't get updated
             case 1 => ApiResponse(ApiRespType.OK, ExchMsg.translate("dockauth.resource.updated"))    //todo: this can be 2 cases i dont know how to distinguish between: A) the 1st time anyone added a dockauth, or B) a dup was found and we updated it
@@ -1241,10 +1241,10 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
             case _ => ApiResponse(ApiRespType.OK, ExchMsg.translate("dockauth.num.added", resultNum))    // we did not find a dup, so this is the dockauth id that was added
           }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.inserted", dockAuthId, compositeId, t.getMessage))
         } else {
-          resp.setStatus(HttpCode.BAD_INPUT)
+          (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.dockauth.not.inserted", dockAuthId, compositeId, t.getMessage))
         }
       }
@@ -1306,16 +1306,16 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("PUT /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-            resp.setStatus(HttpCode.PUT_OK)
+            (HttpCode.PUT_OK)
             ApiResponse(ApiRespType.OK, ExchMsg.translate("dockauth.updated", dockAuthId))
         case Failure(t: DBProcessingError) =>
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.OK, ExchMsg.translate("dockauth.not.found", dockAuthId))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage))
         } else {
-          resp.setStatus(HttpCode.BAD_INPUT)
+          (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage))
         }
       }
@@ -1369,12 +1369,12 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("DELETE /services/"+service+"/dockauths result: "+xs.toString)
       xs match {
         case Success(v) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("service.dockauths.deleted"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("no.dockauths.found.for.service", compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.dockauths.not.deleted", compositeId, t.toString))
       }
     })
@@ -1429,12 +1429,12 @@ class ServiceRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("DELETE /services/"+service+"/dockauths/"+dockAuthId+" updated in changes table: "+xs.toString)
       xs match {
         case Success(v) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("service.dockauths.deleted"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.dockauths.not.found", dockAuthId, compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.dockauths.not.deleted", dockAuthId, compositeId, t.toString))
       }
     })

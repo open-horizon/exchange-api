@@ -375,8 +375,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     db.run(q.result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/nodes result size: "+list.size)
       val nodes = NodesTQ.parseJoin(superUser, list)
-      if (nodes.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (nodes.nonEmpty) (HttpCode.OK)
+      else (HttpCode.NOT_FOUND)
       GetNodesResponse(nodes, 0)
     })
     // } catch { case e: Exception => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, "Oops! Somthing unexpected happened: "+e)) }
@@ -410,10 +410,10 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
         db.run(q.result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+" attribute result: "+list.size)
           if (list.nonEmpty) {
-            resp.setStatus(HttpCode.OK)
+            (HttpCode.OK)
             GetNodeAttributeResponse(attribute, list.head.toString)
           } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))     // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
           }
         })
@@ -424,10 +424,10 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
           logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+" result: "+list.size)
           if (list.nonEmpty) {
             val nodes = NodesTQ.parseJoin(isSuperUser, list)
-            resp.setStatus(HttpCode.OK)
+            (HttpCode.OK)
             GetNodesResponse(nodes, 0)
           } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))     // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
           }
         })
@@ -507,11 +507,11 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result size: "+list.size)
       //logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
       if (list.nonEmpty) {
-        resp.setStatus(HttpCode.POST_OK)
+        (HttpCode.POST_OK)
         PostNodeHealthResponse(buildNodeHealthHash(list))
       }
       else {
-        resp.setStatus(HttpCode.NOT_FOUND)
+        (HttpCode.NOT_FOUND)
         PostNodeHealthResponse(Map[String,NodeHealthHashElement]())
       }
     })
@@ -582,8 +582,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("POST /orgs/" + orgid + "/search/nodes result size: " + list.size)
       // logger.debug("POST /orgs/"+orgid+"/search/nodes result: "+list.toString)
       // logger.debug("POST /orgs/"+orgid+"/search/nodes agHash: "+agHash.agHash.toString)
-      if (list.nonEmpty) resp.setStatus(HttpCode.POST_OK) //todo: this check only catches if there are no nodes at all, not the case in which there are some nodes, but they do not have the right services
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (list.nonEmpty) (HttpCode.POST_OK) //todo: this check only catches if there are no nodes at all, not the case in which there are some nodes, but they do not have the right services
+      else (HttpCode.NOT_FOUND)
       val nodes = new MutableHashMap[String,Node]    // the key is node id
       if (list.nonEmpty) for (a <- list) nodes.put(a.id, a.toNode(false))
       searchProps.matches(nodes.toMap, agHash)
@@ -616,11 +616,11 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     db.run(q.result).map({ list =>
       logger.debug("POST /orgs/"+orgid+"/search/nodes/error result size: "+list.size)
       if (list.nonEmpty) {
-        resp.setStatus(HttpCode.POST_OK)
+        (HttpCode.POST_OK)
         PostNodeErrorResponse(list)
       }
       else {
-        resp.setStatus(HttpCode.NOT_FOUND)
+        (HttpCode.NOT_FOUND)
       }
     })
   })
@@ -668,11 +668,11 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     db.run(q.result).map({ list =>
       logger.debug("POST /orgs/"+orgid+"/services/"+service+"/search result size: "+list.size)
       if (list.nonEmpty) {
-        resp.setStatus(HttpCode.POST_OK)
+        (HttpCode.POST_OK)
         PostServiceSearchResponse(list)
       }
       else {
-        resp.setStatus(HttpCode.NOT_FOUND)
+        (HttpCode.NOT_FOUND)
       }
     })
   })
@@ -725,11 +725,11 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("POST /orgs/"+orgid+"/search/nodehealth result size: "+list.size)
       //logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
       if (list.nonEmpty) {
-        resp.setStatus(HttpCode.POST_OK)
+        (HttpCode.POST_OK)
         PostNodeHealthResponse(buildNodeHealthHash(list))
       }
       else {
-        resp.setStatus(HttpCode.NOT_FOUND)
+        (HttpCode.NOT_FOUND)
         PostNodeHealthResponse(Map[String,NodeHealthHashElement]())
       }
     })
@@ -878,13 +878,13 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
           AuthCache.putNodeAndOwner(id, hashedTok, node.token, owner)
           //AuthCache.ids.putNode(id, hashedTok, node.token)
           //AuthCache.nodesOwner.putOne(id, owner)
-          resp.setStatus(HttpCode.PUT_OK)
+          (HttpCode.PUT_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.not.inserted.or.updated", id, t.getMessage))
         case Failure(t) =>
-          resp.setStatus(HttpCode.BAD_INPUT)
+          (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", id, t.getMessage))
       }
     })
@@ -981,15 +981,15 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
               if (node.token.isDefined) AuthCache.putNode(id, hashedPw, node.token.get)  // We do not need to run putOwner because patch does not change the owner
               //AuthCache.ids.putNode(id, hashedPw, node.token.get)
-              resp.setStatus(HttpCode.PUT_OK)
+              (HttpCode.PUT_OK)
               ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", attrName, id))
             } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
+              (HttpCode.NOT_FOUND)
               ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unexpected.result.from.update", e)) }
-          //          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiRespType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          } catch { case e: Exception => (HttpCode.INTERNAL_ERROR); ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unexpected.result.from.update", e)) }
+          //          } catch { case e: Exception => (HttpCode.INTERNAL_ERROR); ApiResponse(ApiRespType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
+        case Failure(t) => (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", id, t.getMessage))
       }
     })
@@ -1050,14 +1050,14 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       xs match {
         case Success(i) => //try {     // i comes to us as type Any
           if (i.toString.toInt > 0) {        // there were no db errors, but determine if it actually found it or not
-            resp.setStatus(HttpCode.PUT_OK)
+            (HttpCode.PUT_OK)
             ApiResponse(ApiRespType.OK, ExchMsg.translate("node.services.updated", nodeId))
           } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", nodeId))
           }
-          //} catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiRespType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+          //} catch { case e: Exception => (HttpCode.INTERNAL_ERROR); ApiResponse(ApiRespType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
+        case Failure(t) => (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", nodeId, t.getMessage))
       }
     })
@@ -1104,21 +1104,21 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
           AuthCache.removeNodeAndOwner(id)
           //AuthCache.ids.removeOne(id)
           //AuthCache.nodesOwner.removeOne(id)
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("node.deleted"))
         case Failure(t: DBProcessingError) =>
           logger.debug("Nodes4 - getting to failure - dbprocessingerror")
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))
         case Failure(t) =>
           logger.debug("Nodes4 - getting to failure catch all case")
           if(t.getMessage.contains("couldn't find node")){
             logger.debug("Nodes4 - getting to failure catch all if case")
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))
           } else {
             logger.debug("Nodes4 - getting to failure catch all other case")
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            (HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.deleted", id, t.toString))
           }
 
@@ -1149,13 +1149,13 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/heartbeat result: "+xs.toString)
       xs match {
         case Success(v) => if (v > 0) {       // there were no db errors, but determine if it actually found it or not
-              resp.setStatus(HttpCode.POST_OK)
+              (HttpCode.POST_OK)
               ApiResponse(ApiRespType.OK, ExchMsg.translate("node.updated"))
             } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
+              (HttpCode.NOT_FOUND)
               ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))
             }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.updated", id, t.toString))
         }
     })
@@ -1184,10 +1184,10 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       db.run(NodeErrorTQ.getNodeError(id).result).map({ list =>
         logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/errors result size: "+list.size)
         if (list.nonEmpty) {
-          resp.setStatus(HttpCode.OK)
+          (HttpCode.OK)
           list.head.toNodeError
         }
-        else resp.setStatus(HttpCode.NOT_FOUND)
+        else (HttpCode.NOT_FOUND)
       })
   })
 
@@ -1243,13 +1243,13 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" updating resource status table: "+xs)
       xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+        case Success(_) => (HttpCode.PUT_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("node.errors.added"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.errors.not.inserted", id, t.getMessage))
         } else {
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
+          (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.errors.not.inserted", id, t.toString))
         }
       }
@@ -1291,12 +1291,12 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" updating resource status table: "+xs)
       xs match {
         case Success(v) =>        // there were no db errors, but determine if it actually found it or not
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("node.errors.deleted"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.errors.not.found", id))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.errors.not.deleted", id, t.toString))
       }
     })
@@ -1324,10 +1324,10 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     db.run(NodeStatusTQ.getNodeStatus(id).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/status result size: "+list.size)
       if (list.nonEmpty) {
-        resp.setStatus(HttpCode.OK)
+        (HttpCode.OK)
         list.head.toNodeStatus
       }
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      else (HttpCode.NOT_FOUND)
     })
   })
 
@@ -1395,13 +1395,13 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/status updating resource status table: "+xs)
       xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+        case Success(_) => (HttpCode.PUT_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("status.added.or.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.status.not.inserted.or.updated", id, t.getMessage))
         } else {
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
+          (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.status.not.inserted.or.updated", id, t.toString))
         }
       }
@@ -1443,12 +1443,12 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/status updating resource status table: "+xs)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("node.status.deleted"))
         case Failure(t:DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.status.not.found", id))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.status.not.deleted", id, t.toString))
       }
     })
@@ -1476,10 +1476,10 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     db.run(NodePolicyTQ.getNodePolicy(id).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/policy result size: "+list.size)
       if (list.nonEmpty) {
-        resp.setStatus(HttpCode.OK)
+        (HttpCode.OK)
         list.head.toNodePolicy
       }
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      else (HttpCode.NOT_FOUND)
     })
   })
 
@@ -1549,21 +1549,21 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/policy updating resource status table: "+xs)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.PUT_OK)
+          (HttpCode.PUT_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("node.policy.added.or.updated"))
         case Failure(t: DBProcessingError) =>
           if (t.httpCode == HttpCode.NOT_FOUND){
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))
           } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            (HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage)
           }
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.policy.not.inserted.or.updated", id, t.getMessage))
         } else {
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
+          (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.policy.not.inserted.or.updated", id, t.toString))
         }
       }
@@ -1605,12 +1605,12 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+"/policy updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>        // there were no db errors, but determine if it actually found it or not
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("node.policy.deleted"))
         case Failure(t:DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.policy.not.found", id))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.policy.not.deleted", id, t.toString))
       }
     })
@@ -1639,8 +1639,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/agreements result size: "+list.size)
       val agreements = new MutableHashMap[String, NodeAgreement]
       if (list.nonEmpty) for (e <- list) { agreements.put(e.agId, e.toNodeAgreement) }
-      if (agreements.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (agreements.nonEmpty) (HttpCode.OK)
+      else (HttpCode.NOT_FOUND)
       GetNodeAgreementsResponse(agreements.toMap, 0)
     })
   })
@@ -1670,8 +1670,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+list.toString)
       val agreements = new MutableHashMap[String, NodeAgreement]
       if (list.nonEmpty) for (e <- list) { agreements.put(e.agId, e.toNodeAgreement) }
-      if (agreements.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (agreements.nonEmpty) (HttpCode.OK)
+      else (HttpCode.NOT_FOUND)
       GetNodeAgreementsResponse(agreements.toMap, 0)
     })
   })
@@ -1750,18 +1750,18 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
         case Success(n) => try {
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
             if (numUpdated > 0) {
-              resp.setStatus(HttpCode.PUT_OK)
+              (HttpCode.PUT_OK)
               ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.added.or.updated"))
             } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
+              (HttpCode.NOT_FOUND)
               ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", id))
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.updated", id, e)) }    // the specific exception is NumberFormatException
+          } catch { case e: Exception => (HttpCode.INTERNAL_ERROR); ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.updated", id, e)) }    // the specific exception is NumberFormatException
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.agreement.not.inserted.or.updated", agId, id, t.getMessage))
         case Failure(t) =>
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
+          (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.inserted.or.updated", agId, id, t.toString))
       }
     })
@@ -1801,13 +1801,13 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/agreements result: "+xs.toString)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreements.deleted"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("no.node.agreements.found", id))
         //            ApiResponse(ApiRespType.NOT_FOUND, "no agreements for node '"+id+"' found")
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreements.not.deleted", id, t.toString))
         }
     })
@@ -1850,12 +1850,12 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+xs.toString)
       xs match {
         case Success(v) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.deleted"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.agreement.not.found", agId, id))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.deleted", agId, id, t.toString))
         }
     })
@@ -1930,20 +1930,20 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     })).map({ xs =>
       logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/msgs update changes table : "+xs.toString)
       xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
+        case Success(_) => (HttpCode.POST_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.inserted", msgNum))
         case Failure(t: DBProcessingError) => if(t.httpCode == HttpCode.ACCESS_DENIED) {
-            resp.setStatus(HttpCode.ACCESS_DENIED)
+            (HttpCode.ACCESS_DENIED)
             ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.msg.not.inserted", nodeId, t.getMessage))
           } else if (t.httpCode == HttpCode.BAD_INPUT){
-            resp.setStatus(HttpCode.BAD_INPUT)
+            (HttpCode.BAD_INPUT)
             ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.msg.not.inserted", nodeId, ExchMsg.translate("invalid.input.agbot.not.found", agbotId)))
           }
         case Failure(t) => if (t.getMessage.contains("is not present in table")) {
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.nodeid.not.found", nodeId, t.getMessage))
           } else {
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            (HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.inserted", nodeId, t.toString))
           }
         }
@@ -1978,8 +1978,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       val listSorted = list.sortWith(_.msgId < _.msgId)
       val msgs = new ListBuffer[NodeMsg]
       if (listSorted.nonEmpty) for (m <- listSorted) { msgs += m.toNodeMsg }
-      if (msgs.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (msgs.nonEmpty) (HttpCode.OK)
+      else (HttpCode.NOT_FOUND)
       GetNodeMsgsResponse(msgs.toList, 0)
     })
   })
@@ -2021,12 +2021,12 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/msgs/"+msgId+" result: "+xs.toString)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.deleted"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.not.found", msgId, id))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.deleted", msgId, id, t.toString))
         }
     })

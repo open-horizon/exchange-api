@@ -4,8 +4,11 @@ package com.horizon.exchangeapi
 //import akka.stream.ActorMaterializer
 import akka.http.scaladsl.server.Directives
 import com.github.swagger.akka.SwaggerHttpService
-import com.github.swagger.akka.model.{ Info, License }
+import com.github.swagger.akka.model.{Info, License}
 import io.swagger.v3.oas.models.ExternalDocumentation
+//import io.swagger.v3.oas.annotations._
+//import akka.http.scaladsl.model.StatusCode
+//import io.swagger.v3.oas.annotations.media.{Content, Schema}
 
 /*Swagger references:
   - Swagger with akka-http: https://github.com/swagger-akka-http/swagger-akka-http
@@ -18,7 +21,7 @@ import io.swagger.v3.oas.models.ExternalDocumentation
 object SwaggerDocService extends SwaggerHttpService {
   //override implicit val actorSystem: ActorSystem = system
   //override implicit val materializer: ActorMaterializer = ActorMaterializer()
-  override def apiClasses = Set(classOf[OrgsRoutes], classOf[UsersRoutes])
+  override def apiClasses = Set(classOf[OrgsRoutes], classOf[UsersRoutes], classOf[AdminRoutes])
   override def host = s"${ExchangeApiConstants.serviceHost}:${ExchangeApiConstants.servicePort}" //the url of your api, not swagger's json endpoint
   override def apiDocsPath = "api-docs" //where you want the swagger-json endpoint exposed
 
@@ -42,3 +45,13 @@ object SwaggerDocService extends SwaggerHttpService {
 class SwaggerUiService extends Directives {
   val routes = path("swagger") { getFromResource("swagger/index.html") } ~ getFromResourceDirectory("swagger")
 }
+
+/* this didn't work because swagger annotations need to be constants
+object SwaggerUtils {
+  def resp(successCode: StatusCode, responseClass: Class[_], otherCodes: StatusCode*) = {
+    val r = Array(new responses.ApiResponse(responseCode = successCode.intValue.toString, description = "Response body:",
+      content = Array(new Content(schema = new Schema(implementation = responseClass)))))
+    r ++ otherCodes.map(c => new responses.ApiResponse(responseCode = c.intValue.toString, description = c.reason() )).toArray
+  }
+}
+*/

@@ -11,7 +11,7 @@ class AuthException(var httpCode: StatusCode, var apiResponse: String, msg: Stri
 class UserFacingError(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 
 // Error class to use to define specific error responses from problems happening in DB threads
-class DBProcessingError(httpCode: Int, apiResponse: String, msg: String) extends AuthException(httpCode, apiResponse, msg)
+class DBProcessingError(httpCode: StatusCode, apiResponse: String, msg: String) extends AuthException(httpCode, apiResponse, msg)
 
 // Only used internally: The creds werent ibm cloud creds, so return gracefully and move on to the next login module
 class NotIbmCredsException extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, "not IBM cloud credentials")

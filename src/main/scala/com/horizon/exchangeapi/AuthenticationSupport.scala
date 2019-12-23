@@ -1,15 +1,15 @@
 package com.horizon.exchangeapi
 
 import akka.event.LoggingAdapter
-import akka.http.scaladsl.model.headers.HttpCredentials
+//import akka.http.scaladsl.model.headers.HttpCredentials
+//import akka.http.scaladsl.server.util.Tuple
+import akka.http.scaladsl.server.Directive1
 import com.horizon.exchangeapi.Access.Access
-import javax.security.auth.login.{ AppConfigurationEntry, Configuration }
+import javax.security.auth.login.{AppConfigurationEntry, Configuration}
 
 import scala.util.matching.Regex
-//import akka.http.scaladsl.server.{Directive, Directive1}
-//import akka.http.scaladsl.server.Directives._
-//import akka.http.scaladsl.server.directives.Credentials
-//import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.Directives._
+//import akka.http.scaladsl.server.directives.RouteDirectives._
 import com.horizon.exchangeapi.auth._
 import javax.security.auth.login.LoginContext
 import org.mindrot.jbcrypt.BCrypt
@@ -80,18 +80,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
   def isDbMigration = migratingDb
   // def setDbMigration(dbMigration: Boolean): Unit = { migratingDb = dbMigration }
 
-  /*someday: try to create a customer direcive. Below didn't work
-  def authenticateExch(optionalHttpCredentials: Option[HttpCredentials], hint: String = ""): Directive1[AuthenticatedIdentity] =
-    Directive { inner =>
-      authenticate(optionalHttpCredentials, hint) match {
-        case Failure(authException: AuthException) => reject(AuthRejection(authException))
-        case Failure(t) => failWith(t) // just to satisfy the compiler, should never get here
-        case Success(authenticatedIdentity) => inner((authenticatedIdentity,))
-      }
-    }
-  */
-
-  /*someday: tried to use this in the akka authenticateBasic directive, but couldn't quite get the compiler to be happy
+  /* some past attempts at using the akka authenticateBasic directive, and a custom directive
   def exchangeAuth(credentials: Credentials): Option[AuthenticatedIdentity] = {
     logger.debug(s"exchangeAuth: credentials: $credentials")
     credentials match {
@@ -104,29 +93,83 @@ trait AuthenticationSupport extends AuthorizationSupport {
       case _ => None
     }
   }
-  */
+
+  def authExch(target: Target, access: Access, hint: String = ""): Directive[(Identity)] = Directive[(Identity)] { inner => ctx =>
+    val optEncodedAuth = ctx.request.getHeader("Authorization")
+    val encodedAuth = if (optEncodedAuth.isPresent) optEncodedAuth.get().value() else ""
+    //val basicAuthRegex = new Regex("^Basic ?(.*)$")
+    val optCreds = encodedAuth match {
+      case ExchangeApiApp.basicAuthRegex(basicAuthEncoded) =>
+        AuthenticationSupport.parseCreds(basicAuthEncoded)
+      case _ => None
+    }
+    authenticate2(optCreds, hint = hint) match {
+      case Failure(_) => inner((IIdentity(Creds("invalid","invalid"))))(ctx) //reject(ValidationRejection(t.getMessage))
+      case Success(authenticatedIdentity) =>
+        authenticatedIdentity.authorizeTo(target, access) match {
+          case Failure(_) => inner((IIdentity(Creds("invalid","invalid"))))(ctx) //reject(AuthRejection(t))
+          case Success(identity) => inner((identity))(ctx)
+        }
+    }
+  }
+
+  def exchAuth(target: Target, access: Access, hint: String = ""): Directive1[Identity] = {
+      val optCreds = Some(Creds("IBM/bp@us.ibm.com", "betheedge"))
+      authenticate2(optCreds, hint = hint) match {
+        case Failure(t) => reject(AuthRejection(t))
+        case Success(authenticatedIdentity) =>
+          authenticatedIdentity.authorizeTo(target, access) match {
+            case Failure(t) => reject(AuthRejection(t))
+            case Success(identity) => provide(identity)
+          }
+      }
+  }
 
   // Tries to do both authentication and then authorization. If successful, returns Identity. Otherwise returns an AuthException subclass
   def auth(optionalHttpCredentials: Option[HttpCredentials], target: Target, access: Access, hint: String = ""): Try[Identity] = {
-    authenticate(optionalHttpCredentials, hint = hint) match {
+    authenticateHttpCredentials(optionalHttpCredentials, hint = hint) match {
       case Failure(t) => Failure(t)
       case Success(authenticatedIdentity) =>
         authenticatedIdentity.authorizeTo(target, access)
     }
   }
 
-  /* Used to authenticate and log all the routes, returning an authenticated Identity, which can
-   * be used for authorization, or halting the request due to invalid credentials.
-   */
-  def authenticate(optionalHttpCredentials: Option[HttpCredentials], hint: String = ""): Try[AuthenticatedIdentity] = {
+  // Used to authenticate and log all the routes, returning an authenticated Identity, which can be used for authorization, or halting the request due to invalid credentials.
+  def authenticateHttpCredentials(optionalHttpCredentials: Option[HttpCredentials], hint: String = ""): Try[AuthenticatedIdentity] = {
+    val encodedAuth = optionalHttpCredentials.map(_.token()).getOrElse("")
+    val creds = AuthenticationSupport.parseCreds(encodedAuth)
+    authenticate(creds, hint = hint)
+  }
+  */
+
+  // Custom directive to extract the Authorization header creds and authenticate/authorize to the exchange
+  def exchAuth(target: Target, access: Access, hint: String = ""): Directive1[Identity] = {
+    // val optEncodedAuth = ctx.request.getHeader("Authorization")
+    extract(_.request.getHeader("Authorization")).flatMap { optEncodedAuth =>
+      val encodedAuth = if (optEncodedAuth.isPresent) optEncodedAuth.get().value() else ""
+      val optCreds = encodedAuth match {
+        case ExchangeApiApp.basicAuthRegex(basicAuthEncoded) =>
+          AuthenticationSupport.parseCreds(basicAuthEncoded)
+        case _ => None
+      }
+      authenticate(optCreds, hint = hint) match {
+        case Failure(t) => reject(AuthRejection(t))
+        case Success(authenticatedIdentity) =>
+          authenticatedIdentity.authorizeTo(target, access) match {
+            case Failure(t) => reject(AuthRejection(t))
+            case Success(identity) => provide(identity)
+          }
+      }
+    }
+  }
+
+  def authenticate(creds: Option[Creds], hint: String = ""): Try[AuthenticatedIdentity] = {
     /*
      * For JAAS, the LoginContext is what you use to attempt to login a user
      * and get a Subject back. It takes care of creating the LoginModules and
      * calling them. It is configured by the jaas.config file, which specifies
      * which LoginModules to use.
      */
-    val encodedAuth = optionalHttpCredentials.map(_.token()).getOrElse("")
-    val creds = AuthenticationSupport.parseCreds(encodedAuth)
     //logger.debug(s"authenticate: $creds")
     if (creds.isEmpty) return Failure(new InvalidCredentialsException)
     val loginCtx = new LoginContext(

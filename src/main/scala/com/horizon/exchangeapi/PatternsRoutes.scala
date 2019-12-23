@@ -153,8 +153,8 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("GET /orgs/"+orgid+"/patterns result size: "+list.size)
       val patterns = new MutableHashMap[String,Pattern]
       if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || a.public || ident.isSuperUser || ident.isMultiTenantAgbot) patterns.put(a.pattern, a.toPattern)
-      if (patterns.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (patterns.nonEmpty) (HttpCode.OK)
+      else (HttpCode.NOT_FOUND)
       GetPatternsResponse(patterns.toMap, 0)
     })
   })
@@ -187,10 +187,10 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
         db.run(q.result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/patterns/"+barePattern+" attribute result: "+list.toString)
           if (list.nonEmpty) {
-            resp.setStatus(HttpCode.OK)
+            (HttpCode.OK)
             GetPatternAttributeResponse(attribute, list.head.toString)
           } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))
           }
         })
@@ -201,8 +201,8 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
           //logger.debug("GET /orgs/"+orgid+"/patterns/"+barePattern+" result: "+list.toString)
           val patterns = new MutableHashMap[String,Pattern]
           if (list.nonEmpty) for (a <- list) patterns.put(a.pattern, a.toPattern)
-          if (patterns.nonEmpty) resp.setStatus(HttpCode.OK)
-          else resp.setStatus(HttpCode.NOT_FOUND)
+          if (patterns.nonEmpty) (HttpCode.OK)
+          else (HttpCode.NOT_FOUND)
           GetPatternsResponse(patterns.toMap, 0)
         })
     }
@@ -371,16 +371,16 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       xs match {
         case Success(_) => if (owner != "") AuthCache.putPatternOwner(pattern, owner)     // currently only users are allowed to update pattern resources, so owner should never be blank
           AuthCache.putPatternIsPublic(pattern, patternReq.public.getOrElse(false))
-          resp.setStatus(HttpCode.POST_OK)
+          (HttpCode.POST_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.created", pattern))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.not.created", pattern, t.getMessage))
         case Failure(t) => if (t.getMessage.contains("duplicate key value violates unique constraint")) {   // "duplicate key value violates unique constraint" comes from postgres
-          resp.setStatus(HttpCode.ALREADY_EXISTS)
+          (HttpCode.ALREADY_EXISTS)
           ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("pattern.already.exists", pattern, t.getMessage))
         } else {
-          resp.setStatus(HttpCode.BAD_INPUT)
+          (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.created", pattern, t.getMessage))
         }
       }
@@ -486,21 +486,21 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("PUT /orgs/"+orgid+"/patterns/"+barePattern+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-              resp.setStatus(HttpCode.PUT_OK)
+              (HttpCode.PUT_OK)
               ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.updated"))
         case Failure(t: DBProcessingError) =>
           if(t.httpCode == HttpCode.NOT_FOUND) {
-              resp.setStatus(HttpCode.NOT_FOUND)
+              (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", pattern))
           } else if (t.httpCode == HttpCode.INTERNAL_ERROR) {
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            (HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage) // the specific exception is NumberFormatException
           }
         case Failure(t: NotFoundException) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", pattern))
         case Failure(t) =>
-          resp.setStatus(HttpCode.BAD_INPUT)
+          (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", pattern, t.getMessage))
       }
     })
@@ -613,21 +613,21 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("PATCH /orgs/"+orgid+"/patterns/"+barePattern+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-              resp.setStatus(HttpCode.PUT_OK)
+              (HttpCode.PUT_OK)
               ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.attribute.not.update", attrName, pattern))
         case Failure(t: DBProcessingError) =>
           if (t.httpCode == HttpCode.NOT_FOUND) {
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", pattern))
           } else if (t.httpCode == HttpCode.INTERNAL_ERROR) {
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            (HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage)
           }
         case Failure(t: NotFoundException) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", pattern))
         case Failure(t) =>
-          resp.setStatus(HttpCode.BAD_INPUT)
+          (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", pattern, t.getMessage))
       }
     })
@@ -769,14 +769,14 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
           //val respList = list.map( x => PatternNodeResponse(x._1, x._2, x._3)).toList
           val respList = new ListBuffer[PatternNodeResponse]
           for ( (k, v) <- nodeHash) if (v.noAgreementYet) respList += PatternNodeResponse(k, v.msgEndPoint, v.publicKey)
-          if (respList.nonEmpty) resp.setStatus(HttpCode.POST_OK)
-          else resp.setStatus(HttpCode.NOT_FOUND)
+          if (respList.nonEmpty) (HttpCode.POST_OK)
+          else (HttpCode.NOT_FOUND)
           PostPatternSearchResponse(respList.toList, 0)
         } else {
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           PostPatternSearchResponse(List[PatternNodeResponse](), 0)
         }
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+        case Failure(t) => (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage))
       }
     })
@@ -832,12 +832,12 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("DELETE /orgs/"+orgid+"/patterns/"+barePattern+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.deleted"))
         case Failure(t:DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", pattern))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.id.not.deleted", pattern, t.toString))
       }
     })
@@ -868,8 +868,8 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
     db.run(PatternKeysTQ.getKeys(compositeId).result).map({ list =>
       logger.debug("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys result size: "+list.size)
       //logger.debug("GET /orgs/"+orgid+"/patterns/"+id+"/keys result: "+list.toString)
-      if (list.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (list.nonEmpty) (HttpCode.OK)
+      else (HttpCode.NOT_FOUND)
       list.map(_.keyId)
     })
   })
@@ -901,14 +901,14 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" result: "+list.size)
       if (list.nonEmpty) {
         // Return the raw key, not json
-        resp.setStatus(HttpCode.OK)
+        (HttpCode.OK)
         resp.setHeader("Content-Disposition", "attachment; filename="+keyId)
         resp.setHeader("Content-Type", "text/plain")
         resp.setHeader("Content-Length", list.head.key.length.toString)
         list.head.key
       }
       else {
-        resp.setStatus(HttpCode.NOT_FOUND)
+        (HttpCode.NOT_FOUND)
         ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("key.not.found", keyId))
       }
     })
@@ -964,13 +964,13 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
     })).map({ xs =>
       logger.debug("PUT /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" updated in changes table: "+xs.toString)
       xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
+        case Success(_) => (HttpCode.PUT_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("key.added.or.updated"))
         case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage))
         } else {
-          resp.setStatus(HttpCode.BAD_INPUT)
+          (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage))
         }
       }
@@ -1022,12 +1022,12 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("DELETE /patterns/"+pattern+"/keys result: "+xs.toString)
       xs match {
         case Success(v) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.keys.deleted"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("no.pattern.keys.found", compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.keys.not.deleted", compositeId, t.toString))
       }
     })
@@ -1083,16 +1083,16 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       logger.debug("DELETE /patterns/"+pattern+"/keys/"+keyId+" result: "+xs.toString)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           logger.debug("3 - Why isn't this getting here? - Success case ")
           ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.key.deleted"))
         case Failure(k: DBProcessingError) =>
           logger.debug("3 - Why isn't this getting here? DB Processing Error")
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.key.not.found", keyId, compositeId))
         case Failure(t) =>
           logger.debug("3 - in catch all failure case Catch All Fail Case")
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
+          (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.key.not.deleted", keyId, compositeId, t.toString))
       }
     })

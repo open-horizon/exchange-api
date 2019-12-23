@@ -141,8 +141,8 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       logger.debug("GET /orgs/"+orgid+"/business/policies result size: "+list.size)
       val businessPolicy = new MutableHashMap[String,BusinessPolicy]
       if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || ident.isSuperUser || ident.isMultiTenantAgbot) businessPolicy.put(a.businessPolicy, a.toBusinessPolicy)
-      if (businessPolicy.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
+      if (businessPolicy.nonEmpty) (HttpCode.OK)
+      else (HttpCode.NOT_FOUND)
       GetBusinessPoliciesResponse(businessPolicy.toMap, 0)
     })
   })
@@ -175,10 +175,10 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
         db.run(q.result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" attribute result: "+list.toString)
           if (list.nonEmpty) {
-            resp.setStatus(HttpCode.OK)
+            (HttpCode.OK)
             GetBusinessPolicyAttributeResponse(attribute, list.head.toString)
           } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))
           }
         })
@@ -188,8 +188,8 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           logger.debug("GET /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+list.size)
           val businessPolicies = new MutableHashMap[String,BusinessPolicy]
           if (list.nonEmpty) for (a <- list) businessPolicies.put(a.businessPolicy, a.toBusinessPolicy)
-          if (businessPolicies.nonEmpty) resp.setStatus(HttpCode.OK)
-          else resp.setStatus(HttpCode.NOT_FOUND)
+          if (businessPolicies.nonEmpty) (HttpCode.OK)
+          else (HttpCode.NOT_FOUND)
           GetBusinessPoliciesResponse(businessPolicies.toMap, 0)
         })
     }
@@ -327,16 +327,16 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       xs match {
         case Success(_) => if (owner != "") AuthCache.putBusinessOwner(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
           AuthCache.putBusinessIsPublic(businessPolicy, isPublic = false)
-          resp.setStatus(HttpCode.POST_OK)
+          (HttpCode.POST_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.created", businessPolicy))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.ACCESS_DENIED)
+          (HttpCode.ACCESS_DENIED)
           ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.created", businessPolicy, t.getMessage))
         case Failure(t) => if (t.getMessage.contains("duplicate key value violates unique constraint")) {
-          resp.setStatus(HttpCode.ALREADY_EXISTS)
+          (HttpCode.ALREADY_EXISTS)
           ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.already.exists", businessPolicy, t.getMessage))
         } else {
-          resp.setStatus(HttpCode.BAD_INPUT)
+          (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.created", businessPolicy, t.getMessage))
         }
       }
@@ -411,13 +411,13 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       logger.debug("PUT /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.PUT_OK)
+          (HttpCode.PUT_OK)
             ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.updated"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", businessPolicy))
         case Failure(t) =>
-          resp.setStatus(HttpCode.BAD_INPUT)
+          (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", businessPolicy, t.getMessage))
       }
     })
@@ -496,17 +496,17 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       logger.debug("PATCH /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" updated in changes table: "+xs.toString)
       xs match {
         case Success(_) =>
-          resp.setStatus(HttpCode.PUT_OK)
+          (HttpCode.PUT_OK)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.attribute.updated", attrName, businessPolicy))
         case Failure(t:DBProcessingError) =>
           if (t.httpCode == HttpCode.NOT_FOUND) {
-            resp.setStatus(HttpCode.NOT_FOUND)
+            (HttpCode.NOT_FOUND)
             ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", businessPolicy))
           } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
+            (HttpCode.INTERNAL_ERROR)
             ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage)
           }
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+        case Failure(t) => (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", businessPolicy, t.getMessage))
       }
     })
@@ -551,12 +551,12 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       logger.debug("DELETE /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" updated in changes table: "+xs.toString)
       xs match {
         case Success(v) =>
-          resp.setStatus(HttpCode.DELETED)
+          (HttpCode.DELETED)
           ApiResponse(ApiRespType.OK, ExchMsg.translate("business.policy.deleted"))
         case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", businessPolicy))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
+        case Failure(t) => (HttpCode.INTERNAL_ERROR)
           ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("business.policy.not.deleted", businessPolicy, t.toString))
       }
     })
@@ -648,14 +648,14 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           //val respList = list.map( x => BusinessPolicyNodeResponse(x._1, x._2, x._3)).toList
           val respList = new ListBuffer[BusinessPolicyNodeResponse]
           for ( (k, v) <- nodeHash) if (v.noAgreementYet) respList += BusinessPolicyNodeResponse(k, v.msgEndPoint, v.publicKey)
-          if (respList.nonEmpty) resp.setStatus(HttpCode.POST_OK)
-          else resp.setStatus(HttpCode.NOT_FOUND)
+          if (respList.nonEmpty) (HttpCode.POST_OK)
+          else (HttpCode.NOT_FOUND)
           PostBusinessPolicySearchResponse(respList.toList, 0)
         } else {
-          resp.setStatus(HttpCode.NOT_FOUND)
+          (HttpCode.NOT_FOUND)
           PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), 0)
         }
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
+        case Failure(t) => (HttpCode.BAD_INPUT)
           ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage))
       }
     })

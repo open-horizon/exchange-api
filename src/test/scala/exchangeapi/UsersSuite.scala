@@ -10,7 +10,6 @@ import org.json4s.native.Serialization.write
 import com.horizon.exchangeapi._
 //import com.horizon.exchangeapi.tables._
 import scala.collection.immutable._
-import java.util.Base64
 
 /**
  * Tests for the /orgs and /orgs/"+orgid+"/users routes. To run
@@ -22,7 +21,6 @@ import java.util.Base64
  */
 @RunWith(classOf[JUnitRunner])
 class UsersSuite extends FunSuite {
-  def encode(unencodedCredStr: String) = Base64.getEncoder.encodeToString(unencodedCredStr.getBytes("utf-8"))
 
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080")
   val ACCEPT = ("Accept", "application/json")
@@ -37,31 +35,31 @@ class UsersSuite extends FunSuite {
   val org2user = orgid2 + "/" + user
   val pw = user + "pw"
   val creds = orguser + ":" + pw
-  val USERAUTH = ("Authorization", "Basic " + encode(creds))
-  val ORG2USERAUTH = ("Authorization", "Basic " + encode(org2user + ":" + pw))
+  val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(creds))
+  val ORG2USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(org2user + ":" + pw))
   //val encodedCreds = Base64.getEncoder.encodeToString(creds.getBytes("utf-8"))
-  val ENCODEDAUTH = ("Authorization", "Basic " + encode(creds))
+  val ENCODEDAUTH = ("Authorization", "Basic " + ApiUtils.encode(creds))
   val user2 = "u2" // this is NOT an admin user
   val orguser2 = orgid + "/" + user2
   val pw2 = user2 + " pw" // intentionally adding a space in the pw
   val creds2 = orguser2 + ":" + pw2
-  val USERAUTH2 = ("Authorization", "Basic " + encode(creds2))
+  val USERAUTH2 = ("Authorization", "Basic " + ApiUtils.encode(creds2))
   val pw2new = user2 + "pwnew"
   val creds2new = orguser2 + ":" + pw2new
-  val USERAUTH2NEW = ("Authorization", "Basic " + encode(creds2new))
+  val USERAUTH2NEW = ("Authorization", "Basic " + ApiUtils.encode(creds2new))
   val user3 = "u3"
   val pw3 = user3 + "pw"
   val user4 = "u4" // this is NOT an admin user
   val orguser4 = orgid + "/" + user4
   val pw4 = user4 + " pw" // intentionally adding a space in the pw
   val creds4 = orguser4 + ":" + pw4
-  val USERAUTH4 = ("Authorization", "Basic " + encode(creds4))
+  val USERAUTH4 = ("Authorization", "Basic " + ApiUtils.encode(creds4))
   val pw4new = user4 + "pwnew"
   val creds4new = orguser4 + ":" + pw4new
-  val USERAUTH4NEW = ("Authorization", "Basic " + encode(creds4new))
+  val USERAUTH4NEW = ("Authorization", "Basic " + ApiUtils.encode(creds4new))
   val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "") // need to put this same root pw in config.json
-  val ROOTAUTH = ("Authorization", "Basic " + encode(rootuser + ":" + rootpw))
+  val ROOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(rootuser + ":" + rootpw))
   val CONNTIMEOUT = HttpOptions.connTimeout(20000)
   val READTIMEOUT = HttpOptions.readTimeout(20000)
   val svcBase = "svc"
@@ -79,8 +77,8 @@ class UsersSuite extends FunSuite {
   val iamAccountId = sys.env.getOrElse("EXCHANGE_IAM_ACCOUNT_ID", "") // this indicates it is ibm cloud instead of ICP
   val iamOtherKey = sys.env.getOrElse("EXCHANGE_IAM_OTHER_KEY", "")
   val iamOtherAccountId = sys.env.getOrElse("EXCHANGE_IAM_OTHER_ACCOUNT_ID", "")
-  val IAMAUTH = { org: String => ("Authorization", "Basic " + encode(s"$org/iamapikey:$iamKey")) }
-  val IAMOTHERAUTH = { org: String => ("Authorization", "Basic " + encode(s"$org/iamapikey:$iamOtherKey")) }
+  val IAMAUTH = { org: String => ("Authorization", "Basic " + ApiUtils.encode(s"$org/iamapikey:$iamKey")) }
+  val IAMOTHERAUTH = { org: String => ("Authorization", "Basic " + ApiUtils.encode(s"$org/iamapikey:$iamOtherKey")) }
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 

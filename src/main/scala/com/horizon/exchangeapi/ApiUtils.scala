@@ -5,16 +5,16 @@ import java.io.File
 import java.time._
 
 import akka.event.LoggingAdapter
-import akka.http.scaladsl.model.{ StatusCode, StatusCodes }
+import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server._
-import com.horizon.exchangeapi.tables.{ OrgRow, UserRow }
-import com.osinka.i18n.{ Lang, Messages }
+import com.horizon.exchangeapi.tables.{OrgRow, UserRow}
+import com.osinka.i18n.{Lang, Messages}
 import com.typesafe.config._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
 import scala.util._
-import java.util.Properties
+import java.util.{Base64, Properties}
 
 //import ch.qos.logback.classic.Level
 import com.horizon.exchangeapi.auth.AuthException
@@ -459,7 +459,9 @@ case class Nth(n: Int) {
   }
 }
 
-object ApiUtil {
+object ApiUtils {
+  def encode(unencodedCredStr: String) = Base64.getEncoder.encodeToString(unencodedCredStr.getBytes("utf-8"))
+
   // Convert an AnyRef to JValue
   def asJValue(src: AnyRef): JValue = {
     import org.json4s.{ Extraction, NoTypeHints }

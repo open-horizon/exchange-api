@@ -12,7 +12,6 @@ import org.json4s.native.Serialization.write
 import com.horizon.exchangeapi._
 //import scala.collection.immutable._
 //import java.time._
-import java.util.Base64
 
 /**
  * Tests for the /admin routes. To run
@@ -24,7 +23,6 @@ import java.util.Base64
  */
 @RunWith(classOf[JUnitRunner])
 class AdminSuite extends FunSuite {
-  def encode(unencodedCredStr: String) = Base64.getEncoder.encodeToString(unencodedCredStr.getBytes("utf-8"))
 
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080")
   val URL = urlRoot+"/v1"
@@ -33,7 +31,7 @@ class AdminSuite extends FunSuite {
   val CONTENT = ("Content-Type","application/json")
   val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
-  val ROOTAUTH = ("Authorization","Basic " + encode(rootuser+":"+rootpw))
+  val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(rootuser+":"+rootpw))
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 

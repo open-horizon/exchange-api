@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.tables
 
-import com.horizon.exchangeapi.ApiUtil
+import com.horizon.exchangeapi.ApiUtils
 import org.json4s._
 import org.json4s.jackson.Serialization.write
 import ExchangePostgresProfile.api._
@@ -60,7 +60,7 @@ object OrgsTQ {
       case "label" => filter.map(_.label)
       case "description" => filter.map(_.description)
       case "lastUpdated" => filter.map(_.lastUpdated)
-      case "tags" => filter.map(_.tags.getOrElse(ApiUtil.asJValue(Map.empty)))
+      case "tags" => filter.map(_.tags.getOrElse(ApiUtils.asJValue(Map.empty)))
       case _ => null
     }
   }

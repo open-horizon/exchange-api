@@ -56,7 +56,7 @@ final case class PostPutOrgRequest(orgType: Option[String], label: String, descr
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = None // None means no problems with input
 
-  def toOrgRow(orgId: String) = OrgRow(orgId, orgType.getOrElse(""), label, description, ApiTime.nowUTC, tags.map(ts => ApiUtil.asJValue(ts)))
+  def toOrgRow(orgId: String) = OrgRow(orgId, orgType.getOrElse(""), label, description, ApiTime.nowUTC, tags.map(ts => ApiUtils.asJValue(ts)))
 }
 
 final case class PatchOrgRequest(orgType: Option[String], label: Option[String], description: Option[String], tags: Option[Map[String, Option[String]]]) {
@@ -79,7 +79,7 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
         }
         val dbUpdates =
           if (updates.isEmpty) Seq()
-          else Seq(sqlu"update orgs set tags = coalesce(tags, '{}'::jsonb) || ${ApiUtil.asJValue(updates)} where orgid = $orgId")
+          else Seq(sqlu"update orgs set tags = coalesce(tags, '{}'::jsonb) || ${ApiUtils.asJValue(updates)} where orgid = $orgId")
 
         val dbDeletes =
           for (tag <- deletes.keys.toSeq) yield {

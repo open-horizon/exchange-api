@@ -42,21 +42,21 @@ class BusinessSuite extends FunSuite {
   val orguser = authpref+user
   val org2user = authpref2+user
   val pw = user+"pw"
-  val USERAUTH = ("Authorization","Basic "+orguser+":"+pw)
-  val USERAUTH2 = ("Authorization","Basic "+org2user+":"+pw)
+  val USERAUTH = ("Authorization","Basic "+ApiUtils.encode(orguser+":"+pw))
+  val USERAUTH2 = ("Authorization","Basic "+ApiUtils.encode(org2user+":"+pw))
   val user2 = "10000"
   val orguser2 = authpref+user2
   val pw2 = user2+"pw"
-  val USER2AUTH = ("Authorization","Basic "+orguser2+":"+pw2)
+  val USER2AUTH = ("Authorization","Basic "+ApiUtils.encode(orguser2+":"+pw2))
   val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
-  val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
+  val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
   val nodeId = "9913"     // the 1st node created, that i will use to run some rest methods
   val nodeToken = nodeId+"tok"
-  val NODEAUTH = ("Authorization","Basic "+authpref+nodeId+":"+nodeToken)
+  val NODEAUTH = ("Authorization","Basic "+ApiUtils.encode(authpref+nodeId+":"+nodeToken))
   val agbotId = "9948"
   val agbotToken = agbotId+"tok"
-  val AGBOTAUTH = ("Authorization","Basic "+authpref+agbotId+":"+agbotToken)
+  val AGBOTAUTH = ("Authorization","Basic "+ApiUtils.encode(authpref+agbotId+":"+agbotToken))
   val svcurl = "ibm.netspeed"
   val svcarch = "amd64"
   val svcversion = "1.0.0"
@@ -85,7 +85,7 @@ class BusinessSuite extends FunSuite {
     for (i <- List(user,user2)) {
       val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+      assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
     }
   }
 
@@ -95,22 +95,22 @@ class BusinessSuite extends FunSuite {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
     var input = PostPutOrgRequest(None, "My Org", "desc", None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
 
     // Try deleting it 1st, in case it is left over from previous test
     response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
     input = PostPutOrgRequest(None, "My Org2", "desc", None)
     response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the business policies, because they are deleted when the user is deleted. */
@@ -123,17 +123,17 @@ class BusinessSuite extends FunSuite {
     var userInput = PostPutUsersRequest(pw, admin = false, user + "@hotmail.com")
     var userResponse = Http(URL + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK)
+    assert(userResponse.code === HttpCode.POST_OK.intValue)
 
     userInput = PostPutUsersRequest(pw2, admin = false, user2 + "@hotmail.com")
     userResponse = Http(URL + "/users/" + user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK)
+    assert(userResponse.code === HttpCode.POST_OK.intValue)
 
     userInput = PostPutUsersRequest(pw, admin = false, user + "@hotmail.com")
     userResponse = Http(URL2 + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK)
+    assert(userResponse.code === HttpCode.POST_OK.intValue)
 
     val devInput = PutNodesRequest(nodeToken, "bc dev test", "", Some(List(RegService("foo", 1, None, "{}", List(
       Prop("arch", "arm", "string", "in"),
@@ -141,12 +141,12 @@ class BusinessSuite extends FunSuite {
       Prop("blockchainProtocols", "agProto", "list", "in"))))), None, None, None, "NODEABC", None)
     val devResponse = Http(URL + "/nodes/" + nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + devResponse.code)
-    assert(devResponse.code === HttpCode.PUT_OK)
+    assert(devResponse.code === HttpCode.PUT_OK.intValue)
 
     val agbotInput = PutAgbotsRequest(agbotToken, "agbot" + agbotId + "-norm", None, "ABC")
     val agbotResponse = Http(URL + "/agbots/" + agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + agbotResponse.code + ", agbotResponse.body: " + agbotResponse.body)
-    assert(agbotResponse.code === HttpCode.PUT_OK)
+    assert(agbotResponse.code === HttpCode.PUT_OK.intValue)
   }
 
   //~~~~~ Create and update business policies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -158,14 +158,14 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("Add service for future tests") {
     val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val svcResponse = Http(URL+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
-    assert(svcResponse.code === HttpCode.POST_OK)
+    assert(svcResponse.code === HttpCode.POST_OK.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update business policy that is not there yet - should fail") {
@@ -176,7 +176,7 @@ class BusinessSuite extends FunSuite {
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     info("headers: "+response.headers)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - with no service versions - should fail") {
@@ -186,7 +186,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" with invalid svc ref in userInput") {
@@ -197,7 +197,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" as user") {
@@ -208,7 +208,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("business policy '"+orgBusinessPolicy+"' created"))
   }
@@ -223,7 +223,7 @@ class BusinessSuite extends FunSuite {
                   }""".stripMargin
     val response = Http(URL+"/business/policies/BusPolNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
     assert(response.body.contains("No usable value for service"))
   }
 
@@ -232,7 +232,7 @@ class BusinessSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == businessPolicy) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "policy")}))
@@ -249,7 +249,7 @@ class BusinessSuite extends FunSuite {
                   }""".stripMargin
     val response = Http(URL+"/business/policies/BusPolNoService2").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
     assert(response.body.contains("No usable value for service"))
   }
 
@@ -261,7 +261,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("business policy '"+orgBusinessPolicy3+"' created"))
   }
@@ -274,7 +274,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("business policy '"+orgBusinessPolicy4+"' created"))
   }
@@ -282,7 +282,7 @@ class BusinessSuite extends FunSuite {
   test("DELETE /orgs/"+orgid+"/business/policies/"+businessPolicy3) {
     val response = Http(URL+"/business/policies/"+businessPolicy3).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy3 + " was deleted and stored") {
@@ -290,7 +290,7 @@ class BusinessSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == businessPolicy3) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "policy")}))
@@ -299,7 +299,7 @@ class BusinessSuite extends FunSuite {
   test("DELETE /orgs/"+orgid+"/business/policies/"+businessPolicy4) {
     val response = Http(URL+"/business/policies/"+businessPolicy4).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" again - should fail") {
@@ -309,7 +309,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ALREADY_EXISTS)
+    assert(response.code === HttpCode.ALREADY_EXISTS.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as same user, w/o priority, upgradePolicy, nodeHealth") {
@@ -320,7 +320,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was updated and stored") {
@@ -328,7 +328,7 @@ class BusinessSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == businessPolicy) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "policy")}))
@@ -341,7 +341,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as agbot - should fail") {
@@ -351,7 +351,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - invalid business policy body") {
@@ -360,7 +360,7 @@ class BusinessSuite extends FunSuite {
     }"""
     val response = Http(URL+"/business/policies/"+businessPolicy2).postData(badJsonInput).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - add "+businessPolicy2+" as node - should fail") {
@@ -370,7 +370,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - add "+businessPolicy2+" as 2nd user") {
@@ -380,7 +380,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   //~~~~~ Get (verify) business policies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -389,7 +389,7 @@ class BusinessSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/business/policies").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetBusinessPoliciesResponse]
     assert(respObj.businessPolicy.size === 2)
 
@@ -412,7 +412,7 @@ class BusinessSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/business/policies").headers(ACCEPT).headers(USERAUTH).param("owner",orguser).param("label",businessPolicy+"%").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetBusinessPoliciesResponse]
     assert(respObj.businessPolicy.size === 1)
     assert(respObj.businessPolicy.contains(orgBusinessPolicy))
@@ -421,7 +421,7 @@ class BusinessSuite extends FunSuite {
   test("GET /orgs/"+orgid+"/business/policies - filter by label") {
     val response: HttpResponse[String] = Http(URL+"/business/policies").headers(ACCEPT).headers(USERAUTH).param("label",businessPolicy).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetBusinessPoliciesResponse]
     assert(respObj.businessPolicy.size === 1)
     assert(respObj.businessPolicy.contains(orgBusinessPolicy))
@@ -431,7 +431,7 @@ class BusinessSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/business/policies").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetBusinessPoliciesResponse]
     assert(respObj.businessPolicy.size === 2)
   }
@@ -440,7 +440,7 @@ class BusinessSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/business/policies").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetBusinessPoliciesResponse]
     assert(respObj.businessPolicy.size === 2)
   }
@@ -449,7 +449,7 @@ class BusinessSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetBusinessPoliciesResponse]
     assert(respObj.businessPolicy.size === 1)
 
@@ -482,26 +482,26 @@ class BusinessSuite extends FunSuite {
     val jsonInput = """{ "service": [{ "org": """"+orgid+"""", "name": """"+svcurl+"""", "arch": """"+svcarch+"""", "serviceVersions": [] }] }"""
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - userInput with an invalid service ref") {
     val jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": "fooarch", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - the description and userInput as user") {
     var jsonInput = """{ "description": "this is now patched" }"""
     var response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
 
     jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": """"+svcarch+"""", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
     response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was updated and stored via PATCH") {
@@ -509,7 +509,7 @@ class BusinessSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == businessPolicy) && (y.operation == ResourceChangeConfig.MODIFIED) && (y.resource == "policy")}))
@@ -519,7 +519,7 @@ class BusinessSuite extends FunSuite {
     val jsonInput = """[{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": """"+svcarch+"""", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }]"""
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
     assert(response.body.contains("invalid input"))
   }
 
@@ -527,7 +527,7 @@ class BusinessSuite extends FunSuite {
     var jsonInput = """   { "description": "this is now patched" }    """
     var response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
 
     jsonInput =
       """
@@ -537,7 +537,7 @@ class BusinessSuite extends FunSuite {
           """
     response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - as user2 - should fail") {
@@ -546,14 +546,14 @@ class BusinessSuite extends FunSuite {
     }"""
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
   test("GET /orgs/"+orgid+"/business/policies/"+businessPolicy+" - as agbot, check patch by getting 1 attr at a time") {
     var response: HttpResponse[String] = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","description").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     var respObj = parse(response.body).extract[GetBusinessPolicyAttributeResponse]
     assert(respObj.attribute === "description")
     assert(respObj.value === "this is now patched")
@@ -561,7 +561,7 @@ class BusinessSuite extends FunSuite {
     response = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","userInput").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     respObj = parse(response.body).extract[GetBusinessPolicyAttributeResponse]
     assert(respObj.attribute === "userInput")
     val uis = parse(respObj.value).extract[List[OneUserInputService]]
@@ -583,28 +583,28 @@ class BusinessSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/business/policies/"+businessPolicy+"notthere").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - the properties") {
     val jsonInput = """{ "properties": [{"name":"purpose", "value":"location3"}] }"""
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - the constraints") {
     val jsonInput = """{ "constraints": ["a == d"] }"""
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("GET /orgs/"+orgid+"/business/policies/"+businessPolicy+" - to verify properties and constraints patches") {
     val response: HttpResponse[String] = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetBusinessPoliciesResponse]
     assert(respObj.businessPolicy.size === 1)
     assert(respObj.businessPolicy.contains(orgBusinessPolicy))
@@ -621,7 +621,7 @@ class BusinessSuite extends FunSuite {
     //info("jsonInput: "+jsonInput)
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - patch with a nonexistent service - should fail") {
@@ -629,7 +629,7 @@ class BusinessSuite extends FunSuite {
     val jsonInput = """{ "services": """ + write(input) + " }"
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   //~~~~~ Create create service in org2 and update business policy to reference it ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -638,7 +638,7 @@ class BusinessSuite extends FunSuite {
     val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, svcurl2, svcversion2, svcarch2, "singleton", None, None, None, "{\"services\":{}}", "a", None)
     val response = Http(URL2+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - update "+businessPolicy2+" referencing service in other org") {
@@ -648,7 +648,7 @@ class BusinessSuite extends FunSuite {
     )
     val response = Http(URL+"/business/policies/"+businessPolicy2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   /*
@@ -664,7 +664,7 @@ class BusinessSuite extends FunSuite {
       var configInput = AdminConfigRequest("api.limits.maxBusinessPolicies", "1")
       var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK)
+      assert(response.code === HttpCode.PUT_OK.intValue)
 
       // Now try adding another 2 buspol - expect the second one to be rejected
       var input = PostPutBusinessPolicyRequest("anotherOne", Some("desc"),
@@ -674,7 +674,7 @@ class BusinessSuite extends FunSuite {
       )
       response = Http(URL+"/business/policies/anotherOne").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.POST_OK)
+      assert(response.code === HttpCode.POST_OK.intValue)
 
       input = PostPutBusinessPolicyRequest("anotherOne2", Some("desc"),
         BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
@@ -683,7 +683,7 @@ class BusinessSuite extends FunSuite {
       )
       response = Http(URL+"/business/policies/anotherOne2").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED)
+      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
       val respObj = parse(response.body).extract[ApiResponse]
       assert(respObj.msg.contains("Access Denied: you are over the limit of 1 business policies"))
 
@@ -691,7 +691,7 @@ class BusinessSuite extends FunSuite {
       configInput = AdminConfigRequest("api.limits.maxBusinessPolicies", origMaxBusinessPolicies.toString)
       response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK)
+      assert(response.code === HttpCode.PUT_OK.intValue)
     }
   }
 
@@ -702,39 +702,39 @@ class BusinessSuite extends FunSuite {
   test("DELETE /orgs/"+orgid+"/business/policies/"+businessPolicy) {
     val response = Http(URL+"/business/policies/"+businessPolicy).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("GET /orgs/"+orgid+"/business/policies/"+businessPolicy+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("DELETE /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - so owner cache will also be deleted") {
     val response = Http(URL+"/business/policies/"+businessPolicy2).method("delete").headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("DELETE /orgs/"+orgid+"/users/"+user2) {
     val response = Http(URL+"/users/"+user2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("GET /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(URL+"/business/policies/"+businessPolicy2).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("DELETE /orgs/"+orgid2+"/services/"+service2) {
     val response = Http(URL2+"/services/"+service2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("Cleanup - DELETE all test business policies") {
@@ -745,10 +745,10 @@ class BusinessSuite extends FunSuite {
   test("DELETE orgs") {
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
     response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
 }

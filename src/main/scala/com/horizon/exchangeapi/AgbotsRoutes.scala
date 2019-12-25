@@ -134,10 +134,12 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
   //protected implicit def jsonFormats: Formats
 
+  def routes: Route = agbotsGetRoute ~ agbotGetRoute ~ agbotPutRoute ~ agbotPatchRoute ~ agbotDeleteRoute ~ agbotHeartbeatRoute ~ agbotGetPatternsRoute ~ agbotGetPatternRoute ~ agbotPostPatRoute ~ agbotDeletePatsRoute ~ agbotDeletePatRoute ~ agbotGetBusPolsRoute ~ agbotGetBusPolRoute ~ agbotPostBusPolRoute ~ agbotDeleteBusPolsRoute ~ agbotDeleteBusPolRoute ~ agbotGetAgreementsRoute ~ agbotGetAgreementRoute ~ agbotPutAgreementRoute ~ agbotDeleteAgreementsRoute ~ agbotDeleteAgreementRoute ~ agbotAgreementConfirmRoute ~ agbotPostMsgRoute ~ agbotGetMsgsRoute ~ agbotDeleteMsgRoute
+
   /* ====== GET /orgs/{orgid}/agbots ================================ */
   @GET
   @Path("")
-  @Operation(summary = "Returns all agbots", description = "Returns all agbots (Agreement Bots) in the exchange DB. Can be run by any user.",
+  @Operation(summary = "Returns all agbots", description = "Returns all agbots (Agreement Bots). Can be run by any user.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include agbots with this id (can include % for wildcard - the URL encoding for % is %25)"),
@@ -171,7 +173,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   /* ====== GET /orgs/{orgid}/agbots/{id} ================================ */
   @GET
   @Path("{id}")
-  @Operation(summary = "Returns an agbot", description = "Returns the agbot (Agreement Bot) with the specified id in the exchange DB. Can be run by a user or the agbot.",
+  @Operation(summary = "Returns an agbot", description = "Returns the agbot (Agreement Bot) with the specified id. Can be run by a user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
@@ -234,51 +236,49 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def agbotPutRoute: Route = (put & path("orgs" / Segment / "agbots" / Segment)) { (orgid, id) =>
+  def agbotPutRoute: Route = (put & path("orgs" / Segment / "agbots" / Segment) & entity(as[PutAgbotsRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgid/agbots/$id")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { ident =>
-      entity(as[PutAgbotsRequest]) { agbot =>
-        validate(agbot.getAnyProblem.isEmpty, "Problem in request body") {
-          complete({
-            val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
-            val hashedTok = Password.hash(agbot.token)
-            db.run(AgbotsTQ.getNumOwned(owner).result.flatMap({ xs =>
-              logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" num owned: "+xs)
-              val numOwned = xs
-              val maxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
-              if (maxAgbots == 0 || numOwned <= maxAgbots || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
-                val action = if (owner == "") agbot.getDbUpdate(compositeId, orgid, owner, hashedTok) else agbot.getDbUpsert(compositeId, orgid, owner, hashedTok)
-                action.asTry
-              }
-              else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.agbots", maxAgbots) )).asTry
-            }).flatMap({
-              case Success(v) =>
-                // Add the resource to the resourcechanges table
-                logger.debug(s"PUT /orgs/$orgid/agbots/$id result: $v")
-                val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-                agbotChange.insert.asTry
-              case Failure(t) => DBIO.failed(t).asTry
-            })).map({
-              case Success(v) =>
-                logger.debug(s"PUT /orgs/$orgid/agbots/$id updated in changes table: $v")
-                AuthCache.putAgbotAndOwner(compositeId, hashedTok, agbot.token, owner)
-                (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.added.updated")))
-              case Failure(t: DBProcessingError) =>
-                (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.getMessage)))
-              case Failure(t) =>
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
-            })
-          }) // end of complete
-        } // end of validate
-      } // end of entity
+      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+        complete({
+          val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
+          val hashedTok = Password.hash(reqBody.token)
+          db.run(AgbotsTQ.getNumOwned(owner).result.flatMap({ xs =>
+            logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" num owned: "+xs)
+            val numOwned = xs
+            val maxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
+            if (maxAgbots == 0 || numOwned <= maxAgbots || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
+              val action = if (owner == "") reqBody.getDbUpdate(compositeId, orgid, owner, hashedTok) else reqBody.getDbUpsert(compositeId, orgid, owner, hashedTok)
+              action.asTry
+            }
+            else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.agbots", maxAgbots) )).asTry
+          }).flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug(s"PUT /orgs/$orgid/agbots/$id result: $v")
+              val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+              agbotChange.insert.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug(s"PUT /orgs/$orgid/agbots/$id updated in changes table: $v")
+              AuthCache.putAgbotAndOwner(compositeId, hashedTok, reqBody.token, owner)
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.added.updated")))
+            case Failure(t: DBProcessingError) =>
+              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.getMessage)))
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
+          })
+        }) // end of complete
+      } // end of validate
     } // end of exchAuth
   }
 
   // =========== PATCH /orgs/{orgid}/agbots/{id} ===============================
   @PATCH
   @Path("{id}")
-  @Operation(summary = "Updates 1 attribute of an agbot", description = "Updates some attributes of an agbot in the exchange DB. This can be called by the user or the agbot.",
+  @Operation(summary = "Updates 1 attribute of an agbot", description = "Updates some attributes of an agbot. This can be called by the user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
@@ -514,6 +514,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/patterns ===============================
+  @DELETE
   @Path("{id}/patterns")
   @Operation(summary = "Deletes all patterns of an agbot", description = "Deletes all of the current patterns that this agbot was serving. Can be run by the owning user or the agbot.",
     parameters = Array(
@@ -554,6 +555,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/patterns/{patid} ===============================
+  @DELETE
   @Path("{id}/patterns/{patid}")
   @Operation(summary = "Deletes a pattern of an agbot", description = "Deletes a pattern that this agbot was serving. Can be run by the owning user or the agbot.",
     parameters = Array(
@@ -707,6 +709,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/businesspols ===============================
+  @DELETE
   @Path("{id}/businesspols")
   @Operation(summary = "Deletes all business policies of an agbot", description = "Deletes all of the current business policies that this agbot was serving. Can be run by the owning user or the agbot.",
     parameters = Array(
@@ -747,6 +750,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/businesspols/{buspolid} ===============================
+  @DELETE
   @Path("{id}/businesspols/{buspolid}")
   @Operation(summary = "Deletes a business policy of an agbot", description = "Deletes a business policy that this agbot was serving. Can be run by the owning user or the agbot.",
     parameters = Array(
@@ -791,7 +795,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   /* ====== GET /orgs/{orgid}/agbots/{id}/agreements ================================ */
   @GET
   @Path("{id}}/agreements")
-  @Operation(summary = "Returns all agreements this agbot is in", description = "Returns all agreements in the exchange DB that this agbot is part of. Can be run by the owning user or the agbot.",
+  @Operation(summary = "Returns all agreements this agbot is in", description = "Returns all agreements that this agbot is part of. Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
@@ -819,11 +823,11 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   /* ====== GET /orgs/{orgid}/agbots/{id}/agreements/{agid} ================================ */
   @GET
   @Path("{id}}/agreements/{agid}")
-  @Operation(summary = "Returns an agreement for an agbot", description = "Returns the agreement with the specified agid for the specified agbot id in the exchange DB. Can be run by the owning user or the agbot.",
+  @Operation(summary = "Returns an agreement for an agbot", description = "Returns the agreement with the specified agid for the specified agbot id. Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
-      new Parameter(name = "patid", in = ParameterIn.PATH, description = "ID of the agreement.")),
+      new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotAgreementsResponse])))),
@@ -905,6 +909,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/agreements ===============================
+  @DELETE
   @Path("{id}/agreements")
   @Operation(summary = "Deletes all agreements of an agbot", description = "Deletes all of the current agreements of an agbot from the exchange DB. Can be run by the owning user or the agbot.",
     parameters = Array(
@@ -945,12 +950,13 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/agreements/{agid} ===============================
-  @Path("{id}/agreements/{patid}")
+  @DELETE
+  @Path("{id}/agreements/{agid}")
   @Operation(summary = "Deletes an agreement of an agbot", description = "Deletes an agreement of an agbot from the exchange DB. Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
-      new Parameter(name = "patid", in = ParameterIn.PATH, description = "ID of the pattern to be deleted.")),
+      new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement to be deleted.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -1055,7 +1061,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   @Operation(summary = "Sends a msg from a node to an agbot", description = "Sends a msg from a node to an agbot. The node must 1st sign the msg (with its private key) and then encrypt the msg (with the agbots's public key). Can be run by any node.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to be updated.")),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to send a message to.")),
     requestBody = new RequestBody(description = """
 ```
 {
@@ -1107,7 +1113,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, "agbot msg " + msgNum + " inserted"))
           case Failure(t: DBProcessingError) =>
             if (t.httpCode == HttpCode.BAD_INPUT) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("agbot.message.not.inserted", compositeId, ExchMsg.translate("agbot.message.invalid.input"))))
-            else (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("agbot.message.not.inserted", compositeId, t.getMessage)))
+            else (t.httpCode, ApiResponse(t.apiResponse, ExchMsg.translate("agbot.message.not.inserted", compositeId, t.getMessage)))
           case Failure(t) =>
             if (t.getMessage.contains("is not present in table")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.message.agbotid.not.found", compositeId, t.getMessage)))
             else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.inserted", compositeId, t.toString)))
@@ -1151,8 +1157,9 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/msgs/{msgid} ===============================
+  @DELETE
   @Path("{id}/msgs/{msgid}")
-  @Operation(summary = "Deletes an msg of an agbot", description = "Deletes an msg that was sent to an agbot. This should be done by the agbot after each msg is read. Can be run by the owning user or the agbot.",
+  @Operation(summary = "Deletes a msg of an agbot", description = "Deletes a message that was sent to an agbot. This should be done by the agbot after each msg is read. Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),

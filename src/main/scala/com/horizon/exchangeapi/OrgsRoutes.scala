@@ -135,7 +135,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
   */
 
   // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
-  def routes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgChangesRoute
+  def routes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ orgPostNodesServiceRoute ~ orgChangesRoute
 
   // ====== GET /orgs ================================
 
@@ -370,6 +370,80 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.deleted", orgId, t.toString)))
         })
       }) // end of complete
+    } // end of exchAuth
+  }
+
+  // ======== POST /org/{orgid}/search/nodes/error ========================
+  @POST
+  @Path("{orgid}/search/nodes/error")
+  @Operation(summary = "Returns nodes in an error state", description = "Returns a list of the id's of nodes in an error state. Can be run by a user or agbot (but not a node). No request body is currently required.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeErrorResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def orgPostNodesErrorRoute: Route = (post & path("orgs" / Segment / "search" / "nodes" / "error")) { (orgid) =>
+    logger.debug(s"Doing POST /orgs/$orgid/search/nodes/error")
+    exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
+      complete({
+        val q = for {
+          (n) <- NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]")
+        } yield n.nodeId
+
+        db.run(q.result).map({ list =>
+          logger.debug("POST /orgs/"+orgid+"/search/nodes/error result size: "+list.size)
+          val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, PostNodeErrorResponse(list))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
+
+  // =========== POST /orgs/{orgid}/search/nodes/service  ===============================
+  @POST
+  @Path("{orgid}/search/nodes/service")
+  @Operation(summary = "Returns the nodes a service is running on", description = "Returns a list of all the nodes a service is running on. Can be run by a user or agbot (but not a node).",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
+    requestBody = new RequestBody(description = """
+```
+{
+  "orgid": "string",   // orgid of the service to be searched on
+  "serviceURL": "string",
+  "serviceVersion": "string",
+  "serviceArch": "string"
+}
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostServiceSearchRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[PostServiceSearchResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def orgPostNodesServiceRoute: Route = (post & path("orgs" / Segment / "search" / "nodes" / "service") & entity(as[PostServiceSearchRequest])) { (orgid, reqBody) =>
+    logger.debug(s"Doing POST /orgs/$orgid/search/nodes/service")
+    exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
+      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+        complete({
+          val service = reqBody.serviceURL+"_"+reqBody.serviceVersion+"_"+reqBody.serviceArch
+          logger.debug("POST /orgs/"+orgid+"/search/nodes/service criteria: "+reqBody.toString)
+          val orgService = "%|"+reqBody.orgid+"/"+service+"|%"
+          val q = for {
+            (n, _) <- (NodesTQ.rows.filter(_.orgid === orgid)) join (NodeStatusTQ.rows.filter(_.runningServices like orgService)) on (_.id === _.nodeId)
+          } yield (n.id, n.lastHeartbeat)
+
+          db.run(q.result).map({ list =>
+            logger.debug("POST /orgs/"+orgid+"/services/"+service+"/search result size: "+list.size)
+            val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            (code, PostServiceSearchResponse(list))
+          })
+        }) // end of complete
+      } // end of validate
     } // end of exchAuth
   }
 

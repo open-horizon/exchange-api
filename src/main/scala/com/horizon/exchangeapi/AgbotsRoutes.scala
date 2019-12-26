@@ -16,7 +16,6 @@ import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-//import com.horizon.exchangeapi.auth.DBProcessingError
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 //import org.json4s.jackson.JsonMethods._
@@ -291,6 +290,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def agbotPatchRoute: Route = (patch & path("orgs" / Segment / "agbots" / Segment) & entity(as[String]) & entity(as[PatchAgbotsRequest])) { (orgid, id, reqBodyAsStr, reqBody) =>
+    //todo: probably need to use extractRequestEntity instead of entity(as[String]) to avoid unmarshalling as json
     logger.debug(s"Doing PATCH /orgs/$orgid/agbots/$id")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -329,7 +329,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   // =========== DELETE /orgs/{orgid}/agbots/{id} ===============================
   @DELETE
   @Path("{id}")
-  @Operation(summary = "Deletes an agbot", description = "Deletes an agbot (Agreement Bot) from the exchange DB, and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the nodes and agbot). Can be run by the owning user or the agbot.",
+  @Operation(summary = "Deletes an agbot", description = "Deletes an agbot (Agreement Bot), and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the nodes and agbot). Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
@@ -911,7 +911,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   // =========== DELETE /orgs/{orgid}/agbots/{id}/agreements ===============================
   @DELETE
   @Path("{id}/agreements")
-  @Operation(summary = "Deletes all agreements of an agbot", description = "Deletes all of the current agreements of an agbot from the exchange DB. Can be run by the owning user or the agbot.",
+  @Operation(summary = "Deletes all agreements of an agbot", description = "Deletes all of the current agreements of an agbot. Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
@@ -952,7 +952,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   // =========== DELETE /orgs/{orgid}/agbots/{id}/agreements/{agid} ===============================
   @DELETE
   @Path("{id}/agreements/{agid}")
-  @Operation(summary = "Deletes an agreement of an agbot", description = "Deletes an agreement of an agbot from the exchange DB. Can be run by the owning user or the agbot.",
+  @Operation(summary = "Deletes an agreement of an agbot", description = "Deletes an agreement of an agbot. Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),

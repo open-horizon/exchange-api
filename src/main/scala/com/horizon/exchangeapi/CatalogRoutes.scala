@@ -1,12 +1,23 @@
 package com.horizon.exchangeapi
 
-import javax.ws.rs._ // this does not have the PATCH method
+import javax.ws.rs._
 import akka.actor.ActorSystem
 import akka.event.{ Logging, LoggingAdapter }
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson._
+//import io.swagger.v3.oas.annotations.parameters.RequestBody
+import io.swagger.v3.oas.annotations.enums.ParameterIn
+import io.swagger.v3.oas.annotations.media.{ Content, Schema }
+import io.swagger.v3.oas.annotations._
+import scala.concurrent.ExecutionContext.Implicits.global
+import com.horizon.exchangeapi.tables._
+//import org.json4s._
+//import scala.collection.immutable._
+//import scala.util._
 
 //import com.horizon.exchangeapi.tables._
-//import org.json4s._
 import slick.jdbc.PostgresProfile.api._
 
 //import scala.collection.mutable.{HashMap => MutableHashMap}
@@ -15,75 +26,71 @@ import slick.jdbc.PostgresProfile.api._
 @Path("/v1/catalog")
 class CatalogRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
   def db: Database = ExchangeApiApp.getDb
-  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
+  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[CatalogRoutes])
   //protected implicit def jsonFormats: Formats
 
-  /*
+  def routes: Route = catalogGetServicesRoute ~ catalogGetPatternsRoute
+
   // ====== GET /catalog/services ================================
-  val getCatalogServices =
-    (apiOperation[GetServicesResponse]("getCatalogServices")
-      summary("Returns services in the IBM catalog")
-      description("""Returns public service definitions from orgs of the specified orgtype (default is IBM). Can be run by any user, node, or agbot.""")
-      parameters(
-      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("orgtype", DataType.String, Option[String]("Return services from orgs of this orgtype (default is IBM)"), paramType=ParamType.Query, required=false)
-    )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+  @GET
+  @Path("services")
+  @Operation(summary = "Returns services in the IBM catalog", description = "Returns public service definitions from orgs of the specified orgtype (default is IBM). Can be run by any user, node, or agbot.",
+    parameters = Array(
+      new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this org type. A common org type is 'IBM'.",
+        content = Array(new Content(schema = new Schema(implementation = classOf[String], allowableValues = Array("IBM")))))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetServicesResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def catalogGetServicesRoute: Route = (get & path("catalog" / "services") & parameter(('orgtype.?))) { (orgType) =>
+    exchAuth(TService(OrgAndId("*","*").toString),Access.READ_ALL_SERVICES) { _ =>
+        complete({
+          val svcQuery = for {
+            (_, svc) <- OrgsTQ.getOrgidsOfType(orgType.getOrElse("IBM")) join ServicesTQ.rows on ((o, s) => {o === s.orgid && s.public})
+          } yield svc
 
-  get("/catalog/services", operation(getCatalogServices)) ({
-    authenticate().authorizeTo(TService(OrgAndId("*","*").toString),Access.READ_ALL_SERVICES)
-    val resp = response
-    val orgType = params.get("orgtype").getOrElse("IBM")
-
-    val svcQuery = for {
-        (_, svc) <- OrgsTQ.getOrgidsOfType(orgType) join ServicesTQ.rows on ((o, s) => {o === s.orgid && s.public})
-      } yield svc
-
-    db.run(svcQuery.result).map({ list =>
-      logger.debug("GET /catalog/services result size: "+list.size)
-      //logger.debug("GET /catalog/services result: "+list.toString())
-      val services = new MutableHashMap[String,Service]
-      if (list.nonEmpty) for (a <- list) services.put(a.service, a.toService)
-      if (services.nonEmpty) (HttpCode.OK)
-      else (HttpCode.NOT_FOUND)
-      GetServicesResponse(services.toMap, 0)
-    })
-  })
+          db.run(svcQuery.result).map({ list =>
+            logger.debug("GET /catalog/services result size: "+list.size)
+            val services = list.map(a => a.service -> a.toService).toMap
+            val code = if (services.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            (code, GetServicesResponse(services, 0))
+          })
+        }) // end of complete
+    } // end of exchAuth
+  }
 
   // ====== GET /catalog/patterns ================================
-  val getCatalogPatterns =
-    (apiOperation[GetPatternsResponse]("getCatalogPatterns")
-      summary("Returns patterns in the IBM catalog")
-      description("""Returns public pattern definitions from orgs of the specified orgtype (default is IBM). Can be run by any user, node, or agbot.""")
-      parameters(
-      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("orgtype", DataType.String, Option[String]("Return patterns from orgs of this orgtype (default is IBM)"), paramType=ParamType.Query, required=false)
-    )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+  @GET
+  @Path("patterns")
+  @Operation(summary = "Returns patterns in the IBM catalog", description = "Returns public pattern definitions from orgs of the specified orgtype (default is IBM). Can be run by any user, node, or agbot.",
+    parameters = Array(
+      new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this org type. A common org type is 'IBM'.",
+        content = Array(new Content(schema = new Schema(implementation = classOf[String], allowableValues = Array("IBM")))))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetPatternsResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def catalogGetPatternsRoute: Route = (get & path("catalog" / "patterns") & parameter(('orgtype.?))) { (orgType) =>
+    exchAuth(TPattern(OrgAndId("*","*").toString),Access.READ_ALL_PATTERNS) { _ =>
+      complete({
+        val svcQuery = for {
+          (_, svc) <- OrgsTQ.getOrgidsOfType(orgType.getOrElse("IBM")) join PatternsTQ.rows on ((o, s) => {o === s.orgid && s.public})
+        } yield svc
 
-  get("/catalog/patterns", operation(getCatalogPatterns)) ({
-    authenticate().authorizeTo(TPattern(OrgAndId("*","*").toString),Access.READ_ALL_PATTERNS)
-    val resp = response
-    val orgType = params.get("orgtype").getOrElse("IBM")
+        db.run(svcQuery.result).map({ list =>
+          logger.debug("GET /catalog/patterns result size: "+list.size)
+          val patterns = list.map(a => a.pattern -> a.toPattern).toMap
+          val code = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetPatternsResponse(patterns, 0))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
-    val svcQuery = for {
-      (_, svc) <- OrgsTQ.getOrgidsOfType(orgType) join PatternsTQ.rows on ((o, s) => {o === s.orgid && s.public})
-    } yield svc
-
-    db.run(svcQuery.result).map({ list =>
-      logger.debug("GET /catalog/patterns result size: "+list.size)
-      //logger.debug("GET /catalog/patterns result: "+list.toString())
-      val patterns = new MutableHashMap[String,Pattern]
-      if (list.nonEmpty) for (a <- list) patterns.put(a.pattern, a.toPattern)
-      if (patterns.nonEmpty) (HttpCode.OK)
-      else (HttpCode.NOT_FOUND)
-      GetPatternsResponse(patterns.toMap, 0)
-    })
-  })
-
-   */
 }

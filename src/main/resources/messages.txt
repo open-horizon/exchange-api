@@ -79,6 +79,7 @@ agbot.deleted=agbot deleted
 agbot.not.deleted=agbot ''{0}'' not deleted: {1}
 agbot.updated= agbot updated
 agbot.not.updated=agbot ''{0}'' not updated: {1}
+bad.public.param=URL parameter ''public'' must be ''true'' or ''false''
 pattern.not.in.exchange=the referenced pattern does not exist in the exchange
 pattern.added=pattern {0} added
 pattern.foragbot.already.exists=pattern ''{0}'' for agbot ''{1}'' already exists

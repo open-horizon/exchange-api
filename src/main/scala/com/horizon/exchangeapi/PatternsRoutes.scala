@@ -91,8 +91,8 @@ final case class PatchPatternRequest(label: Option[String], description: Option[
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem(requestBody: String): Option[String] = {
-    if (services.isDefined) PatternUtils.validatePatternServices(services.get)
-    else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
+    if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
+    else if (services.isDefined) PatternUtils.validatePatternServices(services.get)
     else None
   }
 
@@ -127,6 +127,8 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
   def db: Database = ExchangeApiApp.getDb
   lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
   //protected implicit def jsonFormats: Formats
+
+  def routes: Route = patternsGetRoute ~ patternGetRoute ~ patternPostRoute ~ patternPuttRoute ~ patternPatchRoute ~ patternDeleteRoute ~ patternPostSearchRoute ~ patternNodeHealthRoute ~ patternGetKeysRoute ~ patternGetKeyRoute ~ patternPutKeyRoute ~ patternDeleteKeysRoute ~ patternDeleteKeyRoute
 
   /* ====== GET /orgs/{orgid}/patterns ================================ */
   @GET
@@ -172,7 +174,7 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
   /* ====== GET /orgs/{orgid}/patterns/{pattern} ================================ */
   @GET
   @Path("pattern")
-  @Operation(summary = "Returns a pattern", description = "Returns the pattern with the specified id in the exchange DB. Can be run by a user, node, or agbot.",
+  @Operation(summary = "Returns a pattern", description = "Returns the pattern with the specified id. Can be run by a user, node, or agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern id."),
@@ -194,11 +196,9 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
             else db.run(q.result).map({ list =>
               logger.debug("GET /orgs/" + orgid + "/patterns/" + pattern + " attribute result: " + list.toString)
               if (list.nonEmpty) {
-                (HttpCode.OK)
-                GetPatternAttributeResponse(attribute, list.head.toString)
+                (HttpCode.OK, GetPatternAttributeResponse(attribute, list.head.toString))
               } else {
-                (HttpCode.NOT_FOUND)
-                ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))
+                (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
               }
             })
 
@@ -305,9 +305,9 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def patternPostRoute: Route = (post & path("orgs" / Segment / "users" / Segment) & entity(as[PostPutPatternRequest])) { (orgid, pattern, reqBody) =>
+  def patternPostRoute: Route = (post & path("orgs" / Segment / "patterns" / Segment) & entity(as[PostPutPatternRequest])) { (orgid, pattern, reqBody) =>
     val compositeId = OrgAndId(orgid, pattern).toString
-    exchAuth(TUser(compositeId), Access.CREATE) { ident =>
+    exchAuth(TPattern(compositeId), Access.CREATE) { ident =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
@@ -394,9 +394,9 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def patternPuttRoute: Route = (put & path("orgs" / Segment / "users" / Segment) & entity(as[PostPutPatternRequest])) { (orgid, pattern, reqBody) =>
+  def patternPuttRoute: Route = (put & path("orgs" / Segment / "patterns" / Segment) & entity(as[PostPutPatternRequest])) { (orgid, pattern, reqBody) =>
     val compositeId = OrgAndId(orgid, pattern).toString
-    exchAuth(TUser(compositeId), Access.CREATE) { ident =>
+    exchAuth(TPattern(compositeId), Access.CREATE) { ident =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
@@ -487,7 +487,7 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
   // =========== PATCH /orgs/{orgid}/patterns/{pattern} ===============================
   @PATCH
   @Path("{pattern}")
-  @Operation(summary = "Updates 1 attribute of a pattern", description = "Updates one attribute of a pattern in the exchange DB. This can only be called by the user that originally created this pattern resource.",
+  @Operation(summary = "Updates 1 attribute of a pattern", description = "Updates one attribute of a pattern. This can only be called by the user that originally created this pattern resource.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
@@ -615,16 +615,16 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
         // remove does *not* throw an exception if the key does not exist
         var storedPublicField = false
         db.run(PatternsTQ.getPublic(compositeId).result.asTry.flatMap({
-          case xs@Success(public) =>
+          case Success(public) =>
             // Get the value of the public field then do the delete
-            logger.debug("DELETE /orgs/" + orgid + "/patterns/" + pattern + " public field is: " + xs.toString)
+            logger.debug("DELETE /orgs/" + orgid + "/patterns/" + pattern + " public field is: " + public)
             storedPublicField = public.head
             PatternsTQ.getPattern(compositeId).delete.transactionally.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
-          case xs@Success(v) =>
+          case Success(v) =>
             // Add the resource to the resourcechanges table
-            logger.debug("DELETE /orgs/" + orgid + "/patterns/" + pattern + " result: " + xs.toString)
+            logger.debug("DELETE /orgs/" + orgid + "/patterns/" + pattern + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               AuthCache.removePatternOwner(compositeId)
               AuthCache.removePatternIsPublic(compositeId)
@@ -671,7 +671,7 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def patternPostPatRoute: Route = (post & path("orgs" / Segment / "patterns" / Segment / "patterns") & entity(as[PostPatternSearchRequest])) { (orgid, pattern, reqBody) =>
+  def patternPostSearchRoute: Route = (post & path("orgs" / Segment / "patterns" / Segment / "search") & entity(as[PostPatternSearchRequest])) { (orgid, pattern, reqBody) =>
     val compositeId = OrgAndId(orgid, pattern).toString
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { _ =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
@@ -922,7 +922,7 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the pattern to be updated."),
-      new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the key to be added/updated.")),
+      new Parameter(name = "keyid", in = ParameterIn.PATH, description = "ID of the key to be added/updated.")),
     requestBody = new RequestBody(description = "Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutPatternKeyRequest])))),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body",

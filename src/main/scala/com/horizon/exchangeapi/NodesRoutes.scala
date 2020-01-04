@@ -24,7 +24,7 @@ import org.json4s.jackson.Serialization.{read, write}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
-import scala.collection.mutable.{HashMap => MutableHashMap}
+//import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.util._
 import scala.util.control.Breaks._
 
@@ -42,6 +42,7 @@ final case class PostPatternSearchResponse(nodes: List[PatternNodeResponse], las
 
 
 final case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List[String]]) {
+  require(lastTime!=null)
   def getAnyProblem: Option[String] = None
 }
 
@@ -56,83 +57,17 @@ final case class PostNodeErrorRequest() {
 final case class PostNodeErrorResponse(nodes: scala.Seq[String])
 
 final case class PostServiceSearchRequest(orgid: String, serviceURL: String, serviceVersion: String, serviceArch: String) {
+  require(orgid!=null && serviceURL!=null && serviceVersion!=null && serviceArch!=null)
   def getAnyProblem: Option[String] = None
 }
 final case class PostServiceSearchResponse(nodes: scala.collection.Seq[(String, String)])
-
-
-/** Input for service-based (citizen scientist) search, POST /orgs/"+orgid+"/search/nodes */
-final case class PostSearchNodesRequest(desiredServices: List[RegServiceSearch], secondsStale: Int, propertiesToReturn: Option[List[String]], startIndex: Int, numEntries: Int) {
-  /** Halts the request with an error msg if the user input is invalid. */
-  def getAnyProblem: Option[String] = {
-    for (svc <- desiredServices) {
-      // now we support more than 1 agreement for a service
-      svc.validate match {
-        case Some(s) => return Some(s)
-        case None => ;
-      }
-    }
-    return None
-  }
-
-  /** Returns the services that match all of the search criteria */
-  def matches(nodes: Map[String,Node], agHash: AgreementsHash)(implicit logger: LoggingAdapter): PostSearchNodesResponse = {
-    // logger.debug(agHash.agHash.toString)
-
-    // Loop thru the existing nodes and services in the DB. (Should probably make this more FP style)
-    var nodesResp: List[NodeResponse] = List()
-    for ((id,d) <- nodes) {       // the db query now filters out stale nodes
-      // Get all services for this node that are not max'd out on agreements
-      var availableServices: List[RegService] = List()
-      for (m <- d.registeredServices) {
-        breakable {
-          // do not even bother checking this against the search criteria if this service is already at its agreement limit
-          val agNode = agHash.agHash.get(id)
-          agNode match {
-            case Some(agNode2) => val agNum = agNode2.get(m.url)  // m.url is the composite org/svcurl
-              agNum match {
-                case Some(agNum2) => if (agNum2 >= m.numAgreements) break // this is really a continue
-                case None => ; // no agreements for this service, nothing to do
-              }
-            case None => ; // no agreements for this node, nothing to do
-          }
-          availableServices = availableServices :+ m
-        }
-      }
-
-      // We now have several services for 1 node from the db (that are not max'd out on agreements). See if all of the desired services are satisfied.
-      var servicesResp: List[RegService] = List()
-      breakable {
-        for (desiredService <- desiredServices) {
-          var found: Boolean = false
-          breakable {
-            for (availableService <- availableServices) {
-              if (desiredService.matches(availableService)) {
-                servicesResp = servicesResp :+ availableService
-                found = true
-                break
-              }
-            }
-          }
-          if (!found) break // we did not find one of the required services, so end early
-        }
-      }
-
-      if (servicesResp.length == desiredServices.length) {
-        // all required services were available in this node, so add this node to the response list
-        nodesResp = nodesResp :+ NodeResponse(id, d.name, servicesResp, d.userInput, d.msgEndPoint, d.publicKey, d.arch)
-      }
-    }
-    // return the search result to the rest client
-    PostSearchNodesResponse(nodesResp, 0)
-  }
-}
 
 final case class NodeResponse(id: String, name: String, services: List[RegService], userInput: List[OneUserInputService], msgEndPoint: String, publicKey: String, arch: String)
 final case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
 final case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String]) {
+  require(token!=null && name!=null && pattern!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
   def getAnyProblem: Option[String] = {
@@ -173,7 +108,7 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem(requestBody: String): Option[String] = {
-    if (token.getOrElse("") == "") Some(ExchMsg.translate("token.cannot.be.empty.string"))
+    if (token.isDefined && token.get == "") Some(ExchMsg.translate("token.cannot.be.empty.string"))
     else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
     else None
   }
@@ -211,6 +146,7 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
 }
 
 final case class PostNodeConfigStateRequest(org: String, url: String, configState: String) {
+  require(org!=null && url!=null && configState!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   //def logger: Logger    // get access to the logger object in ExchangeApiApp
 
@@ -266,6 +202,7 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
 }
 
 final case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: List[OneService]) {
+  require(connectivity!=null && services!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = None
   var runningServices = "|"
@@ -276,6 +213,7 @@ final case class PutNodeStatusRequest(connectivity: Map[String,Boolean], service
 }
 
 final case class PutNodeErrorRequest(errors: List[Any]) {
+  require(errors!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = None
 
@@ -303,6 +241,7 @@ final case class GetNodeAgreementsResponse(agreements: Map[String,NodeAgreement]
 
 /** Input format for PUT /orgs/{orgid}/nodes/{id}/agreements/<agreement-id> */
 final case class PutNodeAgreementRequest(services: Option[List[NAService]], agreementService: Option[NAgrService], state: String) {
+  require(state!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = {
     if (services.isEmpty && agreementService.isEmpty) {
@@ -319,7 +258,9 @@ final case class PutNodeAgreementRequest(services: Option[List[NAService]], agre
 
 
 /** Input body for POST /orgs/{orgid}/nodes/{id}/msgs */
-final case class PostNodesMsgsRequest(message: String, ttl: Int)
+final case class PostNodesMsgsRequest(message: String, ttl: Int) {
+  require(message!=null)
+}
 
 /** Response for GET /orgs/{orgid}/nodes/{id}/msgs */
 final case class GetNodeMsgsResponse(messages: List[NodeMsg], lastIndex: Int)
@@ -576,84 +517,86 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePatchRoute: Route = (patch & path("orgs" / Segment / "nodes" / Segment) & entity(as[String]) & entity(as[PatchNodesRequest])) { (orgid, id, reqBodyAsStr, reqBody) =>
+  def nodePatchRoute: Route = (patch & path("orgs" / Segment / "nodes" / Segment) & entity(as[PatchNodesRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
-        complete({
-          val hashedPw = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else ""    // hash the token if that is what is being updated
-          val (action, attrName) = reqBody.getDbUpdate(compositeId, hashedPw)
-          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.note.attr.specified")))
-          else {
-            val patValidateAction = if (attrName == "pattern" && reqBody.pattern.get != "") PatternsTQ.getPattern(reqBody.pattern.get).length.result else DBIO.successful(1)
-            val (valServiceIdActions, svcRefs) = if (attrName == "userInput") NodesTQ.validateServiceIds(reqBody.userInput.get) else (DBIO.successful(Vector()), Vector())
-            db.run(patValidateAction.asTry.flatMap({
-              case Success(num) =>
-                // Check if pattern exists, then get services referenced
-                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " pattern validation: " + num)
-                if (num > 0) valServiceIdActions.asTry
-                else DBIO.failed(new Throwable(ExchMsg.translate("pattern.not.in.exchange"))).asTry
-              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-            }).flatMap({
-              case Success(v) =>
-                // Check if referenced services exist, then get whether node is using policy
-                logger.debug("PATCH /orgs/" + orgid + "/nodes" + id + " service validation: " + v)
-                var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
-                breakable {
-                  for ((len, index) <- v.zipWithIndex) {
-                    if (len <= 0) {
-                      invalidIndex = index
-                      break
+      extractRawBodyAsStr { reqBodyAsStr =>
+        validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
+          complete({
+            val hashedPw = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
+            val (action, attrName) = reqBody.getDbUpdate(compositeId, hashedPw)
+            if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.note.attr.specified")))
+            else {
+              val patValidateAction = if (attrName == "pattern" && reqBody.pattern.get != "") PatternsTQ.getPattern(reqBody.pattern.get).length.result else DBIO.successful(1)
+              val (valServiceIdActions, svcRefs) = if (attrName == "userInput") NodesTQ.validateServiceIds(reqBody.userInput.get) else (DBIO.successful(Vector()), Vector())
+              db.run(patValidateAction.asTry.flatMap({
+                case Success(num) =>
+                  // Check if pattern exists, then get services referenced
+                  logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " pattern validation: " + num)
+                  if (num > 0) valServiceIdActions.asTry
+                  else DBIO.failed(new Throwable(ExchMsg.translate("pattern.not.in.exchange"))).asTry
+                case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+              }).flatMap({
+                case Success(v) =>
+                  // Check if referenced services exist, then get whether node is using policy
+                  logger.debug("PATCH /orgs/" + orgid + "/nodes" + id + " service validation: " + v)
+                  var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+                  breakable {
+                    for ((len, index) <- v.zipWithIndex) {
+                      if (len <= 0) {
+                        invalidIndex = index
+                        break
+                      }
                     }
                   }
-                }
-                if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(compositeId).result.asTry
-                else {
-                  val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-                  else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
-                  DBIO.failed(new Throwable(errStr)).asTry
-                }
-              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-            }).flatMap({
-              case Success(v) =>
-                // Check if node is using policy, then update node
-                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " policy related attrs: " + v)
-                if (v.nonEmpty) {
-                  val (existingPattern, existingPublicKey) = v.head
-                  if (reqBody.pattern.getOrElse("") != "" && existingPattern == "" && existingPublicKey != "") DBIO.failed(new Throwable(ExchMsg.translate("not.pattern.when.policy"))).asTry
-                  else action.transactionally.asTry // they are not trying to switch from policy to pattern, so we can continue
-                }
-                else action.transactionally.asTry // node doesn't exit yet, we can continue
-              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-            }).flatMap({
-              case Success(v) =>
-                // Add the resource to the resourcechanges table
-                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " result: " + v)
-                val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "node", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
-                nodeChange.insert.asTry
-              case Failure(t) => DBIO.failed(t).asTry
-            })).map({
-              case Success(v) =>
-                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
-                try {
-                  val numUpdated = v.toString.toInt // v comes to us as type Any
-                  if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-                    if (reqBody.token.isDefined) AuthCache.putNode(compositeId, hashedPw, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
-                    //AuthCache.ids.putNode(id, hashedPw, node.token.get)
-                    (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", attrName, compositeId)))
-                  } else {
-                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
+                  if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(compositeId).result.asTry
+                  else {
+                    val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                    else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
+                    DBIO.failed(new Throwable(errStr)).asTry
                   }
-                } catch {
-                  case e: Exception => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unexpected.result.from.update", e)))
-                }
-              case Failure(t) =>
-                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage)))
-            })
-          }
-        }) // end of complete
-      } // end of validate
+                case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+              }).flatMap({
+                case Success(v) =>
+                  // Check if node is using policy, then update node
+                  logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " policy related attrs: " + v)
+                  if (v.nonEmpty) {
+                    val (existingPattern, existingPublicKey) = v.head
+                    if (reqBody.pattern.getOrElse("") != "" && existingPattern == "" && existingPublicKey != "") DBIO.failed(new Throwable(ExchMsg.translate("not.pattern.when.policy"))).asTry
+                    else action.transactionally.asTry // they are not trying to switch from policy to pattern, so we can continue
+                  }
+                  else action.transactionally.asTry // node doesn't exit yet, we can continue
+                case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+              }).flatMap({
+                case Success(v) =>
+                  // Add the resource to the resourcechanges table
+                  logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " result: " + v)
+                  val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "node", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                  nodeChange.insert.asTry
+                case Failure(t) => DBIO.failed(t).asTry
+              })).map({
+                case Success(v) =>
+                  logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
+                  try {
+                    val numUpdated = v.toString.toInt // v comes to us as type Any
+                    if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
+                      if (reqBody.token.isDefined) AuthCache.putNode(compositeId, hashedPw, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
+                      //AuthCache.ids.putNode(id, hashedPw, node.token.get)
+                      (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", attrName, compositeId)))
+                    } else {
+                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
+                    }
+                  } catch {
+                    case e: Exception => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unexpected.result.from.update", e)))
+                  }
+                case Failure(t) =>
+                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage)))
+              })
+            }
+          }) // end of complete
+        } // end of validate
+      } // end of extractRawBodyAsStr
     } // end of exchAuth
   }
 
@@ -678,7 +621,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePostConfigStateRoute: Route = (post & path("orgs" / Segment / "nodes" / Segment / "patterns") & entity(as[PostNodeConfigStateRequest])) { (orgid, id, reqBody) =>
+  def nodePostConfigStateRoute: Route = (post & path("orgs" / Segment / "nodes" / Segment / "services_configstate") & entity(as[PostNodeConfigStateRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
@@ -786,7 +729,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/errors ================================ */
   @GET
-  @Path("{id}}/errors")
+  @Path("{id}/errors")
   @Operation(summary = "Returns the node errors", description = "Returns any node errors. Can be run by any user or the node.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -838,7 +781,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePutErrorsRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "patterns") & entity(as[PutNodeErrorRequest])) { (orgid, id, reqBody) =>
+  def nodePutErrorsRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "errors") & entity(as[PutNodeErrorRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
@@ -875,7 +818,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeDeleteErrorsRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "patterns")) { (orgid, id) =>
+  def nodeDeleteErrorsRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "errors")) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
@@ -905,7 +848,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/status ================================ */
   @GET
-  @Path("{id}}/status")
+  @Path("{id}/status")
   @Operation(summary = "Returns the node status", description = "Returns the node run time status, for example service container status. Can be run by a user or the node.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -969,7 +912,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePutStatusRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "patterns") & entity(as[PutNodeStatusRequest])) { (orgid, id, reqBody) =>
+  def nodePutStatusRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "status") & entity(as[PutNodeStatusRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
@@ -1006,7 +949,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeDeleteStatusRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "patterns")) { (orgid, id) =>
+  def nodeDeleteStatusRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "status")) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
@@ -1036,7 +979,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/policy ================================ */
   @GET
-  @Path("{id}}/policy")
+  @Path("{id}/policy")
   @Operation(summary = "Returns the node policy", description = "Returns the node run time policy. Can be run by a user or the node.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -1089,7 +1032,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePutPolicyRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "patterns") & entity(as[PutNodePolicyRequest])) { (orgid, id, reqBody) =>
+  def nodePutPolicyRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "policy") & entity(as[PutNodePolicyRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
@@ -1143,7 +1086,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeDeletePolicyRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "patterns")) { (orgid, id) =>
+  def nodeDeletePolicyRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "policy")) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
@@ -1173,7 +1116,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/agreements ================================ */
   @GET
-  @Path("{id}}/agreements")
+  @Path("{id}/agreements")
   @Operation(summary = "Returns all agreements this node is in", description = "Returns all agreements that this node is part of. Can be run by a user or the node.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -1201,7 +1144,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/agreements/{agid} ================================ */
   @GET
-  @Path("{id}}/agreements/{agid}")
+  @Path("{id}/agreements/{agid}")
   @Operation(summary = "Returns an agreement for a node", description = "Returns the agreement with the specified agid for the specified node id. Can be run by a user or the node.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -1457,7 +1400,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/msgs ================================ */
   @GET
-  @Path("{id}}/msgs")
+  @Path("{id}/msgs")
   @Operation(summary = "Returns all msgs sent to this node", description = "Returns all msgs that have been sent to this node. They will be returned in the order they were sent. All msgs that have been sent to this node will be returned, unless the node has deleted some, or some are past their TTL. Can be run by a user or the node.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),

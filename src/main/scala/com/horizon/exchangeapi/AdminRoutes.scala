@@ -30,12 +30,16 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 import scala.util._
 
-final case class AdminHashpwRequest(password: String)
+final case class AdminHashpwRequest(password: String) {
+  require(password!=null)
+}
 final case class AdminHashpwResponse(hashedPassword: String)
 
-final case class AdminLogLevelRequest(loggingLevel: String)
+//final case class AdminLogLevelRequest(loggingLevel: String)
 
-final case class AdminConfigRequest(varPath: String, value: String)
+final case class AdminConfigRequest(varPath: String, value: String) {
+  require(varPath!=null && value!=null)
+}
 
 final case class AdminDropdbTokenResponse(token: String)
 
@@ -280,7 +284,7 @@ class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     } // end of exchAuth
   }
 
-  /** set 1 or more variables in the in-memory config (so it does not do the right thing in multi-node mode).
+  /** set 1 or more variables in the in-memory config (does not affect all instances in multi-node mode).
    * Intentionally not put swagger, because only used by automated tests. */
   def adminConfigRoute: Route = (put & path("admin" / "config") &entity(as[AdminConfigRequest])) { reqBody =>
     logger.debug(s"Doing POST /admin/config")

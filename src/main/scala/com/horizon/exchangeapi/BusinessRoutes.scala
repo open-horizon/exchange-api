@@ -46,6 +46,7 @@ object BusinessUtils {
 
 /** Input format for POST/PUT /orgs/{orgid}/business/policies/<bus-pol-id> */
 final case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+  require(label!=null && service!=null && service.name!=null && service.org!=null && service.arch!=null && service.serviceVersions!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = { BusinessUtils.getAnyProblem(service) }
@@ -273,9 +274,9 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def busPolPostRoute: Route = (post & path("orgs" / Segment / "users" / Segment) & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
+  def busPolPostRoute: Route = (post & path("orgs" / Segment / "business" / "policies" / Segment) & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
     val compositeId = OrgAndId(orgid, policy).toString
-    exchAuth(TUser(compositeId), Access.CREATE) { ident =>
+    exchAuth(TBusiness(compositeId), Access.CREATE) { ident =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
@@ -324,11 +325,9 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.created", compositeId)))
             case Failure(t: DBProcessingError) =>
               (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.created", compositeId, t.getMessage)))
-            case Failure(t) => if (t.getMessage.contains("duplicate key value violates unique constraint")) {
-              (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.already.exists", compositeId, t.getMessage)))
-            } else {
-              (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.created", compositeId, t.getMessage)))
-            }
+            case Failure(t) =>
+              if (t.getMessage.contains("duplicate key value violates unique constraint")) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.already.exists", compositeId, t.getMessage)))
+              else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.created", compositeId, t.getMessage)))
           })
         }) // end of complete
       } // end of validate
@@ -350,9 +349,9 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def busPolPutRoute: Route = (put & path("orgs" / Segment / "users" / Segment) & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
+  def busPolPutRoute: Route = (put & path("orgs" / Segment / "business" / "policies" / Segment) & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
     val compositeId = OrgAndId(orgid, policy).toString
-    exchAuth(TUser(compositeId), Access.CREATE) { ident =>
+    exchAuth(TBusiness(compositeId), Access.WRITE) { ident =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
@@ -419,12 +418,13 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def busPolPatchRoute: Route = (patch & path("orgs" / Segment / "business" / "policies" / Segment) & entity(as[String]) & entity(as[PatchBusinessPolicyRequest])) { (orgid, policy, reqBodyAsStr, reqBody) =>
+  def busPolPatchRoute: Route = (patch & path("orgs" / Segment / "business" / "policies" / Segment) & entity(as[PatchBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/business/policies/$policy")
     val compositeId = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
-        complete({
+      extractRawBodyAsStr { reqBodyAsStr =>
+        validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
+          complete({
             val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid)
             if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.buspol.attribute.specified")))
             else {
@@ -469,15 +469,16 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
                   (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.attribute.updated", attrName, compositeId)))
                 case Failure(t: DBProcessingError) =>
                   if (t.httpCode == HttpCode.NOT_FOUND) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId)))
-                  else(t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+                  else (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
                 case Failure(t) =>
                   (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", compositeId, t.getMessage)))
               })
             }
           }) // end of complete
         } // end of validate
-      } // end of exchAuth
-    }
+      } // end of extractRawBodyAsStr
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/business/policies/{policy} ===============================
   @DELETE
@@ -544,7 +545,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def busPolPostSearchRoute: Route = (post & path("orgs" / Segment / "business/policies" / Segment / "search") & entity(as[PostBusinessPolicySearchRequest])) { (orgid, policy, reqBody) =>
+  def busPolPostSearchRoute: Route = (post & path("orgs" / Segment / "business" / "policies" / Segment / "search") & entity(as[PostBusinessPolicySearchRequest])) { (orgid, policy, reqBody) =>
     val compositeId = OrgAndId(orgid, policy).toString
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { _ =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {

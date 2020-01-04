@@ -124,13 +124,19 @@ object ExchangeApiApp extends App {
   def testRoute = { path("test") { get { logger.debug("In /test"); complete(testResp("OK")) } } }
   val orgsRoutes = (new OrgsRoutes).routes
   val usersRoutes = (new UsersRoutes).routes
+  val nodesRoutes = (new NodesRoutes).routes
+  val agbotsRoutes = (new AgbotsRoutes).routes
+  val servicesRoutes = (new ServicesRoutes).routes
+  val patternsRoutes = (new PatternsRoutes).routes
+  val businessRoutes = (new BusinessRoutes).routes
+  val catalogRoutes = (new CatalogRoutes).routes
   val adminRoutes = (new AdminRoutes).routes
   val swaggerDocRoutes = SwaggerDocService.routes
   val swaggerUiRoutes = (new SwaggerUiService).routes
 
   // Note: all exceptions (code failures) will be handled by the akka-http exception handler. To override that, see https://doc.akka.io/docs/akka-http/current/routing-dsl/exception-handling.html#exception-handling
   //someday: use directive https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
-  lazy val routes: Route = DebuggingDirectives.logRequestResult(requestResponseLogging _) { pathPrefix("v1") { testRoute ~ orgsRoutes ~ usersRoutes ~ adminRoutes ~ swaggerDocRoutes ~ swaggerUiRoutes } }
+  lazy val routes: Route = DebuggingDirectives.logRequestResult(requestResponseLogging _) { pathPrefix("v1") { testRoute ~ orgsRoutes ~ usersRoutes ~ nodesRoutes ~ agbotsRoutes ~ servicesRoutes ~ patternsRoutes ~ businessRoutes ~ catalogRoutes ~ adminRoutes ~ swaggerDocRoutes ~ swaggerUiRoutes } }
 
   // Load the db backend. The db access info must be in config.json
   var cpds: ComboPooledDataSource = _

@@ -18,6 +18,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.JavaConverters._
 import scala.util._
+import scala.concurrent.duration._
 import java.util.Base64
 import java.util
 
@@ -79,6 +80,14 @@ trait AuthenticationSupport extends AuthorizationSupport {
   var migratingDb = false // used to lock everyone out during db migration
   def isDbMigration = migratingDb
   // def setDbMigration(dbMigration: Boolean): Unit = { migratingDb = dbMigration }
+
+  // Custom directive to extract the request body (a.k.a entity) as a string (w/o json unmarshalling)
+  //someday: this must be used as a separate directive, don't yet know how to combine it with the other directives using &
+  def extractRawBodyAsStr: Directive1[String] = {
+    extractStrictEntity(3.seconds).flatMap { entity =>
+      provide(entity.data.utf8String)
+    }
+  }
 
   /* some past attempts at using the akka authenticateBasic directive, and a custom directive
   def exchangeAuth(credentials: Credentials): Option[AuthenticatedIdentity] = {
@@ -143,6 +152,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
   */
 
   // Custom directive to extract the Authorization header creds and authenticate/authorize to the exchange
+  //someday: this must be used as a separate directive, don't yet know how to combine it with the other directives using &
   def exchAuth(target: Target, access: Access, hint: String = ""): Directive1[Identity] = {
     // val optEncodedAuth = ctx.request.getHeader("Authorization")
     extract(_.request.getHeader("Authorization")).flatMap { optEncodedAuth =>

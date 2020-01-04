@@ -34,6 +34,7 @@ final case class GetAgbotAttributeResponse(attribute: String, value: String)
 
 /** Input format for PUT /orgs/{orgid}/agbots/<agbot-id> */
 final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Option[String], publicKey: String) {
+  require(token!=null && name!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = {
     if (token == "") Some(ExchMsg.translate("token.specified.cannot.be.blank"))
@@ -50,7 +51,7 @@ final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Opti
 final case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], publicKey: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem(requestBody: String): Option[String] = {
-    if (token.getOrElse("") == "") Some(ExchMsg.translate("token.cannot.be.empty.string"))
+    if (token.isDefined && token.get == "") Some(ExchMsg.translate("token.cannot.be.empty.string"))
     else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
     else None
   }
@@ -79,6 +80,7 @@ final case class GetAgbotPatternsResponse(patterns: Map[String,AgbotPattern])
 
 /** Input format for POST /orgs/{orgid}/agbots/{id}/patterns */
 final case class PostAgbotPatternRequest(patternOrgid: String, pattern: String, nodeOrgid: Option[String]) {
+  require(patternOrgid!=null && pattern!=null)
   def toAgbotPattern = AgbotPattern(patternOrgid, pattern, nodeOrgid.getOrElse(patternOrgid), ApiTime.nowUTC)
   def toAgbotPatternRow(agbotId: String, patId: String) = AgbotPatternRow(patId, agbotId, patternOrgid, pattern, nodeOrgid.getOrElse(patternOrgid), ApiTime.nowUTC)
   def formId = patternOrgid + "_" + pattern + "_" + nodeOrgid.getOrElse(patternOrgid)
@@ -91,6 +93,7 @@ final case class GetAgbotBusinessPolsResponse(businessPols: Map[String,AgbotBusi
 
 /** Input format for POST /orgs/{orgid}/agbots/{id}/businesspols */
 final case class PostAgbotBusinessPolRequest(businessPolOrgid: String, businessPol: String, nodeOrgid: Option[String]) {
+  require(businessPolOrgid!=null && businessPol!=null)
   def toAgbotBusinessPol = AgbotBusinessPol(businessPolOrgid, businessPol, nodeOrgid.getOrElse(businessPolOrgid), ApiTime.nowUTC)
   def toAgbotBusinessPolRow(agbotId: String, busPolId: String) = AgbotBusinessPolRow(busPolId, agbotId, businessPolOrgid, businessPol, nodeOrgid.getOrElse(businessPolOrgid), ApiTime.nowUTC)
   def formId = businessPolOrgid + "_" + businessPol + "_" + nodeOrgid.getOrElse(businessPolOrgid)
@@ -106,6 +109,7 @@ final case class GetAgbotAgreementsResponse(agreements: Map[String,AgbotAgreemen
 
 /** Input format for PUT /orgs/{orgid}/agbots/{id}/agreements/<agreement-id> */
 final case class PutAgbotAgreementRequest(service: AAService, state: String) {
+  require(service!=null && state!=null)
   def getAnyProblem: Option[String] = None
 
   def toAgbotAgreementRow(agbotId: String, agrId: String) = {
@@ -113,14 +117,18 @@ final case class PutAgbotAgreementRequest(service: AAService, state: String) {
   }
 }
 
-final case class PostAgbotsIsRecentDataRequest(secondsStale: Int, agreementIds: List[String])     // the strings in the list are agreement ids
-final case class PostAgbotsIsRecentDataElement(agreementId: String, recentData: Boolean)
+//final case class PostAgbotsIsRecentDataRequest(secondsStale: Int, agreementIds: List[String])     // the strings in the list are agreement ids
+//final case class PostAgbotsIsRecentDataElement(agreementId: String, recentData: Boolean)
 
-final case class PostAgreementsConfirmRequest(agreementId: String)
+final case class PostAgreementsConfirmRequest(agreementId: String) {
+  require(agreementId!=null)
+}
 
 
 /** Input body for POST /orgs/{orgid}/agbots/{id}/msgs */
-final case class PostAgbotsMsgsRequest(message: String, ttl: Int)
+final case class PostAgbotsMsgsRequest(message: String, ttl: Int) {
+  require(message!=null)
+}
 
 /** Response for GET /orgs/{orgid}/agbots/{id}/msgs */
 final case class GetAgbotMsgsResponse(messages: List[AgbotMsg], lastIndex: Int)
@@ -201,7 +209,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
               })
 
             case None => // Return the whole agbot, including the services
-              db.run(AgbotsTQ.getAllAgbots(orgid).result).map({ list =>
+              db.run(AgbotsTQ.getAgbot(compositeId).result).map({ list =>
                 logger.debug(s"GET /orgs/$orgid/agbots result size: ${list.size}")
                 val agbots = list.map(e => e.id -> e.toAgbot(ident.isSuperUser)).toMap
                 val code = if (agbots.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
@@ -289,40 +297,41 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def agbotPatchRoute: Route = (patch & path("orgs" / Segment / "agbots" / Segment) & entity(as[String]) & entity(as[PatchAgbotsRequest])) { (orgid, id, reqBodyAsStr, reqBody) =>
-    //todo: probably need to use extractRequestEntity instead of entity(as[String]) to avoid unmarshalling as json
+  def agbotPatchRoute: Route = (patch & path("orgs" / Segment / "agbots" / Segment) & entity(as[PatchAgbotsRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/agbots/$id")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
-        complete({
-          val hashedTok = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else ""    // hash the token if that is what is being updated
-          val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid, hashedTok)
-          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attribute.specified")))
-          else db.run(action.transactionally.asTry.flatMap({
-            case Success(v) =>
-              // Add the resource to the resourcechanges table
-              logger.debug(s"PATCH /orgs/$orgid/agbots/$id result: $v")
-              if (v.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
-                if (reqBody.token.isDefined) AuthCache.putAgbot(compositeId, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
-                val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
-                agbotChange.insert.asTry
-              } else {
-                DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", compositeId))).asTry
-              }
-            case Failure(t) => DBIO.failed(t).asTry
-          })).map({
-            case Success(v) =>
-              logger.debug(s"PATCH /orgs/$orgid/agbots/$id updated in changes table: $v")
-              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.attribute.updated", attrName, compositeId)))
-            case Failure(t: DBProcessingError) =>
-              val msg = if (t.httpCode == HttpCode.NOT_FOUND) ExchMsg.translate("agbot.not.found", compositeId) else t.getMessage
-              (t.httpCode, ApiResponse(t.apiResponse, msg))
-            case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
-          })
-        }) // end of complete
-      } // end of validate
+      extractRawBodyAsStr { reqBodyAsStr =>
+        validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
+          complete({
+            val hashedTok = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
+            val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid, hashedTok)
+            if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attribute.specified")))
+            else db.run(action.transactionally.asTry.flatMap({
+              case Success(v) =>
+                // Add the resource to the resourcechanges table
+                logger.debug(s"PATCH /orgs/$orgid/agbots/$id result: $v")
+                if (v.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
+                  if (reqBody.token.isDefined) AuthCache.putAgbot(compositeId, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
+                  val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                  agbotChange.insert.asTry
+                } else {
+                  DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", compositeId))).asTry
+                }
+              case Failure(t) => DBIO.failed(t).asTry
+            })).map({
+              case Success(v) =>
+                logger.debug(s"PATCH /orgs/$orgid/agbots/$id updated in changes table: $v")
+                (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.attribute.updated", attrName, compositeId)))
+              case Failure(t: DBProcessingError) =>
+                val msg = if (t.httpCode == HttpCode.NOT_FOUND) ExchMsg.translate("agbot.not.found", compositeId) else t.getMessage
+                (t.httpCode, ApiResponse(t.apiResponse, msg))
+              case Failure(t) =>
+                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
+            })
+          }) // end of complete
+        } // end of validate
+      } // end of extractRawBodyAsStr
     } // end of exchAuth
   }
 
@@ -404,7 +413,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/patterns ================================ */
   @GET
-  @Path("{id}}/patterns")
+  @Path("{id}/patterns")
   @Operation(summary = "Returns all patterns served by this agbot", description = "Returns all patterns that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -432,7 +441,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/patterns/{patid} ================================ */
   @GET
-  @Path("{id}}/patterns/{patid}")
+  @Path("{id}/patterns/{patid}")
   @Operation(summary = "Returns a pattern this agbot is serving", description = "Returns the pattern with the specified patid for the specified agbot id. The patid should be in the form patternOrgid_pattern. Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -599,7 +608,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/businesspols ================================ */
   @GET
-  @Path("{id}}/businesspols")
+  @Path("{id}/businesspols")
   @Operation(summary = "Returns all business policies served by this agbot", description = "Returns all business policies that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -627,7 +636,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/businesspols/{buspolid} ================================ */
   @GET
-  @Path("{id}}/businesspols/{buspolid}")
+  @Path("{id}/businesspols/{buspolid}")
   @Operation(summary = "Returns a business policy this agbot is serving", description = "Returns the business policy with the specified patid for the specified agbot id. The patid should be in the form businessPolOrgid_businessPol. Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -794,7 +803,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/agreements ================================ */
   @GET
-  @Path("{id}}/agreements")
+  @Path("{id}/agreements")
   @Operation(summary = "Returns all agreements this agbot is in", description = "Returns all agreements that this agbot is part of. Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -822,7 +831,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/agreements/{agid} ================================ */
   @GET
-  @Path("{id}}/agreements/{agid}")
+  @Path("{id}/agreements/{agid}")
   @Operation(summary = "Returns an agreement for an agbot", description = "Returns the agreement with the specified agid for the specified agbot id. Can be run by the owning user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -1009,7 +1018,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def agbotAgreementConfirmRoute: Route = (post & path("orgs" / Segment / "agbots" / Segment / "agreements" / "confirm") & entity(as[PostAgreementsConfirmRequest])) { (orgid, _, reqBody) =>
+  def agbotAgreementConfirmRoute: Route = (post & path("orgs" / Segment / "agreements" / "confirm") & entity(as[PostAgreementsConfirmRequest])) { (orgid, reqBody) =>
     exchAuth(TAgbot(OrgAndId(orgid,"#").toString), Access.READ) { ident =>
       complete({
         val creds = ident.creds
@@ -1124,7 +1133,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/msgs ================================ */
   @GET
-  @Path("{id}}/msgs")
+  @Path("{id}/msgs")
   @Operation(summary = "Returns all msgs sent to this agbot", description = "Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),

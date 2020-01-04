@@ -53,8 +53,15 @@ final case class GetOrgAttributeResponse(attribute: String, value: String)
 
 /** Input format for PUT /orgs/<org-id> */
 final case class PostPutOrgRequest(orgType: Option[String], label: String, description: String, tags: Option[Map[String, String]]) {
+  require(label!=null && description!=null)
+  //require(label!=null, "label must be specified")
+  //require(description!=null, "description must be specified")
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def getAnyProblem: Option[String] = None // None means no problems with input
+  def getAnyProblem: Option[String] = None
+  /* def getAnyProblem: Option[String] = {
+    if (label==null || description==null) Some("A required field is missing")
+    else None
+  } */
 
   def toOrgRow(orgId: String) = OrgRow(orgId, orgType.getOrElse(""), label, description, ApiTime.nowUTC, tags.map(ts => ApiUtils.asJValue(ts)))
 }
@@ -62,6 +69,10 @@ final case class PostPutOrgRequest(orgType: Option[String], label: String, descr
 final case class PatchOrgRequest(orgType: Option[String], label: Option[String], description: Option[String], tags: Option[Map[String, Option[String]]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
+  def getAnyProblem(requestBody: String): Option[String] = {
+    //println(s"raw request body: $requestBody")
+    None
+  }
   /** Returns a tuple of the db action to update parts of the org, and the attribute name being updated. */
   def getDbUpdate(orgId: String): (DBIO[_], String) = {
     import com.horizon.exchangeapi.tables.ExchangePostgresProfile.plainAPI._
@@ -222,8 +233,8 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
               logger.debug(s"GET /orgs/$orgId attribute result: ${list.toString}")
               val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
               // Note: scala is unhappy when db.run returns 2 different possible types, so we can't return ApiResponse in the case of not found
-              /* if (list.nonEmpty) */ (code, GetOrgAttributeResponse(attr, OrgsTQ.renderAttribute(list)))
-              //else (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+              if (list.nonEmpty) (code, GetOrgAttributeResponse(attr, OrgsTQ.renderAttribute(list)))
+              else (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
             })
 
           case None => // Return the whole org resource
@@ -330,18 +341,22 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
     logger.debug(s"Doing PATCH /orgs/$orgId with orgId:$orgId")
     val access = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
     exchAuth(TOrg(orgId), access) { _ =>
-      complete({
-        val (action, attrName) = reqBody.getDbUpdate(orgId)
-        if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.org.attr.specified")))
-        else db.run(action.transactionally.asTry).map({
-          case Success(n) =>
-            logger.debug(s"PATCH /orgs/$orgId result: $n")
-            if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", attrName, orgId)))
-            else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
-          case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
-        })
-      }) // end of complete
+      extractRawBodyAsStr { reqBodyAsStr =>
+        validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
+          complete({
+            val (action, attrName) = reqBody.getDbUpdate(orgId)
+            if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.org.attr.specified")))
+            else db.run(action.transactionally.asTry).map({
+              case Success(n) =>
+                logger.debug(s"PATCH /orgs/$orgId result: $n")
+                if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", attrName, orgId)))
+                else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+              case Failure(t) =>
+                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
+            })
+          }) // end of complete
+        } // end of validate
+      } // end of extractRawBodyAsStr
     } // end of exchAuth
   }
 
@@ -441,6 +456,51 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
             logger.debug("POST /orgs/"+orgid+"/services/"+service+"/search result size: "+list.size)
             val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
             (code, PostServiceSearchResponse(list))
+          })
+        }) // end of complete
+      } // end of validate
+    } // end of exchAuth
+  }
+
+  // ======== POST /org/{orgid}/search/nodehealth ========================
+  @POST
+  @Path("{orgid}/search/nodes/nodehealth")
+  @Operation(summary = "Returns agreement health of nodes with no pattern", description = "Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
+    requestBody = new RequestBody(description = """
+```
+{
+  "lastTime": "2017-09-28T13:51:36.629Z[UTC]"   // only return nodes that have changed since this time, empty string returns all
+}
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeHealthRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeHealthResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def orgPostNodesHealthRoute: Route = (post & path("orgs" / Segment / "search" / "nodes" / "service") & entity(as[PostNodeHealthRequest])) { (orgid, reqBody) =>
+    logger.debug(s"Doing POST /orgs/$orgid/search/nodes/service")
+    exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
+      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+        complete({
+          /*
+            Join nodes and agreements and return: n.id, n.lastHeartbeat, a.id, a.lastUpdated.
+            The filter is: n.pattern=="" && n.lastHeartbeat>=lastTime
+            Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
+          */
+          val lastTime = if (reqBody.lastTime != "") reqBody.lastTime else ApiTime.beginningUTC
+          val q = for {
+            (n, a) <- NodesTQ.rows.filter(_.orgid === orgid).filter(_.pattern === "").filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+          } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
+
+          db.run(q.result).map({ list =>
+            logger.debug("POST /orgs/"+orgid+"/search/nodehealth result size: "+list.size)
+            //logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
+            if (list.nonEmpty) (HttpCode.POST_OK, PostNodeHealthResponse(RouteUtils.buildNodeHealthHash(list)))
+            else (HttpCode.NOT_FOUND, PostNodeHealthResponse(Map[String,NodeHealthHashElement]()))
           })
         }) // end of complete
       } // end of validate

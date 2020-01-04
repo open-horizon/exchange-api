@@ -54,8 +54,8 @@ class AdminSuite extends FunSuite {
     assert(Password.check(input.password, postResp.hashedPassword))
   }
 
-  /** Set log level */
-  ignore("POST /admin/loglevel") {
+  /** Set log level
+  test("POST /admin/loglevel") {
     val input = AdminLogLevelRequest("info")
     val response = Http(URL+"/admin/loglevel").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -65,7 +65,7 @@ class AdminSuite extends FunSuite {
   }
 
   /** Set invalid log level */
-  ignore("POST /admin/loglevel - bad") {
+  test("POST /admin/loglevel - bad") {
     val input = AdminLogLevelRequest("foobar")
     val response = Http(URL+"/admin/loglevel").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -73,6 +73,7 @@ class AdminSuite extends FunSuite {
     val postResp = parse(response.body).extract[ApiResponse]
     assert(postResp.code === ApiRespType.BAD_INPUT)
   }
+  */
 
   test("GET /admin/status") {
     val response = Http(URL+"/admin/status").headers(ACCEPT).headers(ROOTAUTH).asString

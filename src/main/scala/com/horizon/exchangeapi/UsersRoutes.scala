@@ -29,6 +29,7 @@ final case class GetUsersResponse(users: Map[String, User], lastIndex: Int)
 
 /** Input format for PUT /users/<username> */
 final case class PostPutUsersRequest(password: String, admin: Boolean, email: String) {
+  require(password!=null && email!=null)
   def getAnyProblem(identIsAdmin: Boolean): Option[String] = {
     if (password == "" || email == "") Some(ExchMsg.translate("password.and.email.must.be.non.blank.when.creating.user"))
     else if (admin && !identIsAdmin) Some(ExchMsg.translate("non.admin.user.cannot.make.admin.user")) // ensure that a user can't elevate himself to an admin user
@@ -38,7 +39,7 @@ final case class PostPutUsersRequest(password: String, admin: Boolean, email: St
 
 final case class PatchUsersRequest(password: Option[String], admin: Option[Boolean], email: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def getAnyProblem(identIsAdmin: Boolean): Option[String] = { //todo: use
+  def getAnyProblem(identIsAdmin: Boolean): Option[String] = {
     if (password.isDefined && password.get == "") Some(ExchMsg.translate("password.cannot.be.set.to.empty.string"))
     else if (admin.isDefined && admin.get && !identIsAdmin) Some(ExchMsg.translate("non.admin.user.cannot.make.admin.user")) // ensure that a user can't elevate himself to an admin user
     else None // None means no problems with input
@@ -61,7 +62,8 @@ final case class PatchUsersRequest(password: Option[String], admin: Option[Boole
 }
 
 final case class ChangePwRequest(newPassword: String) {
-  def getAnyProblem: Option[String] = { //todo: use
+  require(newPassword!=null)
+  def getAnyProblem: Option[String] = {
     if (newPassword == "") Some(ExchMsg.translate("password.cannot.be.set.to.empty.string"))
     else None // None means no problems with input
   }

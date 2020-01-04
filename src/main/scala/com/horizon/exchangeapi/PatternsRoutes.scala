@@ -38,6 +38,7 @@ final case class GetPatternAttributeResponse(attribute: String, value: String)
 
 /** Input for pattern-based search for nodes to make agreements with. */
 final case class PostPatternSearchRequest(serviceUrl: String, nodeOrgids: Option[List[String]], secondsStale: Int, startIndex: Int, numEntries: Int, arch: Option[String]) {
+  require(serviceUrl!=null)
   def getAnyProblem: Option[String] = None
 }
 
@@ -59,6 +60,7 @@ object PatternUtils {
 
 /** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
 final case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], services: List[PServices], userInput: Option[List[OneUserInputService]], agreementProtocols: Option[List[Map[String,String]]]) {
+  require(label!=null && services!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -115,6 +117,7 @@ final case class PatchPatternRequest(label: Option[String], description: Option[
 
 /** Input format for PUT /orgs/{orgid}/patterns/{pattern}/keys/<key-id> */
 final case class PutPatternKeyRequest(key: String) {
+  require(key!=null)
   def toPatternKey = PatternKey(key, ApiTime.nowUTC)
   def toPatternKeyRow(patternId: String, keyId: String) = PatternKeyRow(keyId, patternId, key, ApiTime.nowUTC)
   def getAnyProblem: Option[String] = None
@@ -123,7 +126,7 @@ final case class PutPatternKeyRequest(key: String) {
 
 /** Implementation for all of the /orgs/{orgid}/patterns routes */
 @Path("/v1/orgs/{orgid}/patterns")
-class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
+class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
   def db: Database = ExchangeApiApp.getDb
   lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
   //protected implicit def jsonFormats: Formats
@@ -173,7 +176,7 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
 
   /* ====== GET /orgs/{orgid}/patterns/{pattern} ================================ */
   @GET
-  @Path("pattern")
+  @Path("{pattern}")
   @Operation(summary = "Returns a pattern", description = "Returns the pattern with the specified id. Can be run by a user, node, or agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -396,7 +399,7 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def patternPuttRoute: Route = (put & path("orgs" / Segment / "patterns" / Segment) & entity(as[PostPutPatternRequest])) { (orgid, pattern, reqBody) =>
     val compositeId = OrgAndId(orgid, pattern).toString
-    exchAuth(TPattern(compositeId), Access.CREATE) { ident =>
+    exchAuth(TPattern(compositeId), Access.WRITE) { ident =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
@@ -499,99 +502,101 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def patternPatchRoute: Route = (patch & path("orgs" / Segment / "patterns" / Segment) & entity(as[String]) & entity(as[PatchPatternRequest])) { (orgid, pattern, reqBodyAsStr, reqBody) =>
+  def patternPatchRoute: Route = (patch & path("orgs" / Segment / "patterns" / Segment) & entity(as[PatchPatternRequest])) { (orgid, pattern, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/patterns/$pattern")
     val compositeId = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId), Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
-        complete({
-          val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid)
-          var storedPatternPublic = false
-          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.pattern.attribute.specified")))
-          else {
-            val (valServiceIdActions, svcRefs) = if (attrName == "services") PatternsTQ.validateServiceIds(reqBody.services.get, List())
-            else if (attrName == "userInput") PatternsTQ.validateServiceIds(List(), reqBody.userInput.get)
-            else (DBIO.successful(Vector()), Vector())
-            db.run(valServiceIdActions.asTry.flatMap({
-              case Success(v) =>
-                logger.debug("PATCH /orgs/" + orgid + "/patterns" + pattern + " service validation: " + v)
-                var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
-                breakable {
-                  for ((len, index) <- v.zipWithIndex) {
-                    if (len <= 0) {
-                      invalidIndex = index
-                      break
+      extractRawBodyAsStr { reqBodyAsStr =>
+        validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
+          complete({
+            val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid)
+            var storedPatternPublic = false
+            if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.pattern.attribute.specified")))
+            else {
+              val (valServiceIdActions, svcRefs) = if (attrName == "services") PatternsTQ.validateServiceIds(reqBody.services.get, List())
+              else if (attrName == "userInput") PatternsTQ.validateServiceIds(List(), reqBody.userInput.get)
+              else (DBIO.successful(Vector()), Vector())
+              db.run(valServiceIdActions.asTry.flatMap({
+                case Success(v) =>
+                  logger.debug("PATCH /orgs/" + orgid + "/patterns" + pattern + " service validation: " + v)
+                  var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+                  breakable {
+                    for ((len, index) <- v.zipWithIndex) {
+                      if (len <= 0) {
+                        invalidIndex = index
+                        break
+                      }
                     }
                   }
-                }
-                if (invalidIndex < 0) PatternsTQ.getPublic(compositeId).result.asTry //getting public field from pattern
-                else {
-                  val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-                  else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
-                  DBIO.failed(new Throwable(errStr)).asTry
-                }
-              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-            }).flatMap({
-              case Success(patternPublic) =>
-                logger.debug("PATCH /orgs/" + orgid + "/patterns" + pattern + " checking public field of " + compositeId + ": " + patternPublic)
-                val public = patternPublic
-                if (public.nonEmpty) {
-                  val publicField = reqBody.public.getOrElse(false)
-                  storedPatternPublic = public.head
-                  if ((public.head && publicField) || publicField) { // pattern is public so need to check owner
-                    OrgsTQ.getOrgType(orgid).result.asTry
-                  } else { // pattern isn't public so skip orgType check
-                    DBIO.successful(Vector("IBM")).asTry
+                  if (invalidIndex < 0) PatternsTQ.getPublic(compositeId).result.asTry //getting public field from pattern
+                  else {
+                    val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                    else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
+                    DBIO.failed(new Throwable(errStr)).asTry
                   }
-                } else {
-                  DBIO.failed(new auth.NotFoundException(ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
-                }
-              case Failure(t) => DBIO.failed(t).asTry
-            }).flatMap({
-              case Success(patternOrg) =>
-                logger.debug("PATCH /orgs/" + orgid + "/patterns" + pattern + " checking orgType of " + orgid + ": " + patternOrg)
-                if (patternOrg.head == "IBM") { // only patterns of orgType "IBM" can be public
-                  action.transactionally.asTry
-                }
-                else {
-                  DBIO.failed(new BadInputException(ExchMsg.translate("only.ibm.patterns.can.be.public"))).asTry
-                }
-              case Failure(t) => DBIO.failed(t).asTry
-            }).flatMap({
-              case Success(v) =>
-                // Add the resource to the resourcechanges table
-                logger.debug("PATCH /orgs/" + orgid + "/patterns/" + pattern + " result: " + v)
-                val numUpdated = v.asInstanceOf[Int] // v comes to us as type Any
-                if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-                  if (attrName == "public") AuthCache.putPatternIsPublic(compositeId, reqBody.public.getOrElse(false))
-                  var publicField = false
-                  if (reqBody.public.isDefined) {
-                    publicField = reqBody.public.getOrElse(false)
+                case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+              }).flatMap({
+                case Success(patternPublic) =>
+                  logger.debug("PATCH /orgs/" + orgid + "/patterns" + pattern + " checking public field of " + compositeId + ": " + patternPublic)
+                  val public = patternPublic
+                  if (public.nonEmpty) {
+                    val publicField = reqBody.public.getOrElse(false)
+                    storedPatternPublic = public.head
+                    if ((public.head && publicField) || publicField) { // pattern is public so need to check owner
+                      OrgsTQ.getOrgType(orgid).result.asTry
+                    } else { // pattern isn't public so skip orgType check
+                      DBIO.successful(Vector("IBM")).asTry
+                    }
+                  } else {
+                    DBIO.failed(new auth.NotFoundException(ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
+                  }
+                case Failure(t) => DBIO.failed(t).asTry
+              }).flatMap({
+                case Success(patternOrg) =>
+                  logger.debug("PATCH /orgs/" + orgid + "/patterns" + pattern + " checking orgType of " + orgid + ": " + patternOrg)
+                  if (patternOrg.head == "IBM") { // only patterns of orgType "IBM" can be public
+                    action.transactionally.asTry
                   }
                   else {
-                    publicField = storedPatternPublic
+                    DBIO.failed(new BadInputException(ExchMsg.translate("only.ibm.patterns.can.be.public"))).asTry
                   }
-                  val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", publicField.toString, "pattern", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
-                  patternChange.insert.asTry
-                } else {
-                  DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.attribute.not.update", attrName, compositeId))).asTry
-                }
-              case Failure(t) => DBIO.failed(t).asTry
-            })).map({
-              case Success(v) =>
-                logger.debug("PATCH /orgs/" + orgid + "/patterns/" + pattern + " updated in changes table: " + v)
-                (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.attribute.not.update", attrName, compositeId)))
-              case Failure(t: DBProcessingError) =>
-                if (t.httpCode == HttpCode.NOT_FOUND) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId)))
-                else (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
-              case Failure(_: auth.NotFoundException) =>
-                (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId)))
-              case Failure(t) =>
-                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", compositeId, t.getMessage)))
-            })
-          }
-        }) // end of complete
-      } // end of validate
+                case Failure(t) => DBIO.failed(t).asTry
+              }).flatMap({
+                case Success(v) =>
+                  // Add the resource to the resourcechanges table
+                  logger.debug("PATCH /orgs/" + orgid + "/patterns/" + pattern + " result: " + v)
+                  val numUpdated = v.asInstanceOf[Int] // v comes to us as type Any
+                  if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
+                    if (attrName == "public") AuthCache.putPatternIsPublic(compositeId, reqBody.public.getOrElse(false))
+                    var publicField = false
+                    if (reqBody.public.isDefined) {
+                      publicField = reqBody.public.getOrElse(false)
+                    }
+                    else {
+                      publicField = storedPatternPublic
+                    }
+                    val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", publicField.toString, "pattern", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                    patternChange.insert.asTry
+                  } else {
+                    DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.attribute.not.update", attrName, compositeId))).asTry
+                  }
+                case Failure(t) => DBIO.failed(t).asTry
+              })).map({
+                case Success(v) =>
+                  logger.debug("PATCH /orgs/" + orgid + "/patterns/" + pattern + " updated in changes table: " + v)
+                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.attribute.not.update", attrName, compositeId)))
+                case Failure(t: DBProcessingError) =>
+                  if (t.httpCode == HttpCode.NOT_FOUND) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId)))
+                  else (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+                case Failure(_: auth.NotFoundException) =>
+                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId)))
+                case Failure(t) =>
+                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", compositeId, t.getMessage)))
+              })
+            }
+          }) // end of complete
+        } // end of validate
+      } // end of extractRawBodyAsStr
     } // end of exchAuth
   }
 
@@ -790,28 +795,6 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
   }
 
   // ======== POST /org/{orgid}/patterns/{pattern}/nodehealth ========================
-
-  /** From the given db joined node/agreement rows, build the output node health hash and return it.
-     This is shared between POST /org/{orgid}/patterns/{pat-id}/nodehealth and POST /org/{orgid}/search/nodehealth
-    */
-  def buildNodeHealthHash(list: scala.Seq[(String, String, Option[String], Option[String])]): Map[String,NodeHealthHashElement] = {
-    // Go thru the rows and build a hash of the nodes, adding the agreement to its value as we encounter them
-    val nodeHash = new MutableHashMap[String,NodeHealthHashElement]     // key is node id, value has lastHeartbeat and the agreements map
-    for ( (nodeId, lastHeartbeat, agrId, agrLastUpdated) <- list ) {
-      nodeHash.get(nodeId) match {
-        case Some(nodeElement) => agrId match {    // this node is already in the hash, add the agreement if it's there
-          case Some(agId) => nodeElement.agreements = nodeElement.agreements + ((agId, NodeHealthAgreementElement(agrLastUpdated.getOrElse(""))))    // if we are here, lastHeartbeat is already set and the agreement Map is already created
-          case None => ;      // no agreement to add to the agreement hash
-        }
-        case None => agrId match {      // this node id not in the hash yet, add it
-          case Some(agId) => nodeHash.put(nodeId, new NodeHealthHashElement(lastHeartbeat, Map(agId -> NodeHealthAgreementElement(agrLastUpdated.getOrElse("")))))
-          case None => nodeHash.put(nodeId, new NodeHealthHashElement(lastHeartbeat, Map()))
-        }
-      }
-    }
-    return nodeHash.toMap
-  }
-
   @POST
   @Path("{pattern}/nodehealth")
   @Operation(summary = "Returns agreement health of nodes of a particular pattern", description = "Returns the lastHeartbeat and agreement times for all nodes that are this pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
@@ -851,7 +834,7 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
           db.run(q.result).map({ list =>
             logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result size: "+list.size)
             //logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
-            if (list.nonEmpty) (HttpCode.POST_OK, PostNodeHealthResponse(buildNodeHealthHash(list)))
+            if (list.nonEmpty) (HttpCode.POST_OK, PostNodeHealthResponse(RouteUtils.buildNodeHealthHash(list)))
             else (HttpCode.NOT_FOUND, PostNodeHealthResponse(Map[String,NodeHealthHashElement]()))
           })
         }) // end of complete
@@ -930,37 +913,38 @@ class PatternRoutes(implicit val system: ActorSystem) extends JacksonSupport wit
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def patternPutKeyRoute: Route = (put & path("orgs" / Segment / "patterns" / Segment / "keys" / Segment) & entity(as[String])) { (orgid, pattern, keyId, reqEntity) =>
+  def patternPutKeyRoute: Route = (put & path("orgs" / Segment / "patterns" / Segment / "keys" / Segment)) { (orgid, pattern, keyId) =>
     val compositeId = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId),Access.WRITE) { _ =>
-      val reqBodyAsRawString: String = reqEntity  //todo: not sure if this is correct, see also https://stackoverflow.com/questions/42861564/how-to-get-akka-http-scaladsl-model-httprequest-body
-      val reqBody = PutPatternKeyRequest(reqBodyAsRawString)
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
-        complete({
-          db.run(reqBody.toPatternKeyRow(compositeId, keyId).upsert.asTry.flatMap({
-            case Success(v) =>
-              // Get the value of the public field
-              logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " result: " + v)
-              PatternsTQ.getPublic(compositeId).result.asTry
-            case Failure(t) => DBIO.failed(t).asTry
-          }).flatMap({
-            case Success(public) =>
-              // Add the resource to the resourcechanges table
-              logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " public field: " + public)
-              val publicField = public.head
-              val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", publicField.toString, "patternkeys", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-              patternChange.insert.asTry
-            case Failure(t) => DBIO.failed(t).asTry
-          })).map({
-            case Success(v) =>
-              logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " updated in changes table: " + v)
-              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("key.added.or.updated")))
-            case Failure(t) =>
-              if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
-              else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
-          })
-        }) // end of complete
-      } // end of validate
+      extractRawBodyAsStr { reqBodyAsStr =>
+        val reqBody = PutPatternKeyRequest(reqBodyAsStr)
+        validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+          complete({
+            db.run(reqBody.toPatternKeyRow(compositeId, keyId).upsert.asTry.flatMap({
+              case Success(v) =>
+                // Get the value of the public field
+                logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " result: " + v)
+                PatternsTQ.getPublic(compositeId).result.asTry
+              case Failure(t) => DBIO.failed(t).asTry
+            }).flatMap({
+              case Success(public) =>
+                // Add the resource to the resourcechanges table
+                logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " public field: " + public)
+                val publicField = public.head
+                val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", publicField.toString, "patternkeys", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+                patternChange.insert.asTry
+              case Failure(t) => DBIO.failed(t).asTry
+            })).map({
+              case Success(v) =>
+                logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " updated in changes table: " + v)
+                (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("key.added.or.updated")))
+              case Failure(t) =>
+                if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
+                else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
+            })
+          }) // end of complete
+        } // end of validate
+      } // end of extractRawBodyAsStr
     } // end of exchAuth
   }
 

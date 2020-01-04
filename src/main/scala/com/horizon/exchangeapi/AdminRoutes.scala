@@ -226,7 +226,6 @@ class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     logger.debug("Doing POST /admin/version")
     val version = ExchangeApiAppMethods.adminVersion() + "\n"
     //complete({ (HttpCode.POST_OK, version) }) // <- this sends it as json, so with double quotes around it and \n explicitly in the string
-    //complete(HttpCode.POST_OK, List(`Content-Type`(ContentTypes.`text/plain(UTF-8)`)), ExchangeApiAppMethods.adminVersion() + "\n") // <- this tells me i can't explicitly set header Content-Type
     complete(HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, version)))
   }
 

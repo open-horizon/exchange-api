@@ -644,8 +644,8 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           case Success(v) =>
             logger.debug("DELETE /orgs/" + orgid + "/services/" + service + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.deleted")))
-          case Failure(_: DBProcessingError) =>
-            (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId)))
+          case Failure(t: DBProcessingError) =>
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", compositeId, t.toString)))
         })
@@ -782,8 +782,8 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           case Success(v) =>
             logger.debug("DELETE /orgs/" + orgid + "/services/" + service + "/policy updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.policy.deleted")))
-          case Failure(_: DBProcessingError) =>
-            (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.policy.not.found", compositeId)))
+          case Failure(t: DBProcessingError) =>
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.policy.not.deleted", compositeId, t.toString)))
         })
@@ -841,8 +841,9 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       complete({
         db.run(ServiceKeysTQ.getKey(compositeId, keyId).result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" result: "+list.size)
+          // Note: both responses must be the same content type or that doesn't get set correctly
           if (list.nonEmpty) HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, list.head.key))
-          else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("key.not.found", keyId)))
+          else HttpResponse(status = HttpCode.NOT_FOUND, entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, ""))
         })
       }) // end of complete
     } // end of exchAuth
@@ -938,8 +939,8 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           case Success(v) =>
             logger.debug("DELETE /services/" + service + "/keys updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.keys.deleted")))
-          case Failure(_: DBProcessingError) =>
-            (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("no.service.keys.found", compositeId)))
+          case Failure(t: DBProcessingError) =>
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.keys.not.deleted", compositeId, t.toString)))
         })
@@ -988,8 +989,8 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           case Success(v) =>
             logger.debug("DELETE /services/" + service + "/keys/" + keyId + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.key.deleted")))
-          case Failure(_: DBProcessingError) =>
-            (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.key.not.found", keyId, compositeId)))
+          case Failure(t: DBProcessingError) =>
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.key.not.deleted", keyId, compositeId, t.toString)))
         })
@@ -1167,8 +1168,8 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             case Success(v) =>
               logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/dockauths/" + dockAuthId + " updated in changes table: " + v)
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("dockauth.updated", dockAuthId)))
-            case Failure(_: DBProcessingError) =>
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.OK, ExchMsg.translate("dockauth.not.found", dockAuthId)))
+            case Failure(t: DBProcessingError) =>
+              (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
             case Failure(t) =>
               if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage)))
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage)))
@@ -1218,8 +1219,8 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           case Success(v) =>
             logger.debug("DELETE /services/" + service + "/dockauths result: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.dockauths.deleted")))
-          case Failure(_: DBProcessingError) =>
-            (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("no.dockauths.found.for.service", compositeId)))
+          case Failure(t: DBProcessingError) =>
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.dockauths.not.deleted", compositeId, t.toString)))
         })
@@ -1270,8 +1271,8 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               case Success(v) =>
                 logger.debug("DELETE /services/" + service + "/dockauths/" + dockauthId + " updated in changes table: " + v)
                 (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.dockauths.deleted")))
-              case Failure(_: DBProcessingError) =>
-                (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.dockauths.not.found", dockauthId, compositeId)))
+              case Failure(t: DBProcessingError) =>
+                (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
               case Failure(t) =>
                 (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.dockauths.not.deleted", dockauthId, compositeId, t.toString)))
             })

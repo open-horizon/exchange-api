@@ -685,8 +685,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
           case Success(v) =>
             logger.debug(s"DELETE /orgs/$orgid/nodes/$id updated in changes table: $v")
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.deleted")))
-          case Failure(_: DBProcessingError) =>
-            (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
+          case Failure(t: DBProcessingError) =>
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             if (t.getMessage.contains("couldn't find node")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
             else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.deleted", compositeId, t.toString)))
@@ -837,8 +837,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
           case Success(v) => // there were no db errors, but determine if it actually found it or not
             logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.errors.deleted")))
-          case Failure(_: DBProcessingError) =>
-            (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.errors.not.found", compositeId)))
+          case Failure(t: DBProcessingError) =>
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.errors.not.deleted", compositeId, t.toString)))
         })
@@ -968,8 +968,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
           case Success(v) => // there were no db status, but determine if it actually found it or not
             logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.status.deleted")))
-          case Failure(_: DBProcessingError) =>
-            (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.status.not.found", compositeId)))
+          case Failure(t: DBProcessingError) =>
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.status.not.deleted", compositeId, t.toString)))
         })
@@ -1105,8 +1105,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
           case Success(v) => // there were no db policy, but determine if it actually found it or not
             logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource policy table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.policy.deleted")))
-          case Failure(_: DBProcessingError) =>
-            (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.policy.not.found", compositeId)))
+          case Failure(t: DBProcessingError) =>
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.policy.not.deleted", compositeId, t.toString)))
         })
@@ -1279,8 +1279,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
           case Success(v) =>
             logger.debug("DELETE /nodes/" + id + "/agreements updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreements.deleted")))
-          case Failure(_: DBProcessingError) =>
-            (HttpCode.NOT_FOUND,ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("no.node.agreements.found", compositeId)))
+          case Failure(t: DBProcessingError) =>
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreements.not.deleted", compositeId, t.toString)))
         })
@@ -1320,8 +1320,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
           case Success(v) =>
             logger.debug("DELETE /nodes/" + id + "/agreements/" + agrId + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.deleted")))
-          case Failure(_: DBProcessingError) =>
-            (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.agreement.not.found", agrId, compositeId)))
+          case Failure(t: DBProcessingError) =>
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.deleted", agrId, compositeId, t.toString)))
         })
@@ -1389,7 +1389,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.inserted", msgNum)))
           case Failure(t: DBProcessingError) =>
             if (t.httpCode == HttpCode.ACCESS_DENIED) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.msg.not.inserted", compositeId, t.getMessage)))
-            else (t.httpCode, ApiResponse(t.apiResponse, ExchMsg.translate("node.msg.not.inserted", compositeId, ExchMsg.translate("invalid.input.agbot.not.found", agbotId))))
+            else (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             if (t.getMessage.contains("is not present in table")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.nodeid.not.found", compositeId, t.getMessage)))
             else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.inserted", compositeId, t.toString)))
@@ -1466,8 +1466,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             case Success(v) =>
               logger.debug("DELETE /nodes/" + id + "/msgs/" + msgId + " updated in changes table: " + v)
               (HttpCode.DELETED,  ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.deleted")))
-            case Failure(_: DBProcessingError) =>
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.not.found", msgId, compositeId)))
+            case Failure(t: DBProcessingError) =>
+              (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.deleted", msgId, compositeId, t.toString)))
           })

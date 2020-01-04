@@ -515,7 +515,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             logger.debug("DELETE /orgs/" + orgid + "/business/policies/" + policy + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("business.policy.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, ExchMsg.translate("business.policy.not.found", compositeId)))
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("business.policy.not.deleted", compositeId, t.toString)))
         })

@@ -5,6 +5,7 @@ import javax.ws.rs._
 import akka.actor.ActorSystem
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.model._
+//import akka.http.scaladsl.model.headers.`Content-Type`
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.horizon.exchangeapi.auth._
@@ -644,7 +645,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             logger.debug("DELETE /orgs/" + orgid + "/patterns/" + pattern + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, ExchMsg.translate("pattern.id.not.found", compositeId)))
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.id.not.deleted", compositeId, t.toString)))
         })
@@ -891,8 +892,14 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       complete({
         db.run(PatternKeysTQ.getKey(compositeId, keyId).result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" result: "+list.size)
+          // Note: both responses must be the same content type or that doesn't get set correctly
           if (list.nonEmpty) HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, list.head.key))
-          else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("key.not.found", keyId)))
+          else HttpResponse(status = HttpCode.NOT_FOUND, entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, ""))
+          // this doesn't seem to set the content type away from application/json
+          //if (list.nonEmpty) (HttpCode.OK, List(`Content-Type`(ContentTypes.`text/plain(UTF-8)`)), list.head.key)
+          //else (HttpCode.NOT_FOUND, List(`Content-Type`(ContentTypes.`text/plain(UTF-8)`)), "")
+          //if (list.nonEmpty) (HttpCode.OK, list.head.key)
+          //else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("key.not.found", keyId)))
         })
       }) // end of complete
     } // end of exchAuth
@@ -988,7 +995,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             logger.debug("DELETE /patterns/" + pattern + "/keys result: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.keys.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, ExchMsg.translate("no.pattern.keys.found", compositeId)))
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.keys.not.deleted", compositeId, t.toString)))
         })
@@ -1029,7 +1036,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", storedPublicField.toString, "patternkeys", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
               patternChange.insert.asTry
             } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.key.not.found", compositeId))).asTry
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.key.not.found", keyId, compositeId))).asTry
             }
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
@@ -1037,7 +1044,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             logger.debug("DELETE /patterns/" + pattern + "/keys result: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.key.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, ExchMsg.translate("pattern.key.not.found", compositeId)))
+            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.key.not.deleted", compositeId, t.toString)))
         })

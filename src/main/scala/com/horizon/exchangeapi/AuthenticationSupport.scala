@@ -84,7 +84,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
   // Custom directive to extract the request body (a.k.a entity) as a string (w/o json unmarshalling)
   //someday: this must be used as a separate directive, don't yet know how to combine it with the other directives using &
   def extractRawBodyAsStr: Directive1[String] = {
-    extractStrictEntity(3.seconds).flatMap { entity =>
+    extractStrictEntity(Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS)).flatMap { entity =>
       provide(entity.data.utf8String)
     }
   }

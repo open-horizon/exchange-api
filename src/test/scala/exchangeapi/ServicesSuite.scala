@@ -618,7 +618,7 @@ class ServicesSuite extends FunSuite {
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - as user2 - should fail") {
-    val jsonInput = """{ "downloadUrl": "this is now patched" }"""
+    val jsonInput = """{ "label": "this is now patched" }"""
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
@@ -1052,7 +1052,7 @@ class ServicesSuite extends FunSuite {
   test("DELETE IBM changes") {
     val res = List(ibmService)
     val input = DeleteIBMChangesRequest(res)
-    val response = Http(urlRoot+"/v1/orgs/IBM/changes/cleanup").postData(write(input)).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(urlRoot+"/v1/orgs/IBM/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }

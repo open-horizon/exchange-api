@@ -747,8 +747,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       complete({
         db.run(NodeErrorTQ.getNodeError(compositeId).result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/errors result size: "+list.size)
-          val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-          (code, list.head.toNodeError)
+          if (list.nonEmpty) (HttpCode.OK, list.head.toNodeError)
+          else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
         })
       }) // end of complete
     } // end of exchAuth
@@ -866,8 +866,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       complete({
         db.run(NodeStatusTQ.getNodeStatus(compositeId).result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/status result size: "+list.size)
-          val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-          (code, list.head.toNodeStatus)
+          if (list.nonEmpty) (HttpCode.OK, list.head.toNodeStatus)
+          else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
         })
       }) // end of complete
     } // end of exchAuth
@@ -997,8 +997,8 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       complete({
         db.run(NodePolicyTQ.getNodePolicy(compositeId).result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/policy result size: "+list.size)
-          val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-          (code, list.head.toNodePolicy)
+          if (list.nonEmpty) (HttpCode.OK, list.head.toNodePolicy)
+          else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
         })
       }) // end of complete
     } // end of exchAuth

@@ -319,9 +319,9 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def servicePostRoute: Route = (post & path("orgs" / Segment / "services") & entity(as[PostPutServiceRequest])) { (orgid, reqBody) =>
     exchAuth(TService(OrgAndId(orgid,"").toString), Access.CREATE) { ident =>
-      val service = reqBody.formId(orgid)
-      validate(reqBody.getAnyProblem(orgid, service).isEmpty, "Problem in request body") {
+      validate(reqBody.getAnyProblem(orgid, null).isEmpty, "Problem in request body") {
         complete({
+          val service = reqBody.formId(orgid)
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }   // currently only users are allowed to create/update services, so owner will never be blank
 
           // Make a list of service searches for the required services. This can match more services than we need, because it wildcards the version.
@@ -417,7 +417,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
   def servicePutRoute: Route = (put & path("orgs" / Segment / "services" / Segment) & entity(as[PostPutServiceRequest])) { (orgid, service, reqBody) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId), Access.WRITE) { ident =>
-      validate(reqBody.getAnyProblem(orgid, service).isEmpty, "Problem in request body") {
+      validate(reqBody.getAnyProblem(orgid, compositeId).isEmpty, "Problem in request body") {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }   // currently only users are allowed to create/update services, so owner will never be blank
 
@@ -675,8 +675,8 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       complete({
         db.run(ServicePolicyTQ.getServicePolicy(compositeId).result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/services/"+service+"/policy result size: "+list.size)
-          val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-          (code, list.head.toServicePolicy)
+          if (list.nonEmpty) (HttpCode.OK, list.head.toServicePolicy)
+          else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
         })
       }) // end of complete
     } // end of exchAuth
@@ -710,7 +710,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def servicePutPolicyRoute: Route = (put & path("orgs" / Segment / "services" / Segment / "patterns") & entity(as[PutServicePolicyRequest])) { (orgid, service, reqBody) =>
+  def servicePutPolicyRoute: Route = (put & path("orgs" / Segment / "services" / Segment / "policy") & entity(as[PutServicePolicyRequest])) { (orgid, service, reqBody) =>
     val compositeId = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
@@ -754,7 +754,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def serviceDeletePolicyRoute: Route = (delete & path("orgs" / Segment / "services" / Segment / "patterns")) { (orgid, service) =>
+  def serviceDeletePolicyRoute: Route = (delete & path("orgs" / Segment / "services" / Segment / "policy")) { (orgid, service) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
       complete({

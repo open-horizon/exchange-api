@@ -54,17 +54,17 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
 
     // Try to authenticate the creds and return the type (user/node/agbot) it is, or None
     def getValidType(creds: Creds, retry: Boolean = false): CacheIdType = {
-      logger.debug("CacheId:getValidType(): attempting to authenticate to the exchange with " + creds)
+      //logger.debug("CacheId:getValidType(): attempting to authenticate to the exchange with " + creds)
       val cacheValue = getCacheValue(creds)
       logger.debug("cacheValue: " + cacheValue)
       if (cacheValue.isFailure) return CacheIdType.None
       // we got the hashed token from the cache or db, now verify the token passed in
       val cacheVal = cacheValue.get
       if (cacheVal.unhashedToken != "" && Password.check(creds.token, cacheVal.unhashedToken)) { // much faster than the bcrypt check below
-        logger.debug("CacheId:getValidType(): successfully quick-validated " + creds.id + " and its pw using the cache/db")
+        //logger.debug("CacheId:getValidType(): successfully quick-validated " + creds.id + " and its pw using the cache/db")
         return cacheVal.idType
       } else if (Password.check(creds.token, cacheVal.hashedToken)) {
-        logger.debug("CacheId:getValidType(): successfully validated " + creds.id + " and its pw using the cache/db")
+        //logger.debug("CacheId:getValidType(): successfully validated " + creds.id + " and its pw using the cache/db")
         return cacheVal.idType
       } else {
         // the creds were invalid

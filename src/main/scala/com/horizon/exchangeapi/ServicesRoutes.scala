@@ -311,7 +311,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutServiceRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "resource created - response body:",
+      new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -408,7 +408,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
     new Parameter(name = "service", in = ParameterIn.PATH, description = "Service id.")),
     requestBody = new RequestBody(description = "See the POST route for more details.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutServiceRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "response body:",
+      new responses.ApiResponse(responseCode = "201", description = "response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -497,7 +497,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       new Parameter(name = "service", in = ParameterIn.PATH, description = "Service name.")),
     requestBody = new RequestBody(description = "Specify only **one** of the attributes (see list of attributes in the POST route)", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchServiceRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "response body:",
+      new responses.ApiResponse(responseCode = "201", description = "response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),

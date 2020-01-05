@@ -1,16 +1,19 @@
 package com.horizon.exchangeapi.auth
 
 import akka.http.scaladsl.model.StatusCode
-import com.horizon.exchangeapi.{ ApiRespType, ExchMsg, HttpCode }
-import javax.security.auth.login.{ FailedLoginException, LoginException }
+import com.horizon.exchangeapi.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
+import javax.security.auth.login.{FailedLoginException, LoginException}
 
 // Base class for all of the exchange authentication and authorization failures
-class AuthException(var httpCode: StatusCode, var apiResponse: String, msg: String) extends LoginException(msg)
+class AuthException(var httpCode: StatusCode, var apiResponse: String, msg: String) extends LoginException(msg) {
+  def toComplete = (httpCode, ApiResponse(apiResponse, getMessage))
+}
 
 // Auth errors we need to report to the user, like the creds looked like an ibm cloud cred, but their org didnt point to a cloud acct
 class UserFacingError(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 
 // Error class to use to define specific error responses from problems happening in DB threads
+// Note: this is not strictly an auth error, but it is handy to inherit from AuthException
 class DBProcessingError(httpCode: StatusCode, apiResponse: String, msg: String) extends AuthException(httpCode, apiResponse, msg)
 
 // Only used internally: The creds werent ibm cloud creds, so return gracefully and move on to the next login module
@@ -32,7 +35,7 @@ class AccessDeniedException(msg: String = ExchMsg.translate("access.denied")) ex
 
 class BadInputException(msg: String = ExchMsg.translate("bad.input")) extends AuthException(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, msg)
 
-class NotFoundException(msg: String = ExchMsg.translate("not.found")) extends AuthException(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, msg)
+class ResourceNotFoundException(msg: String = ExchMsg.translate("not.found")) extends AuthException(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, msg)
 
 class UserCreateException(msg: String = ExchMsg.translate("error.creating.user.noargs")) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
 

@@ -74,7 +74,7 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
   }
 
   override def login(): Boolean = {
-    logger.debug("in IbmCloudModule.login() to try to authenticate an IBM cloud user")
+    //logger.debug("in IbmCloudModule.login() to try to authenticate an IBM cloud user")
     val reqCallback = new RequestCallback
 
     handler.handle(Array(reqCallback))

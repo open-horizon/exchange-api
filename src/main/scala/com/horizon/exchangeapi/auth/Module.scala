@@ -42,7 +42,7 @@ class Module extends LoginModule with AuthorizationSupport {
    * and that is where we can get access to it in the route handling code.
    */
   override def login(): Boolean = {
-    logger.debug("in Module.login() to try to authenticate a local exchange user")
+    //logger.debug("in Module.login() to try to authenticate a local exchange user")
     val reqCallback = new RequestCallback
     val loginResult = Try {
       handler.handle(Array(reqCallback))
@@ -71,7 +71,7 @@ class Module extends LoginModule with AuthorizationSupport {
       //}
       true
     }
-    logger.debug("Module.login(): loginResult=" + loginResult)
+    //logger.debug("Module.login(): loginResult=" + loginResult)
     succeeded = loginResult.isSuccess
     if (!succeeded) {
       // Throw an exception so we can report the correct error

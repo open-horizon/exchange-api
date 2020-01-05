@@ -162,7 +162,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutUsersRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "resource created - response body:",
+      new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -200,7 +200,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
     requestBody = new RequestBody(description = "See details in the POST route.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutUsersRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
+      new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -242,7 +242,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
     requestBody = new RequestBody(description = "Specify only **one** of the attributes:", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchUsersRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
+      new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -318,7 +318,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
     responses = Array(
-      new responses.ApiResponse(responseCode = "204", description = "post ok"),
+      new responses.ApiResponse(responseCode = "201", description = "post ok"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -347,7 +347,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[ChangePwRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "password updated - response body:",
+      new responses.ApiResponse(responseCode = "201", description = "password updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),

@@ -588,14 +588,14 @@ class NodesSuite extends FunSuite {
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - nonexistant url - should return not found") {
     val input = PostNodeConfigStateRequest(orgid, NOTTHERESPEC_URL, "suspended")
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
+    info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - nonexistant org - should return not found") {
     val input = PostNodeConfigStateRequest(orgnotthere, SDRSPEC_URL, "suspended")
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
+    info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
@@ -790,6 +790,7 @@ class NodesSuite extends FunSuite {
     assert(getDevResp.nodes.size === 1)
   }
 
+  /* no longer supported
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - as node, with token in URL parms, but no id") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId+"?token="+nodeToken).headers(ACCEPT).asString
     info("code: "+response.code)
@@ -807,6 +808,7 @@ class NodesSuite extends FunSuite {
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === 1)
   }
+  */
 
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - userInput with an invalid svc ref") {
     val jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+SDRSPEC_URL+"""", "serviceArch": "fooarch", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
@@ -1172,7 +1174,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code)
     info("response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    assert(response.body.isEmpty)
+    //assert(response.body.isEmpty)  // <- it responds with an empty node list
   }
 
   test("POST /orgs/"+orgid+"/search/nodes/error/ - as agbot, no input body, also no errors") {
@@ -1180,7 +1182,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code)
     info("response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    assert(response.body.isEmpty)
+    //assert(response.body.isEmpty)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node, empty list as errors") {
@@ -1197,7 +1199,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code)
     info("response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    assert(response.body.isEmpty)
+    //assert(response.body.isEmpty)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node, adding the error again") {
@@ -1257,7 +1259,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code)
     info("response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    assert(response.body.isEmpty)
+    //assert(response.body.isEmpty)
   }
 
   //~~~~~ Node policy ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2185,7 +2187,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    assert(response.body.isEmpty)
+    //assert(response.body.isEmpty)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+"/status - add "+ibmService+" to search on later") {
@@ -2253,7 +2255,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    assert(response.body.isEmpty)
+    //assert(response.body.isEmpty)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - change org of "+NETSPEEDSPEC_URL+" to test later") {
@@ -2271,7 +2273,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    assert(response.body.isEmpty)
+    //assert(response.body.isEmpty)
   }
 
   // Test PATCH Nodes all attributes but token
@@ -2340,7 +2342,7 @@ class NodesSuite extends FunSuite {
   test("DELETE IBM changes") {
     val res = List(ibmService+"_"+svcversion2+"_"+svcarch2)
     val input = DeleteIBMChangesRequest(res)
-    val response = Http(urlRoot+"/v1/orgs/IBM/changes/cleanup").postData(write(input)).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(urlRoot+"/v1/orgs/IBM/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }

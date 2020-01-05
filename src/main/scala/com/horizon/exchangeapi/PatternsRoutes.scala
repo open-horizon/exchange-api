@@ -303,7 +303,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutPatternRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "resource created - response body:",
+      new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -437,7 +437,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
                     DBIO.successful(Vector("IBM")).asTry
                   }
                 } else {
-                  DBIO.failed(new auth.NotFoundException(ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
+                  DBIO.failed(new auth.ResourceNotFoundException(ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
                 }
               case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
             }
@@ -477,9 +477,9 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.updated")))
             case Failure(t: DBProcessingError) =>
               if (t.httpCode == HttpCode.NOT_FOUND) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId)))
-              else (t.httpCode, ApiResponse(t.apiResponse, t.getMessage)) // the specific exception is NumberFormatException
-            case Failure(_: auth.NotFoundException) =>
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId)))
+              else t.toComplete // the specific exception is NumberFormatException
+            case Failure(t: auth.ResourceNotFoundException) =>
+              t.toComplete
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", compositeId, t.getMessage)))
           })
@@ -549,7 +549,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
                       DBIO.successful(Vector("IBM")).asTry
                     }
                   } else {
-                    DBIO.failed(new auth.NotFoundException(ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
+                    DBIO.failed(new auth.ResourceNotFoundException(ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
                   }
                 case Failure(t) => DBIO.failed(t).asTry
               }).flatMap({
@@ -589,7 +589,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
                 case Failure(t: DBProcessingError) =>
                   if (t.httpCode == HttpCode.NOT_FOUND) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId)))
                   else (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
-                case Failure(_: auth.NotFoundException) =>
+                case Failure(_: auth.ResourceNotFoundException) =>
                   (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId)))
                 case Failure(t) =>
                   (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", compositeId, t.getMessage)))

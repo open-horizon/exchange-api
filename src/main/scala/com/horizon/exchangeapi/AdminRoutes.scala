@@ -79,7 +79,7 @@ class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
   @Path("reload")
   @Operation(summary = "Tells the exchange reread its config file", description = """Directs the exchange server to reread /etc/horizon/exchange/config.json and continue running with those new settings. Can only be run by the root user.""",
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "response body",
+      new responses.ApiResponse(responseCode = "201", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
@@ -104,7 +104,7 @@ class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[AdminHashpwRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "response body",
+      new responses.ApiResponse(responseCode = "201", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
@@ -128,7 +128,7 @@ class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[AdminLogLevelRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "response body",
+      new responses.ApiResponse(responseCode = "201", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -169,7 +169,7 @@ class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
   @Path("dropdb")
   @Operation(summary = "Deletes the tables from the DB", description = """Deletes the tables from the Exchange DB. **Warning: this will delete the data too!** Because this is a dangerous method, you must first get a 1-time token using GET /admin/dropdb/token, and use that to authenticate to this REST API method. Can only be run by the root user.""",
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "response body",
+      new responses.ApiResponse(responseCode = "201", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
@@ -194,7 +194,7 @@ class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
   @Path("initdb")
   @Operation(summary = "Creates the table schema in the DB", description = """Creates the tables with the necessary schema in the Exchange DB. This is now called at exchange startup, if necessary. Can only be run by the root user.""",
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "response body",
+      new responses.ApiResponse(responseCode = "201", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))

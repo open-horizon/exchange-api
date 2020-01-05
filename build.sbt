@@ -42,6 +42,7 @@ lazy val root = (project in file(".")).
       "org.json4s" %% "json4s-jackson" % "latest.release",
 
       "javax.ws.rs" % "javax.ws.rs-api" % "2.0.1",  // this is from 8/2014. Version 2.1.1 from 9/2018 gets an error loading
+      "org.glassfish.jersey.core" % "jersey-common" % "latest.release",  // required at runtime by javax.ws.rs-api
       "com.github.swagger-akka-http" %% "swagger-akka-http" % "latest.release", // the 9/2019 versions of these 2 cause incompatible warings,but the 6/2019 versions give exceptions
       "com.github.swagger-akka-http" %% "swagger-scala-module" % "latest.release",
       "io.swagger.core.v3" % "swagger-core" % "latest.release",

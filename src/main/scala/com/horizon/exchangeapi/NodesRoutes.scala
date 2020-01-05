@@ -7,7 +7,7 @@ import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import com.horizon.exchangeapi.auth.DBProcessingError
+import com.horizon.exchangeapi.auth._
 import de.heikoseeberger.akkahttpjackson._
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
@@ -39,16 +39,6 @@ final case class PatternSearchHashElement(msgEndPoint: String, publicKey: String
 
 final case class PatternNodeResponse(id: String, msgEndPoint: String, publicKey: String)
 final case class PostPatternSearchResponse(nodes: List[PatternNodeResponse], lastIndex: Int)
-
-
-final case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List[String]]) {
-  require(lastTime!=null)
-  def getAnyProblem: Option[String] = None
-}
-
-final case class NodeHealthAgreementElement(lastUpdated: String)
-class NodeHealthHashElement(var lastHeartbeat: String, var agreements: Map[String,NodeHealthAgreementElement])
-final case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
 
 // Leaving this here for the UI wanting to implement filtering later
 final case class PostNodeErrorRequest() {
@@ -172,9 +162,9 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
 
   // Given the existing list of registered svcs in the db for this node, determine the db update necessary to apply the new configState
   def getDbUpdate(regServices: String, id: String): DBIO[_] = {
-    if (regServices == "") return DBIO.failed(new NotFoundException(ExchMsg.translate("node.has.no.services")))
+    if (regServices == "") return DBIO.failed(new ResourceNotFoundException(ExchMsg.translate("node.has.no.services")))
     val regSvcs = read[List[RegService]](regServices)
-    if (regSvcs.isEmpty) return DBIO.failed(new NotFoundException(ExchMsg.translate("node.has.no.services")))
+    if (regSvcs.isEmpty) return DBIO.failed(new ResourceNotFoundException(ExchMsg.translate("node.has.no.services")))
 
     // Copy the list of required svcs, changing configState wherever it applies
     var matchingSvcFound = false
@@ -188,7 +178,7 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
     })
     // this check is not ok, because we should not return NOT_FOUND if we find matching svc but their configState is already set the requested value
     //if (newRegSvcs.sameElements(regSvcs)) halt(HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, "did not find any registeredServices that matched the given org and url criteria."))
-    if (!matchingSvcFound) return DBIO.failed(new NotFoundException(ExchMsg.translate("did.not.find.registered.services")))
+    if (!matchingSvcFound) return DBIO.failed(new ResourceNotFoundException(ExchMsg.translate("did.not.find.registered.services")))
     if (newRegSvcs == regSvcs) {
       println(ExchMsg.translate("no.db.update.necessary"))
       //logger.debug("No db update necessary, all relevant config states already correct")
@@ -412,7 +402,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutNodesRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "resource add/updated - response body:",
+      new responses.ApiResponse(responseCode = "201", description = "resource add/updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -511,7 +501,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
     requestBody = new RequestBody(description = "Specify only **one** of the attributes (see list of attributes in the PUT route)", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchNodesRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
+      new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -644,6 +634,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + n)
               if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.services.updated", compositeId))) // there were no db errors, but determine if it actually found it or not
               else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
+            case Failure(t: AuthException) => t.toComplete
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage)))
           })

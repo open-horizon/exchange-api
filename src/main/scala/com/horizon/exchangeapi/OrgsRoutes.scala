@@ -104,6 +104,15 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
   }
 }
 
+final case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List[String]]) {
+  require(lastTime!=null)
+  def getAnyProblem: Option[String] = None
+}
+
+final case class NodeHealthAgreementElement(lastUpdated: String)
+class NodeHealthHashElement(var lastHeartbeat: String, var agreements: Map[String,NodeHealthAgreementElement])
+final case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
+
 /** Case class for request body for ResourceChanges route */
 final case class ResourceChangesRequest(changeId: Int, lastUpdated: Option[String], maxRecords: Int, ibmAgbot: Option[Boolean]) {
   def getAnyProblem: Option[String] = None // None means no problems with input
@@ -146,7 +155,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
   */
 
   // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
-  def routes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ orgPostNodesServiceRoute ~ orgChangesRoute
+  def routes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute
 
   // ====== GET /orgs ================================
 
@@ -265,7 +274,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutOrgRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "resource created - response body:",
+      new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -298,7 +307,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     requestBody = new RequestBody(description = "See details in the POST route.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutOrgRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
+      new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -331,7 +340,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     requestBody = new RequestBody(description = "Specify only **one** of the attributes:", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchOrgRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
+      new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -395,7 +404,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "response body:",
+      new responses.ApiResponse(responseCode = "201", description = "response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeErrorResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -411,7 +420,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
 
         db.run(q.result).map({ list =>
           logger.debug("POST /orgs/"+orgid+"/search/nodes/error result size: "+list.size)
-          val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val code = if (list.nonEmpty) HttpCode.POST_OK else HttpCode.NOT_FOUND
           (code, PostNodeErrorResponse(list))
         })
       }) // end of complete
@@ -434,7 +443,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostServiceSearchRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "response body:",
+      new responses.ApiResponse(responseCode = "201", description = "response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[PostServiceSearchResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -454,7 +463,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
 
           db.run(q.result).map({ list =>
             logger.debug("POST /orgs/"+orgid+"/services/"+service+"/search result size: "+list.size)
-            val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            val code = if (list.nonEmpty) HttpCode.POST_OK else HttpCode.NOT_FOUND
             (code, PostServiceSearchResponse(list))
           })
         }) // end of complete
@@ -464,7 +473,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
 
   // ======== POST /org/{orgid}/search/nodehealth ========================
   @POST
-  @Path("{orgid}/search/nodes/nodehealth")
+  @Path("{orgid}/search/nodehealth")
   @Operation(summary = "Returns agreement health of nodes with no pattern", description = "Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -475,13 +484,13 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeHealthRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "response body:",
+      new responses.ApiResponse(responseCode = "201", description = "response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeHealthResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPostNodesHealthRoute: Route = (post & path("orgs" / Segment / "search" / "nodes" / "service") & entity(as[PostNodeHealthRequest])) { (orgid, reqBody) =>
+  def orgPostNodesHealthRoute: Route = (post & path("orgs" / Segment / "search" / "nodehealth") & entity(as[PostNodeHealthRequest])) { (orgid, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/service")
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
       validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
@@ -574,7 +583,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[ResourceChangesRequest])))),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "changes returned - response body:",
+      new responses.ApiResponse(responseCode = "201", description = "changes returned - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ResourceChangesRespObject])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),

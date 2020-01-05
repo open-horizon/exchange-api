@@ -69,7 +69,7 @@ final case class PostPutOrgRequest(orgType: Option[String], label: String, descr
 final case class PatchOrgRequest(orgType: Option[String], label: Option[String], description: Option[String], tags: Option[Map[String, Option[String]]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def getAnyProblem(requestBody: String): Option[String] = {
+  def getAnyProblem: Option[String] = {
     //println(s"raw request body: $requestBody")
     None
   }
@@ -350,22 +350,20 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
     logger.debug(s"Doing PATCH /orgs/$orgId with orgId:$orgId")
     val access = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
     exchAuth(TOrg(orgId), access) { _ =>
-      extractRawBodyAsStr { reqBodyAsStr =>
-        validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
-          complete({
-            val (action, attrName) = reqBody.getDbUpdate(orgId)
-            if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.org.attr.specified")))
-            else db.run(action.transactionally.asTry).map({
-              case Success(n) =>
-                logger.debug(s"PATCH /orgs/$orgId result: $n")
-                if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", attrName, orgId)))
-                else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
-              case Failure(t) =>
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
-            })
-          }) // end of complete
-        } // end of validate
-      } // end of extractRawBodyAsStr
+      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+        complete({
+          val (action, attrName) = reqBody.getDbUpdate(orgId)
+          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.org.attr.specified")))
+          else db.run(action.transactionally.asTry).map({
+            case Success(n) =>
+              logger.debug(s"PATCH /orgs/$orgId result: $n")
+              if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", attrName, orgId)))
+              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
+          })
+        }) // end of complete
+      } // end of validate
     } // end of exchAuth
   }
 

@@ -76,9 +76,9 @@ final case class PostPutBusinessPolicyRequest(label: String, description: Option
 final case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def getAnyProblem(requestBody: String): Option[String] = {
-    if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
-    else if (service.isDefined) BusinessUtils.getAnyProblem(service.get)
+  def getAnyProblem: Option[String] = {
+    /* if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
+    else */ if (service.isDefined) BusinessUtils.getAnyProblem(service.get)
     else None
   }
 
@@ -324,7 +324,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               AuthCache.putBusinessIsPublic(compositeId, isPublic = false)
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.created", compositeId)))
             case Failure(t: DBProcessingError) =>
-              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.created", compositeId, t.getMessage)))
+              t.toComplete
             case Failure(t) =>
               if (t.getMessage.contains("duplicate key value violates unique constraint")) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.already.exists", compositeId, t.getMessage)))
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.created", compositeId, t.getMessage)))
@@ -394,7 +394,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + " updated in changes table: " + v)
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.updated", compositeId)))
             case Failure(t: DBProcessingError) =>
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId, t.getMessage)))
+              t.toComplete
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", compositeId, t.getMessage)))
           })
@@ -422,61 +422,58 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
     logger.debug(s"Doing PATCH /orgs/$orgid/business/policies/$policy")
     val compositeId = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.WRITE) { _ =>
-      extractRawBodyAsStr { reqBodyAsStr =>
-        validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
-          complete({
-            val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid)
-            if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.buspol.attribute.specified")))
-            else {
-              val (valServiceIdActions, svcRefs) =
-                if (attrName == "service") BusinessPoliciesTQ.validateServiceIds(reqBody.service.get, List())
-                else if (attrName == "userInput") BusinessPoliciesTQ.validateServiceIds(BService("", "", "", List(), None), reqBody.userInput.get)
-                else (DBIO.successful(Vector()), Vector())
-              db.run(valServiceIdActions.asTry.flatMap({
-                case Success(v) =>
-                  logger.debug("PUT /orgs/" + orgid + "/business/policies" + policy + " service validation: " + v)
-                  var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
-                  breakable {
-                    for ((len, index) <- v.zipWithIndex) {
-                      if (len <= 0) {
-                        invalidIndex = index
-                        break
-                      }
+      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+        complete({
+          val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid)
+          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.buspol.attribute.specified")))
+          else {
+            val (valServiceIdActions, svcRefs) =
+              if (attrName == "service") BusinessPoliciesTQ.validateServiceIds(reqBody.service.get, List())
+              else if (attrName == "userInput") BusinessPoliciesTQ.validateServiceIds(BService("", "", "", List(), None), reqBody.userInput.get)
+              else (DBIO.successful(Vector()), Vector())
+            db.run(valServiceIdActions.asTry.flatMap({
+              case Success(v) =>
+                logger.debug("PUT /orgs/" + orgid + "/business/policies" + policy + " service validation: " + v)
+                var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+                breakable {
+                  for ((len, index) <- v.zipWithIndex) {
+                    if (len <= 0) {
+                      invalidIndex = index
+                      break
                     }
                   }
-                  if (invalidIndex < 0) action.transactionally.asTry
-                  else {
-                    val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-                    else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
-                    DBIO.failed(new Throwable(errStr)).asTry
-                  }
-                case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-              }).flatMap({
-                case Success(n) =>
-                  // Add the resource to the resourcechanges table
-                  logger.debug("PATCH /orgs/" + orgid + "/business/policies/" + policy + " result: " + n)
-                  val numUpdated = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
-                  if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-                    val policyChange = ResourceChangeRow(0, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
-                    policyChange.insert.asTry
-                  } else {
-                    DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
-                  }
-                case Failure(t) => DBIO.failed(t).asTry
-              })).map({
-                case Success(v) =>
-                  logger.debug("PATCH /orgs/" + orgid + "/business/policies/" + policy + " updated in changes table: " + v)
-                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.attribute.updated", attrName, compositeId)))
-                case Failure(t: DBProcessingError) =>
-                  if (t.httpCode == HttpCode.NOT_FOUND) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId)))
-                  else (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
-                case Failure(t) =>
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", compositeId, t.getMessage)))
-              })
-            }
-          }) // end of complete
-        } // end of validate
-      } // end of extractRawBodyAsStr
+                }
+                if (invalidIndex < 0) action.transactionally.asTry
+                else {
+                  val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                  else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
+                  DBIO.failed(new Throwable(errStr)).asTry
+                }
+              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+            }).flatMap({
+              case Success(n) =>
+                // Add the resource to the resourcechanges table
+                logger.debug("PATCH /orgs/" + orgid + "/business/policies/" + policy + " result: " + n)
+                val numUpdated = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
+                if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
+                  val policyChange = ResourceChangeRow(0, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                  policyChange.insert.asTry
+                } else {
+                  DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
+                }
+              case Failure(t) => DBIO.failed(t).asTry
+            })).map({
+              case Success(v) =>
+                logger.debug("PATCH /orgs/" + orgid + "/business/policies/" + policy + " updated in changes table: " + v)
+                (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.attribute.updated", attrName, compositeId)))
+              case Failure(t: DBProcessingError) =>
+                t.toComplete
+              case Failure(t) =>
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", compositeId, t.getMessage)))
+            })
+          }
+        }) // end of complete
+      } // end of validate
     } // end of exchAuth
   }
 
@@ -515,7 +512,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             logger.debug("DELETE /orgs/" + orgid + "/business/policies/" + policy + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("business.policy.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("business.policy.not.deleted", compositeId, t.toString)))
         })

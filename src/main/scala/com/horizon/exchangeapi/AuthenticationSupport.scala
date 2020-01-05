@@ -83,6 +83,9 @@ trait AuthenticationSupport extends AuthorizationSupport {
 
   // Custom directive to extract the request body (a.k.a entity) as a string (w/o json unmarshalling)
   //someday: this must be used as a separate directive, don't yet know how to combine it with the other directives using &
+  // Warning: can't use this when you are also using the normal entity(as[PatchNodesRequest]), or sometimes it will cause
+  //    error 'Substream Source cannot be materialized more than once'. So if you use this directive, you'll have to use
+  //    parse(request.body).extract[PatchNodesRequest] yourself to unmarshal the request body.
   def extractRawBodyAsStr: Directive1[String] = {
     extractStrictEntity(Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS)).flatMap { entity =>
       provide(entity.data.utf8String)

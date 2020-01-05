@@ -95,9 +95,9 @@ final case class PostPutServiceRequest(label: String, description: Option[String
 final case class PatchServiceRequest(label: Option[String], description: Option[String], public: Option[Boolean], documentation: Option[String], url: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def getAnyProblem(requestBody: String): Option[String] = {
-    if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
-    else None
+  def getAnyProblem: Option[String] = {
+    /* if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
+    else */ None
   }
 
   /** Returns a tuple of the db action to update parts of the service, and the attribute name being updated. */
@@ -387,7 +387,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               AuthCache.putServiceIsPublic(service, reqBody.public)
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.created", service)))
             case Failure(t: DBProcessingError) =>
-              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.created", service, t.getMessage)))
+              t.toComplete
             case Failure(t) => if (t.getMessage.contains("duplicate key value violates unique constraint")) {
               (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("service.already.exists", service, t.getMessage)))
             } else {
@@ -477,8 +477,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               logger.debug("PUT /orgs/" + orgid + "/services/" + service + " updated in changes table: " + v)
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.updated")))
             case Failure(t: DBProcessingError) =>
-              if (t.httpCode == HttpCode.NOT_FOUND) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId)))
-              else (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+              t.toComplete
             case Failure(t) =>
               if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
@@ -507,96 +506,93 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
     logger.debug(s"Doing PATCH /orgs/$orgid/services/$service")
     val compositeId = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
-      extractRawBodyAsStr { reqBodyAsStr =>
-        validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
-          complete({
-            val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid)
-            if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.service.attr.specified")))
-            else if (attrName == "url" || attrName == "version" || attrName == "arch") (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("cannot.patch.these.attributes")))
-            else if (attrName == "sharable" && !SharableVals.values.map(_.toString).contains(reqBody.sharable.getOrElse(""))) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.value.for.sharable.attribute", reqBody.sharable.getOrElse(""))))
+      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+        complete({
+          val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid)
+          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.service.attr.specified")))
+          else if (attrName == "url" || attrName == "version" || attrName == "arch") (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("cannot.patch.these.attributes")))
+          else if (attrName == "sharable" && !SharableVals.values.map(_.toString).contains(reqBody.sharable.getOrElse(""))) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.value.for.sharable.attribute", reqBody.sharable.getOrElse(""))))
+          else {
+            // Make a list of service searches for the required services. This can match more services than we need, because it wildcards the version.
+            // We'll look for versions within the required ranges in the db access routine below.
+            val svcIds = if (attrName == "requiredServices") reqBody.requiredServices.getOrElse(List()).map(s => ServicesTQ.formId(s.org, s.url, "%", s.arch)) else List()
+            val svcAction = if (svcIds.isEmpty) DBIO.successful(Vector()) // no services to look for
             else {
-              // Make a list of service searches for the required services. This can match more services than we need, because it wildcards the version.
-              // We'll look for versions within the required ranges in the db access routine below.
-              val svcIds = if (attrName == "requiredServices") reqBody.requiredServices.getOrElse(List()).map(s => ServicesTQ.formId(s.org, s.url, "%", s.arch)) else List()
-              val svcAction = if (svcIds.isEmpty) DBIO.successful(Vector()) // no services to look for
-              else {
-                // The inner map() and reduceLeft() OR together all of the likes to give to filter()
-                ServicesTQ.rows.filter(s => {
-                  svcIds.map(s.service like _).reduceLeft(_ || _)
-                }).map(s => (s.orgid, s.url, s.version, s.arch)).result
-              }
-
-              // First check that the requiredServices exist (if that is not what they are patching, this is a noop)
-              //todo: add a step to update the owner, if different
-              db.run(svcAction.transactionally.asTry.flatMap({
-                case Success(rows) =>
-                  logger.debug("PATCH /orgs/" + orgid + "/services requiredServices validation: " + rows)
-                  var invalidIndex = -1
-                  var invalidSvcRef = ServiceRef("", "", Some(""), Some(""), "")
-                  // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
-                  // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
-                  breakable {
-                    for ((svcRef, index) <- reqBody.requiredServices.getOrElse(List()).zipWithIndex) {
-                      breakable {
-                        for ((orgid, url, version, arch) <- rows) {
-                          //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                          val finalVersionRange = if (svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
-                          if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange))) break // we satisfied this requiredService so move on to the next
-                        }
-                        invalidIndex = index // we finished the inner loop but did not find a service that satisfied the requirement
-                        invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.versionRange, svcRef.arch)
-                      } //  if we found a service that satisfies the requirement, it breaks to this line
-                      if (invalidIndex >= 0) break // a requiredService was not satisfied, so break out of the outer loop and return an error
-                    }
-                  }
-                  if (invalidIndex < 0) action.transactionally.asTry // we are good, move on to the real patch action
-                  else {
-                    val errStr = ExchMsg.translate("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
-                    DBIO.failed(new Throwable(errStr)).asTry
-                  }
-                case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-              }).flatMap({
-                case Success(v) =>
-                  // Get the value of the public field
-                  logger.debug("PUT /orgs/" + orgid + "/services/" + service + " result: " + v)
-                  val numUpdated = v.asInstanceOf[Int] // v comes to us as type Any
-                  if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-                    if (attrName == "public") AuthCache.putServiceIsPublic(compositeId, reqBody.public.getOrElse(false))
-                    ServicesTQ.getPublic(compositeId).result.asTry
-                  } else {
-                    DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
-                  }
-                case Failure(t) => DBIO.failed(t).asTry
-              }).flatMap({
-                case Success(public) =>
-                  // Add the resource to the resourcechanges table
-                  logger.debug("PUT /orgs/" + orgid + "/services/" + service + " public field: " + public)
-                  val serviceId = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
-                  var publicField = false
-                  if (reqBody.public.isDefined) {
-                    publicField = reqBody.public.getOrElse(false)
-                  }
-                  else {
-                    publicField = public.head
-                  }
-                  val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", publicField.toString, "service", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
-                  serviceChange.insert.asTry
-                case Failure(t) => DBIO.failed(t).asTry
-              })).map({
-                case Success(v) =>
-                  logger.debug("PATCH /orgs/" + orgid + "/services/" + service + " updated in changes table: " + v)
-                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.attr.updated", attrName, compositeId)))
-                case Failure(t: DBProcessingError) =>
-                  if (t.httpCode == HttpCode.NOT_FOUND) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId)))
-                  else (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
-                case Failure(t) =>
-                  if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
-                  else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
-              })
+              // The inner map() and reduceLeft() OR together all of the likes to give to filter()
+              ServicesTQ.rows.filter(s => {
+                svcIds.map(s.service like _).reduceLeft(_ || _)
+              }).map(s => (s.orgid, s.url, s.version, s.arch)).result
             }
-          }) // end of complete
-        } // end of validate
-      } // end of extractRawBodyAsStr
+
+            // First check that the requiredServices exist (if that is not what they are patching, this is a noop)
+            //todo: add a step to update the owner, if different
+            db.run(svcAction.transactionally.asTry.flatMap({
+              case Success(rows) =>
+                logger.debug("PATCH /orgs/" + orgid + "/services requiredServices validation: " + rows)
+                var invalidIndex = -1
+                var invalidSvcRef = ServiceRef("", "", Some(""), Some(""), "")
+                // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
+                // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
+                breakable {
+                  for ((svcRef, index) <- reqBody.requiredServices.getOrElse(List()).zipWithIndex) {
+                    breakable {
+                      for ((orgid, url, version, arch) <- rows) {
+                        //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
+                        val finalVersionRange = if (svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
+                        if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange))) break // we satisfied this requiredService so move on to the next
+                      }
+                      invalidIndex = index // we finished the inner loop but did not find a service that satisfied the requirement
+                      invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.versionRange, svcRef.arch)
+                    } //  if we found a service that satisfies the requirement, it breaks to this line
+                    if (invalidIndex >= 0) break // a requiredService was not satisfied, so break out of the outer loop and return an error
+                  }
+                }
+                if (invalidIndex < 0) action.transactionally.asTry // we are good, move on to the real patch action
+                else {
+                  val errStr = ExchMsg.translate("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
+                  DBIO.failed(new Throwable(errStr)).asTry
+                }
+              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+            }).flatMap({
+              case Success(v) =>
+                // Get the value of the public field
+                logger.debug("PUT /orgs/" + orgid + "/services/" + service + " result: " + v)
+                val numUpdated = v.asInstanceOf[Int] // v comes to us as type Any
+                if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
+                  if (attrName == "public") AuthCache.putServiceIsPublic(compositeId, reqBody.public.getOrElse(false))
+                  ServicesTQ.getPublic(compositeId).result.asTry
+                } else {
+                  DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
+                }
+              case Failure(t) => DBIO.failed(t).asTry
+            }).flatMap({
+              case Success(public) =>
+                // Add the resource to the resourcechanges table
+                logger.debug("PUT /orgs/" + orgid + "/services/" + service + " public field: " + public)
+                val serviceId = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
+                var publicField = false
+                if (reqBody.public.isDefined) {
+                  publicField = reqBody.public.getOrElse(false)
+                }
+                else {
+                  publicField = public.head
+                }
+                val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", publicField.toString, "service", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                serviceChange.insert.asTry
+              case Failure(t) => DBIO.failed(t).asTry
+            })).map({
+              case Success(v) =>
+                logger.debug("PATCH /orgs/" + orgid + "/services/" + service + " updated in changes table: " + v)
+                (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.attr.updated", attrName, compositeId)))
+              case Failure(t: DBProcessingError) =>
+                t.toComplete
+              case Failure(t) =>
+                if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
+                else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
+            })
+          }
+        }) // end of complete
+      } // end of validate
     } // end of exchAuth
   }
 
@@ -645,7 +641,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             logger.debug("DELETE /orgs/" + orgid + "/services/" + service + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", compositeId, t.toString)))
         })
@@ -783,7 +779,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             logger.debug("DELETE /orgs/" + orgid + "/services/" + service + "/policy updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.policy.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.policy.not.deleted", compositeId, t.toString)))
         })
@@ -940,7 +936,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             logger.debug("DELETE /services/" + service + "/keys updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.keys.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.keys.not.deleted", compositeId, t.toString)))
         })
@@ -990,7 +986,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             logger.debug("DELETE /services/" + service + "/keys/" + keyId + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.key.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.key.not.deleted", keyId, compositeId, t.toString)))
         })
@@ -1169,7 +1165,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/dockauths/" + dockAuthId + " updated in changes table: " + v)
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("dockauth.updated", dockAuthId)))
             case Failure(t: DBProcessingError) =>
-              (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+              t.toComplete
             case Failure(t) =>
               if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage)))
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage)))
@@ -1220,7 +1216,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             logger.debug("DELETE /services/" + service + "/dockauths result: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.dockauths.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.dockauths.not.deleted", compositeId, t.toString)))
         })
@@ -1272,7 +1268,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
                 logger.debug("DELETE /services/" + service + "/dockauths/" + dockauthId + " updated in changes table: " + v)
                 (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.dockauths.deleted")))
               case Failure(t: DBProcessingError) =>
-                (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+                t.toComplete
               case Failure(t) =>
                 (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.dockauths.not.deleted", dockauthId, compositeId, t.toString)))
             })

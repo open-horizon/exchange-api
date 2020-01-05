@@ -50,9 +50,9 @@ final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Opti
 
 final case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], publicKey: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def getAnyProblem(requestBody: String): Option[String] = {
+  def getAnyProblem: Option[String] = {
     if (token.isDefined && token.get == "") Some(ExchMsg.translate("token.cannot.be.empty.string"))
-    else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
+    //else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
     else None
   }
 
@@ -273,7 +273,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
               AuthCache.putAgbotAndOwner(compositeId, hashedTok, reqBody.token, owner)
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.added.updated")))
             case Failure(t: DBProcessingError) =>
-              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.getMessage)))
+              t.toComplete
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
           })
@@ -301,37 +301,34 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
     logger.debug(s"Doing PATCH /orgs/$orgid/agbots/$id")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
-      extractRawBodyAsStr { reqBodyAsStr =>
-        validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
-          complete({
-            val hashedTok = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
-            val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid, hashedTok)
-            if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attribute.specified")))
-            else db.run(action.transactionally.asTry.flatMap({
-              case Success(v) =>
-                // Add the resource to the resourcechanges table
-                logger.debug(s"PATCH /orgs/$orgid/agbots/$id result: $v")
-                if (v.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
-                  if (reqBody.token.isDefined) AuthCache.putAgbot(compositeId, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
-                  val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
-                  agbotChange.insert.asTry
-                } else {
-                  DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", compositeId))).asTry
-                }
-              case Failure(t) => DBIO.failed(t).asTry
-            })).map({
-              case Success(v) =>
-                logger.debug(s"PATCH /orgs/$orgid/agbots/$id updated in changes table: $v")
-                (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.attribute.updated", attrName, compositeId)))
-              case Failure(t: DBProcessingError) =>
-                val msg = if (t.httpCode == HttpCode.NOT_FOUND) ExchMsg.translate("agbot.not.found", compositeId) else t.getMessage
-                (t.httpCode, ApiResponse(t.apiResponse, msg))
-              case Failure(t) =>
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
-            })
-          }) // end of complete
-        } // end of validate
-      } // end of extractRawBodyAsStr
+      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+        complete({
+          val hashedTok = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
+          val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid, hashedTok)
+          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attribute.specified")))
+          else db.run(action.transactionally.asTry.flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug(s"PATCH /orgs/$orgid/agbots/$id result: $v")
+              if (v.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
+                if (reqBody.token.isDefined) AuthCache.putAgbot(compositeId, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
+                val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                agbotChange.insert.asTry
+              } else {
+                DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", compositeId))).asTry
+              }
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug(s"PATCH /orgs/$orgid/agbots/$id updated in changes table: $v")
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.attribute.updated", attrName, compositeId)))
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
+          })
+        }) // end of complete
+      } // end of validate
     } // end of exchAuth
   }
 
@@ -369,7 +366,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
             logger.debug(s"DELETE /orgs/$orgid/agbots/$id updated in changes table: $v")
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.deleted", compositeId, t.toString)))
         })
@@ -555,7 +552,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
             logger.debug("DELETE /agbots/" + id + "/patterns updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("patterns.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("patterns.not.deleted", compositeId, t.toString)))
         })
@@ -596,7 +593,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
             logger.debug("DELETE /agbots/" + id + "/patterns/" + patId + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.pattern.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.not.deleted", patId, compositeId, t.toString)))
         })
@@ -750,7 +747,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
             logger.debug("DELETE /agbots/" + id + "/businesspols updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspols.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("buspols.not.deleted", compositeId, t.toString)))
         })
@@ -791,7 +788,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
             logger.debug("DELETE /agbots/" + id + "/businesspols/" + busPolId + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("buspol.not.deleted", busPolId, compositeId, t.toString)))
         })
@@ -908,7 +905,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
               logger.debug("PUT /orgs/" + orgid + "/agbots/" + id + "/agreements/" + agrId + " updated in changes table: " + v)
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.added.or.updated")))
             case Failure(t: DBProcessingError) =>
-              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("agreement.not.inserted.or.updated", agrId, compositeId, t.getMessage)))
+              t.toComplete
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agreement.not.inserted.or.updated", agrId, compositeId, t.toString)))
           })
@@ -950,7 +947,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
             logger.debug("DELETE /agbots/" + id + "/agreements updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.agreements.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.agreements.not.deleted", compositeId, t.toString)))
         })
@@ -991,7 +988,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
             logger.debug("DELETE /agbots/" + id + "/agreements/" + agrId + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.agreement.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agreement.for.agbot.not.deleted", agrId, compositeId, t.toString)))
         })
@@ -1121,8 +1118,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
             logger.debug("POST /orgs/{orgid}/agbots/" + id + "/msgs updated in changes table: " + v)
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, "agbot msg " + msgNum + " inserted"))
           case Failure(t: DBProcessingError) =>
-            if (t.httpCode == HttpCode.BAD_INPUT) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("agbot.message.not.inserted", compositeId, ExchMsg.translate("agbot.message.invalid.input"))))
-            else (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             if (t.getMessage.contains("is not present in table")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.message.agbotid.not.found", compositeId, t.getMessage)))
             else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.inserted", compositeId, t.toString)))
@@ -1200,7 +1196,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
               logger.debug("DELETE /agbots/" + id + "/msgs/" + msgId + " updated in changes table: " + v)
               (HttpCode.DELETED,  ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.message.deleted")))
             case Failure(t: DBProcessingError) =>
-              (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+              t.toComplete
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.deleted", msgId, compositeId, t.toString)))
           })

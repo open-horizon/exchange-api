@@ -97,9 +97,9 @@ final case class PutNodesRequest(token: String, name: String, pattern: String, r
 final case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def getAnyProblem(requestBody: String): Option[String] = {
+  def getAnyProblem: Option[String] = {
     if (token.isDefined && token.get == "") Some(ExchMsg.translate("token.cannot.be.empty.string"))
-    else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
+    //else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
     else None
   }
     /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
@@ -483,7 +483,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
               //AuthCache.nodesOwner.putOne(id, owner)
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))
             case Failure(t: DBProcessingError) =>
-              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage)))
+              t.toComplete
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage)))
           })
@@ -511,82 +511,80 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     logger.debug(s"Doing PATCH /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
-      extractRawBodyAsStr { reqBodyAsStr =>
-        validate(reqBody.getAnyProblem(reqBodyAsStr).isEmpty, "Problem in request body") {
-          complete({
-            val hashedPw = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
-            val (action, attrName) = reqBody.getDbUpdate(compositeId, hashedPw)
-            if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.note.attr.specified")))
-            else {
-              val patValidateAction = if (attrName == "pattern" && reqBody.pattern.get != "") PatternsTQ.getPattern(reqBody.pattern.get).length.result else DBIO.successful(1)
-              val (valServiceIdActions, svcRefs) = if (attrName == "userInput") NodesTQ.validateServiceIds(reqBody.userInput.get) else (DBIO.successful(Vector()), Vector())
-              db.run(patValidateAction.asTry.flatMap({
-                case Success(num) =>
-                  // Check if pattern exists, then get services referenced
-                  logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " pattern validation: " + num)
-                  if (num > 0) valServiceIdActions.asTry
-                  else DBIO.failed(new Throwable(ExchMsg.translate("pattern.not.in.exchange"))).asTry
-                case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-              }).flatMap({
-                case Success(v) =>
-                  // Check if referenced services exist, then get whether node is using policy
-                  logger.debug("PATCH /orgs/" + orgid + "/nodes" + id + " service validation: " + v)
-                  var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
-                  breakable {
-                    for ((len, index) <- v.zipWithIndex) {
-                      if (len <= 0) {
-                        invalidIndex = index
-                        break
-                      }
+      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+        complete({
+          val hashedPw = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
+          val (action, attrName) = reqBody.getDbUpdate(compositeId, hashedPw)
+          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.note.attr.specified")))
+          else {
+            val patValidateAction = if (attrName == "pattern" && reqBody.pattern.get != "") PatternsTQ.getPattern(reqBody.pattern.get).length.result else DBIO.successful(1)
+            val (valServiceIdActions, svcRefs) = if (attrName == "userInput") NodesTQ.validateServiceIds(reqBody.userInput.get) else (DBIO.successful(Vector()), Vector())
+            db.run(patValidateAction.asTry.flatMap({
+              case Success(num) =>
+                // Check if pattern exists, then get services referenced
+                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " pattern validation: " + num)
+                if (num > 0) valServiceIdActions.asTry
+                else DBIO.failed(new Throwable(ExchMsg.translate("pattern.not.in.exchange"))).asTry
+              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+            }).flatMap({
+              case Success(v) =>
+                // Check if referenced services exist, then get whether node is using policy
+                logger.debug("PATCH /orgs/" + orgid + "/nodes" + id + " service validation: " + v)
+                var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+                breakable {
+                  for ((len, index) <- v.zipWithIndex) {
+                    if (len <= 0) {
+                      invalidIndex = index
+                      break
                     }
                   }
-                  if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(compositeId).result.asTry
-                  else {
-                    val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-                    else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
-                    DBIO.failed(new Throwable(errStr)).asTry
+                }
+                if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(compositeId).result.asTry
+                else {
+                  val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                  else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
+                  DBIO.failed(new Throwable(errStr)).asTry
+                }
+              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+            }).flatMap({
+              case Success(v) =>
+                // Check if node is using policy, then update node
+                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " policy related attrs: " + v)
+                if (v.nonEmpty) {
+                  val (existingPattern, existingPublicKey) = v.head
+                  if (reqBody.pattern.getOrElse("") != "" && existingPattern == "" && existingPublicKey != "") DBIO.failed(new Throwable(ExchMsg.translate("not.pattern.when.policy"))).asTry
+                  else action.transactionally.asTry // they are not trying to switch from policy to pattern, so we can continue
+                }
+                else action.transactionally.asTry // node doesn't exit yet, we can continue
+              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+            }).flatMap({
+              case Success(v) =>
+                // Add the resource to the resourcechanges table
+                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " result: " + v)
+                val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "node", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                nodeChange.insert.asTry
+              case Failure(t) => DBIO.failed(t).asTry
+            })).map({
+              case Success(v) =>
+                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
+                try {
+                  val numUpdated = v.toString.toInt // v comes to us as type Any
+                  if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
+                    if (reqBody.token.isDefined) AuthCache.putNode(compositeId, hashedPw, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
+                    //AuthCache.ids.putNode(id, hashedPw, node.token.get)
+                    (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", attrName, compositeId)))
+                  } else {
+                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
                   }
-                case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-              }).flatMap({
-                case Success(v) =>
-                  // Check if node is using policy, then update node
-                  logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " policy related attrs: " + v)
-                  if (v.nonEmpty) {
-                    val (existingPattern, existingPublicKey) = v.head
-                    if (reqBody.pattern.getOrElse("") != "" && existingPattern == "" && existingPublicKey != "") DBIO.failed(new Throwable(ExchMsg.translate("not.pattern.when.policy"))).asTry
-                    else action.transactionally.asTry // they are not trying to switch from policy to pattern, so we can continue
-                  }
-                  else action.transactionally.asTry // node doesn't exit yet, we can continue
-                case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-              }).flatMap({
-                case Success(v) =>
-                  // Add the resource to the resourcechanges table
-                  logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " result: " + v)
-                  val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "node", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
-                  nodeChange.insert.asTry
-                case Failure(t) => DBIO.failed(t).asTry
-              })).map({
-                case Success(v) =>
-                  logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
-                  try {
-                    val numUpdated = v.toString.toInt // v comes to us as type Any
-                    if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-                      if (reqBody.token.isDefined) AuthCache.putNode(compositeId, hashedPw, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
-                      //AuthCache.ids.putNode(id, hashedPw, node.token.get)
-                      (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", attrName, compositeId)))
-                    } else {
-                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
-                    }
-                  } catch {
-                    case e: Exception => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unexpected.result.from.update", e)))
-                  }
-                case Failure(t) =>
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage)))
-              })
-            }
-          }) // end of complete
-        } // end of validate
-      } // end of extractRawBodyAsStr
+                } catch {
+                  case e: Exception => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unexpected.result.from.update", e)))
+                }
+              case Failure(t) =>
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage)))
+            })
+          }
+        }) // end of complete
+      } // end of validate
     } // end of exchAuth
   }
 
@@ -677,7 +675,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             logger.debug(s"DELETE /orgs/$orgid/nodes/$id updated in changes table: $v")
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             if (t.getMessage.contains("couldn't find node")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
             else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.deleted", compositeId, t.toString)))
@@ -829,7 +827,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.errors.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.errors.not.deleted", compositeId, t.toString)))
         })
@@ -960,7 +958,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.status.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.status.not.deleted", compositeId, t.toString)))
         })
@@ -1054,8 +1052,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/policy updating resource status table: " + v)
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.policy.added.or.updated")))
             case Failure(t: DBProcessingError) =>
-              if (t.httpCode == HttpCode.NOT_FOUND) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
-              else (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+              t.toComplete
             case Failure(t) =>
               if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.policy.not.inserted.or.updated", compositeId, t.getMessage)))
               else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.policy.not.inserted.or.updated", compositeId, t.toString)))
@@ -1097,7 +1094,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource policy table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.policy.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.policy.not.deleted", compositeId, t.toString)))
         })
@@ -1229,7 +1226,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
                 case e: Exception => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.updated", compositeId, e)))
               } // the specific exception is NumberFormatException
             case Failure(t: DBProcessingError) =>
-              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.agreement.not.inserted.or.updated", agrId, compositeId, t.getMessage)))
+              t.toComplete
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.inserted.or.updated", agrId, compositeId, t.toString)))
           })
@@ -1271,7 +1268,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             logger.debug("DELETE /nodes/" + id + "/agreements updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreements.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreements.not.deleted", compositeId, t.toString)))
         })
@@ -1312,7 +1309,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             logger.debug("DELETE /nodes/" + id + "/agreements/" + agrId + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.deleted")))
           case Failure(t: DBProcessingError) =>
-            (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.deleted", agrId, compositeId, t.toString)))
         })
@@ -1379,8 +1376,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             logger.debug("POST /orgs/" + orgid + "/nodes/" + id + "/msgs update changes table : " + v)
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.inserted", msgNum)))
           case Failure(t: DBProcessingError) =>
-            if (t.httpCode == HttpCode.ACCESS_DENIED) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.msg.not.inserted", compositeId, t.getMessage)))
-            else (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+            t.toComplete
           case Failure(t) =>
             if (t.getMessage.contains("is not present in table")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.nodeid.not.found", compositeId, t.getMessage)))
             else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.inserted", compositeId, t.toString)))
@@ -1458,7 +1454,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
               logger.debug("DELETE /nodes/" + id + "/msgs/" + msgId + " updated in changes table: " + v)
               (HttpCode.DELETED,  ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.deleted")))
             case Failure(t: DBProcessingError) =>
-              (t.httpCode, ApiResponse(t.apiResponse, t.getMessage))
+              t.toComplete
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.deleted", msgId, compositeId, t.toString)))
           })

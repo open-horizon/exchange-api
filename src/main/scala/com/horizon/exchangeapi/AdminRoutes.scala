@@ -315,7 +315,7 @@ class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
   def adminDeleteIbmChangesRoute: Route = (delete & path("orgs" / "IBM" / "changes" / "cleanup") & entity(as[DeleteIBMChangesRequest])) { reqBody =>
     logger.debug("Doing POST /orgs/IBM/changes/cleanup")
     exchAuth(TAction(), Access.ADMIN) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val resourcesSet = reqBody.resources.toSet
           val action = ResourceChangesTQ.rows.filter(_.orgId === "IBM").filter(_.id inSet resourcesSet).delete
@@ -328,7 +328,7 @@ class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, "IBM org changes not deleted: " + t.toString))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 

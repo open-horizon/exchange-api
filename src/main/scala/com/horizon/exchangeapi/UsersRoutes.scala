@@ -172,7 +172,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
     val compositeId = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.CREATE) { ident =>
-      validate(reqBody.getAnyProblem(ident.isAdmin).isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem(ident.isAdmin)) {
         complete({
           val updatedBy = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
           val hashedPw = Password.hash(reqBody.password)
@@ -187,7 +187,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             }
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -210,7 +210,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
     val compositeId = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.WRITE) { ident =>
-      validate(reqBody.getAnyProblem(ident.isAdmin).isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem(ident.isAdmin)) {
         complete({
           val updatedBy = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
           val hashedPw = Password.hash(reqBody.password)
@@ -229,7 +229,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             }
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -252,7 +252,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
     val compositeId = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.WRITE) { ident =>
-      validate(reqBody.getAnyProblem(ident.isAdmin).isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem(ident.isAdmin)) {
         complete({
           val updatedBy = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
           val hashedPw = if (reqBody.password.isDefined) Password.hash(reqBody.password.get) else "" // hash the pw if that is what is being updated
@@ -274,7 +274,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             }
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -357,7 +357,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
     val compositeId = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val hashedPw = Password.hash(reqBody.newPassword)
           val action = reqBody.getDbUpdate(compositeId, orgid, hashedPw)
@@ -376,7 +376,7 @@ class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             }
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 

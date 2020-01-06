@@ -412,7 +412,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     logger.debug(s"Doing PUT /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { ident =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
           val patValidateAction = if (reqBody.pattern != "") PatternsTQ.getPattern(reqBody.pattern).length.result else DBIO.successful(1)
@@ -488,7 +488,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -511,7 +511,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     logger.debug(s"Doing PATCH /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val hashedPw = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
           val (action, attrName) = reqBody.getDbUpdate(compositeId, hashedPw)
@@ -584,7 +584,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
             })
           }
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -612,7 +612,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
   def nodePostConfigStateRoute: Route = (post & path("orgs" / Segment / "nodes" / Segment / "services_configstate") & entity(as[PostNodeConfigStateRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(NodesTQ.getRegisteredServices(compositeId).result.asTry.flatMap({
             case Success(v) =>
@@ -637,7 +637,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -773,7 +773,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
   def nodePutErrorsRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "errors") & entity(as[PutNodeErrorRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(reqBody.toNodeErrorRow(compositeId).upsert.asTry.flatMap({
             case Success(v) =>
@@ -791,7 +791,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
               else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.errors.not.inserted", compositeId, t.toString)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -904,7 +904,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
   def nodePutStatusRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "status") & entity(as[PutNodeStatusRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(reqBody.toNodeStatusRow(compositeId).upsert.asTry.flatMap({
             case Success(v) =>
@@ -922,7 +922,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
               else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.status.not.inserted.or.updated", compositeId, t.toString)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -1024,7 +1024,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
   def nodePutPolicyRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "policy") & entity(as[PutNodePolicyRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(reqBody.toNodePolicyRow(compositeId).upsert.asTry.flatMap({
             case Success(v) =>
@@ -1058,7 +1058,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
               else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.policy.not.inserted.or.updated", compositeId, t.toString)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -1190,7 +1190,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
   def nodePutAgreementRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & entity(as[PutNodeAgreementRequest])) { (orgid, id, agrId, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(NodeAgreementsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
             logger.debug("PUT /orgs/"+orgid+"/nodes/"+id+"/agreements/"+agrId+" num owned: "+xs)
@@ -1231,7 +1231,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.inserted.or.updated", agrId, compositeId, t.toString)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 

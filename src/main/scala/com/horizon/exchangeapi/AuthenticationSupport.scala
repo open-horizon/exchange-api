@@ -1,6 +1,7 @@
 package com.horizon.exchangeapi
 
 import akka.event.LoggingAdapter
+import akka.http.scaladsl.server.{Directive, Directive0, ValidationRejection}
 //import akka.http.scaladsl.model.headers.HttpCredentials
 //import akka.http.scaladsl.server.util.Tuple
 import akka.http.scaladsl.server.Directive1
@@ -82,7 +83,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
   // def setDbMigration(dbMigration: Boolean): Unit = { migratingDb = dbMigration }
 
   // Custom directive to extract the request body (a.k.a entity) as a string (w/o json unmarshalling)
-  //someday: this must be used as a separate directive, don't yet know how to combine it with the other directives using &
+  //someday: currently this must be used as a separate directive, don't yet know how to combine it with the other directives using &
   // Warning: can't use this when you are also using the normal entity(as[PatchNodesRequest]), or sometimes it will cause
   //    error 'Substream Source cannot be materialized more than once'. So if you use this directive, you'll have to use
   //    parse(request.body).extract[PatchNodesRequest] yourself to unmarshal the request body.
@@ -91,6 +92,14 @@ trait AuthenticationSupport extends AuthorizationSupport {
       provide(entity.data.utf8String)
     }
   }
+
+  // Custom directive, like validate() from akka.http.scaladsl.directives.MiscDirectives, except that the checking function returns
+  // an Option[String] (instead of a boolean) so if invalid input is found, it can return an error msg specific to the problem.
+  def validateWithMsg(check: => Option[String]): Directive0 =
+    Directive {
+      val errorMsg = check
+      inner => if (errorMsg.isEmpty) inner(()) else reject(ValidationRejection(errorMsg.get))
+    }
 
   /* some past attempts at using the akka authenticateBasic directive, and a custom directive
   def exchangeAuth(credentials: Credentials): Option[AuthenticatedIdentity] = {

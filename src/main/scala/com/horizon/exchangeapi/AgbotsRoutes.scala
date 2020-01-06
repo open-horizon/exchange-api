@@ -247,7 +247,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
     logger.debug(s"Doing PUT /orgs/$orgid/agbots/$id")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { ident =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
           val hashedTok = Password.hash(reqBody.token)
@@ -278,7 +278,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -301,7 +301,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
     logger.debug(s"Doing PATCH /orgs/$orgid/agbots/$id")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val hashedTok = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
           val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid, hashedTok)
@@ -328,7 +328,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -489,7 +489,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   def agbotPostPatRoute: Route = (post & path("orgs" / Segment / "agbots" / Segment / "patterns") & entity(as[PostAgbotPatternRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val patId = reqBody.formId
           db.run(PatternsTQ.getPattern(OrgAndId(reqBody.patternOrgid,reqBody.pattern).toString).length.result.asTry.flatMap({
@@ -515,7 +515,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.inserted", patId, compositeId, t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -684,7 +684,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   def agbotPostBusPolRoute: Route = (post & path("orgs" / Segment / "agbots" / Segment / "businesspols") & entity(as[PostAgbotBusinessPolRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val patId = reqBody.formId
           db.run(BusinessPoliciesTQ.getBusinessPolicy(OrgAndId(reqBody.businessPolOrgid,reqBody.businessPol).toString).length.result.asTry.flatMap({
@@ -710,7 +710,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.inserted", patId, compositeId, t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -883,7 +883,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
   def agbotPutAgreementRoute: Route = (put & path("orgs" / Segment / "agbots" / Segment / "agreements" / Segment) & entity(as[PutAgbotAgreementRequest])) { (orgid, id, agrId, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(AgbotAgreementsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
             logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" num owned: "+xs)
@@ -910,7 +910,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agreement.not.inserted.or.updated", agrId, compositeId, t.toString)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 

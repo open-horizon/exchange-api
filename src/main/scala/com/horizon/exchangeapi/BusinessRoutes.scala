@@ -277,7 +277,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
   def busPolPostRoute: Route = (post & path("orgs" / Segment / "business" / "policies" / Segment) & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
     val compositeId = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.CREATE) { ident =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
           val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
@@ -330,7 +330,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.created", compositeId, t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -352,7 +352,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
   def busPolPutRoute: Route = (put & path("orgs" / Segment / "business" / "policies" / Segment) & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
     val compositeId = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.WRITE) { ident =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
           val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
@@ -399,7 +399,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", compositeId, t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -422,7 +422,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
     logger.debug(s"Doing PATCH /orgs/$orgid/business/policies/$policy")
     val compositeId = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid)
           if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.buspol.attribute.specified")))
@@ -473,7 +473,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             })
           }
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -545,7 +545,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
   def busPolPostSearchRoute: Route = (post & path("orgs" / Segment / "business" / "policies" / Segment / "search") & entity(as[PostBusinessPolicySearchRequest])) { (orgid, policy, reqBody) =>
     val compositeId = OrgAndId(orgid, policy).toString
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val nodeOrgids = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
           var searchSvcUrl = ""    // a composite value (org/url), will be set later in the db.run()
@@ -603,7 +603,7 @@ class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 

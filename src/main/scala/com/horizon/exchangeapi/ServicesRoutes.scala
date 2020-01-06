@@ -319,7 +319,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def servicePostRoute: Route = (post & path("orgs" / Segment / "services") & entity(as[PostPutServiceRequest])) { (orgid, reqBody) =>
     exchAuth(TService(OrgAndId(orgid,"").toString), Access.CREATE) { ident =>
-      validate(reqBody.getAnyProblem(orgid, null).isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem(orgid, null)) {
         complete({
           val service = reqBody.formId(orgid)
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }   // currently only users are allowed to create/update services, so owner will never be blank
@@ -395,7 +395,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             }
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -417,7 +417,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
   def servicePutRoute: Route = (put & path("orgs" / Segment / "services" / Segment) & entity(as[PostPutServiceRequest])) { (orgid, service, reqBody) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId), Access.WRITE) { ident =>
-      validate(reqBody.getAnyProblem(orgid, compositeId).isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem(orgid, compositeId)) {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }   // currently only users are allowed to create/update services, so owner will never be blank
 
@@ -483,7 +483,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -506,7 +506,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
     logger.debug(s"Doing PATCH /orgs/$orgid/services/$service")
     val compositeId = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid)
           if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.service.attr.specified")))
@@ -592,7 +592,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             })
           }
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -709,7 +709,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
   def servicePutPolicyRoute: Route = (put & path("orgs" / Segment / "services" / Segment / "policy") & entity(as[PutServicePolicyRequest])) { (orgid, service, reqBody) =>
     val compositeId = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(reqBody.toServicePolicyRow(compositeId).upsert.asTry.flatMap({
             case Success(v) =>
@@ -734,7 +734,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("policy.not.inserted.or.updated", compositeId, t.toString)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -865,7 +865,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
       extractRawBodyAsStr { reqBodyAsStr =>
         val reqBody = PutServiceKeyRequest(reqBodyAsStr)
-        validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+        validateWithMsg(reqBody.getAnyProblem) {
           complete({
             db.run(reqBody.toServiceKeyRow(compositeId, keyId).upsert.asTry.flatMap({
               case Success(v) =>
@@ -890,7 +890,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
                 else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
             })
           }) // end of complete
-        } // end of validate
+        } // end of validateWithMsg
       } // end of extractRawBodyAsStr
     } // end of exchAuth
   }
@@ -1080,7 +1080,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
   def servicePostDockauthRoute: Route = (post & path("orgs" / Segment / "services" / Segment / "dockauths") & entity(as[PostPutServiceDockAuthRequest])) { (orgid, service, reqBody) =>
     val compositeId = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem(None).isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem(None)) {
         complete({
           val dockAuthId = 0      // the db will choose a new id on insert
           var resultNum = 2
@@ -1119,7 +1119,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.dockauth.not.inserted", dockAuthId, compositeId, t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -1141,9 +1141,9 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
   def servicePutDockauthRoute: Route = (put & path("orgs" / Segment / "services" / Segment / "dockauths" / Segment) & entity(as[PostPutServiceDockAuthRequest])) { (orgid, service, dockauthIdAsStr, reqBody) =>
     val compositeId = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem(Some(dockauthIdAsStr)).isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem(Some(dockauthIdAsStr))) {
         complete({
-          val dockAuthId = dockauthIdAsStr.toInt  // already checked that it is a valid int in validate()
+          val dockAuthId = dockauthIdAsStr.toInt  // already checked that it is a valid int in validateWithMsg()
           db.run(reqBody.toServiceDockAuthRow(compositeId, dockAuthId).update.asTry.flatMap({
             case Success(n) =>
               // Get the value of the public field
@@ -1171,7 +1171,7 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 

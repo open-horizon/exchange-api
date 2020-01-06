@@ -312,7 +312,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
   def patternPostRoute: Route = (post & path("orgs" / Segment / "patterns" / Segment) & entity(as[PostPutPatternRequest])) { (orgid, pattern, reqBody) =>
     val compositeId = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId), Access.CREATE) { ident =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
           // Get optional agbots that should be updated with this new pattern
@@ -379,7 +379,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               }
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -401,7 +401,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
   def patternPuttRoute: Route = (put & path("orgs" / Segment / "patterns" / Segment) & entity(as[PostPutPatternRequest])) { (orgid, pattern, reqBody) =>
     val compositeId = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId), Access.WRITE) { ident =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
           var storedPatternPublic = false
@@ -483,7 +483,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", compositeId, t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -506,7 +506,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
     logger.debug(s"Doing PATCH /orgs/$orgid/patterns/$pattern")
     val compositeId = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId), Access.WRITE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid)
           var storedPatternPublic = false
@@ -593,7 +593,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             })
           }
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -676,7 +676,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
   def patternPostSearchRoute: Route = (post & path("orgs" / Segment / "patterns" / Segment / "search") & entity(as[PostPatternSearchRequest])) { (orgid, pattern, reqBody) =>
     val compositeId = OrgAndId(orgid, pattern).toString
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val nodeOrgids = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
           logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+reqBody.toString)
@@ -787,7 +787,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -813,7 +813,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def patternNodeHealthRoute: Route = (post & path("orgs" / Segment / "patterns" / Segment / "nodehealth") & entity(as[PostNodeHealthRequest])) { (orgid, pattern, reqBody) =>
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val compositePat = OrgAndId(orgid,pattern).toString
           val nodeOrgids = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
@@ -835,7 +835,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             else (HttpCode.NOT_FOUND, PostNodeHealthResponse(Map[String,NodeHealthHashElement]()))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -921,7 +921,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
     exchAuth(TPattern(compositeId),Access.WRITE) { _ =>
       extractRawBodyAsStr { reqBodyAsStr =>
         val reqBody = PutPatternKeyRequest(reqBodyAsStr)
-        validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+        validateWithMsg(reqBody.getAnyProblem) {
           complete({
             db.run(reqBody.toPatternKeyRow(compositeId, keyId).upsert.asTry.flatMap({
               case Success(v) =>
@@ -946,7 +946,7 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
                 else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
             })
           }) // end of complete
-        } // end of validate
+        } // end of validateWithMsg
       } // end of extractRawBodyAsStr
     } // end of exchAuth
   }

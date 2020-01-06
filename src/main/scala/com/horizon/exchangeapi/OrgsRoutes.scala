@@ -283,7 +283,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
   def orgPostRoute: Route = (post & path("orgs" / Segment) & entity(as[PostPutOrgRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgId")
     exchAuth(TOrg(""), Access.CREATE) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") { //todo: create a custom validation directive so we can return the specific error msg from getAnyProblem to the client
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(reqBody.toOrgRow(orgId).insert.asTry).map({
             case Success(n) =>
@@ -295,7 +295,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
               else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.created", orgId, t.toString)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -317,7 +317,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
     logger.debug(s"Doing PUT /orgs/$orgId with orgId:$orgId")
     val access = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
     exchAuth(TOrg(orgId), access) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(reqBody.toOrgRow(orgId).update.asTry).map({
             case Success(n) =>
@@ -328,7 +328,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -350,7 +350,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
     logger.debug(s"Doing PATCH /orgs/$orgId with orgId:$orgId")
     val access = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
     exchAuth(TOrg(orgId), access) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val (action, attrName) = reqBody.getDbUpdate(orgId)
           if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.org.attr.specified")))
@@ -363,7 +363,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -450,7 +450,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
   def orgPostNodesServiceRoute: Route = (post & path("orgs" / Segment / "search" / "nodes" / "service") & entity(as[PostServiceSearchRequest])) { (orgid, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/service")
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val service = reqBody.serviceURL+"_"+reqBody.serviceVersion+"_"+reqBody.serviceArch
           logger.debug("POST /orgs/"+orgid+"/search/nodes/service criteria: "+reqBody.toString)
@@ -465,7 +465,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
             (code, PostServiceSearchResponse(list))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -491,7 +491,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
   def orgPostNodesHealthRoute: Route = (post & path("orgs" / Segment / "search" / "nodehealth") & entity(as[PostNodeHealthRequest])) { (orgid, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/service")
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           /*
             Join nodes and agreements and return: n.id, n.lastHeartbeat, a.id, a.lastUpdated.
@@ -510,7 +510,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
             else (HttpCode.NOT_FOUND, PostNodeHealthResponse(Map[String,NodeHealthHashElement]()))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 
@@ -590,7 +590,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
   def orgChangesRoute: Route = (post & path("orgs" / Segment / "changes") & entity(as[ResourceChangesRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgId/changes")
     exchAuth(TOrg(orgId), Access.READ) { ident =>
-      validate(reqBody.getAnyProblem.isEmpty, "Problem in request body") {
+      validateWithMsg(reqBody.getAnyProblem) {
         complete({
           // Variables to help with building the query
           val lastTime = reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)
@@ -638,7 +638,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
           })
         }) // end of complete
-      } // end of validate
+      } // end of validateWithMsg
     } // end of exchAuth
   }
 

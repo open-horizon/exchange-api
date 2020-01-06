@@ -188,7 +188,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
 
     // Called when this user id isn't in the cache. Gets the user from the db and puts the boolean value in the cache.
     private def getId(id: String): Try[Boolean] = {
-      logger.debug("CacheBoolean:getId(): " + id + " was not in the cache, so attempting to get it from the db")
+      //logger.debug("CacheBoolean:getId(): " + id + " was not in the cache, so attempting to get it from the db")
       //val dbAction = UsersTQ.getAdmin(id).result
       try {
         //logger.debug("CacheBoolean:getId(): awaiting for DB query of local exchange bool value for "+id+"...")
@@ -196,7 +196,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
         //logger.debug("CacheBoolean:getId(): ...back from awaiting for DB query of local exchange bool value for "+id+".")
         if (respVector.nonEmpty) {
           val isValue = respVector.head
-          logger.debug("CacheBoolean:getId(): " + id + " found in the db, adding it with value " + isValue + " to the cache")
+          logger.debug("CacheBoolean:getId(): " + id + " was not in the cache but found in the db, adding it with value " + isValue + " to the cache")
           Success(isValue)
         } else Failure(new IdNotFoundException)
       } catch {

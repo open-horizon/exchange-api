@@ -92,15 +92,14 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 - Run the performance tests: `src/test/bash/scale/test.sh` or `src/test/bash/scale/wrapper.sh 8`
 - Make sure to run `primedb.sh` before running the  `AgbotsSuite` test class to run all of the tests.
 
-## Building and Running the Container
-
-**Todo: this section needs to be updated for akka-http. See: https://www.codemunity.io/tutorials/dockerising-akka-http/**
+## Building and Running the Docker Container
 
 - Update the version in `src/main/resources.version.txt`
-- To build the build container, compile your local code, build the exchange container, and run it, run: `make` . Or you can do the individual steps:
-    - Build the build container: `make .docker-bld`
-    - Build the code from your local exchange repo in the build container: `make .docker-compile`
-    - Build the exchange api container and run it locally: `make .docker-exec-run`
+- **This step doesn't work yet, use the 2 steps in the following bullet for now
+  - To compile your local code, build the exchange container, and run it, run: `make`
+- Or you can build and run in separate steps:
+    - Compile your local code and build the exchange container: `make .docker-exec`
+    - Run the container locally: `make start-docker-exec`
 - Manually test container locally: `curl -sS -w %{http_code} http://localhost:8080/v1/admin/version`
     - Note: the container can not access a postgres db running locally on the docker host if the db is only listening for unix domain sockets or 127.0.0.1.
 - Manually test the local container via https:
@@ -108,9 +107,20 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - Add `edge-fab-exchange` as an alias for `localhost` in `/etc/hosts`
     - `src/test/bash/https.sh get services`
 - Run the automated tests: `sbt test`
-- Check the swagger info from the container: `http://localhost:8080/api`
+- Check the swagger info from the container: `http://localhost:8080/v1/swagger`
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or might also go to `/var/log/syslog` depending on the docker and syslog configuration.
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
+
+### Notes About the Docker Image Build Process
+
+- See https://www.codemunity.io/tutorials/dockerising-akka-http/
+- Uses the sbt-native-packager plugin. See the above URL for what to add to your sbt-related files
+- Manually build and run the exchange executable
+  - `sbt stage`
+  - `./target/universal/stage/bin/exchange-api -Djava.security.auth.login.config=src/main/resources/jaas.config`
+- To see the dockerfile that gets created:
+  - `sbt docker:stage`
+  - `cat target/docker/stage/Dockerfile`
 
 ## Test the Exchange with Anax
 
@@ -129,10 +139,11 @@ cd ~/src/github.com/open-horizon/anax
 git pull
 make clean
 make
-make fss
+make fss   # this might not be needed
 cd test
 make
 make test TEST_VARS="NOLOOP=1 TEST_PATTERNS=sall" DOCKER_EXCH_TAG=$1
+make stop
 make test TEST_VARS="NOLOOP=1" DOCKER_EXCH_TAG=$1
 echo 'Now run: cd $HOME/src/github.com/open-horizon/anax/test && make realclean && sudo systemctl start horizon.service && cd -'
 set +e
@@ -211,7 +222,16 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 ## Changes in 2.0.x
 
-- Rebase exchange api server to akka-http
+- Rebased exchange api server to akka-http
+- Removed old functionality:
+  - Authorization:Basic header value must now always be base64 encoded
+  - The Try it out button on the swagger display is not supported.
+  - Being front-ended by a component that does all of the auth (like DataPower) is not supported
+  - PUT /orgs/{orgid}/users/{username} to create a new user (use POST instead)
+  - Removed POST /admin/loglevel
+  - Removed POST /admin/upgradedb
+  - Removed POST /admin/downgradedb
+  - Removed POST /orgs/{orgid}/search/nodes
 
 ## Changes in 1.122.0
 

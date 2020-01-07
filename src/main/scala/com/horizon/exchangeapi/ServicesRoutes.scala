@@ -202,9 +202,9 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
           owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
           public.foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
-          url.foreach(url => { if (url.contains("%")) q = q.filter(_.label like url) else q = q.filter(_.label === url) })
-          version.foreach(version => { if (version.contains("%")) q = q.filter(_.description like version) else q = q.filter(_.description === version) })
-          arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.description like arch) else q = q.filter(_.description === arch) })
+          url.foreach(url => { if (url.contains("%")) q = q.filter(_.url like url) else q = q.filter(_.url === url) })
+          version.foreach(version => { if (version.contains("%")) q = q.filter(_.version like version) else q = q.filter(_.version === version) })
+          arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
 
           // We are cheating a little on this one because the whole requiredServices structure is serialized into a json string when put in the db, so it has a string value like
           // [{"url":"mydomain.com.rtlsdr","version":"1.0.0","arch":"amd64"}]. But we can still match on the url.
@@ -569,16 +569,18 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               case Success(public) =>
                 // Add the resource to the resourcechanges table
                 logger.debug("PUT /orgs/" + orgid + "/services/" + service + " public field: " + public)
-                val serviceId = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
-                var publicField = false
-                if (reqBody.public.isDefined) {
-                  publicField = reqBody.public.getOrElse(false)
-                }
-                else {
-                  publicField = public.head
-                }
-                val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", publicField.toString, "service", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
-                serviceChange.insert.asTry
+                if (public.nonEmpty) {
+                  val serviceId = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
+                  var publicField = false
+                  if (reqBody.public.isDefined) {
+                    publicField = reqBody.public.getOrElse(false)
+                  }
+                  else {
+                    publicField = public.head
+                  }
+                  val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", publicField.toString, "service", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                  serviceChange.insert.asTry
+                } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
               case Success(v) =>
@@ -619,8 +621,10 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           case Success(public) =>
             // Get the value of the public field before doing the deletion
             logger.debug("DELETE /orgs/" + orgid + "/services/" + service + " public field: " + public)
-            storedPublicField = public.head
-            ServicesTQ.getService(compositeId).delete.transactionally.asTry
+            if (public.nonEmpty) {
+              storedPublicField = public.head
+              ServicesTQ.getService(compositeId).delete.transactionally.asTry
+            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
@@ -721,9 +725,11 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             case Success(public) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/policy public field: " + public)
-              val serviceId = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
-              val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", public.head.toString, "servicepolicies", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-              serviceChange.insert.asTry
+              if (public.nonEmpty) {
+                val serviceId = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
+                val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", public.head.toString, "servicepolicies", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+                serviceChange.insert.asTry
+              } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -759,8 +765,10 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           case Success(public) =>
             // Get the value of the public field before doing the delete
             logger.debug("DELETE /orgs/" + orgid + "/services/" + service + "/policy public field: " + public)
-            storedPublicField = public.head
-            ServicePolicyTQ.getServicePolicy(compositeId).delete.asTry
+            if (public.nonEmpty) {
+              storedPublicField = public.head
+              ServicePolicyTQ.getServicePolicy(compositeId).delete.asTry
+            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
@@ -877,9 +885,11 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               case Success(public) =>
                 // Add the resource to the resourcechanges table
                 logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/keys/" + keyId + " public field: " + public)
-                val serviceId = service.substring(service.indexOf("/") + 1, service.length)
-                val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", public.head.toString, "servicekeys", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-                serviceChange.insert.asTry
+                if (public.nonEmpty) {
+                  val serviceId = service.substring(service.indexOf("/") + 1, service.length)
+                  val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", public.head.toString, "servicekeys", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+                  serviceChange.insert.asTry
+                } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
               case Success(v) =>
@@ -916,8 +926,10 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           case Success(public) =>
             // Get the value of the public field before delete
             logger.debug("DELETE /services/" + service + "/keys public field: " + public)
-            storedPublicField = public.head
-            ServiceKeysTQ.getKeys(compositeId).delete.asTry
+            if (public.nonEmpty) {
+              storedPublicField = public.head
+              ServiceKeysTQ.getKeys(compositeId).delete.asTry
+            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
@@ -966,8 +978,10 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           case Success(public) =>
             // Get the value of the public field before delete
             logger.debug("DELETE /services/" + service + "/keys public field: " + public)
-            storedPublicField = public.head
-            ServiceKeysTQ.getKey(compositeId, keyId).delete.asTry
+            if (public.nonEmpty) {
+              storedPublicField = public.head
+              ServiceKeysTQ.getKey(compositeId, keyId).delete.asTry
+            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
@@ -1101,9 +1115,11 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             case Success(public) =>
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + orgid + "/services/" + service + "/dockauths public field: " + public)
-              val serviceId = service.substring(service.indexOf("/") + 1, service.length)
-              val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", public.head.toString, "servicedockauths", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
-              serviceChange.insert.asTry
+              if (public.nonEmpty) {
+                val serviceId = service.substring(service.indexOf("/") + 1, service.length)
+                val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", public.head.toString, "servicedockauths", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+                serviceChange.insert.asTry
+              } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -1156,9 +1172,11 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
             case Success(public) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/dockauths/" + dockAuthId + " public field: " + public)
-              val serviceId = service.substring(service.indexOf("/") + 1, service.length)
-              val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", public.head.toString, "servicedockauths", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-              serviceChange.insert.asTry
+              if (public.nonEmpty) {
+                val serviceId = service.substring(service.indexOf("/") + 1, service.length)
+                val serviceChange = ResourceChangeRow(0, orgid, serviceId, "service", public.head.toString, "servicedockauths", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+                serviceChange.insert.asTry
+              } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -1193,11 +1211,13 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
       complete({
         var storedPublicField = false
         db.run(ServicesTQ.getPublic(compositeId).result.asTry.flatMap({
-          case xs@Success(public) =>
+          case Success(public) =>
             // Get the value of the public field before delete
-            logger.debug("DELETE /services/" + service + "/dockauths public field: " + xs.toString)
-            storedPublicField = public.head
-            ServiceDockAuthsTQ.getDockAuths(compositeId).delete.asTry
+            logger.debug("DELETE /services/" + service + "/dockauths public field: " + public)
+            if (public.nonEmpty) {
+              storedPublicField = public.head
+              ServiceDockAuthsTQ.getDockAuths(compositeId).delete.asTry
+            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
@@ -1248,8 +1268,10 @@ class ServicesRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               case Success(public) =>
                 // Get the value of the public field before delete
                 logger.debug("DELETE /services/" + service + "/dockauths/" + dockauthId + " public field: " + public)
-                storedPublicField = public.head
-                ServiceDockAuthsTQ.getDockAuth(compositeId, dockauthId).delete.asTry
+                if (public.nonEmpty) {
+                  storedPublicField = public.head
+                  ServiceDockAuthsTQ.getDockAuth(compositeId, dockauthId).delete.asTry
+                } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
               case Failure(t) => DBIO.failed(t).asTry
             }).flatMap({
               case Success(v) =>

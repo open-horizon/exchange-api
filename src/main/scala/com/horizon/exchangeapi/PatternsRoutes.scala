@@ -620,8 +620,10 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           case Success(public) =>
             // Get the value of the public field then do the delete
             logger.debug("DELETE /orgs/" + orgid + "/patterns/" + pattern + " public field is: " + public)
-            storedPublicField = public.head
-            PatternsTQ.getPattern(compositeId).delete.transactionally.asTry
+            if (public.nonEmpty) {
+              storedPublicField = public.head
+              PatternsTQ.getPattern(compositeId).delete.transactionally.asTry
+            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
@@ -933,9 +935,11 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
               case Success(public) =>
                 // Add the resource to the resourcechanges table
                 logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " public field: " + public)
-                val publicField = public.head
-                val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", publicField.toString, "patternkeys", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-                patternChange.insert.asTry
+                if (public.nonEmpty) {
+                  val publicField = public.head
+                  val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", publicField.toString, "patternkeys", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+                  patternChange.insert.asTry
+                } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
               case Success(v) =>
@@ -972,8 +976,10 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           case Success(public) =>
             // Get the public field before doing delete
             logger.debug("DELETE /patterns/" + pattern + "/keys public field: " + public)
-            storedPublicField = public.head
-            PatternKeysTQ.getKeys(compositeId).delete.asTry
+            if (public.nonEmpty) {
+              storedPublicField = public.head
+              PatternKeysTQ.getKeys(compositeId).delete.asTry
+            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
@@ -1021,8 +1027,10 @@ class PatternsRoutes(implicit val system: ActorSystem) extends JacksonSupport wi
           case Success(public) =>
             // Get the public field before doing delete
             logger.debug("DELETE /patterns/" + pattern + "/keys public field: " + public)
-            storedPublicField = public.head
-            PatternKeysTQ.getKey(compositeId,keyId).delete.asTry
+            if (public.nonEmpty) {
+              storedPublicField = public.head
+              PatternKeysTQ.getKey(compositeId, keyId).delete.asTry
+            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>

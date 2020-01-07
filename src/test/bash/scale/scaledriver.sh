@@ -10,10 +10,10 @@ function usage {
 Usage: $0 <hosts-file> <host-script> [host-script-args ...]
 
 Drives the overall process of scale testing the Exchange by doing these main steps:
-- Uses prsync to copy the latest versions of the exchange scripts, host scripts, and certs to /tmp on each scale node
-- Removes exchange org $EX_PERF_ORG to eliminate any resource leftover from a previous run (means HZN_EXCHANGE_URL, EXCHANGE_ROOTPW, and possibly EX_PERF_CERT_FILE must be set in this shell)
+- Uses prsync to copy the latest versions of the exchange scale scripts/binaries, host scripts, and certs to /tmp on each scale node
+- Removes exchange org $EX_PERF_ORG to eliminate any exchange resources leftover from a previous run (means HZN_EXCHANGE_URL, EXCHANGE_ROOTPW, and possibly EX_PERF_CERT_FILE must be set in this shell)
 - Uses pssh to run the specified host script on each of the hosts in the hosts file
-- Uses pslurp to copy the output from the hosts $EX_PERF_REPORT_DIR dir to the same dir on this machine (separated by hostname subdirs)
+- Uses pslurp to copy the output from the hosts $EX_PERF_REPORT_DIR dir to the same dir on this machine (separated into hostname subdirs)
 - Inspects all of the error files to report how many errors occurred
 
 This script is dependent on the parallel-ssh suite of commands, see https://www.cyberciti.biz/cloud-computing/how-to-use-pssh-parallel-ssh-program-on-linux-unix/
@@ -27,7 +27,8 @@ It is a assumed that the host-script, and any other scripts it calls, are in the
 synced to the scale nodes.
 
 Best practices for your host scripts:
-- At the beginning remove possible output files from previous runs, so you do not have any confusing data leftover from previous runs
+- Sensitive info (e.g. exchange creds) should be received via cmd line args. The additional args passed into this scale driver script will be passed along to each host script.
+- At the beginning remove possible output files on that scale node leftover from previous runs, so you do not have any confusing data leftover from previous runs
 - Verify required software is already installed on that scale node
 - Save a summary of the testing on that scale node in a file that ends with .summary
 EOF
@@ -84,19 +85,15 @@ if [[ -z "$goos" ]]; then       # then assume the scale instances are the same t
     fi
 fi
 exchBinDir="$exchScriptDir/../../go/$goos"
-echo "Copying the exchange binaries from $exchBinDir to /tmp on each scale node..."
+echo "Building the exchange binaries for $goos and copying them from $exchBinDir to /tmp on each scale node..."
+make -C "$exchScriptDir/../../go" $goos/node $goos/agbot
 #pscp -h $hostsFile $exchBinDir/* /tmp
 prsync -h $hostsFile -r $exchBinDir/ /tmp/
 checkexitcode $? "copying $exchBinDir"
 
 echo "Copying the host scripts and certs to /tmp on each scale node..."
-#pscp -h $hostsFile *.sh /tmp
 prsync -h $hostsFile -r ./ /tmp
 checkexitcode $? "copying host scripts"
-
-#echo "Copying the certs to /tmp on each scale node..."
-#pscp -h $hostsFile *.crt /tmp
-#checkexitcode $? "copying certs"
 
 echo "Removing orgs/$EX_PERF_ORG from exchange '$HZN_EXCHANGE_URL'..."
 $exchScriptDir/deleteperforg.sh

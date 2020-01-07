@@ -41,7 +41,7 @@
 			"upgradeTimeoutSeconds": 180
 		},
 		"logging": {
-			"level": ""		// default level is INFO. For possible values, see http://logback.qos.ch/apidocs/ch/qos/logback/classic/Level.html
+			"level": "INFO"		// For possible values, see http://logback.qos.ch/apidocs/ch/qos/logback/classic/Level.html
 		},
 		"root": {
 			"enabled": true,      // if set to false it will not honor the root credentials

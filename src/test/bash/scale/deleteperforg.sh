@@ -21,7 +21,8 @@ url="orgs/$EX_PERF_ORG"
 rootauth="root/root:$EXCHANGE_ROOTPW"
 auth="$rootauth"
 #echo "Running DELETE $url ..."
-auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+#auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+auth="-u $auth"    # no spaces so we do not need to quote it
 
 
 if [[ -n "$EX_PERF_CERT_FILE" ]]; then

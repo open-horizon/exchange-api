@@ -454,8 +454,18 @@ class ServicesSuite extends FunSuite {
     assert(wk.owner === orguser2)
   }
 
-  test("GET /orgs/"+orgid+"/services - filter owner and serviceUrl") {
-    val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("specRef",reqsvcurl).asString
+  test("GET /orgs/"+orgid+"/services - filter owner and requiredurl") {
+    val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("requiredurl",reqsvcurl).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetServicesResponse]
+    assert(respObj.services.size === 1)
+    assert(respObj.services.contains(orgservice2))
+  }
+
+  test("GET /orgs/"+orgid+"/services - filter url and arch") {
+    val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("url",svcUrl2).param("arch",svcArch2).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)

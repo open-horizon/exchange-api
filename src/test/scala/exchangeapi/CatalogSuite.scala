@@ -33,21 +33,21 @@ class CatalogSuite extends FunSuite {
   val user = "u1"
   val pw = user+"pw"
   val orguser = orgid+"/"+user
-  val USERAUTH = ("Authorization","Basic "+orguser+":"+pw)
+  val USERAUTH = ("Authorization","Basic "+ApiUtils.encode(orguser+":"+pw))
   val orguser2 = orgid2+"/"+user
-  val USERAUTH2 = ("Authorization","Basic "+orguser2+":"+pw)
+  val USERAUTH2 = ("Authorization","Basic "+ApiUtils.encode(orguser2+":"+pw))
   val orguser3 = orgid3+"/"+user
-  val USERAUTH3 = ("Authorization","Basic "+orguser3+":"+pw)
+  val USERAUTH3 = ("Authorization","Basic "+ApiUtils.encode(orguser3+":"+pw))
   val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
-  val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
+  val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
   // node and agbot in the 1st org
   val nodeId = "n1"     // the 1st node created, that i will use to run some rest methods
   val nodeToken = nodeId+"tok"
-  val NODEAUTH = ("Authorization","Basic "+orgid+"/"+nodeId+":"+nodeToken)
+  val NODEAUTH = ("Authorization","Basic "+ApiUtils.encode(orgid+"/"+nodeId+":"+nodeToken))
   val agbotId = "a1"
   val agbotToken = agbotId+"tok"
-  val AGBOTAUTH = ("Authorization","Basic "+orgid+"/"+agbotId+":"+agbotToken)
+  val AGBOTAUTH = ("Authorization","Basic "+ApiUtils.encode(orgid+"/"+agbotId+":"+agbotToken))
   // A public service in each org and a private one in the 1st org
   val svcUrl = "s1"
   val svcVersion = "1.0.0"
@@ -82,7 +82,7 @@ class CatalogSuite extends FunSuite {
     for (url <- List(URL,URL2,URL3)) {
       val response = Http(url).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+url+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+      assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
     }
   }
 
@@ -99,7 +99,7 @@ class CatalogSuite extends FunSuite {
       val input = PostPutOrgRequest(Some(orgType), "", "desc", None)
       val response = Http(url).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.POST_OK)
+      assert(response.code === HttpCode.POST_OK.intValue)
     }
   }
 
@@ -114,18 +114,18 @@ class CatalogSuite extends FunSuite {
       val userInput = PostPutUsersRequest(pw, admin = false, user + "@hotmail.com")
       val userResponse = Http(url + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-      assert(userResponse.code === HttpCode.POST_OK)
+      assert(userResponse.code === HttpCode.POST_OK.intValue)
     }
 
     val devInput = PutNodesRequest(nodeToken, "", "", None, None, None, None, "", None)
     val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
-    assert(devResponse.code === HttpCode.PUT_OK)
+    assert(devResponse.code === HttpCode.PUT_OK.intValue)
 
     val agbotInput = PutAgbotsRequest(agbotToken, "", None, "ABC")
     val agbotResponse = Http(URL+"/agbots/"+agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+agbotResponse.code+", agbotResponse.body: "+agbotResponse.body)
-    assert(agbotResponse.code === HttpCode.PUT_OK)
+    assert(agbotResponse.code === HttpCode.PUT_OK.intValue)
   }
 
   // Create a service in each org and an extra private service
@@ -133,22 +133,22 @@ class CatalogSuite extends FunSuite {
     var input = PostPutServiceRequest("", None, public = true, None, svcUrl, svcVersion, svcArch, "multiple", None, None, None, "{\"services\":{}}","a",None)
     var response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
 
     input = PostPutServiceRequest("", None, public = false, None, svcUrlPriv, svcVersionPriv, svcArchPriv, "multiple", None, None, None, "{\"services\":{}}","a",None)
     response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
 
     input = PostPutServiceRequest("", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, None, None, "{\"services\":{}}","a",None)
     response = Http(URL2+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
 
     input = PostPutServiceRequest("", None, public = true, None, svcUrl3, svcVersion3, svcArch3, "multiple", None, None, None, "{\"services\":{}}","a",None)
     response = Http(URL3+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH3).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   // Query to catalog services and check them
@@ -156,7 +156,7 @@ class CatalogSuite extends FunSuite {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/services").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetServicesResponse]
     //assert(respObj.services.size === 2)  // can't check the size, because my IBM org might contain some
 
@@ -183,22 +183,22 @@ class CatalogSuite extends FunSuite {
     var input = PostPutPatternRequest(pattern, Some(pattern), Some(true), List( PServices(svcUrl, orgid, svcArch, None, List(PServiceVersions(svcVersion, None, None, None, None)), None, None )), None, None)
     var response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
 
     input = PostPutPatternRequest(patternPriv, Some(patternPriv), Some(false), List( PServices(svcUrlPriv, orgid, svcArchPriv, None, List(PServiceVersions(svcVersionPriv, None, None, None, None)), None, None )), None, None)
     response = Http(URL+"/patterns/"+patternPriv).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
 
     input = PostPutPatternRequest(pattern2, Some(pattern2), Some(true), List( PServices(svcUrl2, orgid2, svcArch2, None, List(PServiceVersions(svcVersion2, None, None, None, None)), None, None )), None, None)
     response = Http(URL2+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
 
     input = PostPutPatternRequest(pattern3, Some(pattern3), Some(false), List( PServices(svcUrl3, orgid3, svcArch3, None, List(PServiceVersions(svcVersion3, None, None, None, None)), None, None )), None, None)
     response = Http(URL3+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH3).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   // Query to catalog patterns and check them
@@ -206,7 +206,7 @@ class CatalogSuite extends FunSuite {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/patterns").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetPatternsResponse]
     //assert(respObj.patterns.size === 2)  // can't check the size, because my IBM org might contain some
 

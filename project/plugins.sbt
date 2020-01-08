@@ -1,9 +1,13 @@
-// libraryDependencies += "org.slf4j" % "slf4j-log4j12" % "latest.integration"
-// addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "4.0.0")
-// addSbtPlugin("com.mojolly.scalate" % "xsbt-scalate-generator" % "0.5.0")
-//addSbtPlugin("org.scalatra.sbt"    % "scalatra-sbt"           % "0.5.1")
-//addSbtPlugin("org.scalatra.sbt"    % "sbt-scalatra"           % "1.0.1")
-addSbtPlugin("org.scalatra.sbt"    % "sbt-scalatra"           % "latest.release")
+//addSbtPlugin("org.scalatra.sbt"    % "sbt-scalatra"           % "latest.release")
+
+// Reformats the scala source code when compiling it - this was giving parser errors w/o giving line numbers
+//addSbtPlugin("org.scalariform" % "sbt-scalariform" % "1.8.2")
+
+// A fast restart of our rest api svr in sbt. Does NOT require use of spray
+addSbtPlugin("io.spray" % "sbt-revolver" % "0.9.1")
+
+// Builds docker image of our exchange svr
+addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.5.1")
 
 // To see the current versions being used, uncomment this line, then run:  sbt dependencyTree
-//addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.8.0")
+//addSbtPlugin("net.virtual-void" % "sbt-dependencpwdy-graph" % "0.8.0")

@@ -49,7 +49,6 @@ class SlickSuite extends FunSuite {
     // })
   }
 
-
   ignore("get one user password") {
     // var cpds = new ComboPooledDataSource
     // var db = Database.forDataSource(cpds)
@@ -64,9 +63,9 @@ class SlickSuite extends FunSuite {
     // db.run(ExchangeApiTables.listUserNodes.result) map { xs =>
     //   println(xs)
     //   assert(xs != null)
-      //for (user <- xs){
-      //  println(user)
-      //}
+    //for (user <- xs){
+    //  println(user)
+    //}
     // }
   }
 }

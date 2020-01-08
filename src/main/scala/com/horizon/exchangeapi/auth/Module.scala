@@ -1,36 +1,37 @@
 package com.horizon.exchangeapi.auth
 
-import java.security._
+//import java.security._
 
 import com.horizon.exchangeapi._
 import javax.security.auth._
 import javax.security.auth.callback._
 import javax.security.auth.login.FailedLoginException
 import javax.security.auth.spi.LoginModule
-import org.slf4j.{Logger, LoggerFactory}
+//import org.slf4j.{ Logger, LoggerFactory }
 
-import scala.util.{Failure, Success, Try}
+//import scala.util.{ Failure, Success, Try }
+import scala.util._
 
-/** JAAS module to authenticate local user/pw, nodeid/token, and agbotid/token in the exchange.
-  * Called from AuthenticationSupport:authenticate() because JAAS.config references this module.
-  */
+/**
+ * JAAS module to authenticate local user/pw, nodeid/token, and agbotid/token in the exchange.
+ * Called from AuthenticationSupport:authenticate() because JAAS.config references this module.
+ */
 class Module extends LoginModule with AuthorizationSupport {
   private var subject: Subject = _
   private var handler: CallbackHandler = _
   private var identity: Identity = _
   private var succeeded = false
-  lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
+  //lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
+  def logger = ExchConfig.logger
 
   override def initialize(
     subject: Subject,
     handler: CallbackHandler,
     sharedState: java.util.Map[String, _],
-    options: java.util.Map[String, _]
-  ): Unit = {
+    options: java.util.Map[String, _]): Unit = {
     this.subject = subject
     this.handler = handler
   }
-
 
   /*
    * This is where the actual login logic is performed, and is called by the
@@ -41,35 +42,36 @@ class Module extends LoginModule with AuthorizationSupport {
    * and that is where we can get access to it in the route handling code.
    */
   override def login(): Boolean = {
-    logger.trace("in Module.login() to try to authenticate a local exchange user")
+    //logger.debug("in Module.login() to try to authenticate a local exchange user")
     val reqCallback = new RequestCallback
     val loginResult = Try {
       handler.handle(Array(reqCallback))
       if (reqCallback.request.isEmpty) {
         logger.debug("Unable to get HTTP request while authenticating")
-        throw new AuthInternalErrorException(ExchangeMessage.translateMessage("unable.to.get.http.request.when.authenticating"))
+        throw new AuthInternalErrorException(ExchMsg.translate("unable.to.get.http.request.when.authenticating"))
       }
       val reqInfo = reqCallback.request.get
-      val RequestInfo(req, _, isDbMigration, _, hint) = reqInfo
-      val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
+      val RequestInfo(creds, /*req, _,*/ isDbMigration /*, _*/ , hint) = reqInfo
+      //val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
 
-      val feIdentity = frontEndCreds(reqInfo)
+      /* val feIdentity = frontEndCreds(reqInfo)
       if (feIdentity != null) {
         logger.info("User or id " + feIdentity.creds.id + " from " + clientIp + " (via front end) running " + req.getMethod + " " + req.getPathInfo)
         identity = feIdentity.authenticate()
       } else {
-        // Get the creds from the header or params
-        val creds = credentials(reqInfo)
-        val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
-        val (_, id) = IbmCloudAuth.compositeIdSplit(userOrId)
-        if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException
-        logger.info("User or id " + userOrId + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
-        if (isDbMigration && !Role.isSuperUser(creds.id)) throw new IsDbMigrationException()
-        identity = IIdentity(creds).authenticate(hint)
-      }
+      */
+      // Get the creds from the header or params
+      //val creds = credentials(reqInfo)
+      //val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
+      val (_, id) = IbmCloudAuth.compositeIdSplit(creds.id)
+      if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException
+      //logger.info("User or id " + userOrId + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
+      if (isDbMigration && !Role.isSuperUser(creds.id)) throw new IsDbMigrationException()
+      identity = IIdentity(creds).authenticate(hint) // authenticate() is in AuthorizationSupport and both authenticates this identity and returns the correct IIdentity subclass (IUser, Inode, or IAgbot)
+      //}
       true
     }
-    logger.trace("Module.login(): loginResult="+loginResult)
+    //logger.debug("Module.login(): loginResult=" + loginResult)
     succeeded = loginResult.isSuccess
     if (!succeeded) {
       // Throw an exception so we can report the correct error
@@ -92,7 +94,7 @@ class Module extends LoginModule with AuthorizationSupport {
   override def commit(): Boolean = {
     if (succeeded) {
       subject.getPrivateCredentials().add(identity)
-      subject.getPrincipals().add(ExchangeRole(identity.role))
+      //subject.getPrincipals().add(ExchangeRole(identity.role)) // don't think we need this
     }
     succeeded
   }
@@ -123,15 +125,14 @@ class ExchCallbackHandler(request: RequestInfo) extends CallbackHandler {
 class RequestCallback extends Callback {
   private var req: Option[RequestInfo] = None
 
-  def request_=(request: RequestInfo): Unit= {
+  def request_=(request: RequestInfo): Unit = {
     req = Some(request)
   }
 
   def request: Option[RequestInfo] = req
 }
 
-//---------- Everything below here is for authorization
-
+/* Everything below here is for authorization, but not using the java authorization framework anymore, because it doesn't add any value for us and adds complexity
 // Both ExchangeRole and AccessPermission are listed in resources/auth.policy
 case class ExchangeRole(role: String) extends Principal {
   override def getName = role
@@ -149,12 +150,11 @@ case class PermissionCheck(permission: String) extends PrivilegedAction[Unit] {
     WRITE_OTHER_ORGS.toString,
     CREATE_IN_OTHER_ORGS.toString,
     SET_IBM_ORG_TYPE.toString,
-    ADMIN.toString
-  )
+    ADMIN.toString)
 
   private def isAdminAllowed(permission: String) = {
     if (adminNotAllowed.contains(permission)) {
-      Failure(new Exception(ExchangeMessage.translateMessage("admins.not.given.permission", permission)))
+      Failure(new Exception(ExchMsg.translate("admins.not.given.permission", permission)))
     } else {
       Success(())
     }
@@ -162,8 +162,8 @@ case class PermissionCheck(permission: String) extends PrivilegedAction[Unit] {
 
   override def run() = {
     val literalCheck = Try(AccessController.checkPermission(AccessPermission(permission)))
-    lazy val adminCheck =  for {
-      allowed <- isAdminAllowed(permission)   //todo: try changing allowed to _ to make the editor happy
+    lazy val adminCheck = for {
+      _ <- isAdminAllowed(permission) //note: changed allowed to _ to make the editor happy
       ok <- Try(AccessController.checkPermission(AccessPermission("ALL_IN_ORG")))
     } yield ok
     lazy val superCheck = Try(AccessController.checkPermission(AccessPermission("ALL")))
@@ -177,4 +177,5 @@ case class PermissionCheck(permission: String) extends PrivilegedAction[Unit] {
     }
   }
 }
+*/
 

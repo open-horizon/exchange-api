@@ -1,139 +1,78 @@
 /** Services routes for all of the /orgs/{orgid}/nodes api methods. */
 package com.horizon.exchangeapi
 
-import com.horizon.exchangeapi.auth.{AuthException, DBProcessingError}
+import javax.ws.rs._
+import akka.actor.ActorSystem
+import akka.event.{Logging, LoggingAdapter}
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+import com.horizon.exchangeapi.auth._
+import de.heikoseeberger.akkahttpjackson._
+import io.swagger.v3.oas.annotations.parameters.RequestBody
+import io.swagger.v3.oas.annotations.enums.ParameterIn
+import io.swagger.v3.oas.annotations.media.{Content, Schema}
+import io.swagger.v3.oas.annotations._
+
+import scala.concurrent.ExecutionContext.Implicits.global
+
+//import com.horizon.exchangeapi.auth.{AuthException, DBProcessingError}
 import com.horizon.exchangeapi.tables._
 import org.json4s._
-import org.json4s.jackson.JsonMethods._
+//import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.{read, write}
-import org.scalatra._
-import org.scalatra.swagger._
-import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
-import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
+//import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.util._
 import scala.util.control.Breaks._
 
 //====== These are the input and output structures for /orgs/{orgid}/nodes routes. Swagger and/or json seem to require they be outside the trait.
 
 /** Output format for GET /orgs/{orgid}/nodes */
-case class GetNodesResponse(nodes: Map[String,Node], lastIndex: Int)
-case class GetNodeAttributeResponse(attribute: String, value: String)
+final case class GetNodesResponse(nodes: Map[String,Node], lastIndex: Int)
+final case class GetNodeAttributeResponse(attribute: String, value: String)
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
-case class PatternSearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
+final case class PatternSearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
 
-case class PatternNodeResponse(id: String, msgEndPoint: String, publicKey: String)
-case class PostPatternSearchResponse(nodes: List[PatternNodeResponse], lastIndex: Int)
-
-
-case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List[String]]) {
-  def validate() = {}
-}
-
-case class NodeHealthAgreementElement(lastUpdated: String)
-class NodeHealthHashElement(var lastHeartbeat: String, var agreements: Map[String,NodeHealthAgreementElement])
-case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
+final case class PatternNodeResponse(id: String, msgEndPoint: String, publicKey: String)
+final case class PostPatternSearchResponse(nodes: List[PatternNodeResponse], lastIndex: Int)
 
 // Leaving this here for the UI wanting to implement filtering later
-case class PostNodeErrorRequest() {
-  def validate() = {}
+final case class PostNodeErrorRequest() {
+  def getAnyProblem: Option[String] = None
 }
-case class PostNodeErrorResponse(nodes: scala.Seq[String])
+final case class PostNodeErrorResponse(nodes: scala.Seq[String])
 
-case class PostServiceSearchRequest(orgid: String, serviceURL: String, serviceVersion: String, serviceArch: String) {
-  def validate() = {}
+final case class PostServiceSearchRequest(orgid: String, serviceURL: String, serviceVersion: String, serviceArch: String) {
+  require(orgid!=null && serviceURL!=null && serviceVersion!=null && serviceArch!=null)
+  def getAnyProblem: Option[String] = None
 }
-case class PostServiceSearchResponse(nodes: scala.collection.Seq[(String, String)])
+final case class PostServiceSearchResponse(nodes: scala.collection.Seq[(String, String)])
 
-
-/** Input for service-based (citizen scientist) search, POST /orgs/"+orgid+"/search/nodes */
-case class PostSearchNodesRequest(desiredServices: List[RegServiceSearch], secondsStale: Int, propertiesToReturn: Option[List[String]], startIndex: Int, numEntries: Int) {
-  /** Halts the request with an error msg if the user input is invalid. */
-  def validate() = {
-    for (svc <- desiredServices) {
-      // now we support more than 1 agreement for a service
-      svc.validate match {
-        case Some(s) => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, s))
-        case None => ;
-      }
-    }
-  }
-
-  /** Returns the services that match all of the search criteria */
-  def matches(nodes: Map[String,Node], agHash: AgreementsHash)(implicit logger: Logger): PostSearchNodesResponse = {
-    // logger.trace(agHash.agHash.toString)
-
-    // Loop thru the existing nodes and services in the DB. (Should probably make this more FP style)
-    var nodesResp: List[NodeResponse] = List()
-    for ((id,d) <- nodes) {       // the db query now filters out stale nodes
-      // Get all services for this node that are not max'd out on agreements
-      var availableServices: List[RegService] = List()
-      for (m <- d.registeredServices) {
-        breakable {
-          // do not even bother checking this against the search criteria if this service is already at its agreement limit
-          val agNode = agHash.agHash.get(id)
-          agNode match {
-            case Some(agNode2) => val agNum = agNode2.get(m.url)  // m.url is the composite org/svcurl
-              agNum match {
-                case Some(agNum2) => if (agNum2 >= m.numAgreements) break // this is really a continue
-                case None => ; // no agreements for this service, nothing to do
-              }
-            case None => ; // no agreements for this node, nothing to do
-          }
-          availableServices = availableServices :+ m
-        }
-      }
-
-      // We now have several services for 1 node from the db (that are not max'd out on agreements). See if all of the desired services are satisfied.
-      var servicesResp: List[RegService] = List()
-      breakable {
-        for (desiredService <- desiredServices) {
-          var found: Boolean = false
-          breakable {
-            for (availableService <- availableServices) {
-              if (desiredService.matches(availableService)) {
-                servicesResp = servicesResp :+ availableService
-                found = true
-                break
-              }
-            }
-          }
-          if (!found) break // we did not find one of the required services, so end early
-        }
-      }
-
-      if (servicesResp.length == desiredServices.length) {
-        // all required services were available in this node, so add this node to the response list
-        nodesResp = nodesResp :+ NodeResponse(id, d.name, servicesResp, d.userInput, d.msgEndPoint, d.publicKey, d.arch)
-      }
-    }
-    // return the search result to the rest client
-    PostSearchNodesResponse(nodesResp, 0)
-  }
-}
-
-case class NodeResponse(id: String, name: String, services: List[RegService], userInput: List[OneUserInputService], msgEndPoint: String, publicKey: String, arch: String)
-case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
+final case class NodeResponse(id: String, name: String, services: List[RegService], userInput: List[OneUserInputService], msgEndPoint: String, publicKey: String, arch: String)
+final case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
-case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String]) {
+final case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String]) {
+  require(token!=null && name!=null && pattern!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
-  def validate() = {
-    if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.must.not.be.blank")))
-    // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
-    if (pattern != "" && """.*/.*""".r.findFirstIn(pattern).isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("pattern.must.have.orgid.prepended")))
+  def getAnyProblem: Option[String] = {
+    if (token == "") return Some(ExchMsg.translate("token.must.not.be.blank"))
+    // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
+    if (pattern != "" && """.*/.*""".r.findFirstIn(pattern).isEmpty) return Some(ExchMsg.translate("pattern.must.have.orgid.prepended"))
     for (m <- registeredServices.getOrElse(List())) {
       // now we support more than 1 agreement for a MS
-      // if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
+      // if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
       m.validate match {
-        case Some(s) => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, s))
+        case Some(s) => return Some(s)
         case None => ;
       }
     }
+    return None
   }
 
   // Build a list of db actions to verify that the referenced services exist
@@ -155,19 +94,23 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   }
 }
 
-case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
+final case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
+  def getAnyProblem: Option[String] = {
+    if (token.isDefined && token.get == "") Some(ExchMsg.translate("token.cannot.be.empty.string"))
+    //else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
+    else None
+  }
+    /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
   def getDbUpdate(id: String, hashedPw: String): (DBIO[_],String) = {
     val lastHeartbeat = ApiTime.nowUTC
-    //todo: support updating more than 1 attribute, but i think slick does not support dynamic db field names
+    //someday: support updating more than 1 attribute, but i think slick does not support dynamic db field names
     // find the 1st non-blank attribute and create a db action to update it for this node
     var dbAction: (DBIO[_], String) = (null, null)
     if(token.isEmpty && softwareVersions.isDefined && registeredServices.isDefined && name.isDefined && pattern.isDefined && userInput.isDefined && msgEndPoint.isDefined && publicKey.isDefined && arch.isDefined){
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions, d.regServices, d.name, d.pattern, d.userInput, d.msgEndPoint, d.publicKey, d.arch, d.lastHeartbeat)).update((id, write(softwareVersions), write(registeredServices), name.get, pattern.get, write(userInput), msgEndPoint.get, publicKey.get, arch.get, lastHeartbeat)), "update all but token")
     } else if (token.isDefined){
-      if (token.getOrElse("") == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.cannot.be.empty.string")))
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, hashedPw, lastHeartbeat)), "token")
     } else if (softwareVersions.isDefined){
       val swVersions = if (softwareVersions.nonEmpty) write(softwareVersions) else ""
@@ -192,12 +135,14 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
   }
 }
 
-case class PostNodeConfigStateRequest(org: String, url: String, configState: String) {
+final case class PostNodeConfigStateRequest(org: String, url: String, configState: String) {
+  require(org!=null && url!=null && configState!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   //def logger: Logger    // get access to the logger object in ExchangeApiApp
 
-  def validate() = {
-    if (configState != "suspended" && configState != "active") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("configstate.must.be.suspended.or.active")))
+  def getAnyProblem: Option[String] = {
+    if (configState != "suspended" && configState != "active") Some(ExchMsg.translate("configstate.must.be.suspended.or.active"))
+    else None
   }
 
   // Match registered service urls (which are org/url) to the input org and url
@@ -205,7 +150,7 @@ case class PostNodeConfigStateRequest(org: String, url: String, configState: Str
     val reg = """^(\S+?)/(\S+)$""".r
     val (comporg, compurl) = compositeUrl match {
       case reg(o,u) => (o, u)
-      case _ => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("configstate.must.be.suspended.or.active", compositeUrl)))
+      case _ => return false   //todo: halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("configstate.must.be.suspended.or.active", compositeUrl)))
     }
     (org, url) match {
       case ("","") => return true
@@ -217,9 +162,9 @@ case class PostNodeConfigStateRequest(org: String, url: String, configState: Str
 
   // Given the existing list of registered svcs in the db for this node, determine the db update necessary to apply the new configState
   def getDbUpdate(regServices: String, id: String): DBIO[_] = {
-    if (regServices == "") halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.has.no.services")))
+    if (regServices == "") return DBIO.failed(new ResourceNotFoundException(ExchMsg.translate("node.has.no.services")))
     val regSvcs = read[List[RegService]](regServices)
-    if (regSvcs.isEmpty) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.has.no.services")))
+    if (regSvcs.isEmpty) return DBIO.failed(new ResourceNotFoundException(ExchMsg.translate("node.has.no.services")))
 
     // Copy the list of required svcs, changing configState wherever it applies
     var matchingSvcFound = false
@@ -232,10 +177,10 @@ case class PostNodeConfigStateRequest(org: String, url: String, configState: Str
       else rs
     })
     // this check is not ok, because we should not return NOT_FOUND if we find matching svc but their configState is already set the requested value
-    //if (newRegSvcs.sameElements(regSvcs)) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "did not find any registeredServices that matched the given org and url criteria."))
-    if (!matchingSvcFound) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("did.not.find.registered.services")))
+    //if (newRegSvcs.sameElements(regSvcs)) halt(HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, "did not find any registeredServices that matched the given org and url criteria."))
+    if (!matchingSvcFound) return DBIO.failed(new ResourceNotFoundException(ExchMsg.translate("did.not.find.registered.services")))
     if (newRegSvcs == regSvcs) {
-      println(ExchangeMessage.translateMessage("no.db.update.necessary"))
+      println(ExchMsg.translate("no.db.update.necessary"))
       //logger.debug("No db update necessary, all relevant config states already correct")
       return DBIO.successful(1)    // all the configStates were already set correctly, so nothing to do
     }
@@ -246,9 +191,10 @@ case class PostNodeConfigStateRequest(org: String, url: String, configState: Str
   }
 }
 
-case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: List[OneService]) {
+final case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: List[OneService]) {
+  require(connectivity!=null && services!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = { }
+  def getAnyProblem: Option[String] = None
   var runningServices = "|"
   for(s <- services){
     runningServices = runningServices + s.orgid + "/" + s.serviceUrl + "_" + s.version + "_" + s.arch + "|"
@@ -256,22 +202,24 @@ case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: Lis
   def toNodeStatusRow(nodeId: String) = NodeStatusRow(nodeId, write(connectivity), write(services), runningServices, ApiTime.nowUTC)
 }
 
-case class PutNodeErrorRequest(errors: List[Any]) {
+final case class PutNodeErrorRequest(errors: List[Any]) {
+  require(errors!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = { }
+  def getAnyProblem: Option[String] = None
 
   def toNodeErrorRow(nodeId: String) = NodeErrorRow(nodeId, write(errors), ApiTime.nowUTC)
 }
 
-case class PutNodePolicyRequest(properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+final case class PutNodePolicyRequest(properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = {
+  def getAnyProblem: Option[String] = {
     val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of string", "version")
-      for (p <- properties.getOrElse(List())) {
-        if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
-          halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("property.type.must.be", p.`type`.get, validTypes.mkString(", "))))
-        }
+    for (p <- properties.getOrElse(List())) {
+      if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
+        return Some(ExchMsg.translate("property.type.must.be", p.`type`.get, validTypes.mkString(", ")))
       }
+    }
+    return None
   }
 
   def toNodePolicyRow(nodeId: String) = NodePolicyRow(nodeId, write(properties), write(constraints), ApiTime.nowUTC)
@@ -279,15 +227,17 @@ case class PutNodePolicyRequest(properties: Option[List[OneProperty]], constrain
 
 
 /** Output format for GET /orgs/{orgid}/nodes/{id}/agreements */
-case class GetNodeAgreementsResponse(agreements: Map[String,NodeAgreement], lastIndex: Int)
+final case class GetNodeAgreementsResponse(agreements: Map[String,NodeAgreement], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/{id}/agreements/<agreement-id> */
-case class PutNodeAgreementRequest(services: Option[List[NAService]], agreementService: Option[NAgrService], state: String) {
+final case class PutNodeAgreementRequest(services: Option[List[NAService]], agreementService: Option[NAgrService], state: String) {
+  require(state!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate() = {
+  def getAnyProblem: Option[String] = {
     if (services.isEmpty && agreementService.isEmpty) {
-      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("must.specify.service.or.agreementservice")))
+      return Some(ExchMsg.translate("must.specify.service.or.agreementservice"))
     }
+    return None
   }
 
   def toNodeAgreementRow(nodeId: String, agId: String) = {
@@ -298,437 +248,118 @@ case class PutNodeAgreementRequest(services: Option[List[NAService]], agreementS
 
 
 /** Input body for POST /orgs/{orgid}/nodes/{id}/msgs */
-case class PostNodesMsgsRequest(message: String, ttl: Int)
+final case class PostNodesMsgsRequest(message: String, ttl: Int) {
+  require(message!=null)
+}
 
 /** Response for GET /orgs/{orgid}/nodes/{id}/msgs */
-case class GetNodeMsgsResponse(messages: List[NodeMsg], lastIndex: Int)
+final case class GetNodeMsgsResponse(messages: List[NodeMsg], lastIndex: Int)
 
 
 /** Implementation for all of the /orgs/{orgid}/nodes routes */
-trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
-  def db: Database      // get access to the db object in ExchangeApiApp
-  implicit def logger: Logger    // get access to the logger object in ExchangeApiApp
-  protected implicit def jsonFormats: Formats
+@Path("/v1/orgs/{orgid}/nodes")
+class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
+  def db: Database = ExchangeApiApp.getDb
+  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
+  //protected implicit def jsonFormats: Formats
   // implicit def formats: org.json4s.Formats{val dateFormat: org.json4s.DateFormat; val typeHints: org.json4s.TypeHints}
 
-  /* ====== GET /orgs/{orgid}/nodes ================================
-    This is of type org.scalatra.swagger.SwaggerOperation
-    apiOperation() is a method of org.scalatra.swagger.SwaggerSupport. It returns org.scalatra.swagger.SwaggerSupportSyntax$$OperationBuilder
-    and then all of the other methods below that (summary, notes, etc.) are all part of OperationBuilder and return OperationBuilder.
-    So instead of the infix invocation in the code below, we could alternatively code it like this:
-    val getNodes = apiOperation[GetNodesResponse]("getNodes").summary("Returns matching nodes").description("Based on the input selection criteria, returns the matching nodes (RPis) in the exchange DB.")
-  */
-  val getNodes =
-    (apiOperation[GetNodesResponse]("getNodes")
-      summary("Returns all nodes")
-      description("""Returns all nodes (RPis) in the exchange DB. Can be run by a user or agbot (but not a node).""")
-      // authorizations("basicAuth")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("idfilter", DataType.String, Option[String]("Filter results to only include nodes with this id (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        Parameter("name", DataType.String, Option[String]("Filter results to only include nodes with this name (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        Parameter("owner", DataType.String, Option[String]("Filter results to only include nodes with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        Parameter("arch", DataType.String, Option[String]("Filter results to only include nodes with this arch (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
-    )
-      // this does not work, because scalatra will not give me the request.body on a GET
-      // parameters(Parameter("body", DataType[GetNodeRequest], Option[String]("Node search criteria"), paramType = ParamType.Body))
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+  def routes: Route = nodesGetRoute ~ nodeGetRoute ~ nodePutRoute ~ nodePatchRoute ~ nodePostConfigStateRoute ~ nodeDeleteRoute ~ nodeHeartbeatRoute ~ nodeGetErrorsRoute ~ nodePutErrorsRoute ~ nodeDeleteErrorsRoute ~ nodeGetStatusRoute ~ nodePutStatusRoute ~ nodeDeleteStatusRoute ~ nodeGetPolicyRoute ~ nodePutPolicyRoute ~ nodeDeletePolicyRoute ~ nodeGetAgreementsRoute ~ nodeGetAgreementRoute ~ nodePutAgreementRoute ~ nodeDeleteAgreementsRoute ~ nodeDeleteAgreementRoute ~ nodePostMsgRoute ~ nodeGetMsgsRoute ~ nodeDeleteMsgRoute
 
-  /** operation() is a method of org.scalatra.swagger.SwaggerSupport that takes SwaggerOperation and returns RouteTransformer */
-  get("/orgs/:orgid/nodes", operation(getNodes)) ({
-    // try {    // this try/catch does not get us much more than what scalatra does by default
-    // I think the request member is of type org.eclipse.jetty.server.Request, which implements interfaces javax.servlet.http.HttpServletRequest and javax.servlet.ServletRequest
-    val orgid = params("orgid")
-    val ident = authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
-    val superUser = ident.isSuperUser
-    val resp = response
-    // throw new IllegalArgumentException("arg 1 was wrong...")
-    // The nodes, microservices, and properties tables all combine to form the Node object, so we do joins to get them all.
-    // Note: joinLeft is necessary here so that if no micros exist for a node, we still get the node (and likewise for the micro if no props exist).
-    //    This means m and p below are wrapped in Option because they may not always be there
-    //var q = for {
-    //  ((d, m), p) <- NodesTQ.getAllNodes(orgid) joinLeft RegMicroservicesTQ.rows on (_.id === _.nodeId) joinLeft PropsTQ.rows on (_._2.map(_.msId) === _.msId)
-    //} yield (d, m, p)
-    var q = NodesTQ.getAllNodes(orgid)
+  // ====== GET /orgs/{orgid}/nodes ================================
+  @GET
+  @Path("")
+  @Operation(summary = "Returns all nodes", description = "Returns all nodes (edge devices). Can be run by any user or agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this id (can include % for wildcard - the URL encoding for % is %25)"),
+      new Parameter(name = "name", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this name (can include % for wildcard - the URL encoding for % is %25)"),
+      new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this owner (can include % for wildcard - the URL encoding for % is %25)"),
+    new Parameter(name = "arch", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this arch (can include % for wildcard - the URL encoding for % is %25)")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetNodesResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodesGetRoute: Route = (get & path("orgs" / Segment / "nodes") & parameter(('idfilter.?, 'name.?, 'owner.?, 'arch.?))) { (orgid, idfilter, name, owner, arch) =>
+    logger.debug(s"Doing GET /orgs/$orgid/nodes")
+    exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { ident =>
+      complete({
+        logger.debug(s"GET /orgs/$orgid/nodes identity: $ident")
+        var q = NodesTQ.getAllNodes(orgid)
+        idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
+        name.foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
+        owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
+        arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
 
-    // add filters
-    params.get("idfilter").foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
-    params.get("name").foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
-    params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
-    params.get("arch").foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
-
-    db.run(q.result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/nodes result size: "+list.size)
-      val nodes = NodesTQ.parseJoin(superUser, list)
-      if (nodes.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetNodesResponse(nodes, 0)
-    })
-    // } catch { case e: Exception => halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiResponseType.INTERNAL_ERROR, "Oops! Somthing unexpected happened: "+e)) }
-  })
-
-  /* ====== GET /orgs/{orgid}/nodes/{id} ================================ */
-  val getOneNode =
-    (apiOperation[GetNodesResponse]("getOneNode")
-      summary("Returns a node")
-      description("""Returns the node (RPi) with the specified id in the exchange DB. Can be run by that node, a user, or an agbot.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node."), paramType=ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified, and it must be 1 of the direct attributes of the node resource (not of the services). If not specified, the entire node resource (including services) will be returned."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad.input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/nodes/:id", operation(getOneNode)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    val ident = authenticate().authorizeTo(TNode(id),Access.READ)
-    val isSuperUser = ident.isSuperUser
-    val resp = response
-    params.get("attribute") match {
-      case Some(attribute) => ; // Only returning 1 attr of the node
-        val q = NodesTQ.getAttribute(id, attribute)
-        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("not.a.node.attribute", attribute)))
         db.run(q.result).map({ list =>
-          logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+" attribute result: "+list.size)
-          if (list.nonEmpty) {
-            resp.setStatus(HttpCode.OK)
-            GetNodeAttributeResponse(attribute, list.head.toString)
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("not.found"))     // validateAccessToNode() will return ApiResponseType.NOT_FOUND to the client so do that here for consistency
-          }
+          logger.debug(s"GET /orgs/$orgid/nodes result size: ${list.size}")
+          val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
+          val code = if (nodes.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetNodesResponse(nodes, 0))
         })
-
-      case None => ;  // Return the whole node
-        val q = NodesTQ.getNode(id)
-        db.run(q.result).map({ list =>
-          logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+" result: "+list.size)
-          if (list.nonEmpty) {
-            val nodes = NodesTQ.parseJoin(isSuperUser, list)
-            resp.setStatus(HttpCode.OK)
-            GetNodesResponse(nodes, 0)
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("not.found"))     // validateAccessToNode() will return ApiResponseType.NOT_FOUND to the client so do that here for consistency
-          }
-        })
-    }
-  })
-
-
-  /** From the given db joined node/agreement rows, build the output node health hash and return it.
-     This is shared between POST /org/{orgid}/patterns/{pat-id}/nodehealth and POST /org/{orgid}/search/nodehealth
-    */
-  def buildNodeHealthHash(list: scala.Seq[(String, String, Option[String], Option[String])]): Map[String,NodeHealthHashElement] = {
-    // Go thru the rows and build a hash of the nodes, adding the agreement to its value as we encounter them
-    val nodeHash = new MutableHashMap[String,NodeHealthHashElement]     // key is node id, value has lastHeartbeat and the agreements map
-    for ( (nodeId, lastHeartbeat, agrId, agrLastUpdated) <- list ) {
-      nodeHash.get(nodeId) match {
-        case Some(nodeElement) => agrId match {    // this node is already in the hash, add the agreement if it's there
-          case Some(agId) => nodeElement.agreements = nodeElement.agreements + ((agId, NodeHealthAgreementElement(agrLastUpdated.getOrElse(""))))    // if we are here, lastHeartbeat is already set and the agreement Map is already created
-          case None => ;      // no agreement to add to the agreement hash
-        }
-        case None => agrId match {      // this node id not in the hash yet, add it
-          case Some(agId) => nodeHash.put(nodeId, new NodeHealthHashElement(lastHeartbeat, Map(agId -> NodeHealthAgreementElement(agrLastUpdated.getOrElse("")))))
-          case None => nodeHash.put(nodeId, new NodeHealthHashElement(lastHeartbeat, Map()))
-        }
-      }
-    }
-    return nodeHash.toMap
+      }) // end of complete
+    } // end of exchAuth
   }
 
-  // ======== POST /org/{orgid}/patterns/{pat-id}/nodehealth ========================
-  val postPatternNodeHealth =
-    (apiOperation[PostNodeHealthResponse]("postPatternNodeHealth")
-      summary("Returns agreement health of nodes of a particular pattern")
-      description """Returns the lastHeartbeat and agreement times for all nodes that are this pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node). The **request body** structure:
+  /* ====== GET /orgs/{orgid}/nodes/{id} ================================ */
+  @GET
+  @Path("{id}")
+  @Operation(summary = "Returns a node", description = "Returns the node (edge device) with the specified id. Can be run by that node, a user, or an agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
+      new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified, and it must be 1 of the direct attributes of the node resource (not of the services). If not specified, the entire node resource (including services) will be returned")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetNodesResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeGetRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment) & parameter(('attribute.?))) { (orgid, id, attribute) =>
+    logger.debug(s"Doing GET /orgs/$orgid/nodes/$id")
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId), Access.READ) { ident =>
+      val q = if (attribute.isDefined) NodesTQ.getAttribute(compositeId, attribute.get) else null
+      validate(attribute.isEmpty || q!= null, ExchMsg.translate("node.name.not.in.resource")) {
+        complete({
+          attribute match {
+            case Some(attr) =>  // Only returning 1 attr of the node
+              val q = NodesTQ.getAttribute(compositeId, attr)
+              if (q == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("not.a.node.attribute", attr)))
+              else db.run(q.result).map({ list =>
+                logger.debug("GET /orgs/"+orgid+"/nodes/"+id+" attribute result: "+list.size)
+                if (list.nonEmpty) (HttpCode.OK, GetNodeAttributeResponse(attr, list.head.toString))
+                else(HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))     // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
+              })
 
-```
-{
-  "lastTime": "2017-09-28T13:51:36.629Z[UTC]",   // only return nodes that have changed since this time, empty string returns all
-  "nodeOrgids": [ "org1", "org2", "..." ]   // if not specified, defaults to the same org the pattern is in
-}
-```"""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("pattern", DataType.String, Option[String]("Pattern id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostNodeHealthRequest],
-          Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val postPatternNodeHealth2 = (apiOperation[PostNodeHealthRequest]("postPatternNodeHealth2") summary("a") description("a"))
-
-  /** Called by the agbot to get recent info about nodes with this pattern (and the agreements the node has). */
-  post("/orgs/:orgid/patterns/:pattern/nodehealth", operation(postPatternNodeHealth)) ({
-    val orgid = params("orgid")
-    val pattern = params("pattern")
-    val compositePat = OrgAndId(orgid,pattern).toString
-    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
-    val searchProps = try { parse(request.body).extract[PostNodeHealthRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    searchProps.validate()
-    val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
-    logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth criteria: "+searchProps.toString)
-    val resp = response
-    /*
-      Join nodes and agreements and return: n.id, n.lastHeartbeat, a.id, a.lastUpdated.
-      The filter is: n.pattern==ourpattern && n.lastHeartbeat>=lastTime
-      Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
-    */
-    val lastTime = if (searchProps.lastTime != "") searchProps.lastTime else ApiTime.beginningUTC
-    val q = for {
-      (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-    } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
-
-    db.run(q.result).map({ list =>
-      logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result size: "+list.size)
-      //logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
-      if (list.nonEmpty) {
-        resp.setStatus(HttpCode.POST_OK)
-        PostNodeHealthResponse(buildNodeHealthHash(list))
-      }
-      else {
-        resp.setStatus(HttpCode.NOT_FOUND)
-        PostNodeHealthResponse(Map[String,NodeHealthHashElement]())
-      }
-    })
-  })
-
-
-
-  //todo: remove this once anax 2.23.7 hits prod
-  // ======== POST /orgs/{orgid}/search/nodes ========================
-  val postSearchNodes =
-    (apiOperation[PostSearchNodesResponse]("postSearchNodes")
-      summary("Returns matching nodes")
-      description """Based on the input selection criteria, returns the matching nodes (RPis) in the exchange DB. Can be run by a user or agbot (but not a node). The **request body** structure:
-
-```
-{
-  "desiredServices": [    // list of data services you are interested in
-    {
-      "url": "myorg/mydomain.com.rtlsdr",    // composite svc identifier (org/url)
-      "properties": [    // list of properties to match specific nodes/services
-        {
-          "name": "arch",         // typical property names are: arch, version, dataVerification, memory
-          "value": "arm",         // should always be a string (even for boolean and int). Use "*" for wildcard
-          "propType": "string",   // valid types: string, list, version, boolean, int, or wildcard
-          "op": "="               // =, <=, >=, or in
-        }
-      ]
-    }
-  ],
-  "secondsStale": 60,     // max number of seconds since the exchange has heard from the node, 0 if you do not care
-  "startIndex": 0,    // for pagination, ignored right now
-  "numEntries": 0    // ignored right now
-}
-```"""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostSearchNodesRequest],
-          Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val postSearchNodes2 = (apiOperation[PostSearchNodesRequest]("postSearchNodes2") summary("a") description("a"))
-
-  /** Normally called by the agbot to search for available nodes. */
-  post("/orgs/:orgid/search/nodes", operation(postSearchNodes)) ({
-    val orgid = params("orgid")
-    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
-    val searchProps = try { parse(request.body).extract[PostSearchNodesRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    searchProps.validate()
-    logger.debug("POST /orgs/"+orgid+"/search/nodes criteria: "+searchProps.desiredServices.toString)
-    val resp = response
-    // Narrow down the db query results as much as possible with db selects, then searchProps.matches will do the rest.
-    var q = NodesTQ.getNonPatternNodes(orgid).filter(_.publicKey =!= "")
-    // Also filter out nodes that are too stale (have not heartbeated recently)
-    if (searchProps.secondsStale > 0) q = q.filter(_.lastHeartbeat >= ApiTime.pastUTC(searchProps.secondsStale))
-
-    var agHash: AgreementsHash = null
-    db.run(NodeAgreementsTQ.getAgreementsWithState(orgid).result.flatMap({ agList =>
-      logger.debug("POST /orgs/" + orgid + "/search/nodes aglist result size: " + agList.size)
-      //logger.trace("POST /orgs/" + orgid + "/search/nodes aglist result: " + agList.toString)
-      agHash = new AgreementsHash(agList)
-      q.result // queue up our node query next
-    })).map({ list =>
-      logger.debug("POST /orgs/" + orgid + "/search/nodes result size: " + list.size)
-      // logger.trace("POST /orgs/"+orgid+"/search/nodes result: "+list.toString)
-      // logger.trace("POST /orgs/"+orgid+"/search/nodes agHash: "+agHash.agHash.toString)
-      if (list.nonEmpty) resp.setStatus(HttpCode.POST_OK) //todo: this check only catches if there are no nodes at all, not the case in which there are some nodes, but they do not have the right services
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      val nodes = new MutableHashMap[String,Node]    // the key is node id
-      if (list.nonEmpty) for (a <- list) nodes.put(a.id, a.toNode(false))
-      searchProps.matches(nodes.toMap, agHash)
-    })
-  })
-
-  // ======== POST /org/{orgid}/search/nodes/error ========================
-  val postSearchNodeError =
-    (apiOperation[PostNodeErrorResponse]("postSearchNodeError")
-      summary("Returns nodes in an error state")
-      description """Returns a list of the id's of nodes in an error state. Can be run by a user or agbot (but not a node). No request body is currently required."""
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-    )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val postSearchNodeError2 = (apiOperation[PostNodeHealthRequest]("postSearchNodeError2") summary("a") description("a"))
-
-  /** Called by the UI to get the count of nodes in an error state. */
-  post("/orgs/:orgid/search/nodes/error", operation(postSearchNodeError)) ({
-    val orgid = params("orgid")
-    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
-    val resp = response
-    val q = for {
-      (n) <- NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]")
-    } yield n.nodeId
-
-    db.run(q.result).map({ list =>
-      logger.debug("POST /orgs/"+orgid+"/search/nodes/error result size: "+list.size)
-      if (list.nonEmpty) {
-        resp.setStatus(HttpCode.POST_OK)
-        PostNodeErrorResponse(list)
-      }
-      else {
-        resp.setStatus(HttpCode.NOT_FOUND)
-      }
-    })
-  })
-
-  // =========== POST /orgs/{orgid}/search/nodes/service  ===============================
-
-  val postServiceSearch =
-    (apiOperation[PostServiceSearchResponse]("postServiceSearch")
-      summary("Returns the nodes a service is running on")
-      description
-      """Returns a list of all the nodes a service is running on. The **request body** structure:
-```
-{
-  "orgid": "string",   // orgid of the service to be searched on
-  "serviceURL": "string",
-  "serviceVersion": "string",
-  "serviceArch": "string"
-}
-```"""
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-    )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val postServiceSearch2 = (apiOperation[PostNodeHealthRequest]("postSearchNodeHealth2") summary("a") description("a"))
-
-  /** Called by the agbot to get recent info about nodes with no pattern (and the agreements the node has). */
-  post("/orgs/:orgid/search/nodes/service", operation(postServiceSearch)) ({
-    val orgid = params("orgid")
-    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
-    val searchProps = try { parse(request.body).extract[PostServiceSearchRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    searchProps.validate()
-    // service = svcUrl_svcVersion_svcArch
-    val service = searchProps.serviceURL+"_"+searchProps.serviceVersion+"_"+searchProps.serviceArch
-    logger.debug("POST /orgs/"+orgid+"/search/nodehealth criteria: "+searchProps.toString)
-    val resp = response
-    val orgService = "%|"+searchProps.orgid+"/"+service+"|%"
-    val q = for {
-      (n, s) <- (NodesTQ.rows.filter(_.orgid === orgid)) join (NodeStatusTQ.rows.filter(_.runningServices like orgService)) on (_.id === _.nodeId)
-    } yield (n.id, n.lastHeartbeat)
-
-    db.run(q.result).map({ list =>
-      logger.debug("POST /orgs/"+orgid+"/services/"+service+"/search result size: "+list.size)
-      if (list.nonEmpty) {
-        resp.setStatus(HttpCode.POST_OK)
-        PostServiceSearchResponse(list)
-      }
-      else {
-        resp.setStatus(HttpCode.NOT_FOUND)
-      }
-    })
-  })
-
-  // ======== POST /org/{orgid}/search/nodehealth ========================
-  val postSearchNodeHealth =
-    (apiOperation[PostNodeHealthResponse]("postSearchNodeHealth")
-      summary("Returns agreement health of nodes with no pattern")
-      description """Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node). The **request body** structure:
-
-```
-{
-  "lastTime": "2017-09-28T13:51:36.629Z[UTC]"   // only return nodes that have changed since this time, empty string returns all
-}
-```"""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostNodeHealthRequest],
-          Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val postSearchNodeHealth2 = (apiOperation[PostNodeHealthRequest]("postSearchNodeHealth2") summary("a") description("a"))
-
-  /** Called by the agbot to get recent info about nodes with no pattern (and the agreements the node has). */
-  post("/orgs/:orgid/search/nodehealth", operation(postSearchNodeHealth)) ({
-    val orgid = params("orgid")
-    //val pattern = params("patid")
-    //val compositePat = OrgAndId(orgid,pattern).toString
-    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
-    val searchProps = try { parse(request.body).extract[PostNodeHealthRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    searchProps.validate()
-    logger.debug("POST /orgs/"+orgid+"/search/nodehealth criteria: "+searchProps.toString)
-    val resp = response
-    /*
-      Join nodes and agreements and return: n.id, n.lastHeartbeat, a.id, a.lastUpdated.
-      The filter is: n.pattern=="" && n.lastHeartbeat>=lastTime
-      Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
-    */
-    val lastTime = if (searchProps.lastTime != "") searchProps.lastTime else ApiTime.beginningUTC
-    val q = for {
-      (n, a) <- NodesTQ.rows.filter(_.orgid === orgid).filter(_.pattern === "").filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-    } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
-
-    db.run(q.result).map({ list =>
-      logger.debug("POST /orgs/"+orgid+"/search/nodehealth result size: "+list.size)
-      //logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
-      if (list.nonEmpty) {
-        resp.setStatus(HttpCode.POST_OK)
-        PostNodeHealthResponse(buildNodeHealthHash(list))
-      }
-      else {
-        resp.setStatus(HttpCode.NOT_FOUND)
-        PostNodeHealthResponse(Map[String,NodeHealthHashElement]())
-      }
-    })
-  })
+            case None =>   // Return the whole node
+              val q = NodesTQ.getNode(compositeId)
+              db.run(q.result).map({ list =>
+                logger.debug("GET /orgs/"+orgid+"/nodes/"+id+" result: "+list.size)
+                if (list.nonEmpty) {
+                  val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
+                  (HttpCode.OK, GetNodesResponse(nodes, 0))
+                } else {
+                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))     // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
+                }
+              })
+          }
+        }) // end of complete
+      } // end of validate
+    } // end of exchAuth
+  }
 
   // =========== PUT /orgs/{orgid}/nodes/{id} ===============================
-  val putNodes =
-    (apiOperation[Map[String,String]]("putNodes")
-      summary "Adds/updates a node"
-      description """Adds a new edge node to the exchange DB, or updates an existing node. This must be called by the user to add a node, and then can be called by that user or node to update itself. The **request body** structure:
-
+  @PUT
+  @Path("{id}")
+  @Operation(summary = "Add/updates a node", description = "Adds a new edge node, or updates an existing node. This must be called by the user to add a node, and then can be called by that user or node to update itself.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+    requestBody = new RequestBody(description = """
 ```
 {
   "token": "abc",       // node token, set by user when adding this node.
@@ -769,422 +400,357 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the node, can omit
   "publicKey": "ABCDEF"      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
 }
-```"""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node to be added/updated."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PutNodesRequest],
-          Option[String]("Node object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val putNodes2 = (apiOperation[PutNodesRequest]("putNodes2") summary("a") description("a"))  // for some bizarre reason, the PutNodesRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  put("/orgs/:orgid/nodes/:id", operation(putNodes)) ({
-    // consider writing a customer deserializer that will do error checking on the body, see: https://gist.github.com/fehguy/4191861#file-gistfile1-scala-L74
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    val ident = authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val node = try { parse(request.body).extract[PutNodesRequest] }
-    catch {
-      case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e)))
-    }
-    node.validate()
-    val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
-    val resp = response
-    val patValidateAction = if (node.pattern != "") PatternsTQ.getPattern(node.pattern).length.result else DBIO.successful(1)
-    val (valServiceIdActions, svcRefs) = node.validateServiceIds  // to check that the services referenced in userInput exist
-    val hashedTok = Password.hash(node.token)
-    db.run(patValidateAction.asTry.flatMap({ xs =>
-      // Check if pattern exists, then get services referenced
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
-      xs match {
-        case Success(num) => if (num > 0) valServiceIdActions.asTry
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("pattern.not.in.exchange"))).asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Check if referenced services exist, then get whether node is using policy
-      logger.debug("PUT /orgs/"+orgid+"/nodes"+bareId+" service validation: "+xs.toString)
-      xs match {
-        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
-          breakable { for ( (len, index) <- v.zipWithIndex) {
-            if (len <= 0) {
-              invalidIndex = index
-              break
-            }
-          } }
-          if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(id).result.asTry
-          else {
-            val errStr = if (invalidIndex < svcRefs.length) ExchangeMessage.translateMessage("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-            else ExchangeMessage.translateMessage("service.not.in.exchange.index", Nth(invalidIndex+1))
-            DBIO.failed(new Throwable(errStr)).asTry
-          }
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Check if node is using policy, then get num nodes already owned
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" policy related attrs: "+xs.toString)
-      xs match {
-        case Success(v) => if (v.nonEmpty) {
-            val (existingPattern, existingPublicKey) = v.head
-            if (node.pattern!="" && existingPattern=="" && existingPublicKey!="") DBIO.failed(new Throwable(ExchangeMessage.translateMessage("not.pattern.when.policy"))).asTry
-            else NodesTQ.getNumOwned(owner).result.asTry   // they are not trying to switch from policy to pattern, so we can continue
-          }
-          else NodesTQ.getNumOwned(owner).result.asTry    // node doesn't exit yet, we can continue
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Check if num nodes owned is below limit, then create/update node
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" num owned: "+xs)
-      xs match {
-        case Success(numOwned) => val maxNodes = ExchConfig.getInt("api.limits.maxNodes")
-          if (maxNodes == 0 || numOwned <= maxNodes || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
-            val action = if (owner == "") node.getDbUpdate(id, orgid, owner, hashedTok) else node.getDbUpsert(id, orgid, owner, hashedTok)
-            action.transactionally.asTry
-          }
-          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.of.nodes", maxNodes))).asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" result: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "node", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      // Check creation/update of node, and other errors
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" updating resource status table: "+xs)
-      xs match {
-        case Success(_) =>
-          AuthCache.putNodeAndOwner(id, hashedTok, node.token, owner)
-          //AuthCache.ids.putNode(id, hashedTok, node.token)
-          //AuthCache.nodesOwner.putOne(id, owner)
-          resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.added.or.updated"))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.not.inserted.or.updated", id, t.getMessage))
-        case Failure(t) =>
-          resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.not.inserted.or.updated", id, t.getMessage))
-      }
-    })
-  })
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutNodesRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "resource add/updated - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodePutRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment) & entity(as[PutNodesRequest])) { (orgid, id, reqBody) =>
+    logger.debug(s"Doing PUT /orgs/$orgid/nodes/$id")
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { ident =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
+          val patValidateAction = if (reqBody.pattern != "") PatternsTQ.getPattern(reqBody.pattern).length.result else DBIO.successful(1)
+          val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced in userInput exist
+          val hashedTok = Password.hash(reqBody.token)
+          db.run(patValidateAction.asTry.flatMap({
+            case Success(num) =>
+              // Check if pattern exists, then get services referenced
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " pattern validation: " + num)
+              if (num > 0) valServiceIdActions.asTry
+              else DBIO.failed(new Throwable(ExchMsg.translate("pattern.not.in.exchange"))).asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) =>
+              // Check if referenced services exist, then get whether node is using policy
+              logger.debug("PUT /orgs/" + orgid + "/nodes" + id + " service validation: " + v)
+              var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+              breakable {
+                for ((len, index) <- v.zipWithIndex) {
+                  if (len <= 0) {
+                    invalidIndex = index
+                    break
+                  }
+                }
+              }
+              if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(compositeId).result.asTry
+              else {
+                val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
+                DBIO.failed(new Throwable(errStr)).asTry
+              }
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) =>
+              // Check if node is using policy, then get num nodes already owned
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " policy related attrs: " + v)
+              if (v.nonEmpty) {
+                val (existingPattern, existingPublicKey) = v.head
+                if (reqBody.pattern != "" && existingPattern == "" && existingPublicKey != "") DBIO.failed(new Throwable(ExchMsg.translate("not.pattern.when.policy"))).asTry
+                else NodesTQ.getNumOwned(owner).result.asTry // they are not trying to switch from policy to pattern, so we can continue
+              }
+              else NodesTQ.getNumOwned(owner).result.asTry // node doesn't exit yet, we can continue
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(numOwned) =>
+              // Check if num nodes owned is below limit, then create/update node
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " num owned: " + numOwned)
+              val maxNodes = ExchConfig.getInt("api.limits.maxNodes")
+              if (maxNodes == 0 || numOwned <= maxNodes || owner == "") { // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
+                val action = if (owner == "") reqBody.getDbUpdate(compositeId, orgid, owner, hashedTok) else reqBody.getDbUpsert(compositeId, orgid, owner, hashedTok)
+                action.transactionally.asTry
+              }
+              else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.nodes", maxNodes))).asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " result: " + v)
+              val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "node", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+              nodeChange.insert.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              // Check creation/update of node, and other errors
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
+              AuthCache.putNodeAndOwner(compositeId, hashedTok, reqBody.token, owner)
+              //AuthCache.ids.putNode(id, hashedTok, node.token)
+              //AuthCache.nodesOwner.putOne(id, owner)
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
+            case Failure(t) =>
+              (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== PATCH /orgs/{orgid}/nodes/{id} ===============================
-  val patchNodes =
-    (apiOperation[Map[String,String]]("patchNodes")
-      summary "Updates 1 attribute of a node"
-      description """Updates some attributes of a node (RPi) in the exchange DB. This can be called by the user or the node."""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node to be updated."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PatchNodesRequest],
-          Option[String]("Node object that contains attributes to updated in, the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val patchNodes2 = (apiOperation[PatchNodesRequest]("patchNodes2") summary("a") description("a"))  // for some bizarre reason, the PatchNodesRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  patch("/orgs/:orgid/nodes/:id", operation(patchNodes)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
-      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
-    }
-    val node = try { parse(request.body).extract[PatchNodesRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-//    logger.trace("PATCH /orgs/"+orgid+"/nodes/"+bareId+" input: "+node.toString)
-    val resp = response
-    val hashedPw = if (node.token.isDefined) Password.hash(node.token.get) else ""    // hash the token if that is what is being updated
-    val (action, attrName) = node.getDbUpdate(id, hashedPw)
-    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.note.attr.specified")))
-    val patValidateAction = if (attrName == "pattern" && node.pattern.get != "") PatternsTQ.getPattern(node.pattern.get).length.result else DBIO.successful(1)
-    val (valServiceIdActions, svcRefs) = if (attrName == "userInput") NodesTQ.validateServiceIds(node.userInput.get)
-      else (DBIO.successful(Vector()), Vector())
-    db.run(patValidateAction.asTry.flatMap({ xs =>
-      // Check if pattern exists, then get services referenced
-      logger.debug("PATCH /orgs/"+orgid+"/nodes/"+bareId+" pattern validation: "+xs.toString)
-      xs match {
-        case Success(num) => if (num > 0) valServiceIdActions.asTry
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("pattern.not.in.exchange"))).asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Check if referenced services exist, then get whether node is using policy
-      logger.debug("PATCH /orgs/"+orgid+"/nodes"+bareId+" service validation: "+xs.toString)
-      xs match {
-        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
-          breakable { for ( (len, index) <- v.zipWithIndex) {
-            if (len <= 0) {
-              invalidIndex = index
-              break
-            }
-          } }
-          if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(id).result.asTry
+  @PATCH
+  @Path("{id}")
+  @Operation(summary = "Updates 1 attribute of a node", description = "Updates some attributes of a node. This can be called by the user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+    requestBody = new RequestBody(description = "Specify only **one** of the attributes (see list of attributes in the PUT route)", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchNodesRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodePatchRoute: Route = (patch & path("orgs" / Segment / "nodes" / Segment) & entity(as[PatchNodesRequest])) { (orgid, id, reqBody) =>
+    logger.debug(s"Doing PATCH /orgs/$orgid/nodes/$id")
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          val hashedPw = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
+          val (action, attrName) = reqBody.getDbUpdate(compositeId, hashedPw)
+          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.note.attr.specified")))
           else {
-            val errStr = if (invalidIndex < svcRefs.length) ExchangeMessage.translateMessage("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-            else ExchangeMessage.translateMessage("service.not.in.exchange.index", Nth(invalidIndex+1))
-            DBIO.failed(new Throwable(errStr)).asTry
+            val patValidateAction = if (attrName == "pattern" && reqBody.pattern.get != "") PatternsTQ.getPattern(reqBody.pattern.get).length.result else DBIO.successful(1)
+            val (valServiceIdActions, svcRefs) = if (attrName == "userInput") NodesTQ.validateServiceIds(reqBody.userInput.get) else (DBIO.successful(Vector()), Vector())
+            db.run(patValidateAction.asTry.flatMap({
+              case Success(num) =>
+                // Check if pattern exists, then get services referenced
+                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " pattern validation: " + num)
+                if (num > 0) valServiceIdActions.asTry
+                else DBIO.failed(new Throwable(ExchMsg.translate("pattern.not.in.exchange"))).asTry
+              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+            }).flatMap({
+              case Success(v) =>
+                // Check if referenced services exist, then get whether node is using policy
+                logger.debug("PATCH /orgs/" + orgid + "/nodes" + id + " service validation: " + v)
+                var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+                breakable {
+                  for ((len, index) <- v.zipWithIndex) {
+                    if (len <= 0) {
+                      invalidIndex = index
+                      break
+                    }
+                  }
+                }
+                if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(compositeId).result.asTry
+                else {
+                  val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                  else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
+                  DBIO.failed(new Throwable(errStr)).asTry
+                }
+              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+            }).flatMap({
+              case Success(v) =>
+                // Check if node is using policy, then update node
+                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " policy related attrs: " + v)
+                if (v.nonEmpty) {
+                  val (existingPattern, existingPublicKey) = v.head
+                  if (reqBody.pattern.getOrElse("") != "" && existingPattern == "" && existingPublicKey != "") DBIO.failed(new Throwable(ExchMsg.translate("not.pattern.when.policy"))).asTry
+                  else action.transactionally.asTry // they are not trying to switch from policy to pattern, so we can continue
+                }
+                else action.transactionally.asTry // node doesn't exit yet, we can continue
+              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+            }).flatMap({
+              case Success(v) =>
+                // Add the resource to the resourcechanges table
+                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " result: " + v)
+                val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "node", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                nodeChange.insert.asTry
+              case Failure(t) => DBIO.failed(t).asTry
+            })).map({
+              case Success(v) =>
+                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
+                try {
+                  val numUpdated = v.toString.toInt // v comes to us as type Any
+                  if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
+                    if (reqBody.token.isDefined) AuthCache.putNode(compositeId, hashedPw, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
+                    //AuthCache.ids.putNode(id, hashedPw, node.token.get)
+                    (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", attrName, compositeId)))
+                  } else {
+                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
+                  }
+                } catch {
+                  case e: Exception => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unexpected.result.from.update", e)))
+                }
+              case Failure(t) =>
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage)))
+            })
           }
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Check if node is using policy, then update node
-      logger.debug("PATCH /orgs/"+orgid+"/nodes/"+bareId+" policy related attrs: "+xs.toString)
-      xs match {
-        case Success(v) => if (v.nonEmpty) {
-          val (existingPattern, existingPublicKey) = v.head
-          if (node.pattern.getOrElse("")!="" && existingPattern=="" && existingPublicKey!="") DBIO.failed(new Throwable(ExchangeMessage.translateMessage("not.pattern.when.policy"))).asTry
-          else action.transactionally.asTry   // they are not trying to switch from policy to pattern, so we can continue
-        }
-        else action.transactionally.asTry    // node doesn't exit yet, we can continue
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("PATCH /orgs/"+orgid+"/nodes/"+bareId+" result: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "node", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("PATCH /orgs/"+orgid+"/nodes/"+bareId+" updating resource status table: "+xs)
-      xs match {
-        case Success(v) => try {
-            val numUpdated = v.toString.toInt     // v comes to us as type Any
-            if (numUpdated > 0) {        // there were no db errors, but determine if it actually found it or not
-              if (node.token.isDefined) AuthCache.putNode(id, hashedPw, node.token.get)  // We do not need to run putOwner because patch does not change the owner
-              //AuthCache.ids.putNode(id, hashedPw, node.token.get)
-              resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.attribute.updated", attrName, id))
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
-            }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e)) }
-          //          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.not.inserted.or.updated", id, t.getMessage))
-      }
-    })
-  })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== POST /orgs/{orgid}/nodes/{id}/services_configstate ===============================
-  val postNodesConfigstate =
-    (apiOperation[ApiResponse]("postNodesConfigstate")
-      summary "Changes config state of registered services"
-      description """Suspends (or resumes) 1 or more services on this edge node. Can be run by the node owner or the node. The **request body** structure:
-
+  @POST
+  @Path("{id}/services_configstate")
+  @Operation(summary = "Changes config state of registered services", description = "Suspends (or resumes) 1 or more services on this edge node. Can be run by the node owner or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated.")),
+    requestBody = new RequestBody(description = """
 ```
 {
   "org": "myorg",    // the org of services to be modified, or empty string for all orgs
   "url": "myserviceurl"       // the url of services to be modified, or empty string for all urls
   "configState": "suspended"   // or "active"
 }
-```
-      """
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node to be modified."), paramType = ParamType.Path),
-      Parameter("body", DataType[PostNodeConfigStateRequest],
-        Option[String]("Service selection and desired state. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val postNodesConfigState2 = (apiOperation[PostNodeConfigStateRequest]("postNodesConfigstate2") summary("a") description("a"))
-
-  post("/orgs/:orgid/nodes/:id/services_configstate", operation(postNodesConfigstate)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val nodeId = OrgAndId(orgid,bareId).toString
-    val configStateReq = try { parse(request.body).extract[PostNodeConfigStateRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    configStateReq.validate()
-    val resp = response
-
-    db.run(NodesTQ.getRegisteredServices(nodeId).result.asTry.flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/configstate result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v.nonEmpty) configStateReq.getDbUpdate(v.head, nodeId).asTry   // pass the update action to the next step
-          else DBIO.failed(new Throwable("Invalid Input: node "+nodeId+" not found")).asTry    // it seems this returns success even when the node is not found
-        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step. Is this necessary, or will flatMap do that automatically?
-      }
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/configstate write row result: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "services_configstate", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" updating resource status table: "+xs)
-      xs match {
-        case Success(i) => //try {     // i comes to us as type Any
-          if (i.toString.toInt > 0) {        // there were no db errors, but determine if it actually found it or not
-            resp.setStatus(HttpCode.PUT_OK)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.services.updated", nodeId))
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", nodeId))
-          }
-          //} catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, "Unexpected result from update: "+e) }
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.not.inserted.or.updated", nodeId, t.getMessage))
-      }
-    })
-
-  })
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeConfigStateRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodePostConfigStateRoute: Route = (post & path("orgs" / Segment / "nodes" / Segment / "services_configstate") & entity(as[PostNodeConfigStateRequest])) { (orgid, id, reqBody) =>
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TNode(compositeId),Access.WRITE) { _ =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          db.run(NodesTQ.getRegisteredServices(compositeId).result.asTry.flatMap({
+            case Success(v) =>
+              logger.debug("POST /orgs/" + orgid + "/nodes/" + id + "/configstate result: " + v)
+              if (v.nonEmpty) reqBody.getDbUpdate(v.head, compositeId).asTry // pass the update action to the next step
+              else DBIO.failed(new Throwable("Invalid Input: node " + compositeId + " not found")).asTry // it seems this returns success even when the node is not found
+            case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step. Is this necessary, or will flatMap do that automatically?
+          }).flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("POST /orgs/" + orgid + "/nodes/" + id + "/configstate write row result: " + v)
+              val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "services_configstate", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+              nodeChange.insert.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(n) =>
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + n)
+              if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.services.updated", compositeId))) // there were no db errors, but determine if it actually found it or not
+              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
+            case Failure(t: AuthException) => t.toComplete
+            case Failure(t) =>
+              (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/nodes/{id} ===============================
-  val deleteNodes =
-    (apiOperation[ApiResponse]("deleteNodes")
-      summary "Deletes a node"
-      description "Deletes a node (RPi) from the exchange DB, and deletes the agreements stored for this node (but does not actually cancel the agreements between the node and agbots). Can be run by the owning user or the node."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/nodes/:id", operation(deleteNodes)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    // remove does *not* throw an exception if the key does not exist
-    val resp = response
-    db.run(NodesTQ.getNode(id).delete.transactionally.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+" result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) {
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "node", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+" updating resource status table: "+xs)
-      xs match {
-        case Success(_) =>        // there were no db errors, but determine if it actually found it or not
-          logger.debug("Nodes4 - getting to success")
-          AuthCache.removeNodeAndOwner(id)
-          //AuthCache.ids.removeOne(id)
-          //AuthCache.nodesOwner.removeOne(id)
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.deleted"))
-        case Failure(t: DBProcessingError) =>
-          logger.debug("Nodes4 - getting to failure - dbprocessingerror")
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
-        case Failure(t) =>
-          logger.debug("Nodes4 - getting to failure catch all case")
-          if(t.getMessage.contains("couldn't find node")){
-            logger.debug("Nodes4 - getting to failure catch all if case")
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
-          } else {
-            logger.debug("Nodes4 - getting to failure catch all other case")
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.not.deleted", id, t.toString))
-          }
-
-        }
-    })
-  })
+  @DELETE
+  @Path("{id}")
+  @Operation(summary = "Deletes a node", description = "Deletes a node (RPi), and deletes the agreements stored for this node (but does not actually cancel the agreements between the node and agbots). Can be run by the owning user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeDeleteRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment)) { (orgid, id) =>
+    logger.debug(s"Doing DELETE /orgs/$orgid/nodes/$id")
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+      complete({
+        // remove does *not* throw an exception if the key does not exist
+        db.run(NodesTQ.getNode(compositeId).delete.transactionally.asTry.flatMap({
+          case Success(v) =>
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              logger.debug(s"DELETE /orgs/$orgid/nodes/$id result: $v")
+              AuthCache.removeNodeAndOwner(compositeId)
+              val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "node", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              nodeChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug(s"DELETE /orgs/$orgid/nodes/$id updated in changes table: $v")
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            if (t.getMessage.contains("couldn't find node")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
+            else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== POST /orgs/{orgid}/nodes/{id}/heartbeat ===============================
-  val postNodesHeartbeat =
-    (apiOperation[ApiResponse]("postNodesHeartbeat")
-      summary "Tells the exchange this node is still operating"
-      description "Lets the exchange know this node is still active so it is still a candidate for contracting. Can be run by the owning user or the node."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node to be updated."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  post("/orgs/:orgid/nodes/:id/heartbeat", operation(postNodesHeartbeat)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val resp = response
-    db.run(NodesTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry).map({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/heartbeat result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) {       // there were no db errors, but determine if it actually found it or not
-              resp.setStatus(HttpCode.POST_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.updated"))
+  @POST
+  @Path("{id}/heartbeat")
+  @Operation(summary = "Tells the exchange this node is still operating", description = "Lets the exchange know this node is still active so it is still a candidate for contracting. Can be run by the owning user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeHeartbeatRoute: Route = (post & path("orgs" / Segment / "nodes" / Segment / "heartbeat")) { (orgid, id) =>
+    logger.debug(s"Doing POST /orgs/$orgid/users/$id/heartbeat")
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TNode(compositeId),Access.WRITE) { _ =>
+      complete({
+        db.run(NodesTQ.getLastHeartbeat(compositeId).update(ApiTime.nowUTC).asTry).map({
+          case Success(v) =>
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              logger.debug(s"POST /orgs/$orgid/users/$id/heartbeat result: $v")
+              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.updated")))
             } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
+              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
             }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.not.updated", id, t.toString))
-        }
-    })
-  })
-
+          case Failure(t) => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.updated", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/errors ================================ */
-  val getNodeError =
-    (apiOperation[NodeError]("getNodeError")
-      summary("Returns the node error")
-      description("""Returns any node errors.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node."), paramType=ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/nodes/:id/errors", operation(getNodeError)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.READ)
-    val resp = response
-      db.run(NodeErrorTQ.getNodeError(id).result).map({ list =>
-        logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/errors result size: "+list.size)
-        if (list.nonEmpty) {
-          resp.setStatus(HttpCode.OK)
-          list.head.toNodeError
-        }
-        else resp.setStatus(HttpCode.NOT_FOUND)
-      })
-  })
+  @GET
+  @Path("{id}/errors")
+  @Operation(summary = "Returns the node errors", description = "Returns any node errors. Can be run by any user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[NodeError])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeGetErrorsRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment / "errors")) { (orgid, id) =>
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId),Access.READ) { _ =>
+      complete({
+        db.run(NodeErrorTQ.getNodeError(compositeId).result).map({ list =>
+          logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/errors result size: "+list.size)
+          if (list.nonEmpty) (HttpCode.OK, list.head.toNodeError)
+          else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== PUT /orgs/{orgid}/nodes/{id}/errors ===============================
-  val putNodeError =
-    (apiOperation[ApiResponse]("putNodeError")
-      summary "Adds/updates node error list"
-      description """Adds or updates any error of a node. This is called by the node or owning user. The **request body** structure:
-
+  @PUT
+  @Path("{id}/errors")
+  @Operation(summary = "Adds/updates node error list", description = "Adds or updates any error of a node. This is called by the node or owning user.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated.")),
+    requestBody = new RequestBody(description = """
 ```
 {
   errors: [
@@ -1197,134 +763,113 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     ...
   ]
 }
-```"""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node wanting to add/update the error."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PutNodeErrorRequest],
-          Option[String]("Error object add or update. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val putNodeError2 = (apiOperation[PutNodeErrorRequest]("putNodeError2") summary("a") description("a"))
-
-  put("/orgs/:orgid/nodes/:id/errors", operation(putNodeError)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val error = try { parse(request.body).extract[PutNodeErrorRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    error.validate()
-    val resp = response
-    db.run(error.toNodeErrorRow(id).upsert.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/errors result: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodeerrors", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" updating resource status table: "+xs)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.errors.added"))
-        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.errors.not.inserted", id, t.getMessage))
-        } else {
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.errors.not.inserted", id, t.toString))
-        }
-      }
-    })
-  })
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutNodeErrorRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodePutErrorsRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "errors") & entity(as[PutNodeErrorRequest])) { (orgid, id, reqBody) =>
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TNode(compositeId),Access.WRITE) { _ =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          db.run(reqBody.toNodeErrorRow(compositeId).upsert.asTry.flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/errors result: " + v)
+              val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "nodeerrors", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+              nodeChange.insert.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.errors.added")))
+            case Failure(t) =>
+              if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.errors.not.inserted", compositeId, t.getMessage)))
+              else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.errors.not.inserted", compositeId, t.toString)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/nodes/{id}/errors ===============================
-  val deleteNodeError =
-    (apiOperation[ApiResponse]("deleteNodeError")
-      summary "Deletes the error list of a node"
-      description "Deletes the error list of a node from the exchange DB. Can be run by the owning user or the node."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node for which the error is to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-      )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/nodes/:id/errors", operation(deleteNodeError)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val resp = response
-    db.run(NodeErrorTQ.getNodeError(id).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/errors result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) {
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodeerrors", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+" updating resource status table: "+xs)
-      xs match {
-        case Success(v) =>        // there were no db errors, but determine if it actually found it or not
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.errors.deleted"))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.errors.not.found", id))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.errors.not.deleted", id, t.toString))
-      }
-    })
-  })
+  @DELETE
+  @Path("{id}/errors")
+  @Operation(summary = "Deletes the error list of a node", description = "Deletes the error list of a node. Can be run by the owning user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeDeleteErrorsRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "errors")) { (orgid, id) =>
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+      complete({
+        db.run(NodeErrorTQ.getNodeError(compositeId).delete.asTry.flatMap({
+          case Success(v) =>
+            // Add the resource to the resourcechanges table
+            logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/errors result: " + v)
+            if (v > 0) {
+              val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "nodeerrors", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              nodeChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) => // there were no db errors, but determine if it actually found it or not
+            logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.errors.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.errors.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/status ================================ */
-  val getNodeStatus =
-    (apiOperation[NodeStatus]("getNodeStatus")
-      summary("Returns the node status")
-      description("""Returns the node run time status, for example service container status. Can be run by a user or the node.""")
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node."), paramType=ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/nodes/:id/status", operation(getNodeStatus)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.READ)
-    val resp = response
-    db.run(NodeStatusTQ.getNodeStatus(id).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/status result size: "+list.size)
-      if (list.nonEmpty) {
-        resp.setStatus(HttpCode.OK)
-        list.head.toNodeStatus
-      }
-      else resp.setStatus(HttpCode.NOT_FOUND)
-    })
-  })
+  @GET
+  @Path("{id}/status")
+  @Operation(summary = "Returns the node status", description = "Returns the node run time status, for example service container status. Can be run by a user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[NodeStatus])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeGetStatusRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment / "status")) { (orgid, id) =>
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId),Access.READ) { _ =>
+      complete({
+        db.run(NodeStatusTQ.getNodeStatus(compositeId).result).map({ list =>
+          logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/status result size: "+list.size)
+          if (list.nonEmpty) (HttpCode.OK, list.head.toNodeStatus)
+          else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== PUT /orgs/{orgid}/nodes/{id}/status ===============================
-  val putNodeStatus =
-    (apiOperation[ApiResponse]("putNodeStatus")
-      summary "Adds/updates the node status"
-      description """Adds or updates the run time status of a node. This is called by the node or owning user. The **request body** structure:
-
+  @PUT
+  @Path("{id}/status")
+  @Operation(summary = "Adds/updates the node status", description = "Adds or updates the run time status of a node. This is called by the node or owning user.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated.")),
+    requestBody = new RequestBody(description = """
 ```
 {
   "connectivity": {
@@ -1349,134 +894,113 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     }
   ]
 }
-```"""
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node wanting to add/update this status."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PutNodeStatusRequest],
-        Option[String]("Status object add or update. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val putNodeStatus2 = (apiOperation[PutNodeStatusRequest]("putNodeStatus2") summary("a") description("a"))  // for some bizarre reason, the PutNodeStatusRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  put("/orgs/:orgid/nodes/:id/status", operation(putNodeStatus)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val status = try { parse(request.body).extract[PutNodeStatusRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    status.validate()
-    val resp = response
-    db.run(status.toNodeStatusRow(id).upsert.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)
-      xs match {
-        case Success(v) =>
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodestatus", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/status updating resource status table: "+xs)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("status.added.or.updated"))
-        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.status.not.inserted.or.updated", id, t.getMessage))
-        } else {
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.status.not.inserted.or.updated", id, t.toString))
-        }
-      }
-    })
-  })
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutNodeStatusRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodePutStatusRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "status") & entity(as[PutNodeStatusRequest])) { (orgid, id, reqBody) =>
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TNode(compositeId),Access.WRITE) { _ =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          db.run(reqBody.toNodeStatusRow(compositeId).upsert.asTry.flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/status result: " + v)
+              val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "nodestatus", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+              nodeChange.insert.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("status.added.or.updated")))
+            case Failure(t) =>
+              if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.status.not.inserted.or.updated", compositeId, t.getMessage)))
+              else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.status.not.inserted.or.updated", compositeId, t.toString)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/nodes/{id}/status ===============================
-  val deleteNodeStatus =
-    (apiOperation[ApiResponse]("deleteNodeStatus")
-      summary "Deletes the status of a node"
-      description "Deletes the status of a node from the exchange DB. Can be run by the owning user or the node."
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node for which the status is to be deleted."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/nodes/:id/status", operation(deleteNodeStatus)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val resp = response
-    db.run(NodeStatusTQ.getNodeStatus(id).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/status result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0){
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodestatus", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.status.not.found", id))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/status updating resource status table: "+xs)
-      xs match {
-        case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.status.deleted"))
-        case Failure(t:DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.status.not.found", id))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.status.not.deleted", id, t.toString))
-      }
-    })
-  })
+  @DELETE
+  @Path("{id}/status")
+  @Operation(summary = "Deletes the status of a node", description = "Deletes the status of a node. Can be run by the owning user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeDeleteStatusRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "status")) { (orgid, id) =>
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+      complete({
+        db.run(NodeStatusTQ.getNodeStatus(compositeId).delete.asTry.flatMap({
+          case Success(v) =>
+            // Add the resource to the resourcechanges table
+            logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/status result: " + v)
+            if (v > 0) {
+              val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "nodestatus", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              nodeChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.status.not.found", compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) => // there were no db status, but determine if it actually found it or not
+            logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.status.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.status.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/policy ================================ */
-  val getNodePolicy =
-    (apiOperation[NodePolicy]("getNodePolicy")
-      summary("Returns the node policy")
-      description("""Returns the node policy. Can be run by a user or the node.""")
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node."), paramType=ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"post ok"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"acess denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/nodes/:id/policy", operation(getNodePolicy)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.READ)
-    val resp = response
-    db.run(NodePolicyTQ.getNodePolicy(id).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/policy result size: "+list.size)
-      if (list.nonEmpty) {
-        resp.setStatus(HttpCode.OK)
-        list.head.toNodePolicy
-      }
-      else resp.setStatus(HttpCode.NOT_FOUND)
-    })
-  })
+  @GET
+  @Path("{id}/policy")
+  @Operation(summary = "Returns the node policy", description = "Returns the node run time policy. Can be run by a user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[NodePolicy])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeGetPolicyRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment / "policy")) { (orgid, id) =>
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId),Access.READ) { _ =>
+      complete({
+        db.run(NodePolicyTQ.getNodePolicy(compositeId).result).map({ list =>
+          logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/policy result size: "+list.size)
+          if (list.nonEmpty) (HttpCode.OK, list.head.toNodePolicy)
+          else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== PUT /orgs/{orgid}/nodes/{id}/policy ===============================
-  val putNodePolicy =
-    (apiOperation[ApiResponse]("putNodePolicy")
-      summary "Adds/updates the node policy"
-      description """Adds or updates the policy of a node. This is called by the node or owning user. The **request body** structure:
-
+  @PUT
+  @Path("{id}/policy")
+  @Operation(summary = "Adds/updates the node policy", description = "Adds or updates the policy of a node. This is called by the node or owning user.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated.")),
+    requestBody = new RequestBody(description = """
 ```
 {
   "properties": [
@@ -1490,187 +1014,160 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
     "a == b"
   ]
 }
-```"""
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node wanting to add/update this policy."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PutNodePolicyRequest],
-        Option[String]("Policy object add or update. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val putNodePolicy2 = (apiOperation[PutNodePolicyRequest]("putNodePolicy2") summary("a") description("a"))  // for some bizarre reason, the PutNodePolicyRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  put("/orgs/:orgid/nodes/:id/policy", operation(putNodePolicy)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val policy = try { parse(request.body).extract[PutNodePolicyRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    policy.validate()
-    val resp = response
-    db.run(policy.toNodePolicyRow(id).upsert.asTry.flatMap({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/policy result: "+xs.toString)
-      xs match {
-        case Success(_) => NodesTQ.setLastHeartbeat(id, ApiTime.nowUTC).asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastHeartbeat result: "+xs.toString)
-      xs match {
-        case Success(n) => try {
-          val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
-          if (numUpdated > 0) {
-            val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodepolicies", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-            nodeChange.insert.asTry
-          } else {
-            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))).asTry
-          }
-        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.policy.not.updated", id, e))).asTry }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/policy updating resource status table: "+xs)
-      xs match {
-        case Success(_) =>
-          resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.policy.added.or.updated"))
-        case Failure(t: DBProcessingError) =>
-          if (t.httpCode == HttpCode.NOT_FOUND){
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
-          } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, t.getMessage)
-          }
-        case Failure(t) => if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.policy.not.inserted.or.updated", id, t.getMessage))
-        } else {
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.policy.not.inserted.or.updated", id, t.toString))
-        }
-      }
-    })
-  })
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutNodePolicyRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodePutPolicyRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "policy") & entity(as[PutNodePolicyRequest])) { (orgid, id, reqBody) =>
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TNode(compositeId),Access.WRITE) { _ =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          db.run(reqBody.toNodePolicyRow(compositeId).upsert.asTry.flatMap({
+            case Success(v) =>
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/policy result: " + v)
+              NodesTQ.setLastHeartbeat(compositeId, ApiTime.nowUTC).asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(n) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastHeartbeat result: " + n)
+              try {
+                val numUpdated = n.toString.toInt // i think n is an AnyRef so we have to do this to get it to an int
+                if (numUpdated > 0) {
+                  val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "nodepolicies", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+                  nodeChange.insert.asTry
+                } else {
+                  DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId))).asTry
+                }
+              } catch {
+                case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.policy.not.updated", compositeId, e))).asTry
+              }
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/policy updating resource status table: " + v)
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.policy.added.or.updated")))
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
+            case Failure(t) =>
+              if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.policy.not.inserted.or.updated", compositeId, t.getMessage)))
+              else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.policy.not.inserted.or.updated", compositeId, t.toString)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/nodes/{id}/policy ===============================
-  val deleteNodePolicy =
-    (apiOperation[ApiResponse]("deleteNodePolicy")
-      summary "Deletes the policy of a node"
-      description "Deletes the policy of a node from the exchange DB. Can be run by the owning user or the node."
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node for which the policy is to be deleted."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/nodes/:id/policy", operation(deleteNodePolicy)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val resp = response
-    db.run(NodePolicyTQ.getNodePolicy(id).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/policy result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) {
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodepolicies", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.policy.not.found", id) )).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+"/policy updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) =>        // there were no db errors, but determine if it actually found it or not
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.policy.deleted"))
-        case Failure(t:DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.policy.not.found", id))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.policy.not.deleted", id, t.toString))
-      }
-    })
-  })
-
+  @DELETE
+  @Path("{id}/policy")
+  @Operation(summary = "Deletes the policy of a node", description = "Deletes the policy of a node. Can be run by the owning user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeDeletePolicyRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "policy")) { (orgid, id) =>
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+      complete({
+        db.run(NodePolicyTQ.getNodePolicy(compositeId).delete.asTry.flatMap({
+          case Success(v) =>
+            // Add the resource to the resourcechanges table
+            logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/policy result: " + v)
+            if (v > 0) {
+              val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "nodepolicies", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              nodeChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.policy.not.found", compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) => // there were no db policy, but determine if it actually found it or not
+            logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource policy table: " + v)
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.policy.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.policy.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/agreements ================================ */
-  val getNodeAgreements =
-    (apiOperation[GetNodeAgreementsResponse]("getNodeAgreements")
-      summary("Returns all agreements this node is in")
-      description("""Returns all agreements in the exchange DB that this node is part of. Can be run by a user or the node.""")
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node."), paramType=ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
-      )
-
-  get("/orgs/:orgid/nodes/:id/agreements", operation(getNodeAgreements)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.READ)
-    val resp = response
-    db.run(NodeAgreementsTQ.getAgreements(id).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/agreements result size: "+list.size)
-      val agreements = new MutableHashMap[String, NodeAgreement]
-      if (list.nonEmpty) for (e <- list) { agreements.put(e.agId, e.toNodeAgreement) }
-      if (agreements.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetNodeAgreementsResponse(agreements.toMap, 0)
-    })
-  })
+  @GET
+  @Path("{id}/agreements")
+  @Operation(summary = "Returns all agreements this node is in", description = "Returns all agreements that this node is part of. Can be run by a user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetNodeAgreementsResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeGetAgreementsRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment / "agreements")) { (orgid, id) =>
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId),Access.READ) { _ =>
+      complete({
+        db.run(NodeAgreementsTQ.getAgreements(compositeId).result).map({ list =>
+          logger.debug(s"GET /orgs/$orgid/nodes/$id/agreements result size: ${list.size}")
+          val agreements = list.map(e => e.agId -> e.toNodeAgreement).toMap
+          val code = if (agreements.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetNodeAgreementsResponse(agreements, 0))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/agreements/{agid} ================================ */
-  val getOneNodeAgreement =
-    (apiOperation[GetNodeAgreementsResponse]("getOneNodeAgreement")
-      summary("Returns an agreement for a node")
-      description("""Returns the agreement with the specified agid for the specified node id in the exchange DB. Can be run by a user or the node.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node."), paramType=ParamType.Path),
-        Parameter("agid", DataType.String, Option[String]("ID of the agreement."), paramType=ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/nodes/:id/agreements/:agid", operation(getOneNodeAgreement)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    val agId = params("agid")
-    authenticate().authorizeTo(TNode(id),Access.READ)
-    val resp = response
-    db.run(NodeAgreementsTQ.getAgreement(id, agId).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+list.toString)
-      val agreements = new MutableHashMap[String, NodeAgreement]
-      if (list.nonEmpty) for (e <- list) { agreements.put(e.agId, e.toNodeAgreement) }
-      if (agreements.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetNodeAgreementsResponse(agreements.toMap, 0)
-    })
-  })
+  @GET
+  @Path("{id}/agreements/{agid}")
+  @Operation(summary = "Returns an agreement for a node", description = "Returns the agreement with the specified agid for the specified node id. Can be run by a user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
+      new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetNodeAgreementsResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeGetAgreementRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment)) { (orgid, id, agrId) =>
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId),Access.READ) { _ =>
+      complete({
+        db.run(NodeAgreementsTQ.getAgreement(compositeId, agrId).result).map({ list =>
+          logger.debug(s"GET /orgs/$orgid/nodes/$id/agreements/$agrId result size: ${list.size}")
+          val agreements = list.map(e => e.agId -> e.toNodeAgreement).toMap
+          val code = if (agreements.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetNodeAgreementsResponse(agreements, 0))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== PUT /orgs/{orgid}/nodes/{id}/agreements/{agid} ===============================
-  val putNodeAgreement =
-    (apiOperation[ApiResponse]("putNodeAgreement")
-      summary "Adds/updates an agreement of a node"
-      description """Adds a new agreement of a node to the exchange DB, or updates an existing agreement. This is called by the
-        node or owning user to give their information about the agreement. The **request body** structure:
-
+  @PUT
+  @Path("{id}/agreements/{agid}")
+  @Operation(summary = "Adds/updates an agreement of a node", description = "Adds a new agreement of a node, or updates an existing agreement. This is called by the node or owning user to give their information about the agreement.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated."),
+      new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement to be added/updated.")),
+    requestBody = new RequestBody(description = """
 ```
 {
   "services": [          // specify this for CS-type agreements
@@ -1683,341 +1180,287 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
   },
   "state": "negotiating"    // current agreement state: negotiating, signed, finalized, etc.
 }
-```"""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node wanting to add/update this agreement."), paramType = ParamType.Path),
-        Parameter("agid", DataType.String, Option[String]("ID of the agreement to be added/updated."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PutNodeAgreementRequest],
-          Option[String]("Agreement object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val putNodeAgreement2 = (apiOperation[PutNodeAgreementRequest]("putAgreement2") summary("a") description("a"))  // for some bizarre reason, the PutAgreementsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  put("/orgs/:orgid/nodes/:id/agreements/:agid", operation(putNodeAgreement)) ({
-    //todo: keep a running total of agreements for each MS so we can search quickly for available MSs
-    logger.debug("we are looking at the right method")
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    val agId = params("agid")
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val agreement = try { parse(request.body).extract[PutNodeAgreementRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    agreement.validate()
-    val resp = response
-    db.run(NodeAgreementsTQ.getNumOwned(id).result.flatMap({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" num owned: "+xs)
-      val numOwned = xs
-      val maxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
-      if (maxAgreements == 0 || numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
-        agreement.toNodeAgreementRow(id, agId).upsert.asTry
-      }
-      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.limit.of.agreements.for.node", maxAgreements) )).asTry
-    }).flatMap({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+xs.toString)
-      xs match {
-        case Success(_) => NodesTQ.setLastHeartbeat(id, ApiTime.nowUTC).asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/policy result: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodeagreements", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastHeartbeat result: "+xs.toString)
-      xs match {
-        case Success(n) => try {
-            val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
-            if (numUpdated > 0) {
-              resp.setStatus(HttpCode.PUT_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.agreement.added.or.updated"))
-            } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.not.found", id))
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutNodeAgreementRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodePutAgreementRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & entity(as[PutNodeAgreementRequest])) { (orgid, id, agrId, reqBody) =>
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TNode(compositeId),Access.WRITE) { _ =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          db.run(NodeAgreementsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
+            logger.debug("PUT /orgs/"+orgid+"/nodes/"+id+"/agreements/"+agrId+" num owned: "+xs)
+            val numOwned = xs
+            val maxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
+            if (maxAgreements == 0 || numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
+              reqBody.toNodeAgreementRow(compositeId, agrId).upsert.asTry
             }
-          } catch { case e: Exception => resp.setStatus(HttpCode.INTERNAL_ERROR); ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.agreement.not.updated", id, e)) }    // the specific exception is NumberFormatException
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.agreement.not.inserted.or.updated", agId, id, t.getMessage))
-        case Failure(t) =>
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.agreement.not.inserted.or.updated", agId, id, t.toString))
-      }
-    })
-  })
+            else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.limit.of.agreements.for.node", maxAgreements) )).asTry
+          }).flatMap({
+            case Success(v) =>
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/agreements/" + agrId + " result: " + v)
+              NodesTQ.setLastHeartbeat(compositeId, ApiTime.nowUTC).asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          }).flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/policy result: " + v)
+              val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+              nodeChange.insert.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(n) =>
+              logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastHeartbeat result: " + n)
+              try {
+                val numUpdated = n.toString.toInt // i think n is an AnyRef so we have to do this to get it to an int
+                if (numUpdated > 0) {
+                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.added.or.updated")))
+                } else {
+                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
+                }
+              } catch {
+                case e: Exception => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.updated", compositeId, e)))
+              } // the specific exception is NumberFormatException
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.inserted.or.updated", agrId, compositeId, t.toString)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/nodes/{id}/agreements ===============================
-  val deleteNodeAllAgreement =
-    (apiOperation[ApiResponse]("deleteNodeAllAgreement")
-      summary "Deletes all agreements of a node"
-      description "Deletes all of the current agreements of a node from the exchange DB. Can be run by the owning user or the node."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node for which the agreement is to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      )
-
-  delete("/orgs/:orgid/nodes/:id/agreements", operation(deleteNodeAllAgreement)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val resp = response
-    db.run(NodeAgreementsTQ.getAgreements(id).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/policy result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0){
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodeagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.node.agreements.found", id))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/agreements result: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.agreements.deleted"))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.node.agreements.found", id))
-        //            ApiResponse(ApiResponseType.NOT_FOUND, "no agreements for node '"+id+"' found")
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.agreements.not.deleted", id, t.toString))
-        }
-    })
-  })
+  @DELETE
+  @Path("{id}/agreements")
+  @Operation(summary = "Deletes all agreements of a node", description = "Deletes all of the current agreements of a node. Can be run by the owning user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeDeleteAgreementsRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "agreements")) { (orgid, id) =>
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+      complete({
+        // remove does *not* throw an exception if the key does not exist
+        db.run(NodeAgreementsTQ.getAgreements(compositeId).delete.asTry.flatMap({
+          case Success(v) =>
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              // Add the resource to the resourcechanges table
+              logger.debug("DELETE /nodes/" + id + "/agreements result: " + v)
+              val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              nodeChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.node.agreements.found", compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("DELETE /nodes/" + id + "/agreements updated in changes table: " + v)
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreements.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreements.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/nodes/{id}/agreements/{agid} ===============================
-  val deleteNodeAgreement =
-    (apiOperation[ApiResponse]("deleteNodeAgreement")
-      summary "Deletes an agreement of a node"
-      description "Deletes an agreement of a node from the exchange DB. Can be run by the owning user or the node."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node for which the agreement is to be deleted."), paramType = ParamType.Path),
-        Parameter("agid", DataType.String, Option[String]("ID of the agreement to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/nodes/:id/agreements/:agid", operation(deleteNodeAgreement)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    val agId = params("agid")
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val resp = response
-    db.run(NodeAgreementsTQ.getAgreement(id,agId).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/policy result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0){
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodeagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.agreement.not.found", agId, id))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/agreements/"+agId+" result: "+xs.toString)
-      xs match {
-        case Success(v) =>
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.agreement.deleted"))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.agreement.not.found", agId, id))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.agreement.not.deleted", agId, id, t.toString))
-        }
-    })
-  })
+  @DELETE
+  @Path("{id}/agreements/{agid}")
+  @Operation(summary = "Deletes an agreement of a node", description = "Deletes an agreement of a node. Can be run by the owning user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
+      new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement to be deleted.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeDeleteAgreementRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment)) { (orgid, id, agrId) =>
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+      complete({
+        db.run(NodeAgreementsTQ.getAgreement(compositeId,agrId).delete.asTry.flatMap({
+          case Success(v) =>
+            // Add the resource to the resourcechanges table
+            logger.debug("DELETE /nodes/" + id + "/agreements/" + agrId + " result: " + v)
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              nodeChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.agreement.not.found", agrId, compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("DELETE /nodes/" + id + "/agreements/" + agrId + " updated in changes table: " + v)
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.deleted", agrId, compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== POST /orgs/{orgid}/nodes/{id}/msgs ===============================
-  val postNodesMsgs =
-    (apiOperation[ApiResponse]("postNodesMsgs")
-      summary "Sends a msg from an agbot to a node"
-      description """Sends a msg from an agbot to a node. The agbot must 1st sign the msg (with its private key) and then encrypt the msg (with the node's public key). Can be run by any agbot. The **request body** structure:
-
+  @POST
+  @Path("{id}/msgs")
+  @Operation(summary = "Sends a msg from an agbot to a node", description = "Sends a msg from an agbot to a node. The agbot must 1st sign the msg (with its private key) and then encrypt the msg (with the node's public key). Can be run by any agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to send a message to.")),
+    requestBody = new RequestBody(description = """
 ```
 {
   "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs",    // msg to be sent to the node
   "ttl": 86400       // time-to-live of this msg, in seconds
 }
-```
-      """
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node to send a msg to."), paramType = ParamType.Path),
-        // Agbot id/token must be in the header
-        Parameter("body", DataType[PostNodesMsgsRequest],
-          Option[String]("Signed/encrypted message to send to the node. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val postNodesMsgs2 = (apiOperation[PostNodesMsgsRequest]("postNodesMsgs2") summary("a") description("a"))
-
-  post("/orgs/:orgid/nodes/:id/msgs", operation(postNodesMsgs)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val nodeId = OrgAndId(orgid,bareId).toString
-    val ident = authenticate().authorizeTo(TNode(nodeId),Access.SEND_MSG_TO_NODE)
-    val agbotId = ident.creds.id
-    var msgNum = ""
-    val msg = try { parse(request.body).extract[PostNodesMsgsRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    val resp = response
-    // Remove msgs whose TTL is past, then check the mailbox is not full, then get the agbot publicKey, then write the nodemsgs row, all in the same db.run thread
-    db.run(NodeMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/msgs delete expired result: "+xs.toString)
-      NodeMsgsTQ.getNumOwned(nodeId).result
-    }).flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/msgs mailbox size: "+xs)
-      val mailboxSize = xs
-      val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
-      if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) AgbotsTQ.getPublicKey(agbotId).result.asTry
-      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.mailbox.full", nodeId, maxMessagesInMailbox) )).asTry
-    }).flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/msgs agbot publickey result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v.nonEmpty) {    // it seems this returns success even when the agbot is not found
-            val agbotPubKey = v.head
-            if (agbotPubKey != "") NodeMsgRow(0, nodeId, agbotId, agbotPubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
-            else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("message.sender.public.key.not.in.exchange"))).asTry
-          }
-          else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.agbot.not.found", agbotId) )).asTry
-        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
-      }
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/msgs write row result: "+xs.toString)
-      xs match {
-        case Success(v) =>
-          msgNum = v.toString
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodemsgs", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/nodes/"+bareId+"/msgs update changes table : "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.msg.inserted", msgNum))
-        case Failure(t: DBProcessingError) => if(t.httpCode == HttpCode.ACCESS_DENIED) {
-            resp.setStatus(HttpCode.ACCESS_DENIED)
-            ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, t.getMessage))
-          } else if (t.httpCode == HttpCode.BAD_INPUT){
-            resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, ExchangeMessage.translateMessage("invalid.input.agbot.not.found", agbotId)))
-          }
-        case Failure(t) => if (t.getMessage.contains("is not present in table")) {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.msg.nodeid.not.found", nodeId, t.getMessage))
-          } else {
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.msg.not.inserted", nodeId, t.toString))
-          }
-        }
-    })
-  })
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostNodesMsgsRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodePostMsgRoute: Route = (post & path("orgs" / Segment / "nodes" / Segment / "msgs") & entity(as[PostNodesMsgsRequest])) { (orgid, id, reqBody) =>
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TNode(compositeId),Access.SEND_MSG_TO_NODE) { ident =>
+      complete({
+        val agbotId = ident.creds.id      //someday: handle the case where the acls allow users to send msgs
+        var msgNum = ""
+        // Remove msgs whose TTL is past, then check the mailbox is not full, then get the agbot publicKey, then write the nodemsgs row, all in the same db.run thread
+        db.run(NodeMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
+          logger.debug("POST /orgs/"+orgid+"/nodes/"+id+"/msgs delete expired result: "+xs.toString)
+          NodeMsgsTQ.getNumOwned(compositeId).result
+        }).flatMap({ xs =>
+          logger.debug("POST /orgs/"+orgid+"/nodes/"+id+"/msgs mailbox size: "+xs)
+          val mailboxSize = xs
+          val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
+          if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) AgbotsTQ.getPublicKey(agbotId).result.asTry
+          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.mailbox.full", compositeId, maxMessagesInMailbox) )).asTry
+        }).flatMap({
+          case Success(v) =>
+            logger.debug("POST /orgs/" + orgid + "/nodes/" + id + "/msgs agbot publickey result: " + v)
+            if (v.nonEmpty) { // it seems this returns success even when the agbot is not found
+              val agbotPubKey = v.head
+              if (agbotPubKey != "") NodeMsgRow(0, compositeId, agbotId, agbotPubKey, reqBody.message, ApiTime.nowUTC, ApiTime.futureUTC(reqBody.ttl)).insert.asTry
+              else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, ExchMsg.translate("message.sender.public.key.not.in.exchange"))).asTry
+            }
+            else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.agbot.not.found", agbotId))).asTry
+          case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
+        }).flatMap({
+          case Success(v) =>
+            // Add the resource to the resourcechanges table
+            logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/msgs write row result: " + v)
+            msgNum = v.toString
+            val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "nodemsgs", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+            nodeChange.insert.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("POST /orgs/" + orgid + "/nodes/" + id + "/msgs update changes table : " + v)
+            (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.inserted", msgNum)))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            if (t.getMessage.contains("is not present in table")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.nodeid.not.found", compositeId, t.getMessage)))
+            else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.inserted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/msgs ================================ */
-  val getNodeMsgs =
-    (apiOperation[GetNodeMsgsResponse]("getNodeMsgs")
-      summary("Returns all msgs sent to this node")
-      description("""Returns all msgs that have been sent to this node. They will be returned in the order they were sent. All msgs that have been sent to this node will be returned, unless the node has deleted some, or some are past their TTL. Can be run by a user or the node.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node."), paramType=ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/nodes/:id/msgs", operation(getNodeMsgs)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    authenticate().authorizeTo(TNode(id),Access.READ)
-    val resp = response
-    // Remove msgs whose TTL is past, and then get the msgs for this node
-    db.run(NodeMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
-      logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/msgs delete expired result: "+xs.toString)
-      NodeMsgsTQ.getMsgs(id).result
-    })).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/nodes/"+bareId+"/msgs result size: "+list.size)
-      val listSorted = list.sortWith(_.msgId < _.msgId)
-      val msgs = new ListBuffer[NodeMsg]
-      if (listSorted.nonEmpty) for (m <- listSorted) { msgs += m.toNodeMsg }
-      if (msgs.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetNodeMsgsResponse(msgs.toList, 0)
-    })
-  })
+  @GET
+  @Path("{id}/msgs")
+  @Operation(summary = "Returns all msgs sent to this node", description = "Returns all msgs that have been sent to this node. They will be returned in the order they were sent. All msgs that have been sent to this node will be returned, unless the node has deleted some, or some are past their TTL. Can be run by a user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetNodeMsgsResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeGetMsgsRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment / "msgs")) { (orgid, id) =>
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId),Access.READ) { _ =>
+      complete({
+        // Remove msgs whose TTL is past, and then get the msgs for this node
+        db.run(NodeMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
+          logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs delete expired result: "+xs.toString)
+          NodeMsgsTQ.getMsgs(compositeId).result
+        })).map({ list =>
+          logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs result size: "+list.size)
+          //logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs result: "+list.toString)
+          val listSorted = list.sortWith(_.msgId < _.msgId)
+          val msgs = listSorted.map(_.toNodeMsg).toList
+          val code = if (msgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetNodeMsgsResponse(msgs, 0))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/nodes/{id}/msgs/{msgid} ===============================
-  val deleteNodeMsg =
-    (apiOperation[ApiResponse]("deleteNodeMsg")
-      summary "Deletes an msg of a node"
-      description "Deletes an msg that was sent to a node. This should be done by the node after each msg is read. Can be run by the owning user or the node."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("ID (nodeid) of the node to be deleted."), paramType = ParamType.Path),
-        Parameter("msgid", DataType.String, Option[String]("ID of the msg to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the node. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/nodes/:id/msgs/:msgid", operation(deleteNodeMsg)) ({
-    val orgid = params("orgid")
-    val bareId = params("id")
-    val id = OrgAndId(orgid,bareId).toString
-    val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("msgid.must.be.int", e))) }    // the specific exception is NumberFormatException
-    authenticate().authorizeTo(TNode(id),Access.WRITE)
-    val resp = response
-    db.run(NodeMsgsTQ.getMsg(id,msgId).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/policy result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0){
-          val nodeChange = ResourceChangeRow(0, orgid, bareId, "node", "false", "nodemsgs", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          nodeChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.msg.not.found", msgId, id))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /orgs/"+orgid+"/nodes/"+bareId+"/msgs/"+msgId+" result: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("node.msg.deleted"))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("node.msg.not.found", msgId, id))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("node.msg.not.deleted", msgId, id, t.toString))
-        }
-    })
-  })
+  @DELETE
+  @Path("{id}/msgs/{msgid}")
+  @Operation(summary = "Deletes a msg of an node", description = "Deletes a message that was sent to an node. This should be done by the node after each msg is read. Can be run by the owning user or the node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
+      new Parameter(name = "msgid", in = ParameterIn.PATH, description = "ID of the msg to be deleted.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeDeleteMsgRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "msgs" / Segment)) { (orgid, id, msgIdStr) =>
+    val compositeId = OrgAndId(orgid,id).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+      complete({
+        try {
+          val msgId =  msgIdStr.toInt   // this can throw an exception, that's why this whole section is in a try/catch
+          db.run(NodeMsgsTQ.getMsg(compositeId,msgId).delete.asTry.flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("DELETE /nodes/" + id + "/msgs/" + msgId + " result: " + v)
+              if (v > 0) { // there were no db errors, but determine if it actually found it or not
+                val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "nodemsgs", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+                nodeChange.insert.asTry
+              } else {
+                DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.not.found", msgId, compositeId))).asTry
+              }
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug("DELETE /nodes/" + id + "/msgs/" + msgId + " updated in changes table: " + v)
+              (HttpCode.DELETED,  ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.deleted")))
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.deleted", msgId, compositeId, t.toString)))
+          })
+        } catch { case e: Exception => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", e))) }    // the specific exception is NumberFormatException
+      }) // end of complete
+    } // end of exchAuth
+  }
 
 }

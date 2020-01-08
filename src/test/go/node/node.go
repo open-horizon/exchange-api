@@ -139,13 +139,13 @@ func main() {
 		// Using the public cloud
 		perfutils.ExchangeP(http.MethodPost, "orgs/"+org, rootauth, []int{403}, `{ "label": "perf test org", "description": "blah blah", "tags": { "ibmcloud_id": "`+EXCHANGE_IAM_ACCOUNT_ID+`" } }`, nil, false)
 		// normally the exchange would automatically create this the 1st time it is used. But until issue 176 is fixed we need to explicitly create it. We'll get 400 if it was already created by another instance
-		perfutils.ExchangeP(http.MethodPut, "orgs/"+org+"/users/"+EXCHANGE_IAM_EMAIL, rootauth, []int{400}, `{"password": "foobar", "admin": false, "email": "`+EXCHANGE_IAM_EMAIL+`"}`, nil, false)
+		perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/users/"+EXCHANGE_IAM_EMAIL, rootauth, []int{400}, `{"password": "foobar", "admin": false, "email": "`+EXCHANGE_IAM_EMAIL+`"}`, nil, false)
 		perfutils.ExchangeGet("orgs/"+org+"/users/iamapikey", userauth, nil, nil)
 	} else {
 		// Using ICP
 		perfutils.ExchangeP(http.MethodPost, "orgs/"+org, rootauth, []int{403}, `{ "label": "perf test org", "description": "blah blah" }`, nil, false)
 		// for ICP we can't play the game of associating our own org with another account, so we have to create/use a local exchange user. We'll get 400 if it was already created by another instance
-		perfutils.ExchangeP(http.MethodPut, "orgs/"+org+"/users/"+EXCHANGE_IAM_EMAIL, rootauth, []int{400}, `{"password": "`+EXCHANGE_IAM_KEY+`", "admin": false, "email": "`+EXCHANGE_IAM_EMAIL+`"}`, nil, false)
+		perfutils.ExchangeP(http.MethodPost, "orgs/"+org+"/users/"+EXCHANGE_IAM_EMAIL, rootauth, []int{400}, `{"password": "`+EXCHANGE_IAM_KEY+`", "admin": false, "email": "`+EXCHANGE_IAM_EMAIL+`"}`, nil, false)
 		perfutils.ExchangeGet("orgs/"+org+"/users/"+EXCHANGE_IAM_EMAIL, userauth, nil, nil)
 	}
 

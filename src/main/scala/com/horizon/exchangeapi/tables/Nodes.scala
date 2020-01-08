@@ -124,7 +124,7 @@ object NodesTQ {
     for (s <- userInput) {
       svcRefs += ServiceRef2(s.serviceUrl, s.serviceOrgid, s.serviceVersionRange.getOrElse("[0.0.0,INFINITY)"), s.serviceArch.getOrElse(""))  // the service ref is just for reporting bad input errors
       val arch = if (s.serviceArch.isEmpty || s.serviceArch.get == "") "%" else s.serviceArch.get
-      //todo: the best we can do is use the version if the range is a single version, otherwise use %
+      //perf: the best we can do is use the version if the range is a single version, otherwise use %
       val svc = if (s.serviceVersionRange.getOrElse("") == "") "%"
       else {
         val singleVer = VersionRange(s.serviceVersionRange.get).singleVersion
@@ -389,26 +389,26 @@ case class Prop(name: String, value: String, propType: String, op: String) {
 
   /** Returns an error msg if the user input is invalid. */
   def validate: Option[String] = {
-    if (!PropType.contains(propType)) return Option[String](ExchangeMessage.translateMessage("invalid.proptype.for.name", propType, name))
-    if (!Op.contains(op)) return Option[String](ExchangeMessage.translateMessage("invalid.op.for.name", op, name))
+    if (!PropType.contains(propType)) return Option[String](ExchMsg.translate("invalid.proptype.for.name", propType, name))
+    if (!Op.contains(op)) return Option[String](ExchMsg.translate("invalid.op.for.name", op, name))
     if (propType==PropType.BOOLEAN) {
-      if (op!=Op.EQUAL) return Option[String](ExchangeMessage.translateMessage("invalid.op.for.name.opequal", op, name, Op.EQUAL, PropType.BOOLEAN))
-      if (value.toLowerCase != "true" && value.toLowerCase != "false" && value != "*") return Option[String](ExchangeMessage.translateMessage("invalid.boolean.value.for.name", value, name))
+      if (op!=Op.EQUAL) return Option[String](ExchMsg.translate("invalid.op.for.name.opequal", op, name, Op.EQUAL, PropType.BOOLEAN))
+      if (value.toLowerCase != "true" && value.toLowerCase != "false" && value != "*") return Option[String](ExchMsg.translate("invalid.boolean.value.for.name", value, name))
     }
-    if ((propType==PropType.LIST || propType==PropType.STRING) && op!=Op.IN) return Option[String](ExchangeMessage.translateMessage("invalid.op.for.name.proplist", op, name, Op.IN, PropType.STRING, PropType.LIST))
+    if ((propType==PropType.LIST || propType==PropType.STRING) && op!=Op.IN) return Option[String](ExchMsg.translate("invalid.op.for.name.proplist", op, name, Op.IN, PropType.STRING, PropType.LIST))
     if (propType==PropType.INT) {
-      if (op==Op.IN) return Option[String](ExchangeMessage.translateMessage("invalid.op.for.name", op, name))
+      if (op==Op.IN) return Option[String](ExchMsg.translate("invalid.op.for.name", op, name))
       //      if (op==Op.IN) return Option[String]("invalid op '"+op+"' specified for "+name)
       if (value != "*") {
         // ensure its a valid integer number
         try { value.toInt }
-        catch { case _: Exception => return Option[String](ExchangeMessage.translateMessage("invalid.int.for.name", value, name)) }
+        catch { case _: Exception => return Option[String](ExchMsg.translate("invalid.int.for.name", value, name)) }
       }
     }
     if (propType==PropType.VERSION) {
-      if (!(op==Op.EQUAL || op==Op.IN)) return Option[String](ExchangeMessage.translateMessage("invalid.op.for.name.propversion", op, name, Op.EQUAL, Op.IN, PropType.VERSION))
+      if (!(op==Op.EQUAL || op==Op.IN)) return Option[String](ExchMsg.translate("invalid.op.for.name.propversion", op, name, Op.EQUAL, Op.IN, PropType.VERSION))
       if (value != "*") {       // verify it is a valid version or range format
-        if (!VersionRange(value).isValid) return Option[String](ExchangeMessage.translateMessage("invalid.version.for.name", value, name))
+        if (!VersionRange(value).isValid) return Option[String](ExchMsg.translate("invalid.version.for.name", value, name))
       }
     }
     return None

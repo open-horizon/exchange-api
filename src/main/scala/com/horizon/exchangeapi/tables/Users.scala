@@ -6,7 +6,7 @@ import slick.jdbc.PostgresProfile.api._
 /** Contains the object representations of the DB tables related to users. */
 
 //future: figure out how to use the slick type Timestamp, but have it stored in UTC
-case class UserRow(username: String, orgid: String, hashedPw: String, admin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
+final case class UserRow(username: String, orgid: String, hashedPw: String, admin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
   def insertUser(): DBIO[_] = {
     //val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
     UsersTQ.rows += UserRow(username, orgid, hashedPw, admin, email, lastUpdated, updatedBy)
@@ -39,7 +39,7 @@ class Users(tag: Tag) extends Table[UserRow](tag, "users") {
   def password = column[String]("password")
   def admin = column[Boolean]("admin")
   def email = column[String]("email")
-  // def lastUpdated = column[Timestamp]("lastupdated")    //todo: need this is UTC, not local time zone
+  // def lastUpdated = column[Timestamp]("lastupdated")    //someday: need this is UTC, not local time zone
   def lastUpdated = column[String]("lastupdated")
   def updatedBy = column[String]("updatedby")
   def * = (username, orgid, password, admin, email, lastUpdated, updatedBy) <> (UserRow.tupled, UserRow.unapply)
@@ -61,6 +61,6 @@ object UsersTQ {
   def getUpdatedBy(username: String) = rows.filter(_.username === username).map(_.updatedBy)
 }
 
-case class User(password: String, admin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
+final case class User(password: String, admin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
   def hidePassword = User(StrConstants.hiddenPw, admin, email, lastUpdated, updatedBy)
 }

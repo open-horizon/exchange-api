@@ -1,14 +1,24 @@
 /** Services routes for all of the /orgs/{orgid}/business api methods. */
 package com.horizon.exchangeapi
 
-import com.horizon.exchangeapi.auth.DBProcessingError
+import javax.ws.rs._
+import akka.actor.ActorSystem
+import akka.event.{Logging, LoggingAdapter}
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+import com.horizon.exchangeapi.auth._
+import de.heikoseeberger.akkahttpjackson._
+import io.swagger.v3.oas.annotations.parameters.RequestBody
+import io.swagger.v3.oas.annotations.enums.ParameterIn
+import io.swagger.v3.oas.annotations.media.{Content, Schema}
+import io.swagger.v3.oas.annotations._
+
+import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
 import org.json4s._
-import org.json4s.jackson.JsonMethods._
+//import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
-import org.scalatra._
-import org.scalatra.swagger._
-import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
@@ -19,25 +29,27 @@ import scala.util.control.Breaks._
 //====== These are the input and output structures for /orgs/{orgid}/business/policies routes. Swagger and/or json seem to require they be outside the trait.
 
 /** Output format for GET /orgs/{orgid}/business/policies */
-case class GetBusinessPoliciesResponse(businessPolicy: Map[String,BusinessPolicy], lastIndex: Int)
-case class GetBusinessPolicyAttributeResponse(attribute: String, value: String)
+final case class GetBusinessPoliciesResponse(businessPolicy: Map[String,BusinessPolicy], lastIndex: Int)
+final case class GetBusinessPolicyAttributeResponse(attribute: String, value: String)
 
 object BusinessUtils {
-  def validateBusinessService(service: BService): Unit = {
+  def getAnyProblem(service: BService): Option[String] = {
     // Check they specified at least 1 service version
-    if (service.serviceVersions.isEmpty) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.version.specified.for.service2")))
+    if (service.serviceVersions.isEmpty) return Some(ExchMsg.translate("no.version.specified.for.service2"))
     // Check the version syntax
     for (sv <- service.serviceVersions) {
-      if (!Version(sv.version).isValid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("version.not.valid.format", sv.version)))
+      if (!Version(sv.version).isValid) return Some(ExchMsg.translate("version.not.valid.format", sv.version))
     }
+    return None
   }
 }
 
 /** Input format for POST/PUT /orgs/{orgid}/business/policies/<bus-pol-id> */
-case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+final case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+  require(label!=null && service!=null && service.name!=null && service.org!=null && service.arch!=null && service.serviceVersions!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def validate(): Unit = { BusinessUtils.validateBusinessService(service) }
+  def getAnyProblem: Option[String] = { BusinessUtils.getAnyProblem(service) }
 
   // Build a list of db actions to verify that the referenced services exist
   def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { BusinessPoliciesTQ.validateServiceIds(service, userInput.getOrElse(List())) }
@@ -61,17 +73,18 @@ case class PostPutBusinessPolicyRequest(label: String, description: Option[Strin
   }
 }
 
-case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+final case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def validate(): Unit = {
-    if (service.isDefined) BusinessUtils.validateBusinessService(service.get)
+  def getAnyProblem: Option[String] = {
+    /* if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
+    else */ if (service.isDefined) BusinessUtils.getAnyProblem(service.get)
+    else None
   }
 
   /** Returns a tuple of the db action to update parts of the businessPolicy, and the attribute name being updated. */
   def getDbUpdate(businessPolicy: String, orgid: String): (DBIO[_],String) = {
     val lastUpdated = ApiTime.nowUTC
-    //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this businessPolicy
     label match { case Some(lab) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.label,d.lastUpdated)).update((businessPolicy, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.description,d.lastUpdated)).update((businessPolicy, desc, lastUpdated)), "description"); case _ => ; }
@@ -85,116 +98,114 @@ case class PatchBusinessPolicyRequest(label: Option[String], description: Option
 
 
 /** Input for business policy-based search for nodes to make agreements with. */
-case class PostBusinessPolicySearchRequest(nodeOrgids: Option[List[String]], changedSince: Long, startIndex: Option[Int], numEntries: Option[Int]) {
-  def validate() = { }
+final case class PostBusinessPolicySearchRequest(nodeOrgids: Option[List[String]], changedSince: Long, startIndex: Option[Int], numEntries: Option[Int]) {
+  def getAnyProblem: Option[String] = None
 }
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
-case class BusinessPolicySearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
+final case class BusinessPolicySearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
 
-case class BusinessPolicyNodeResponse(id: String, msgEndPoint: String, publicKey: String)
-case class PostBusinessPolicySearchResponse(nodes: List[BusinessPolicyNodeResponse], lastIndex: Int)
+final case class BusinessPolicyNodeResponse(id: String, msgEndPoint: String, publicKey: String)
+final case class PostBusinessPolicySearchResponse(nodes: List[BusinessPolicyNodeResponse], lastIndex: Int)
 
 
 
 /** Implementation for all of the /orgs/{orgid}/business/policies routes */
-trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
-  def db: Database      // get access to the db object in ExchangeApiApp
-  def logger: Logger    // get access to the logger object in ExchangeApiApp
-  protected implicit def jsonFormats: Formats
+@Path("/v1/orgs/{orgid}/business/policies")
+class BusinessRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
+  def db: Database = ExchangeApiApp.getDb
+  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
+  //protected implicit def jsonFormats: Formats
+
+  def routes: Route = busPolsGetRoute ~ busPolGetRoute ~ busPolPostRoute ~ busPolPutRoute ~ busPolPatchRoute ~ busPolDeleteRoute ~ busPolPostSearchRoute
 
   /* ====== GET /orgs/{orgid}/business/policies ================================ */
-  val getBusinessPolicies =
-    (apiOperation[GetBusinessPoliciesResponse]("getBusinessPolicies")
-      summary("Returns all business policies")
-      description("""Returns all business policy definitions in this organization. Can be run by any user, node, or agbot.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("idfilter", DataType.String, Option[String]("Filter results to only include business policies with this id (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        Parameter("owner", DataType.String, Option[String]("Filter results to only include business policies with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        Parameter("label", DataType.String, Option[String]("Filter results to only include business policies with this label (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        Parameter("description", DataType.String, Option[String]("Filter results to only include business policies with this description (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+  @GET
+  @Path("")
+  @Operation(summary = "Returns all business policies", description = "Returns all business policy definitions in this organization. Can be run by any user, node, or agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include business policies with this id (can include % for wildcard - the URL encoding for % is %25)"),
+      new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include business policies with this owner (can include % for wildcard - the URL encoding for % is %25)"),
+      new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include business policies with this label (can include % for wildcard - the URL encoding for % is %25)"),
+      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include business policies with this description (can include % for wildcard - the URL encoding for % is %25)")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetBusinessPoliciesResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def busPolsGetRoute: Route = (get & path("orgs" / Segment / "business" / "policies") & parameter(('idfilter.?, 'owner.?, 'label.?, 'description.?))) { (orgid, idfilter, owner, label, description) =>
+    exchAuth(TBusiness(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
+      complete({
+        var q = BusinessPoliciesTQ.getAllBusinessPolicies(orgid)
+        // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
+        idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.businessPolicy like id) else q = q.filter(_.businessPolicy === id) })
+        owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
+        label.foreach(lab => { if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab) })
+        description.foreach(desc => { if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc) })
 
-  get("/orgs/:orgid/business/policies", operation(getBusinessPolicies)) ({
-    val orgid = params("orgid")
-    val ident = authenticate().authorizeTo(TBusiness(OrgAndId(orgid,"*").toString),Access.READ)
-    val resp = response
-    var q = BusinessPoliciesTQ.getAllBusinessPolicies(orgid)
-    // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
-    params.get("idfilter").foreach(id => { if (id.contains("%")) q = q.filter(_.businessPolicy like id) else q = q.filter(_.businessPolicy === id) })
-    params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
-    params.get("label").foreach(lab => { if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab) })
-    params.get("description").foreach(desc => { if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc) })
-
-    db.run(q.result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/business/policies result size: "+list.size)
-      val businessPolicy = new MutableHashMap[String,BusinessPolicy]
-      if (list.nonEmpty) for (a <- list) if (ident.getOrg == a.orgid || ident.isSuperUser || ident.isMultiTenantAgbot) businessPolicy.put(a.businessPolicy, a.toBusinessPolicy)
-      if (businessPolicy.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetBusinessPoliciesResponse(businessPolicy.toMap, 0)
-    })
-  })
+        db.run(q.result).map({ list =>
+          logger.debug("GET /orgs/"+orgid+"/business/policies result size: "+list.size)
+          val businessPolicy = list.filter(e => ident.getOrg == e.orgid || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.businessPolicy -> e.toBusinessPolicy).toMap
+          val code = if (businessPolicy.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetBusinessPoliciesResponse(businessPolicy, 0))
+        })
+      }) // end of complete
+  } // end of exchAuth
+  }
 
   /* ====== GET /orgs/{orgid}/business/policies/{policy} ================================ */
-  val getOneBusinessPolicy =
-    (apiOperation[GetBusinessPoliciesResponse]("getOneBusinessPolicy")
-      summary("Returns a business policy")
-      description("""Returns the business policy with the specified id in the exchange DB. Can be run by a user, node, or agbot.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("policy", DataType.String, Option[String]("Business Policy name."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the node or agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire business policy resource will be returned."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
+  @GET
+  @Path("{policy}")
+  @Operation(summary = "Returns a business policy", description = "Returns the business policy with the specified id. Can be run by a user, node, or agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name."),
+      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire business policy resource will be returned.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetBusinessPoliciesResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def busPolGetRoute: Route = (get & path("orgs" / Segment / "business" / "policies" / Segment) & parameter(('attribute.?))) { (orgid, policy, attribute) =>
+    val compositeId = OrgAndId(orgid,policy).toString
+    exchAuth(TBusiness(compositeId), Access.READ) { _ =>
+      complete({
+        attribute match {
+          case Some(attribute) =>  // Only returning 1 attr of the businessPolicy
+            val q = BusinessPoliciesTQ.getAttribute(compositeId, attribute) // get the proper db query for this attribute
+            if (q == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.wrong.attribute", attribute)))
+            else db.run(q.result).map({ list =>
+              logger.debug("GET /orgs/" + orgid + "/business/policies/" + policy + " attribute result: " + list.toString)
+              if (list.nonEmpty) {
+                (HttpCode.OK, GetBusinessPolicyAttributeResponse(attribute, list.head.toString))
+              } else {
+                (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+              }
+            })
 
-  get("/orgs/:orgid/business/policies/:policy", operation(getOneBusinessPolicy)) ({
-    val orgid = params("orgid")
-    val bareBusinessPolicy = params("policy")   // but do not have a hack/fix for the name
-    val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
-    authenticate().authorizeTo(TBusiness(businessPolicy),Access.READ)
-    val resp = response
-    params.get("attribute") match {
-      case Some(attribute) => ; // Only returning 1 attr of the businessPolicy
-        val q = BusinessPoliciesTQ.getAttribute(businessPolicy, attribute)       // get the proper db query for this attribute
-        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("buspol.wrong.attribute", attribute)))
-        db.run(q.result).map({ list =>
-          logger.trace("GET /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" attribute result: "+list.toString)
-          if (list.nonEmpty) {
-            resp.setStatus(HttpCode.OK)
-            GetBusinessPolicyAttributeResponse(attribute, list.head.toString)
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("not.found"))
-          }
-        })
-
-      case None => ;  // Return the whole business policy resource
-        db.run(BusinessPoliciesTQ.getBusinessPolicy(businessPolicy).result).map({ list =>
-          logger.debug("GET /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+list.size)
-          val businessPolicies = new MutableHashMap[String,BusinessPolicy]
-          if (list.nonEmpty) for (a <- list) businessPolicies.put(a.businessPolicy, a.toBusinessPolicy)
-          if (businessPolicies.nonEmpty) resp.setStatus(HttpCode.OK)
-          else resp.setStatus(HttpCode.NOT_FOUND)
-          GetBusinessPoliciesResponse(businessPolicies.toMap, 0)
-        })
-    }
-  })
+          case None =>  // Return the whole business policy resource
+            db.run(BusinessPoliciesTQ.getBusinessPolicy(compositeId).result).map({ list =>
+              logger.debug("GET /orgs/" + orgid + "/business/policies result size: " + list.size)
+              val businessPolicies = list.map(e => e.businessPolicy -> e.toBusinessPolicy).toMap
+              val code = if (businessPolicies.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+              (code, GetBusinessPoliciesResponse(businessPolicies, 0))
+            })
+        }
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== POST /orgs/{orgid}/business/policies/{policy} ===============================
-  val postBusinessPolicies =
-    (apiOperation[ApiResponse]("postBusinessPolicies")
-      summary "Adds a business policy"
-      description """Creates a business policy resource. A business policy resource specifies the service that should be deployed based on the specified properties and constraints. This can only be called by a user. The **request body** structure:
-
+  @POST
+  @Path("{policy}")
+  @Operation(summary = "Adds a business policy", description = "Creates a business policy resource. A business policy resource specifies the service that should be deployed based on the specified properties and constraints. This can only be called by a user.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name.")),
+    requestBody = new RequestBody(description = """
 ```
 // (remove all of the comments like this before using)
 {
@@ -254,314 +265,268 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     "a == b"
   ]
 }
-```"""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("policy", DataType.String, Option[String]("Business Policy name."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostPutBusinessPolicyRequest],
-        Option[String]("Business Policy object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
-      )
-  val postBusinessPolicies2 = (apiOperation[PostPutBusinessPolicyRequest]("postBusinessPolicies2") summary("a") description("a"))  // for some bizarre reason, the PostBusinessPolicyRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  post("/orgs/:orgid/business/policies/:policy", operation(postBusinessPolicies)) ({
-    val orgid = params("orgid")
-    val bareBusinessPolicy = params("policy")   // but do not have a hack/fix for the name
-    val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
-    val ident = authenticate().authorizeTo(TBusiness(OrgAndId(orgid,"").toString),Access.CREATE)
-    val policyReq = try { parse(request.body).extract[PostPutBusinessPolicyRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }
-    policyReq.validate()
-    val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
-    val resp = response
-    val (valServiceIdActions, svcRefs) = policyReq.validateServiceIds  // to check that the services referenced exist
-    db.run(valServiceIdActions.asTry.flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/business/policies"+bareBusinessPolicy+" service validation: "+xs.toString)
-      xs match {
-        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
-          breakable { for ( (len, index) <- v.zipWithIndex) {
-            if (len <= 0) {
-              invalidIndex = index
-              break
-            }
-          } }
-          if (invalidIndex < 0) BusinessPoliciesTQ.getNumOwned(owner).result.asTry
-          else {
-            val errStr = if (invalidIndex < svcRefs.length) ExchangeMessage.translateMessage("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-              else ExchangeMessage.translateMessage("service.not.in.exchange.index", Nth(invalidIndex+1))
-            DBIO.failed(new Throwable(errStr)).asTry
-          }
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/business/policies"+bareBusinessPolicy+" num owned by "+owner+": "+xs)
-      xs match {
-        case Success(num) => val numOwned = num
-          val maxBusinessPolicies = ExchConfig.getInt("api.limits.maxBusinessPolicies")
-          if (maxBusinessPolicies == 0 || numOwned <= maxBusinessPolicies) {    // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
-            policyReq.getDbInsert(businessPolicy, orgid, owner).asTry
-          }
-          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.buspols", maxBusinessPolicies) )).asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          val policyChange = ResourceChangeRow(0, orgid, bareBusinessPolicy, "policy", "false", "policy", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
-          policyChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) => if (owner != "") AuthCache.putBusinessOwner(businessPolicy, owner)     // currently only users are allowed to update business policy resources, so owner should never be blank
-          AuthCache.putBusinessIsPublic(businessPolicy, isPublic = false)
-          resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.created", businessPolicy))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("buspol.not.created", businessPolicy, t.getMessage))
-        case Failure(t) => if (t.getMessage.contains("duplicate key value violates unique constraint")) {
-          resp.setStatus(HttpCode.ALREADY_EXISTS)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("buspol.already.exists", businessPolicy, t.getMessage))
-        } else {
-          resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("buspol.not.created", businessPolicy, t.getMessage))
-        }
-      }
-    })
-  })
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutBusinessPolicyRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def busPolPostRoute: Route = (post & path("orgs" / Segment / "business" / "policies" / Segment) & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
+    val compositeId = OrgAndId(orgid, policy).toString
+    exchAuth(TBusiness(compositeId), Access.CREATE) { ident =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
+          val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
+          db.run(valServiceIdActions.asTry.flatMap({
+            case Success(v) =>
+              logger.debug("POST /orgs/" + orgid + "/business/policies" + policy + " service validation: " + v)
+              var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+              breakable {
+                for ((len, index) <- v.zipWithIndex) {
+                  if (len <= 0) {
+                    invalidIndex = index
+                    break
+                  }
+                }
+              }
+              if (invalidIndex < 0) BusinessPoliciesTQ.getNumOwned(owner).result.asTry
+              else {
+                val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
+                DBIO.failed(new Throwable(errStr)).asTry
+              }
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(num) =>
+              logger.debug("POST /orgs/" + orgid + "/business/policies" + policy + " num owned by " + owner + ": " + num)
+              val numOwned = num
+              val maxBusinessPolicies = ExchConfig.getInt("api.limits.maxBusinessPolicies")
+              if (maxBusinessPolicies == 0 || numOwned <= maxBusinessPolicies) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
+                reqBody.getDbInsert(compositeId, orgid, owner).asTry
+              }
+              else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.buspols", maxBusinessPolicies))).asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + " result: " + v)
+              val policyChange = ResourceChangeRow(0, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+              policyChange.insert.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + " updated in changes table: " + v)
+              if (owner != "") AuthCache.putBusinessOwner(compositeId, owner) // currently only users are allowed to update business policy resources, so owner should never be blank
+              AuthCache.putBusinessIsPublic(compositeId, isPublic = false)
+              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.created", compositeId)))
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
+            case Failure(t) =>
+              if (t.getMessage.contains("duplicate key value violates unique constraint")) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.already.exists", compositeId, t.getMessage)))
+              else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.created", compositeId, t.getMessage)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== PUT /orgs/{orgid}/business/policies/{policy} ===============================
-  val putBusinessPolicies =
-    (apiOperation[ApiResponse]("putBusinessPolicies")
-      summary "Updates a business policy"
-      description """Updates a business policy resource. This can only be called by the user that created it."""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("policy", DataType.String, Option[String]("Business Policy name."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username of exchange user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostPutBusinessPolicyRequest],
-          Option[String]("Business Policy object that needs to be updated in the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val putBusinessPolicies2 = (apiOperation[PostPutBusinessPolicyRequest]("putBusinessPolicies2") summary("a") description("a"))  // for some bizarre reason, the PutBusinessPolicyRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  put("/orgs/:orgid/business/policies/:policy", operation(putBusinessPolicies)) ({
-    val orgid = params("orgid")
-    val bareBusinessPolicy = params("policy")   // but do not have a hack/fix for the name
-    val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
-    val ident = authenticate().authorizeTo(TBusiness(businessPolicy),Access.WRITE)
-    val policyReq = try { parse(request.body).extract[PostPutBusinessPolicyRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }
-    policyReq.validate()
-    val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
-    val resp = response
-    val (valServiceIdActions, svcRefs) = policyReq.validateServiceIds  // to check that the services referenced exist
-    db.run(valServiceIdActions.asTry.flatMap({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/business/policies"+bareBusinessPolicy+" service validation: "+xs.toString)
-      xs match {
-        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
-          breakable { for ( (len, index) <- v.zipWithIndex) {
-            if (len <= 0) {
-              invalidIndex = index
-              break
-            }
-          } }
-          if (invalidIndex < 0) policyReq.getDbUpdate(businessPolicy, orgid, owner).asTry
-          else {
-            val errStr = if (invalidIndex < svcRefs.length) ExchangeMessage.translateMessage("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-              else ExchangeMessage.translateMessage("service.not.in.exchange.index", Nth(invalidIndex+1))
-            DBIO.failed(new Throwable(errStr)).asTry
-          }
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("PUT /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+xs.toString)
-      xs match {
-        case Success(n) => try {
-          val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
-          if (numUpdated > 0) {
-            if (owner != "") AuthCache.putBusinessOwner(businessPolicy, owner) // currently only users are allowed to update business policy resources, so owner should never be blank
-            AuthCache.putBusinessIsPublic(businessPolicy, isPublic = false)
-            val policyChange = ResourceChangeRow(0, orgid, bareBusinessPolicy, "policy", "false", "policy", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-            policyChange.insert.asTry
-          } else {
-            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))).asTry
-          }
-        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("buspol.not.updated", businessPolicy, e))).asTry} // the specific exception is NumberFormatException
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          resp.setStatus(HttpCode.PUT_OK)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.updated"))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))
-        case Failure(t) =>
-          resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("buspol.not.updated", businessPolicy, t.getMessage))
-      }
-    })
-  })
+  @PUT
+  @Path("{policy}")
+  @Operation(summary = "Updates a business policy", description = "Updates a business policy resource. This can only be called by the user that created it.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name.")),
+    requestBody = new RequestBody(description = "Business Policy object that needs to be updated. See details in the POST route above.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutBusinessPolicyRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def busPolPutRoute: Route = (put & path("orgs" / Segment / "business" / "policies" / Segment) & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
+    val compositeId = OrgAndId(orgid, policy).toString
+    exchAuth(TBusiness(compositeId), Access.WRITE) { ident =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
+          val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
+          db.run(valServiceIdActions.asTry.flatMap({
+            case Success(v) =>
+              logger.debug("POST /orgs/" + orgid + "/business/policies" + policy + " service validation: " + v)
+              var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+              breakable {
+                for ((len, index) <- v.zipWithIndex) {
+                  if (len <= 0) {
+                    invalidIndex = index
+                    break
+                  }
+                }
+              }
+              if (invalidIndex < 0) reqBody.getDbUpdate(compositeId, orgid, owner).asTry
+              else {
+                val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
+                DBIO.failed(new Throwable(errStr)).asTry
+              }
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(n) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + " result: " + n)
+              val numUpdated = n.asInstanceOf[Int]     // i think n is an AnyRef so we have to do this to get it to an int
+              if (numUpdated > 0) {
+                if (owner != "") AuthCache.putBusinessOwner(compositeId, owner) // currently only users are allowed to update business policy resources, so owner should never be blank
+                AuthCache.putBusinessIsPublic(compositeId, isPublic = false)
+                val policyChange = ResourceChangeRow(0, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+                policyChange.insert.asTry
+              } else {
+                DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
+              }
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + " updated in changes table: " + v)
+              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.updated", compositeId)))
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
+            case Failure(t) =>
+              (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", compositeId, t.getMessage)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== PATCH /orgs/{orgid}/business/policies/{policy} ===============================
-  val patchBusinessPolicies =
-    (apiOperation[Map[String,String]]("patchBusinessPolicies")
-      summary "Updates 1 attribute of a business policy"
-      description """Updates one attribute of a business policy in the exchange DB. This can only be called by the user that originally created this business policy resource."""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("policy", DataType.String, Option[String]("Business Policy name."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PatchBusinessPolicyRequest],
-          Option[String]("Partial business policy object that contains an attribute to be updated in this business policy. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val patchBusinessPolicies2 = (apiOperation[PatchBusinessPolicyRequest]("patchBusinessPolicies2") summary("a") description("a"))  // for some bizarre reason, the PatchBusinessPolicyRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  patch("/orgs/:orgid/business/policies/:policy", operation(patchBusinessPolicies)) ({
-    val orgid = params("orgid")
-    val bareBusinessPolicy = params("policy")   // but do not have a hack/fix for the name
-    val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
-    authenticate().authorizeTo(TBusiness(businessPolicy),Access.WRITE)
-    if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
-      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
-    }
-    val policyReq = try { parse(request.body).extract[PatchBusinessPolicyRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    policyReq.validate()
-    logger.trace("PATCH /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" input: "+policyReq.toString)
-    val resp = response
-    val (action, attrName) = policyReq.getDbUpdate(businessPolicy, orgid)
-    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.buspol.attribute.specified")))
-    val (valServiceIdActions, svcRefs) = if (attrName == "service") BusinessPoliciesTQ.validateServiceIds(policyReq.service.get, List())
-      else if (attrName == "userInput") BusinessPoliciesTQ.validateServiceIds(BService("","","",List(),None), policyReq.userInput.get)
-      else (DBIO.successful(Vector()), Vector())
-    db.run(valServiceIdActions.asTry.flatMap({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/business/policies"+bareBusinessPolicy+" service validation: "+xs.toString)
-      xs match {
-        case Success(v) => var invalidIndex = -1    // v is a vector of Int (the length of each service query). If any are zero we should error out.
-          breakable { for ( (len, index) <- v.zipWithIndex) {
-            if (len <= 0) {
-              invalidIndex = index
-              break
-            }
-          } }
-          if (invalidIndex < 0) action.transactionally.asTry
+  @PATCH
+  @Path("{policy}")
+  @Operation(summary = "Updates 1 attribute of a business policy", description = "Updates one attribute of a business policy. This can only be called by the user that originally created this business policy resource.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name.")),
+    requestBody = new RequestBody(description = "Specify only **one** of the attributes (see list of attributes in the POST route)", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchBusinessPolicyRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def busPolPatchRoute: Route = (patch & path("orgs" / Segment / "business" / "policies" / Segment) & entity(as[PatchBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
+    logger.debug(s"Doing PATCH /orgs/$orgid/business/policies/$policy")
+    val compositeId = OrgAndId(orgid, policy).toString
+    exchAuth(TBusiness(compositeId), Access.WRITE) { _ =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid)
+          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.buspol.attribute.specified")))
           else {
-            val errStr = if (invalidIndex < svcRefs.length) ExchangeMessage.translateMessage("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
-              else ExchangeMessage.translateMessage("service.not.in.exchange.index", Nth(invalidIndex+1))
-            DBIO.failed(new Throwable(errStr)).asTry
+            val (valServiceIdActions, svcRefs) =
+              if (attrName == "service") BusinessPoliciesTQ.validateServiceIds(reqBody.service.get, List())
+              else if (attrName == "userInput") BusinessPoliciesTQ.validateServiceIds(BService("", "", "", List(), None), reqBody.userInput.get)
+              else (DBIO.successful(Vector()), Vector())
+            db.run(valServiceIdActions.asTry.flatMap({
+              case Success(v) =>
+                logger.debug("PUT /orgs/" + orgid + "/business/policies" + policy + " service validation: " + v)
+                var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+                breakable {
+                  for ((len, index) <- v.zipWithIndex) {
+                    if (len <= 0) {
+                      invalidIndex = index
+                      break
+                    }
+                  }
+                }
+                if (invalidIndex < 0) action.transactionally.asTry
+                else {
+                  val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                  else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
+                  DBIO.failed(new Throwable(errStr)).asTry
+                }
+              case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+            }).flatMap({
+              case Success(n) =>
+                // Add the resource to the resourcechanges table
+                logger.debug("PATCH /orgs/" + orgid + "/business/policies/" + policy + " result: " + n)
+                val numUpdated = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
+                if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
+                  val policyChange = ResourceChangeRow(0, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                  policyChange.insert.asTry
+                } else {
+                  DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
+                }
+              case Failure(t) => DBIO.failed(t).asTry
+            })).map({
+              case Success(v) =>
+                logger.debug("PATCH /orgs/" + orgid + "/business/policies/" + policy + " updated in changes table: " + v)
+                (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.attribute.updated", attrName, compositeId)))
+              case Failure(t: DBProcessingError) =>
+                t.toComplete
+              case Failure(t) =>
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", compositeId, t.getMessage)))
+            })
           }
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("PATCH /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+xs.toString)
-      xs match {
-        case Success(n) => try {
-          val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
-          if (numUpdated > 0) {  // there were no db errors, but determine if it actually found it or not
-            val policyChange = ResourceChangeRow(0, orgid, bareBusinessPolicy, "policy", "false", "policy", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
-            policyChange.insert.asTry
-          } else {
-            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))).asTry
-          }
-        } catch { case e: Exception => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e))).asTry}
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("PATCH /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.attribute.updated", attrName, businessPolicy))
-        case Failure(t:DBProcessingError) =>
-          if (t.httpCode == HttpCode.NOT_FOUND) {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))
-          } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, t.getMessage)
-          }
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("buspol.not.updated", businessPolicy, t.getMessage))
-      }
-    })
-  })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/business/policies/{policy} ===============================
-  val deleteBusinessPolicies =
-    (apiOperation[ApiResponse]("deleteBusinessPolicies")
-      summary "Deletes a business policy"
-      description "Deletes a business policy from the exchange DB. Can only be run by the owning user."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("policy", DataType.String, Option[String]("Business Policy name."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username of owning user. This parameter can also be passed in the HTTP Header."), paramType = ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password of the user. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/business/policies/:policy", operation(deleteBusinessPolicies)) ({
-    val orgid = params("orgid")
-    val bareBusinessPolicy = params("policy")   // but do not have a hack/fix for the name
-    val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
-    authenticate().authorizeTo(TBusiness(businessPolicy),Access.WRITE)
-    // remove does *not* throw an exception if the key does not exist
-    val resp = response
-    db.run(BusinessPoliciesTQ.getBusinessPolicy(businessPolicy).delete.transactionally.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
-          AuthCache.removeBusinessOwner(businessPolicy)
-          AuthCache.removeBusinessIsPublic(businessPolicy)
-          val policyChange = ResourceChangeRow(0, orgid, bareBusinessPolicy, "policy", "false", "policy", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          policyChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+" updated in changes table: "+xs.toString)
-      xs match {
-        case Success(v) =>
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("business.policy.deleted"))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("business.policy.not.deleted", businessPolicy, t.toString))
-      }
-    })
-  })
+  @DELETE
+  @Path("{policy}")
+  @Operation(summary = "Deletes a business policy", description = "Deletes a business policy. Can only be run by the owning user.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def busPolDeleteRoute: Route = (delete & path("orgs" / Segment / "business" / "policies" / Segment)) { (orgid, policy) =>
+    logger.debug(s"Doing DELETE /orgs/$orgid/business/policies/$policy")
+    val compositeId = OrgAndId(orgid,policy).toString
+    exchAuth(TBusiness(compositeId), Access.WRITE) { _ =>
+      complete({
+        db.run(BusinessPoliciesTQ.getBusinessPolicy(compositeId).delete.transactionally.asTry.flatMap({
+          case Success(v) =>
+            // Add the resource to the resourcechanges table
+            logger.debug("DELETE /orgs/" + orgid + "/business/policies/" + policy + " result: " + v)
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              AuthCache.removeBusinessOwner(compositeId)
+              AuthCache.removeBusinessIsPublic(compositeId)
+              val policyChange = ResourceChangeRow(0, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              policyChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("DELETE /orgs/" + orgid + "/business/policies/" + policy + " updated in changes table: " + v)
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("business.policy.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("business.policy.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // ======== POST /org/{orgid}/business/policies/{policy}/search ========================
-  val postBusinessPolicySearch =
-    (apiOperation[PostBusinessPolicySearchResponse]("postBusinessPolicySearch")
-      summary("Returns matching nodes for this business policy")
-      description """Returns the matching nodes for this business policy that do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node). The **request body** structure:
-
+  @POST
+  @Path("{policy}/search")
+  @Operation(summary = "Returns matching nodes for this business policy", description = "Returns the matching nodes for this business policy that do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node).",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
+    requestBody = new RequestBody(description = """
 ```
 {
   "nodeOrgids": [ "org1", "org2", "..." ],   // if not specified, defaults to the same org the business policy is in
@@ -569,90 +534,76 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
   "startIndex": 0,    // for pagination, ignored right now
   "numEntries": 0    // ignored right now
 }
-```"""
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("policy", DataType.String, Option[String]("Business Policy id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String]("Username of exchange user, or ID of an agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PostBusinessPolicySearchRequest],
-        Option[String]("Search criteria to find matching nodes in the exchange. See details in the Implementation Notes above."),
-        paramType = ParamType.Body)
-    )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val postBusinessPolicySearch2 = (apiOperation[PostBusinessPolicySearchRequest]("postBusinessPolicySearch2") summary("a") description("a"))
-
-  /** Normally called by the agbot to search for available nodes. */
-  post("/orgs/:orgid/business/policies/:policy/search", operation(postBusinessPolicySearch)) ({
-    val orgid = params("orgid")
-    val bareBusinessPolicy = params("policy")
-    val businessPolicy = OrgAndId(orgid,bareBusinessPolicy).toString
-    authenticate().authorizeTo(TNode(OrgAndId(orgid,"*").toString),Access.READ)
-    val searchProps = try { parse(request.body).extract[PostBusinessPolicySearchRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    searchProps.validate()
-    logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search criteria: "+searchProps.toString)
-    val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
-    var searchSvcUrl = ""    // a composite value (org/url), will be set later in the db.run()
-    val resp = response
-
-    // First get the service out of the business policy
-    db.run(BusinessPoliciesTQ.getService(businessPolicy).result.flatMap({ list =>
-      logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search getService size: "+list.size)
-      if (list.nonEmpty) {
-        // Finding the service was successful, form the query for the nodes for the next step
-        val service = BusinessPoliciesTQ.getServiceFromString(list.head)    // we should have found only 1 business pol service string, now parse it to get service list
-        searchSvcUrl = OrgAndId(service.org, service.name).toString
-        /*
-          Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
-          In english, the join gets: n.id, n.msgEndPoint, n.publicKey, a.serviceUrl, a.state
-          The filters are: n is in the given list of node orgs, n.pattern is not set, the node is not stale, the node arch matches the service arch (the filter a.state=="" is applied later in our code below)
-          After this we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
-          Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
-        */
-        val oldestTime = if (searchProps.changedSince > 0) ApiTime.thenUTC(searchProps.changedSince) else ApiTime.beginningUTC
-        val nodeQuery =
-          for {
-            (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(n => {n.arch === service.arch || service.arch == "" || service.arch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-          } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
-        nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
-      }
-      else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))).asTry
-    })).map({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search result size: "+xs.getOrElse(Vector()).size)
-      //logger.trace("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search result: "+xs.toString)
-      logger.trace("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search: looking for nodes w/o agreement for '"+searchSvcUrl)
-      xs match {
-        case Success(list) => if (list.nonEmpty) {
-          // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
-          //todo: factor in num agreements??
-          val nodeHash = new MutableHashMap[String,BusinessPolicySearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
-          for ( (nodeid, msgEndPoint, publicKey, agrSvcUrlOpt, stateOpt) <- list ) {
-            //logger.trace("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
-            nodeHash.get(nodeid) match {
-              // This node is already in the hash. Only replace it if this is an agreement for the service, because the absence of an agr for this svc isn't useful info
-              case Some(_) => if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
-              // This node is not yet in the hash. Add it with whatever value it has for agreement - this may be overridden later
-              case None => val noAgr = if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") false else true
-                nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgr))   // this node not in the hash yet, add it
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostBusinessPolicySearchRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[PostBusinessPolicySearchResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def busPolPostSearchRoute: Route = (post & path("orgs" / Segment / "business" / "policies" / Segment / "search") & entity(as[PostBusinessPolicySearchRequest])) { (orgid, policy, reqBody) =>
+    val compositeId = OrgAndId(orgid, policy).toString
+    exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { _ =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          val nodeOrgids = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
+          var searchSvcUrl = ""    // a composite value (org/url), will be set later in the db.run()
+          db.run(BusinessPoliciesTQ.getService(compositeId).result.flatMap({ list =>
+            logger.debug("POST /orgs/"+orgid+"/business/policies/"+policy+"/search getService size: "+list.size)
+            if (list.nonEmpty) {
+              // Finding the service was successful, form the query for the nodes for the next step
+              val service = BusinessPoliciesTQ.getServiceFromString(list.head)    // we should have found only 1 business pol service string, now parse it to get service list
+              searchSvcUrl = OrgAndId(service.org, service.name).toString
+              /*
+                Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
+                In english, the join gets: n.id, n.msgEndPoint, n.publicKey, a.serviceUrl, a.state
+                The filters are: n is in the given list of node orgs, n.pattern is not set, the node is not stale, the node arch matches the service arch (the filter a.state=="" is applied later in our code below)
+                After this we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
+                Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
+              */
+              val oldestTime = if (reqBody.changedSince > 0) ApiTime.thenUTC(reqBody.changedSince) else ApiTime.beginningUTC
+              val nodeQuery =
+                for {
+                  (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(n => {n.arch === service.arch || service.arch == "" || service.arch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+                } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+              nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
             }
-          }
-          // Convert our hash to the list response of the rest api
-          //val respList = list.map( x => BusinessPolicyNodeResponse(x._1, x._2, x._3)).toList
-          val respList = new ListBuffer[BusinessPolicyNodeResponse]
-          for ( (k, v) <- nodeHash) if (v.noAgreementYet) respList += BusinessPolicyNodeResponse(k, v.msgEndPoint, v.publicKey)
-          if (respList.nonEmpty) resp.setStatus(HttpCode.POST_OK)
-          else resp.setStatus(HttpCode.NOT_FOUND)
-          PostBusinessPolicySearchResponse(respList.toList, 0)
-        } else {
-          resp.setStatus(HttpCode.NOT_FOUND)
-          PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), 0)
-        }
-        case Failure(t) => resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", t.getMessage))
-      }
-    })
-  })
+            else DBIO.failed(new Throwable(ExchMsg.translate("business.policy.not.found", compositeId))).asTry
+          })).map({
+            case Success(list) =>
+              logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + "/search result size: " + list.size)
+              logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + "/search: looking for nodes w/o agreement for '" + searchSvcUrl)
+              if (list.nonEmpty) {
+                // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
+                //todo: factor in num agreements??
+                val nodeHash = new MutableHashMap[String, BusinessPolicySearchHashElement] // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
+                for ((nodeid, msgEndPoint, publicKey, agrSvcUrlOpt, stateOpt) <- list) {
+                  //logger.debug("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
+                  nodeHash.get(nodeid) match {
+                    // This node is already in the hash. Only replace it if this is an agreement for the service, because the absence of an agr for this svc isn't useful info
+                    case Some(_) => if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") {
+                      /*logger.debug("setting to false");*/ nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgreementYet = false))
+                    } // this is no longer a candidate
+                    // This node is not yet in the hash. Add it with whatever value it has for agreement - this may be overridden later
+                    case None => val noAgr = if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") false else true
+                      nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgr)) // this node not in the hash yet, add it
+                  }
+                }
+                // Convert our hash to the list response of the rest api
+                //val respList = list.map( x => BusinessPolicyNodeResponse(x._1, x._2, x._3)).toList
+                val respList = new ListBuffer[BusinessPolicyNodeResponse]
+                for ((k, v) <- nodeHash) if (v.noAgreementYet) respList += BusinessPolicyNodeResponse(k, v.msgEndPoint, v.publicKey)
+                val code = if (respList.nonEmpty) HttpCode.POST_OK else HttpCode.NOT_FOUND
+                (code, PostBusinessPolicySearchResponse(respList.toList, 0))
+              } else {
+                (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), 0))
+              }
+            case Failure(t) =>
+              (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
 }

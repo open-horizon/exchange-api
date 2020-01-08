@@ -1,31 +1,44 @@
 /** Services routes for all of the /agbots api methods. */
 package com.horizon.exchangeapi
 
+import javax.ws.rs._
+import akka.actor.ActorSystem
+import akka.event.{Logging, LoggingAdapter}
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
 import com.horizon.exchangeapi.auth.DBProcessingError
+import de.heikoseeberger.akkahttpjackson._
+import io.swagger.v3.oas.annotations.parameters.RequestBody
+import io.swagger.v3.oas.annotations.enums.ParameterIn
+import io.swagger.v3.oas.annotations.media.{Content, Schema}
+import io.swagger.v3.oas.annotations._
+
+import scala.concurrent.ExecutionContext.Implicits.global
+
 import com.horizon.exchangeapi.tables._
 import org.json4s._
-import org.json4s.jackson.JsonMethods._
+//import org.json4s.jackson.JsonMethods._
 //import org.json4s.jackson.Serialization.write
-import org.scalatra._
-import org.scalatra.swagger._
-import org.slf4j._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
-import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
+//import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.util._
 
 //====== These are the input and output structures for /agbots routes. Swagger and/or json seem to require they be outside the trait.
 
 /** Output format for GET /orgs/{orgid}/agbots */
-case class GetAgbotsResponse(agbots: Map[String,Agbot], lastIndex: Int)
-case class GetAgbotAttributeResponse(attribute: String, value: String)
+final case class GetAgbotsResponse(agbots: Map[String,Agbot], lastIndex: Int)
+final case class GetAgbotAttributeResponse(attribute: String, value: String)
 
 /** Input format for PUT /orgs/{orgid}/agbots/<agbot-id> */
-case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Option[String], publicKey: String) {
+final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Option[String], publicKey: String) {
+  require(token!=null && name!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def validate(): Unit = {
-    if (token == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.specified.cannot.be.blank")))
+  def getAnyProblem: Option[String] = {
+    if (token == "") Some(ExchMsg.translate("token.specified.cannot.be.blank"))
+    else None
   }
 
   /** Get the db queries to insert or update the agbot */
@@ -35,16 +48,21 @@ case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Option[Str
   def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = AgbotRow(id, orgid, hashedTok, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).update
 }
 
-case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], publicKey: Option[String]) {
+final case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], publicKey: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
+  def getAnyProblem: Option[String] = {
+    if (token.isDefined && token.get == "") Some(ExchMsg.translate("token.cannot.be.empty.string"))
+    //else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
+    else None
+  }
 
   /** Returns a tuple of the db action to update parts of the agbot, and the attribute name being updated. */
   def getDbUpdate(id: String, orgid: String, hashedTok: String): (DBIO[_],String) = {
     val lastHeartbeat = ApiTime.nowUTC
-    //todo: support updating more than 1 attribute
+    //somday: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
     token match {
-      case Some(token2) => if (token2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.cannot.be.empty.string")))
+      case Some(_) =>
         //val tok = if (Password.isHashed(token2)) token2 else Password.hash(token2)
         return ((for { d <- AgbotsTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, hashedTok, lastHeartbeat)), "token")
       case _ => ;
@@ -58,1373 +76,1133 @@ case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEn
 
 
 /** Output format for GET /orgs/{orgid}/agbots/{id}/patterns */
-case class GetAgbotPatternsResponse(patterns: Map[String,AgbotPattern])
+final case class GetAgbotPatternsResponse(patterns: Map[String,AgbotPattern])
 
 /** Input format for POST /orgs/{orgid}/agbots/{id}/patterns */
-case class PostAgbotPatternRequest(patternOrgid: String, pattern: String, nodeOrgid: Option[String]) {
+final case class PostAgbotPatternRequest(patternOrgid: String, pattern: String, nodeOrgid: Option[String]) {
+  require(patternOrgid!=null && pattern!=null)
   def toAgbotPattern = AgbotPattern(patternOrgid, pattern, nodeOrgid.getOrElse(patternOrgid), ApiTime.nowUTC)
   def toAgbotPatternRow(agbotId: String, patId: String) = AgbotPatternRow(patId, agbotId, patternOrgid, pattern, nodeOrgid.getOrElse(patternOrgid), ApiTime.nowUTC)
   def formId = patternOrgid + "_" + pattern + "_" + nodeOrgid.getOrElse(patternOrgid)
-  def validate() = {}
+  def getAnyProblem: Option[String] = None
 }
 
 
 /** Output format for GET /orgs/{orgid}/agbots/{id}/businesspols */
-case class GetAgbotBusinessPolsResponse(businessPols: Map[String,AgbotBusinessPol])
+final case class GetAgbotBusinessPolsResponse(businessPols: Map[String,AgbotBusinessPol])
 
 /** Input format for POST /orgs/{orgid}/agbots/{id}/businesspols */
-case class PostAgbotBusinessPolRequest(businessPolOrgid: String, businessPol: String, nodeOrgid: Option[String]) {
+final case class PostAgbotBusinessPolRequest(businessPolOrgid: String, businessPol: String, nodeOrgid: Option[String]) {
+  require(businessPolOrgid!=null && businessPol!=null)
   def toAgbotBusinessPol = AgbotBusinessPol(businessPolOrgid, businessPol, nodeOrgid.getOrElse(businessPolOrgid), ApiTime.nowUTC)
   def toAgbotBusinessPolRow(agbotId: String, busPolId: String) = AgbotBusinessPolRow(busPolId, agbotId, businessPolOrgid, businessPol, nodeOrgid.getOrElse(businessPolOrgid), ApiTime.nowUTC)
   def formId = businessPolOrgid + "_" + businessPol + "_" + nodeOrgid.getOrElse(businessPolOrgid)
-  def validate() = {
+  def getAnyProblem: Option[String] = {
     val nodeOrg = nodeOrgid.getOrElse(businessPolOrgid)
-    if (nodeOrg != businessPolOrgid) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("node.org.must.equal.bus.pol.org")))
+    if (nodeOrg != businessPolOrgid) Some(ExchMsg.translate("node.org.must.equal.bus.pol.org"))
+    else None
   }
 }
 
 /** Output format for GET /orgs/{orgid}/agbots/{id}/agreements */
-case class GetAgbotAgreementsResponse(agreements: Map[String,AgbotAgreement], lastIndex: Int)
+final case class GetAgbotAgreementsResponse(agreements: Map[String,AgbotAgreement], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/agbots/{id}/agreements/<agreement-id> */
-case class PutAgbotAgreementRequest(service: AAService, state: String) {
-  def validate() = { }
+final case class PutAgbotAgreementRequest(service: AAService, state: String) {
+  require(service!=null && state!=null)
+  def getAnyProblem: Option[String] = None
 
   def toAgbotAgreementRow(agbotId: String, agrId: String) = {
     AgbotAgreementRow(agrId, agbotId, service.orgid, service.pattern, service.url, state, ApiTime.nowUTC, "")
   }
 }
 
-case class PostAgbotsIsRecentDataRequest(secondsStale: Int, agreementIds: List[String])     // the strings in the list are agreement ids
-case class PostAgbotsIsRecentDataElement(agreementId: String, recentData: Boolean)
+//final case class PostAgbotsIsRecentDataRequest(secondsStale: Int, agreementIds: List[String])     // the strings in the list are agreement ids
+//final case class PostAgbotsIsRecentDataElement(agreementId: String, recentData: Boolean)
 
-case class PostAgreementsConfirmRequest(agreementId: String)
+final case class PostAgreementsConfirmRequest(agreementId: String) {
+  require(agreementId!=null)
+}
 
 
 /** Input body for POST /orgs/{orgid}/agbots/{id}/msgs */
-case class PostAgbotsMsgsRequest(message: String, ttl: Int)
+final case class PostAgbotsMsgsRequest(message: String, ttl: Int) {
+  require(message!=null)
+}
 
 /** Response for GET /orgs/{orgid}/agbots/{id}/msgs */
-case class GetAgbotMsgsResponse(messages: List[AgbotMsg], lastIndex: Int)
+final case class GetAgbotMsgsResponse(messages: List[AgbotMsg], lastIndex: Int)
 
 
 /** Implementation for all of the /agbots routes */
-trait AgbotsRoutes extends ScalatraBase with FutureSupport with SwaggerSupport with AuthenticationSupport {
-  def db: Database      // get access to the db object in ExchangeApiApp
-  def logger: Logger    // get access to the logger object in ExchangeApiApp
-  protected implicit def jsonFormats: Formats
+@Path("/v1/orgs/{orgid}/agbots")
+class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
+  def db: Database = ExchangeApiApp.getDb
+  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
+  //protected implicit def jsonFormats: Formats
+
+  def routes: Route = agbotsGetRoute ~ agbotGetRoute ~ agbotPutRoute ~ agbotPatchRoute ~ agbotDeleteRoute ~ agbotHeartbeatRoute ~ agbotGetPatternsRoute ~ agbotGetPatternRoute ~ agbotPostPatRoute ~ agbotDeletePatsRoute ~ agbotDeletePatRoute ~ agbotGetBusPolsRoute ~ agbotGetBusPolRoute ~ agbotPostBusPolRoute ~ agbotDeleteBusPolsRoute ~ agbotDeleteBusPolRoute ~ agbotGetAgreementsRoute ~ agbotGetAgreementRoute ~ agbotPutAgreementRoute ~ agbotDeleteAgreementsRoute ~ agbotDeleteAgreementRoute ~ agbotAgreementConfirmRoute ~ agbotPostMsgRoute ~ agbotGetMsgsRoute ~ agbotDeleteMsgRoute
 
   /* ====== GET /orgs/{orgid}/agbots ================================ */
-  val getAgbots =
-    (apiOperation[GetAgbotsResponse]("getAgbots")
-      summary("Returns all agbots")
-      description("""Returns all agbots (Agreement Bots) in the exchange DB. Can be run by any user.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String]("Username of exchange user, or  ID (orgid/agbotid) of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("token", DataType.String, Option[String]("Password of exchange user, or token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("idfilter", DataType.String, Option[String]("Filter results to only include agbots with this id (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        Parameter("name", DataType.String, Option[String]("Filter results to only include agbots with this name (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false),
-        Parameter("owner", DataType.String, Option[String]("Filter results to only include agbots with this owner (can include % for wildcard - the URL encoding for % is %25)"), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/agbots", operation(getAgbots)) ({
-    val orgid = params("orgid")
-    val ident = authenticate().authorizeTo(TAgbot(OrgAndId(orgid,"*").toString),Access.READ)
-    val superUser = ident.isSuperUser
-    val resp = response
-    //var q = AgbotsTQ.rows.subquery
-    var q = AgbotsTQ.getAllAgbots(orgid)
-    params.get("idfilter").foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
-    params.get("name").foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
-    params.get("owner").foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
-
-    db.run(q.result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/agbots result size: "+list.size)
-      val agbots = new MutableHashMap[String,Agbot]
-      if (list.nonEmpty) for (a <- list) agbots.put(a.id, a.toAgbot(superUser))
-      if (agbots.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetAgbotsResponse(agbots.toMap, 0)
-    })
-  })
+  @GET
+  @Path("")
+  @Operation(summary = "Returns all agbots", description = "Returns all agbots (Agreement Bots). Can be run by any user.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include agbots with this id (can include % for wildcard - the URL encoding for % is %25)"),
+      new Parameter(name = "name", in = ParameterIn.QUERY, required = false, description = "Filter results to only include agbots with this name (can include % for wildcard - the URL encoding for % is %25)"),
+      new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include agbots with this owner (can include % for wildcard - the URL encoding for % is %25)")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotsResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotsGetRoute: Route = (get & path("orgs" / Segment / "agbots") & parameter(('idfilter.?, 'name.?, 'owner.?))) { (orgid, idfilter, name, owner) =>
+    logger.debug(s"Doing GET /orgs/$orgid/agbots")
+    exchAuth(TAgbot(OrgAndId(orgid,"*").toString), Access.READ) { ident =>
+      complete({
+        logger.debug(s"GET /orgs/$orgid/agbots identity: $ident")
+        var q = AgbotsTQ.getAllAgbots(orgid)
+        idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
+        name.foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
+        owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
+        db.run(q.result).map({ list =>
+          logger.debug(s"GET /orgs/$orgid/agbots result size: ${list.size}")
+          val agbots = list.map(e => e.id -> e.toAgbot(ident.isSuperUser)).toMap
+          val code = if (agbots.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetAgbotsResponse(agbots, 0))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   /* ====== GET /orgs/{orgid}/agbots/{id} ================================ */
-  val getOneAgbot =
-    (apiOperation[GetAgbotsResponse]("getOneAgbot")
-      summary("Returns a agbot")
-      description("""Returns the agbot (Agreement Bot) with the specified id in the exchange DB. Can be run by a user or the agbot.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("attribute", DataType.String, Option[String]("Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire node resource (including services) will be returned."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/agbots/:id", operation(getOneAgbot)) ({
-    val orgid = params("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
+  @GET
+  @Path("{id}")
+  @Operation(summary = "Returns an agbot", description = "Returns the agbot (Agreement Bot) with the specified id. Can be run by a user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
+      new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire node resource (including services) will be returned")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotsResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotGetRoute: Route = (get & path("orgs" / Segment / "agbots" / Segment) & parameter(('attribute.?))) { (orgid, id, attribute) =>
+    logger.debug(s"Doing GET /orgs/$orgid/agbots/$id")
     val compositeId = OrgAndId(orgid,id).toString
-    val ident = authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
-    val superUser = ident.isSuperUser
-    val resp = response
-    params.get("attribute") match {
-      case Some(attribute) => ; // Only returning 1 attr of the agbot
-        val q = AgbotsTQ.getAttribute(compositeId, attribute)
-        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("agbot.name.not.in.resource")))
-        //        if (q == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Agbot attribute name '"+attribute+"' is not an attribute of the agbot resource."))
-        db.run(q.result).map({ list =>
-          //logger.trace("GET /orgs/"+orgid+"/agbots/"+id+" attribute result: "+list.toString)
-          if (list.nonEmpty) {
-            resp.setStatus(HttpCode.OK)
-            GetAgbotAttributeResponse(attribute, list.head.toString)
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("not.found"))     // validateAccessToAgbot() will return ApiResponseType.NOT_FOUND to the client so do that here for consistency
-          }
-        })
+    exchAuth(TAgbot(compositeId), Access.READ) { ident =>
+      val q = if (attribute.isDefined) AgbotsTQ.getAttribute(compositeId, attribute.get) else null
+      validate(attribute.isEmpty || q!= null, ExchMsg.translate("agbot.name.not.in.resource")) {
+        complete({
+          logger.debug(s"GET /orgs/$orgid/agbots/$id identity: $ident")
+          attribute match {
+            case Some(attr) => // Only returning 1 attr of the agbot
+              db.run(q.result).map({ list =>
+                //logger.debug("GET /orgs/"+orgid+"/agbots/"+id+" attribute result: "+list.toString)
+                if (list.nonEmpty) (HttpCode.OK, GetAgbotAttributeResponse(attr, list.head.toString))
+                else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))     // validateAccessToAgbot() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
+              })
 
-      case None => ;  // Return the whole agbot, including the services
-        db.run(AgbotsTQ.getAgbot(compositeId).result).map({ list =>
-          logger.debug("GET /orgs/"+orgid+"/agbots/"+id+" result: "+list.toString)
-          val agbots = new MutableHashMap[String,Agbot]
-          if (list.nonEmpty) for (a <- list) agbots.put(a.id, a.toAgbot(superUser))
-          if (agbots.nonEmpty) resp.setStatus(HttpCode.OK)
-          else resp.setStatus(HttpCode.NOT_FOUND)
-          GetAgbotsResponse(agbots.toMap, 0)
-        })
-    }
-  })
+            case None => // Return the whole agbot, including the services
+              db.run(AgbotsTQ.getAgbot(compositeId).result).map({ list =>
+                logger.debug(s"GET /orgs/$orgid/agbots result size: ${list.size}")
+                val agbots = list.map(e => e.id -> e.toAgbot(ident.isSuperUser)).toMap
+                val code = if (agbots.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+                (code, GetAgbotsResponse(agbots, 0))
+              })
+          }
+        }) // end of complete
+      } // end of validate
+    } // end of exchAuth
+  }
 
   // =========== PUT /orgs/{orgid}/agbots/{id} ===============================
-  val putAgbots =
-    (apiOperation[ApiResponse]("putAgbots")
-      summary "Adds/updates a agbot"
-      description """Adds a new agbot (Agreement Bot) to the exchange DB, or updates an existing agbot. This must be called by the user to add a agbot, and then can be called by that user or agbot to update itself."""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be added/updated."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PutAgbotsRequest],
-          Option[String]("Agbot object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val putAgbots2 = (apiOperation[PutAgbotsRequest]("putAgbots2") summary("a") description("a"))  // for some bizarre reason, the PutAgbotsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  put("/orgs/:orgid/agbots/:id", operation(putAgbots)) ({
-    val orgid = params("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
-    val ident = authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    val agbot = try { parse(request.body).extract[PutAgbotsRequest] }
-    catch {
-      case e: Exception => /* Left here for reference, how to make a resource change backward compatible: if (e.getMessage.contains("No usable value for publicKey")) {    // the specific exception is MappingException
-          // try parsing again with the old structure
-          val agbotOld = try { parse(request.body).extract[PutAgbotsRequestOld] }
-          catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }
-          agbotOld.toPutAgbotsRequest
-        }
-        else*/ halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e)))
-    }
-    agbot.validate()
-    val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
-    val resp = response
-    val hashedTok = Password.hash(agbot.token)
-    db.run(AgbotsTQ.getNumOwned(owner).result.flatMap({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" num owned: "+xs)
-      val numOwned = xs
-      val maxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
-      if (maxAgbots == 0 || numOwned <= maxAgbots || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
-        val action = if (owner == "") agbot.getDbUpdate(compositeId, orgid, owner, hashedTok) else agbot.getDbUpsert(compositeId, orgid, owner, hashedTok)
-        action.asTry
-      }
-      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.of.agbots", maxAgbots) )).asTry
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) => AuthCache.putAgbotAndOwner(compositeId, hashedTok, agbot.token, owner)
-          //AuthCache.ids.putAgbot(compositeId, hashedTok, agbot.token)
-          //AuthCache.agbotsOwner.putOne(compositeId, owner)
-          resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.added.updated"))
-        case Failure(t: DBProcessingError) =>
-            resp.setStatus(HttpCode.ACCESS_DENIED)
-            ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("agbot.not.inserted.or.updated", compositeId, t.getMessage))
-        case Failure(t) =>
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.not.inserted.or.updated", compositeId, t.toString))
-      }
-    })
-  })
+  @PUT
+  @Path("{id}")
+  @Operation(summary = "Add/updates an agbot", description = "Adds a new agbot (Agreement Bot) to the exchange DB, or updates an existing agbot. This must be called by the user to add an agbot, and then can be called by that user or agbot to update itself.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
+    requestBody = new RequestBody(description = """
+```
+{
+  "token": "abc",
+  "name": "myagbot",
+  "publicKey": "ABCDEF"
+}
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutAgbotsRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "resource add/updated - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotPutRoute: Route = (put & path("orgs" / Segment / "agbots" / Segment) & entity(as[PutAgbotsRequest])) { (orgid, id, reqBody) =>
+    logger.debug(s"Doing PUT /orgs/$orgid/agbots/$id")
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TAgbot(compositeId), Access.WRITE) { ident =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
+          val hashedTok = Password.hash(reqBody.token)
+          db.run(AgbotsTQ.getNumOwned(owner).result.flatMap({ xs =>
+            logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" num owned: "+xs)
+            val numOwned = xs
+            val maxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
+            if (maxAgbots == 0 || numOwned <= maxAgbots || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
+              val action = if (owner == "") reqBody.getDbUpdate(compositeId, orgid, owner, hashedTok) else reqBody.getDbUpsert(compositeId, orgid, owner, hashedTok)
+              action.asTry
+            }
+            else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.agbots", maxAgbots) )).asTry
+          }).flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug(s"PUT /orgs/$orgid/agbots/$id result: $v")
+              val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+              agbotChange.insert.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug(s"PUT /orgs/$orgid/agbots/$id updated in changes table: $v")
+              AuthCache.putAgbotAndOwner(compositeId, hashedTok, reqBody.token, owner)
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.added.updated")))
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== PATCH /orgs/{orgid}/agbots/{id} ===============================
-  val patchAgbots =
-    (apiOperation[Map[String,String]]("patchAgbots")
-      summary "Updates 1 attribute of an agbot"
-      description """Updates some attributes of an agbot in the exchange DB. This can be called by the user or the agbot."""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be updated."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PatchAgbotsRequest],
-          Option[String]("Agbot object that contains attributes to updated in, the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val patchAgbots2 = (apiOperation[PatchAgbotsRequest]("patchAgbots2") summary("a") description("a"))  // for some bizarre reason, the PatchAgbotsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  patch("/orgs/:orgid/agbots/:id", operation(patchAgbots)) ({
-    val orgid = params("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    if(!request.body.trim.startsWith("{") && !request.body.trim.endsWith("}")){
-      halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("invalid.input.message", request.body)))
-    }
-    val agbot = try { parse(request.body).extract[PatchAgbotsRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    //logger.trace("PATCH /orgs/"+orgid+"/agbots/"+id+" input: "+agbot.toString)
-    val resp = response
-    val hashedTok = if (agbot.token.isDefined) Password.hash(agbot.token.get) else ""    // hash the token if that is what is being updated
-    val (action, attrName) = agbot.getDbUpdate(compositeId, orgid, hashedTok)
-    if (action == null) halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("no.valid.agbot.attribute.specified")))
-    db.run(action.transactionally.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("PATCH /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
-      xs match {
-        case Success(v) => try {
-          val numUpdated = v.toString.toInt // v comes to us as type Any
-          if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-            if (agbot.token.isDefined) AuthCache.putAgbot(compositeId, hashedTok, agbot.token.get) // We do not need to run putOwner because patch does not change the owner
-            val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
-            agbotChange.insert.asTry
-          } else {
-            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))).asTry
-          }
-        } catch { case e: Exception => DBIO.failed( new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("unexpected.result.from.update", e))) }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("PATCH /orgs/"+orgid+"/agbots/"+id+" updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          //AuthCache.ids.putAgbot(compositeId, hashedTok, agbot.token.get)
-          resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.attribute.updated", attrName, compositeId))
-        case Failure(t: DBProcessingError) =>
-          if (t.httpCode == HttpCode.NOT_FOUND) {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))
-          } else if (t.httpCode == HttpCode.INTERNAL_ERROR){
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, t.getMessage) }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.not.inserted.or.updated", compositeId, t.toString))
-      }
-    })
-  })
+  @PATCH
+  @Path("{id}")
+  @Operation(summary = "Updates 1 attribute of an agbot", description = "Updates some attributes of an agbot. This can be called by the user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
+    requestBody = new RequestBody(description = "Specify only **one** of the attributes (see list of attributes in the PUT route)", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchAgbotsRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotPatchRoute: Route = (patch & path("orgs" / Segment / "agbots" / Segment) & entity(as[PatchAgbotsRequest])) { (orgid, id, reqBody) =>
+    logger.debug(s"Doing PATCH /orgs/$orgid/agbots/$id")
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          val hashedTok = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
+          val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid, hashedTok)
+          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attribute.specified")))
+          else db.run(action.transactionally.asTry.flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug(s"PATCH /orgs/$orgid/agbots/$id result: $v")
+              if (v.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
+                if (reqBody.token.isDefined) AuthCache.putAgbot(compositeId, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
+                val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                agbotChange.insert.asTry
+              } else {
+                DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", compositeId))).asTry
+              }
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug(s"PATCH /orgs/$orgid/agbots/$id updated in changes table: $v")
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.attribute.updated", attrName, compositeId)))
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id} ===============================
-  val deleteAgbots =
-    (apiOperation[ApiResponse]("deleteAgbots")
-      summary "Deletes a agbot"
-      description "Deletes a agbot (Agreement Bot) from the exchange DB, and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the nodes and agbot). Can be run by the owning user or the agbot."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/agbots/:id", operation(deleteAgbots)) ({
-    val orgid = params("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
+  @DELETE
+  @Path("{id}")
+  @Operation(summary = "Deletes an agbot", description = "Deletes an agbot (Agreement Bot), and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the nodes and agbot). Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotDeleteRoute: Route = (delete & path("orgs" / Segment / "agbots" / Segment)) { (orgid, id) =>
+    logger.debug(s"Doing DELETE /orgs/$orgid/agbots/$id")
     val compositeId = OrgAndId(orgid,id).toString
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    // remove does *not* throw an exception if the key does not exist
-    val resp = response
-    db.run(AgbotsTQ.getAgbot(compositeId).delete.transactionally.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /orgs/"+orgid+"/agbots/"+id+" result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
-          AuthCache.removeAgbotAndOwner(compositeId)
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /orgs/"+orgid+"/agbots/"+id+" updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) =>
-            //AuthCache.ids.removeOne(compositeId)
-            //AuthCache.agbotsOwner.removeOne(compositeId)
-            resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.deleted"))
-        case Failure(t: DBProcessingError) =>
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.not.deleted", compositeId, t.toString))
-        }
-    })
-  })
+    exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
+      complete({
+        // remove does *not* throw an exception if the key does not exist
+        db.run(AgbotsTQ.getAgbot(compositeId).delete.transactionally.asTry.flatMap({
+          case Success(v) =>
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              logger.debug(s"DELETE /orgs/$orgid/agbots/$id result: $v")
+              AuthCache.removeAgbotAndOwner(compositeId)
+              val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              agbotChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug(s"DELETE /orgs/$orgid/agbots/$id updated in changes table: $v")
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== POST /orgs/{orgid}/agbots/{id}/heartbeat ===============================
-  val postAgbotsHeartbeat =
-    (apiOperation[ApiResponse]("postAgbotsHeartbeat")
-      summary "Tells the exchange this agbot is still operating"
-      description "Lets the exchange know this agbot is still active. Can be run by the owning user or the agbot."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be updated."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  post("/orgs/:orgid/agbots/:id/heartbeat", operation(postAgbotsHeartbeat)) ({
-    val orgid = params("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
-    val compositeId = OrgAndId(orgid,id).toString
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    val resp = response
-    db.run(AgbotsTQ.getLastHeartbeat(compositeId).update(ApiTime.nowUTC).asTry).map({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/heartbeat result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) {        // there were no db errors, but determine if it actually found it or not
-              resp.setStatus(HttpCode.POST_OK)
-              ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.updated"))
+  @POST
+  @Path("{id}/heartbeat")
+  @Operation(summary = "Tells the exchange this agbot is still operating", description = "Lets the exchange know this agbot is still active. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to be updated.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotHeartbeatRoute: Route = (post & path("orgs" / Segment / "agbots" / Segment / "heartbeat")) { (orgid, id) =>
+    logger.debug(s"Doing POST /orgs/$orgid/users/$id/heartbeat")
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
+      complete({
+        db.run(AgbotsTQ.getLastHeartbeat(compositeId).update(ApiTime.nowUTC).asTry).map({
+          case Success(v) =>
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              logger.debug(s"POST /orgs/$orgid/users/$id/heartbeat result: $v")
+              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.updated")))
             } else {
-              resp.setStatus(HttpCode.NOT_FOUND)
-              ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.not.found", compositeId))
+              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", compositeId)))
             }
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.not.updated", compositeId, t.toString))
-      }
-    })
-  })
+          case Failure(t) => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.updated", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/patterns ================================ */
-  val getAgbotPatterns =
-    (apiOperation[GetAgbotPatternsResponse]("getAgbotPatterns")
-      summary("Returns all patterns served by this agbot")
-      description("""Returns all patterns that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/agbots/:id/patterns", operation(getAgbotPatterns)) ({
-    val orgid = params("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
+  @GET
+  @Path("{id}/patterns")
+  @Operation(summary = "Returns all patterns served by this agbot", description = "Returns all patterns that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotPatternsResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotGetPatternsRoute: Route = (get & path("orgs" / Segment / "agbots" / Segment / "patterns")) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
-    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
-    val resp = response
-    db.run(AgbotPatternsTQ.getPatterns(compositeId).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/patterns result size: "+list.size)
-      //logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/patterns result: "+list.toString)
-      val patterns = new MutableHashMap[String, AgbotPattern]
-      if (list.nonEmpty) for (e <- list) { patterns.put(e.patId, e.toAgbotPattern) }
-      if (patterns.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetAgbotPatternsResponse(patterns.toMap)
-    })
-  })
+    exchAuth(TAgbot(compositeId),Access.READ) { _ =>
+      complete({
+        db.run(AgbotPatternsTQ.getPatterns(compositeId).result).map({ list =>
+          logger.debug(s"GET /orgs/$orgid/agbots/$id/patterns result size: ${list.size}")
+          val patterns = list.map(e => e.patId -> e.toAgbotPattern).toMap
+          val code = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetAgbotPatternsResponse(patterns))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/patterns/{patid} ================================ */
-  val getOneAgbotPattern =
-    (apiOperation[GetAgbotPatternsResponse]("getOneAgbotPattern")
-      summary("Returns a pattern this agbot is serving")
-      description("""Returns the pattern with the specified patid for the specified agbot id. The patid should be in the form patternOrgid_pattern. Can be run by the owning user or the agbot.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
-        Parameter("patid", DataType.String, Option[String]("ID of the pattern."), paramType=ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/agbots/:id/patterns/:patid", operation(getOneAgbotPattern)) ({
-    val orgid = params("orgid")
-    val id = params("id")
+  @GET
+  @Path("{id}/patterns/{patid}")
+  @Operation(summary = "Returns a pattern this agbot is serving", description = "Returns the pattern with the specified patid for the specified agbot id. The patid should be in the form patternOrgid_pattern. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
+    new Parameter(name = "patid", in = ParameterIn.PATH, description = "ID of the pattern.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotPatternsResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotGetPatternRoute: Route = (get & path("orgs" / Segment / "agbots" / Segment / "patterns" / Segment)) { (orgid, id, patId) =>
     val compositeId = OrgAndId(orgid,id).toString
-    val patId = params("patid")
-    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
-    val resp = response
-    db.run(AgbotPatternsTQ.getPattern(compositeId, patId).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/patterns/"+patId+" result: "+list.toString)
-      val patterns = new MutableHashMap[String, AgbotPattern]
-      if (list.nonEmpty) for (e <- list) { patterns.put(e.patId, e.toAgbotPattern) }
-      if (patterns.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetAgbotPatternsResponse(patterns.toMap)
-    })
-  })
+    exchAuth(TAgbot(compositeId),Access.READ) { _ =>
+      complete({
+        db.run(AgbotPatternsTQ.getPattern(compositeId, patId).result).map({ list =>
+          logger.debug(s"GET /orgs/$orgid/agbots/$id/patterns/$patId result size: ${list.size}")
+          val patterns = list.map(e => e.patId -> e.toAgbotPattern).toMap
+          val code = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetAgbotPatternsResponse(patterns))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== POST /orgs/{orgid}/agbots/{id}/patterns ===============================
-  val postAgbotPattern =
-    (apiOperation[ApiResponse]("postAgbotPattern")
-      summary "Adds a pattern that the agbot should serve"
-      description """Adds a new pattern and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the pattern.  The **request body** structure:
-
+  @POST
+  @Path("{id}/patterns")
+  @Operation(summary = "Adds a pattern that the agbot should serve", description = "Adds a new pattern and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the pattern.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to be updated.")),
+    requestBody = new RequestBody(description = """
 ```
 {
   "patternOrgid": "string",
   "pattern": "string",    // can be "*" to mean all patterns in the org
   "nodeOrgid": "string"   // optional, if omitted it defaults to patternOrgid
 }
-```"""
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add this pattern."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PostAgbotPatternRequest],
-        Option[String]("Pattern object that needs to be added to the exchange."),
-        paramType = ParamType.Body)
-    )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"), ResponseMessage(HttpCode.ALREADY_EXISTS2,"already exists"))
-      )
-  val postAgbotPattern2 = (apiOperation[PostAgbotPatternRequest]("postPattern2") summary("a") description("a"))  // for some bizarre reason, the class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  post("/orgs/:orgid/agbots/:id/patterns", operation(postAgbotPattern)) ({
-    val orgid = params("orgid")
-    val id = params("id")
-    val compositeId = OrgAndId(orgid,id).toString
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    val pattern = try { parse(request.body).extract[PostAgbotPatternRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    pattern.validate()
-    val patId = pattern.formId
-    val resp = response
-    db.run(PatternsTQ.getPattern(OrgAndId(pattern.patternOrgid,pattern.pattern).toString).length.result.asTry.flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/patterns pattern validation: "+xs.toString)
-      xs match {
-        case Success(num) => if (num > 0 || pattern.pattern == "*") pattern.toAgbotPatternRow(compositeId, patId).insert.asTry
-        else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("pattern.not.in.exchange"))).asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/patterns result: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotpatterns", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/patterns updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("pattern.added", patId))
-        case Failure(t) => if (t.getMessage.contains("duplicate key")) {
-          resp.setStatus(HttpCode.ALREADY_EXISTS2)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("pattern.foragbot.already.exists", patId, compositeId))
-        } else if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("pattern.not.inserted", patId, compositeId, t.getMessage))
-        } else {
-          resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("pattern.not.inserted", patId, compositeId, t.getMessage))
-        }
-      }
-    })
-  })
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostAgbotPatternRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotPostPatRoute: Route = (post & path("orgs" / Segment / "agbots" / Segment / "patterns") & entity(as[PostAgbotPatternRequest])) { (orgid, id, reqBody) =>
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          val patId = reqBody.formId
+          db.run(PatternsTQ.getPattern(OrgAndId(reqBody.patternOrgid,reqBody.pattern).toString).length.result.asTry.flatMap({
+            case Success(num) =>
+              logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/patterns pattern validation: " + num)
+              if (num > 0 || reqBody.pattern == "*") reqBody.toAgbotPatternRow(compositeId, patId).insert.asTry
+              else DBIO.failed(new Throwable(ExchMsg.translate("pattern.not.in.exchange"))).asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/patterns result: " + v)
+              val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotpatterns", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+              agbotChange.insert.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/patterns updated in changes table: " + v)
+              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.added", patId)))
+            case Failure(t) =>
+              if (t.getMessage.contains("duplicate key")) (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("pattern.foragbot.already.exists", patId, compositeId)))
+              else if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.not.inserted", patId, compositeId, t.getMessage)))
+              else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.inserted", patId, compositeId, t.getMessage)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/patterns ===============================
-  val deleteAgbotAllPattern =
-    (apiOperation[ApiResponse]("deleteAgbotAllPattern")
-      summary "Deletes all patterns of a agbot"
-      description "Deletes all of the current patterns that this agbot was serving. Can be run by the owning user or the agbot."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the pattern is to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/agbots/:id/patterns", operation(deleteAgbotAllPattern)) ({
-    val orgid = params("orgid")
-    val id = params("id")
+  @DELETE
+  @Path("{id}/patterns")
+  @Operation(summary = "Deletes all patterns of an agbot", description = "Deletes all of the current patterns that this agbot was serving. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotDeletePatsRoute: Route = (delete & path("orgs" / Segment / "agbots" / Segment / "patterns")) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    val resp = response
-    db.run(AgbotPatternsTQ.getPatterns(compositeId).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /agbots/"+id+"/patterns result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotpatterns", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("patterns.not.found", compositeId))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /agbots/"+id+"/patterns updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) =>
-            resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("patterns.deleted"))
-        case Failure(t: DBProcessingError) =>
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("patterns.not.found", compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("patterns.not.deleted", compositeId, t.toString))
-        }
-    })
-  })
+    exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
+      complete({
+        // remove does *not* throw an exception if the key does not exist
+        db.run(AgbotPatternsTQ.getPatterns(compositeId).delete.asTry.flatMap({
+          case Success(v) =>
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              // Add the resource to the resourcechanges table
+              logger.debug("DELETE /agbots/" + id + "/patterns result: " + v)
+              val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotpatterns", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              agbotChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("patterns.not.found", compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("DELETE /agbots/" + id + "/patterns updated in changes table: " + v)
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("patterns.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("patterns.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/patterns/{patid} ===============================
-  val deleteAgbotPattern =
-    (apiOperation[ApiResponse]("deleteAgbotPattern")
-      summary "Deletes a pattern of a agbot"
-      description "Deletes a pattern that this agbot was serving. Can be run by the owning user or the agbot."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the pattern is to be deleted."), paramType = ParamType.Path),
-        Parameter("patid", DataType.String, Option[String]("ID of the pattern to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/agbots/:id/patterns/:patid", operation(deleteAgbotPattern)) ({
-    val orgid = params("orgid")
-    val id = params("id")
+  @DELETE
+  @Path("{id}/patterns/{patid}")
+  @Operation(summary = "Deletes a pattern of an agbot", description = "Deletes a pattern that this agbot was serving. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
+    new Parameter(name = "patid", in = ParameterIn.PATH, description = "ID of the pattern to be deleted.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotDeletePatRoute: Route = (delete & path("orgs" / Segment / "agbots" / Segment / "patterns" / Segment)) { (orgid, id, patId) =>
     val compositeId = OrgAndId(orgid,id).toString
-    val patId = params("patid")
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    val resp = response
-    db.run(AgbotPatternsTQ.getPattern(compositeId,patId).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /agbots/"+id+"/patterns/"+patId+" result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotpatterns", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.not.found", patId, compositeId))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /agbots/"+id+"/patterns/"+patId+" updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) =>
-            resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.pattern.deleted"))
-        case Failure(t: DBProcessingError) =>
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("pattern.not.found", patId, compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("pattern.not.deleted", patId, compositeId, t.toString))
-        }
-    })
-  })
+    exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
+      complete({
+        db.run(AgbotPatternsTQ.getPattern(compositeId,patId).delete.asTry.flatMap({
+          case Success(v) =>
+            // Add the resource to the resourcechanges table
+            logger.debug("DELETE /agbots/" + id + "/patterns/" + patId + " result: " + v)
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotpatterns", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              agbotChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.not.found", patId, compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("DELETE /agbots/" + id + "/patterns/" + patId + " updated in changes table: " + v)
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.pattern.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.not.deleted", patId, compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/businesspols ================================ */
-  val getAgbotBusinessPols =
-    (apiOperation[GetAgbotBusinessPolsResponse]("getAgbotBusinessPols")
-      summary("Returns all business policies served by this agbot")
-      description("""Returns all business policies that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.""")
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/agbots/:id/businesspols", operation(getAgbotBusinessPols)) ({
-    val orgid = params("orgid")
-    val id = params("id")   // but do not have a hack/fix for the name
+  @GET
+  @Path("{id}/businesspols")
+  @Operation(summary = "Returns all business policies served by this agbot", description = "Returns all business policies that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotBusinessPolsResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotGetBusPolsRoute: Route = (get & path("orgs" / Segment / "agbots" / Segment / "businesspols")) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
-    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
-    val resp = response
-    db.run(AgbotBusinessPolsTQ.getBusinessPols(compositeId).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/businesspols result size: "+list.size)
-      //logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/businesspols result: "+list.toString)
-      val businessPols = new MutableHashMap[String, AgbotBusinessPol]
-      if (list.nonEmpty) for (e <- list) { businessPols.put(e.busPolId, e.toAgbotBusinessPol) }
-      if (businessPols.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetAgbotBusinessPolsResponse(businessPols.toMap)
-    })
-  })
+    exchAuth(TAgbot(compositeId),Access.READ) { _ =>
+      complete({
+        db.run(AgbotBusinessPolsTQ.getBusinessPols(compositeId).result).map({ list =>
+          logger.debug(s"GET /orgs/$orgid/agbots/$id/businesspols result size: ${list.size}")
+          val businessPols = list.map(e => e.busPolId -> e.toAgbotBusinessPol).toMap
+          val code = if (businessPols.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetAgbotBusinessPolsResponse(businessPols))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/businesspols/{buspolid} ================================ */
-  val getOneAgbotBusinessPol =
-    (apiOperation[GetAgbotBusinessPolsResponse]("getOneAgbotBusinessPol")
-      summary("Returns a business policy this agbot is serving")
-      description("""Returns the business policy with the specified buspolid for the specified agbot id. The buspolid should be in the form businessPolOrgid_businessPol. Can be run by the owning user or the agbot.""")
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
-      Parameter("buspolid", DataType.String, Option[String]("ID of the businessPol."), paramType=ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/agbots/:id/businesspols/:buspolid", operation(getOneAgbotBusinessPol)) ({
-    val orgid = params("orgid")
-    val id = params("id")
+  @GET
+  @Path("{id}/businesspols/{buspolid}")
+  @Operation(summary = "Returns a business policy this agbot is serving", description = "Returns the business policy with the specified patid for the specified agbot id. The patid should be in the form businessPolOrgid_businessPol. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
+      new Parameter(name = "patid", in = ParameterIn.PATH, description = "ID of the business policy.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotBusinessPolsResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotGetBusPolRoute: Route = (get & path("orgs" / Segment / "agbots" / Segment / "businesspols" / Segment)) { (orgid, id, busPolId) =>
     val compositeId = OrgAndId(orgid,id).toString
-    val busPolId = params("buspolid")
-    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
-    val resp = response
-    db.run(AgbotBusinessPolsTQ.getBusinessPol(compositeId, busPolId).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/businesspols/"+busPolId+" result: "+list.toString)
-      val businessPols = new MutableHashMap[String, AgbotBusinessPol]
-      if (list.nonEmpty) for (e <- list) { businessPols.put(e.busPolId, e.toAgbotBusinessPol) }
-      if (businessPols.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetAgbotBusinessPolsResponse(businessPols.toMap)
-    })
-  })
+    exchAuth(TAgbot(compositeId),Access.READ) { _ =>
+      complete({
+        db.run(AgbotBusinessPolsTQ.getBusinessPol(compositeId, busPolId).result).map({ list =>
+          logger.debug(s"GET /orgs/$orgid/agbots/$id/businesspols/$busPolId result size: ${list.size}")
+          val businessPols = list.map(e => e.busPolId -> e.toAgbotBusinessPol).toMap
+          val code = if (businessPols.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetAgbotBusinessPolsResponse(businessPols))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== POST /orgs/{orgid}/agbots/{id}/businesspols ===============================
-  val postAgbotBusinessPol =
-    (apiOperation[ApiResponse]("postAgbotBusinessPol")
-      summary "Adds a business policy that the agbot should serve"
-      description """Adds a new business policy and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the businessPol.  The **request body** structure:
-
+  @POST
+  @Path("{id}/businesspols")
+  @Operation(summary = "Adds a business policy that the agbot should serve", description = "Adds a new business policy and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the business policy.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to be updated.")),
+    requestBody = new RequestBody(description = """
 ```
 {
   "businessPolOrgid": "string",
   "businessPol": "string",    // can be "*" to mean all business policies in the org
   "nodeOrgid": "string"   // optional, if omitted it defaults to businessPolOrgid (currently it can *not* be different from businessPolOrgid)
 }
-```"""
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add this businessPol."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-      Parameter("body", DataType[PostAgbotBusinessPolRequest],
-        Option[String]("BusinessPol object that needs to be added to the exchange."),
-        paramType = ParamType.Body)
-    )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"), ResponseMessage(HttpCode.ALREADY_EXISTS2,"already exists"))
-      )
-  val postAgbotBusinessPol2 = (apiOperation[PostAgbotBusinessPolRequest]("postBusinessPol2") summary("a") description("a"))  // for some bizarre reason, the class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  post("/orgs/:orgid/agbots/:id/businesspols", operation(postAgbotBusinessPol)) ({
-    val orgid = params("orgid")
-    val id = params("id")
-    val compositeId = OrgAndId(orgid,id).toString
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    val businessPol = try { parse(request.body).extract[PostAgbotBusinessPolRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    businessPol.validate()
-    val busPolId = businessPol.formId
-    val resp = response
-    db.run(BusinessPoliciesTQ.getBusinessPolicy(OrgAndId(businessPol.businessPolOrgid,businessPol.businessPol).toString).length.result.asTry.flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/businesspols business policy validation: "+xs.toString)
-      xs match {
-        case Success(num) => if (num > 0 || businessPol.businessPol == "*") businessPol.toAgbotBusinessPolRow(compositeId, busPolId).insert.asTry
-          else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("buspol.not.in.exchange"))).asTry
-        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-      }
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/businesspols result: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotbusinesspols", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/businesspols updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.added", busPolId))
-        case Failure(t) => if (t.getMessage.contains("duplicate key")) {
-          resp.setStatus(HttpCode.ALREADY_EXISTS2)
-          ApiResponse(ApiResponseType.ALREADY_EXISTS, ExchangeMessage.translateMessage("buspol.foragbot.already.exists", busPolId, compositeId))
-        } else if (t.getMessage.startsWith("Access Denied:")) {
-          resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("buspol.not.inserted", busPolId, compositeId, t.getMessage))
-        } else {
-          resp.setStatus(HttpCode.BAD_INPUT)
-          ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("buspol.not.inserted", busPolId, compositeId, t.getMessage))
-        }
-      }
-    })
-  })
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostAgbotBusinessPolRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotPostBusPolRoute: Route = (post & path("orgs" / Segment / "agbots" / Segment / "businesspols") & entity(as[PostAgbotBusinessPolRequest])) { (orgid, id, reqBody) =>
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          val patId = reqBody.formId
+          db.run(BusinessPoliciesTQ.getBusinessPolicy(OrgAndId(reqBody.businessPolOrgid,reqBody.businessPol).toString).length.result.asTry.flatMap({
+            case Success(num) =>
+              logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/businesspols business policy validation: " + num)
+              if (num > 0 || reqBody.businessPol == "*") reqBody.toAgbotBusinessPolRow(compositeId, patId).insert.asTry
+              else DBIO.failed(new Throwable(ExchMsg.translate("buspol.not.in.exchange"))).asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/businesspols result: " + v)
+              val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotbusinesspols", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+              agbotChange.insert.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/businesspols updated in changes table: " + v)
+              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.added", patId)))
+            case Failure(t) =>
+              if (t.getMessage.contains("duplicate key")) (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.foragbot.already.exists", patId, compositeId)))
+              else if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.inserted", patId, compositeId, t.getMessage)))
+              else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.inserted", patId, compositeId, t.getMessage)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/businesspols ===============================
-  val deleteAgbotAllBusinessPol =
-    (apiOperation[ApiResponse]("deleteAgbotAllBusinessPol")
-      summary "Deletes all business policies of a agbot"
-      description "Deletes all of the current business policies that this agbot was serving. Can be run by the owning user or the agbot."
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the business policy is to be deleted."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/agbots/:id/businesspols", operation(deleteAgbotAllBusinessPol)) ({
-    val orgid = params("orgid")
-    val id = params("id")
+  @DELETE
+  @Path("{id}/businesspols")
+  @Operation(summary = "Deletes all business policies of an agbot", description = "Deletes all of the current business policies that this agbot was serving. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotDeleteBusPolsRoute: Route = (delete & path("orgs" / Segment / "agbots" / Segment / "businesspols")) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    val resp = response
-    db.run(AgbotBusinessPolsTQ.getBusinessPols(compositeId).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /agbots/"+id+"/businesspols result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotbusinesspols", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("buspols.not.found", compositeId))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /agbots/"+id+"/businesspols updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspols.deleted"))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("buspols.not.found", compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("buspols.not.deleted", compositeId, t.toString))
-      }
-    })
-  })
+    exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
+      complete({
+        // remove does *not* throw an exception if the key does not exist
+        db.run(AgbotBusinessPolsTQ.getBusinessPols(compositeId).delete.asTry.flatMap({
+          case Success(v) =>
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              // Add the resource to the resourcechanges table
+              logger.debug("DELETE /agbots/" + id + "/businesspols result: " + v)
+              val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotbusinesspols", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              agbotChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("buspols.not.found", compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("DELETE /agbots/" + id + "/businesspols updated in changes table: " + v)
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspols.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("buspols.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/businesspols/{buspolid} ===============================
-  val deleteAgbotBusinessPol =
-    (apiOperation[ApiResponse]("deleteAgbotBusinessPol")
-      summary "Deletes a business policy of a agbot"
-      description "Deletes a business policy that this agbot was serving. Can be run by the owning user or the agbot."
-      parameters(
-      Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-      Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the business policy is to be deleted."), paramType = ParamType.Path),
-      Parameter("buspolid", DataType.String, Option[String]("ID of the business policy to be deleted."), paramType = ParamType.Path),
-      Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-    )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/agbots/:id/businesspols/:buspolid", operation(deleteAgbotBusinessPol)) ({
-    val orgid = params("orgid")
-    val id = params("id")
+  @DELETE
+  @Path("{id}/businesspols/{buspolid}")
+  @Operation(summary = "Deletes a business policy of an agbot", description = "Deletes a business policy that this agbot was serving. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
+      new Parameter(name = "patid", in = ParameterIn.PATH, description = "ID of the business policy to be deleted.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotDeleteBusPolRoute: Route = (delete & path("orgs" / Segment / "agbots" / Segment / "businesspols" / Segment)) { (orgid, id, busPolId) =>
     val compositeId = OrgAndId(orgid,id).toString
-    val busPolId = params("buspolid")
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    val resp = response
-    db.run(AgbotBusinessPolsTQ.getBusinessPol(compositeId,busPolId).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /agbots/"+id+"/businesspols/"+busPolId+" result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotbusinesspols", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("buspol.not.found", busPolId, compositeId))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /agbots/"+id+"/businesspols/"+busPolId+" updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("buspol.deleted"))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("buspol.not.found", busPolId, compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("buspol.not.deleted", busPolId, compositeId, t.toString))
-      }
-    })
-  })
+    exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
+      complete({
+        db.run(AgbotBusinessPolsTQ.getBusinessPol(compositeId,busPolId).delete.asTry.flatMap({
+          case Success(v) =>
+            // Add the resource to the resourcechanges table
+            logger.debug("DELETE /agbots/" + id + "/businesspols/" + busPolId + " result: " + v)
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotbusinesspols", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              agbotChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("buspol.not.found", busPolId, compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("DELETE /agbots/" + id + "/businesspols/" + busPolId + " updated in changes table: " + v)
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("buspol.not.deleted", busPolId, compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/agreements ================================ */
-  val getAgbotAgreements =
-    (apiOperation[GetAgbotAgreementsResponse]("getAgbotAgreements")
-      summary("Returns all agreements this agbot is in")
-      description("""Returns all agreements in the exchange DB that this agbot is part of. Can be run by the owning user or the agbot.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-      )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-    )
-
-  get("/orgs/:orgid/agbots/:id/agreements", operation(getAgbotAgreements)) ({
-    val orgid = params("orgid")
-    val id = params("id")
+  @GET
+  @Path("{id}/agreements")
+  @Operation(summary = "Returns all agreements this agbot is in", description = "Returns all agreements that this agbot is part of. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotAgreementsResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotGetAgreementsRoute: Route = (get & path("orgs" / Segment / "agbots" / Segment / "agreements")) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
-    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
-    val resp = response
-    db.run(AgbotAgreementsTQ.getAgreements(compositeId).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/agreements result size: "+list.size)
-      //logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/agreements result: "+list.toString)
-      val agreements = new MutableHashMap[String, AgbotAgreement]
-      if (list.nonEmpty) for (e <- list) { agreements.put(e.agrId, e.toAgbotAgreement) }
-      if (agreements.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetAgbotAgreementsResponse(agreements.toMap, 0)
-    })
-  })
+    exchAuth(TAgbot(compositeId),Access.READ) { _ =>
+      complete({
+        db.run(AgbotAgreementsTQ.getAgreements(compositeId).result).map({ list =>
+          logger.debug(s"GET /orgs/$orgid/agbots/$id/agreements result size: ${list.size}")
+          val agreements = list.map(e => e.agrId -> e.toAgbotAgreement).toMap
+          val code = if (agreements.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetAgbotAgreementsResponse(agreements, 0))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/agreements/{agid} ================================ */
-  val getOneAgbotAgreement =
-    (apiOperation[GetAgbotAgreementsResponse]("getOneAgbotAgreement")
-      summary("Returns an agreement for a agbot")
-      description("""Returns the agreement with the specified agid for the specified agbot id in the exchange DB. Can be run by the owning user or the agbot.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
-        Parameter("agid", DataType.String, Option[String]("ID of the agreement."), paramType=ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-      )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-    )
-
-  get("/orgs/:orgid/agbots/:id/agreements/:agid", operation(getOneAgbotAgreement)) ({
-    val orgid = params("orgid")
-    val id = params("id")
+  @GET
+  @Path("{id}/agreements/{agid}")
+  @Operation(summary = "Returns an agreement for an agbot", description = "Returns the agreement with the specified agid for the specified agbot id. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
+      new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotAgreementsResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotGetAgreementRoute: Route = (get & path("orgs" / Segment / "agbots" / Segment / "agreements" / Segment)) { (orgid, id, agrId) =>
     val compositeId = OrgAndId(orgid,id).toString
-    val agrId = params("agid")
-    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
-    val resp = response
-    db.run(AgbotAgreementsTQ.getAgreement(compositeId, agrId).result).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" result: "+list.toString)
-      val agreements = new MutableHashMap[String, AgbotAgreement]
-      if (list.nonEmpty) for (e <- list) { agreements.put(e.agrId, e.toAgbotAgreement) }
-      if (agreements.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetAgbotAgreementsResponse(agreements.toMap, 0)
-    })
-  })
+    exchAuth(TAgbot(compositeId),Access.READ) { _ =>
+      complete({
+        db.run(AgbotAgreementsTQ.getAgreement(compositeId, agrId).result).map({ list =>
+          logger.debug(s"GET /orgs/$orgid/agbots/$id/agreements/$agrId result size: ${list.size}")
+          val agreements = list.map(e => e.agrId -> e.toAgbotAgreement).toMap
+          val code = if (agreements.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetAgbotAgreementsResponse(agreements, 0))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== PUT /orgs/{orgid}/agbots/{id}/agreements/{agid} ===============================
-  val putAgbotAgreement =
-    (apiOperation[ApiResponse]("putAgbotAgreement")
-      summary "Adds/updates an agreement of a agbot"
-      description """Adds a new agreement of a agbot to the exchange DB, or updates an existing agreement. This is called by the owning user or the agbot to give their information about the agreement."""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot wanting to add/update this agreement."), paramType = ParamType.Path),
-        Parameter("agid", DataType.String, Option[String]("ID of the agreement to be added/updated."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PutAgbotAgreementRequest],
-          Option[String]("Agreement object that needs to be added to, or updated in, the exchange. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-      )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-    )
-  val putAgbotAgreement2 = (apiOperation[PutAgbotAgreementRequest]("putAgreement2") summary("a") description("a"))  // for some bizarre reason, the PutAgreementsRequest class has to be used in apiOperation() for it to be recognized in the body Parameter above
-
-  put("/orgs/:orgid/agbots/:id/agreements/:agid", operation(putAgbotAgreement)) ({
-    val orgid = params("orgid")
-    val id = params("id")
-    val compositeId = OrgAndId(orgid,id).toString
-    val agrId = params("agid")
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    val agreement = try { parse(request.body).extract[PutAgbotAgreementRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    agreement.validate()
-    val resp = response
-    db.run(AgbotAgreementsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" num owned: "+xs)
-      val numOwned = xs
-      val maxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
-      if (maxAgreements == 0 || numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
-        agreement.toAgbotAgreementRow(compositeId, agrId).upsert.asTry
-      }
-      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("over.max.limit.of.agreements", maxAgreements) )).asTry
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
-      xs match {
-        case Success(_) =>
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotagreements", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.PUT_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agreement.added.or.updated"))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.ACCESS_DENIED)
-          ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("agreement.not.inserted.or.updated", agrId, compositeId, t.getMessage))
-        case Failure(t) =>
-          resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agreement.not.inserted.or.updated", agrId, compositeId, t.toString))
-      }
-    })
-  })
+  @PUT
+  @Path("{id}/agreements/{agid}")
+  @Operation(summary = "Adds/updates an agreement of an agbot", description = "Adds a new agreement of an agbot to the exchange DB, or updates an existing agreement. This is called by the owning user or the agbot to give their information about the agreement.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to be updated."),
+    new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement to be added/updated.")),
+    requestBody = new RequestBody(description = """
+```
+{
+  "service": {
+    "orgid": "string",
+    "pattern": "string",
+    "url": "string"
+  },
+  "state": "string"
+}
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutAgbotAgreementRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotPutAgreementRoute: Route = (put & path("orgs" / Segment / "agbots" / Segment / "agreements" / Segment) & entity(as[PutAgbotAgreementRequest])) { (orgid, id, agrId, reqBody) =>
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          db.run(AgbotAgreementsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
+            logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" num owned: "+xs)
+            val numOwned = xs
+            val maxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
+            if (maxAgreements == 0 || numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
+              reqBody.toAgbotAgreementRow(compositeId, agrId).upsert.asTry
+            }
+            else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.agreements", maxAgreements) )).asTry
+          }).flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("PUT /orgs/" + orgid + "/agbots/" + id + "/agreements/" + agrId + " result: " + v)
+              val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotagreements", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+              agbotChange.insert.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug("PUT /orgs/" + orgid + "/agbots/" + id + "/agreements/" + agrId + " updated in changes table: " + v)
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.added.or.updated")))
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agreement.not.inserted.or.updated", agrId, compositeId, t.toString)))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/agreements ===============================
-  val deleteAgbotAllAgreement =
-    (apiOperation[ApiResponse]("deleteAgbotAllAgreement")
-      summary "Deletes all agreements of a agbot"
-      description "Deletes all of the current agreements of a agbot from the exchange DB. Can be run by the owning user or the agbot."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-      )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-    )
-
-  delete("/orgs/:orgid/agbots/:id/agreements", operation(deleteAgbotAllAgreement)) ({
-    val orgid = params("orgid")
-    val id = params("id")
+  @DELETE
+  @Path("{id}/agreements")
+  @Operation(summary = "Deletes all agreements of an agbot", description = "Deletes all of the current agreements of an agbot. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotDeleteAgreementsRoute: Route = (delete & path("orgs" / Segment / "agbots" / Segment / "agreements")) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    val resp = response
-    db.run(AgbotAgreementsTQ.getAgreements(compositeId).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /agbots/"+id+"/agreements result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.agreements.found.for.agbot", compositeId))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /agbots/"+id+"/agreements updated in changes table: "+xs.toString)
-      xs match {
-        case Success(v) =>
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.agreements.deleted"))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("no.agreements.found.for.agbot", compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.agreements.not.deleted", compositeId, t.toString))
-      }
-    })
-  })
+    exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
+      complete({
+        // remove does *not* throw an exception if the key does not exist
+        db.run(AgbotAgreementsTQ.getAgreements(compositeId).delete.asTry.flatMap({
+          case Success(v) =>
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              // Add the resource to the resourcechanges table
+              logger.debug("DELETE /agbots/" + id + "/agreements result: " + v)
+              val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              agbotChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.agreements.found.for.agbot", compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("DELETE /agbots/" + id + "/agreements updated in changes table: " + v)
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.agreements.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.agreements.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/agreements/{agid} ===============================
-  val deleteAgbotAgreement =
-    (apiOperation[ApiResponse]("deleteAgbotAgreement")
-      summary "Deletes an agreement of a agbot"
-      description "Deletes an agreement of a agbot from the exchange DB. Can be run by the owning user or the agbot."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot for which the agreement is to be deleted."), paramType = ParamType.Path),
-        Parameter("agid", DataType.String, Option[String]("ID of the agreement to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-      )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-    )
-
-  delete("/orgs/:orgid/agbots/:id/agreements/:agid", operation(deleteAgbotAgreement)) ({
-    val orgid = params("orgid")
-    val id = params("id")
+  @DELETE
+  @Path("{id}/agreements/{agid}")
+  @Operation(summary = "Deletes an agreement of an agbot", description = "Deletes an agreement of an agbot. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
+      new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement to be deleted.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotDeleteAgreementRoute: Route = (delete & path("orgs" / Segment / "agbots" / Segment / "agreements" / Segment)) { (orgid, id, agrId) =>
     val compositeId = OrgAndId(orgid,id).toString
-    val agrId = params("agid")
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    val resp = response
-    db.run(AgbotAgreementsTQ.getAgreement(compositeId,agrId).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /agbots/"+id+"/agreements/"+agrId+" result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agreement.for.agbot.not.found", agrId, compositeId))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /agbots/"+id+"/agreements/"+agrId+" updated in changes table: "+xs.toString)
-      xs match {
-        case Success(v) =>
-          resp.setStatus(HttpCode.DELETED)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.agreement.deleted"))
-        case Failure(t: DBProcessingError) =>
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agreement.for.agbot.not.found", agrId, compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agreement.for.agbot.not.deleted", agrId, compositeId, t.toString))
-      }
-    })
-  })
-
-
-  /* Not using these for data verification, but might in the future...
-  // =========== POST /agbots/{id}/dataheartbeat ===============================
-  val postAgbotsDataHeartbeat =
-    (apiOperation[ApiResponse]("postAgbotsDataHeartbeat")
-      summary "Not supported yet - Tells the exchange that data has been received for these agreements"
-      description "Lets the exchange know that data has just been received for this list of agreement IDs. This is normally run by a cloud data aggregation service that is registered as an agbot of the same exchange user account that owns the agbots that are contracting on behalf of a workload. Can be run by the owning user or any of the agbots owned by that user. The other agbot that negotiated this agreement id can run POST /agbots/{id}/isrecentdata check the dataLastReceived value of the agreement to determine if the agreement should be canceled (if data verification is enabled)."
-      parameters(
-        Parameter("id", DataType.String, Option[String]("ID of the agbot running this REST API method."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[List[String]],
-          Option[String]("List of agreement IDs that have received data very recently."),
-          paramType = ParamType.Body)
-        )
-      )
-  post("/agbots/:id/dataheartbeat", operation(postAgbotsDataHeartbeat)) ({
-    val id = params("id")
-    // validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
-    credsAndLog().authenticate().authorizeTo(TAgbot("#"),Access.DATA_HEARTBEAT_MY_AGBOTS).creds
-    val agrIds = try { parse(request.body).extract[List[String]] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    val agreementIds = agrIds.toSet
-
-    need to implement persistence
-    // Find the agreement ids in any of this user's agbots
-    val owner = TempDb.agbots.get(id) match {       // 1st find owner (user)
-      case Some(agbot) => agbot.owner
-      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "agbot id '"+id+"' not found"))
-    }
-    val agbotIds = TempDb.agbots.toMap.filter(a => a._2.owner == owner).keys.toSet      // all the agbots owned by this user
-    val agbotsAgreements = TempDb.agbotsAgreements.toMap.filter(a => agbotIds.contains(a._1) && a._2.keys.toSet.intersect(agreementIds).size > 0)    // agbotsAgreements is hash of hash: 1st key is agbot id, 2nd key is agreement id, value is agreement info
-    // we still have the same hash of hash, but have reduced the top level to only agbot ids that contain these agreement ids
-    if (agbotsAgreements.size == 0) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "agreement IDs not found"))
-    // println(agbotsAgreements)
-
-    // Now update the dataLastReceived value in all of these agreement id objects
-    for ((id,agrMap) <- agbotsAgreements) {
-      for ((agid, agr) <- agrMap; if agreementIds.contains(agid)) {
-        agrMap.put(agid, AgbotAgreement(agr.workload, agr.state, agr.lastUpdated, ApiTime.nowUTC))   // copy everything from the original entry except dataLastReceived
-      }
-    }
-    status_=(HttpCode.POST_OK)
-    ApiResponse(ApiResponseType.OK, "data heartbeats successful")
-    status_=(HttpCode.NOT_IMPLEMENTED)
-    ApiResponse(ApiResponseType.NOT_IMPLEMENTED, "data heartbeats not implemented yet")
-  })
-
-  // =========== POST /agbots/{id}/isrecentdata ===============================
-  val postAgbotsIsRecentData =
-    (apiOperation[List[PostAgbotsIsRecentDataElement]]("postAgbotsIsRecentData")
-      summary "Not supported yet - Returns whether each agreement has received data or not"
-      description "Queries the exchange to find out if each of the specified agreement IDs has had POST /agbots/{id}/dataheartbeat run on it recently (within secondsStale ago). This is normally run by agbots that are contracting on behalf of this workload to decide whether the agreement should be canceled or not. Can be run by the owning user or any of the agbots owned by that user."
-      parameters(
-        Parameter("id", DataType.String, Option[String]("ID of the agbot running this REST API method."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostAgbotsIsRecentDataRequest],
-          Option[String]("List of agreement IDs that should be queried, and the time threshold to use."),
-          paramType = ParamType.Body)
-        )
-      )
-  val postAgbotsIsRecentData2 = (apiOperation[PostAgbotsIsRecentDataRequest]("postAgbotsIsRecentData2") summary("a") description("a"))
-  post("/agbots/:id/isrecentdata", operation(postAgbotsIsRecentData)) ({
-    val id = params("id")
-    // validateUserOrAgbotId(BaseAccess.DATA_HEARTBEAT, id)
-    credsAndLog().authenticate().authorizeTo(TAgbot(id),Access.READ).creds
-    val req = try { parse(request.body).extract[PostAgbotsIsRecentDataRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, "Error parsing the input body json: "+e)) }    // the specific exception is MappingException
-    val secondsStale = req.secondsStale
-    val agreementIds = req.agreementIds.toSet
-
-    need to implement persistence
-    // Find the agreement ids in any of this user's agbots
-    val owner = TempDb.agbots.get(id) match {       // 1st find owner (user)
-      case Some(agbot) => agbot.owner
-      case None => halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "agbot id '"+id+"' not found"))
-    }
-    val agbotIds = TempDb.agbots.toMap.filter(a => a._2.owner == owner).keys.toSet      // all the agbots owned by this user
-    val agbotsAgreements = TempDb.agbotsAgreements.toMap.filter(a => agbotIds.contains(a._1) && a._2.keys.toSet.intersect(agreementIds).size > 0)    // agbotsAgreements is hash of hash: 1st key is agbot id, 2nd key is agreement id, value is agreement info
-    // we still have the same hash of hash, but have reduced the top level to only agbot ids that contain these agreement ids
-    if (agbotsAgreements.size == 0) halt(HttpCode.NOT_FOUND, ApiResponse(ApiResponseType.NOT_FOUND, "agreement IDs not found"))
-    // println(agbotsAgreements)
-
-    // Now compare the dataLastReceived value with the current time
-    var resp = List[PostAgbotsIsRecentDataElement]()
-    for ((id,agrMap) <- agbotsAgreements) {
-      for ((agid, agr) <- agrMap; if agreementIds.contains(agid)) {
-        val recentData = !ApiTime.isSecondsStale(agr.dataLastReceived,secondsStale)
-        resp = resp :+ PostAgbotsIsRecentDataElement(agid, recentData)
-      }
-    }
-    status_=(HttpCode.POST_OK)
-    resp
-    status_=(HttpCode.NOT_IMPLEMENTED)
-    ApiResponse(ApiResponseType.NOT_IMPLEMENTED, "isrecentdata not implemented yet")
-  })
-  */
+    exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
+      complete({
+        db.run(AgbotAgreementsTQ.getAgreement(compositeId,agrId).delete.asTry.flatMap({
+          case Success(v) =>
+            // Add the resource to the resourcechanges table
+            logger.debug("DELETE /agbots/" + id + "/agreements/" + agrId + " result: " + v)
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              agbotChange.insert.asTry
+            } else {
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.for.agbot.not.found", agrId, compositeId))).asTry
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("DELETE /agbots/" + id + "/agreements/" + agrId + " updated in changes table: " + v)
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.agreement.deleted")))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agreement.for.agbot.not.deleted", agrId, compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== POST /orgs/{orgid}/agreements/confirm ===============================
-  val postAgreementsConfirm =
-    (apiOperation[ApiResponse]("postAgreementsConfirm")
-      summary "Confirms if this agbot agreement is active"
-      description "Confirms whether or not this agreement id is valid, is owned by an agbot owned by this same username, and is a currently active agreement. Can only be run by an agbot or user."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("username", DataType.String, Option[String]("Username or agbot id. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("password", DataType.String, Option[String]("Password or token of the user/agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false),
-        Parameter("body", DataType[PostAgreementsConfirmRequest],
-          Option[String]("Agreement ID that should be confirmed."),
-          paramType = ParamType.Body)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val postAgreementsConfirm2 = (apiOperation[PostAgreementsConfirmRequest]("postAgreementsConfirm2") summary("a") description("a"))
-
-  post("/orgs/:orgid/agreements/confirm", operation(postAgreementsConfirm)) ({
-    val orgid = params("orgid")
-    val ident = authenticate().authorizeTo(TAgbot(OrgAndId(orgid,"#").toString),Access.READ)
-    val creds = ident.creds
-    val req = try { parse(request.body).extract[PostAgreementsConfirmRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-
-    val resp = response
-    // val owner = if (isAuthenticatedUser(creds)) creds.id else ""
-    val owner = ident match { case IUser(creds2) => creds2.id; case _ => "" }
-    if (owner != "") {
-      // the user invoked this rest method, so look for an agbot owned by this user with this agr id
-      val agbotAgreementJoin = for {
-        (agbot, agr) <- AgbotsTQ.rows joinLeft AgbotAgreementsTQ.rows on (_.id === _.agbotId)
-        if agbot.owner === owner && agr.map(_.agrId) === req.agreementId
-      } yield (agbot, agr)
-      db.run(agbotAgreementJoin.result).map({ list =>
-        logger.debug("POST /agreements/confirm of "+req.agreementId+" result: "+list.toString)
-        // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.owner === owner && agr.agrId === req.agreementId
-        if (list.nonEmpty && list.head._2.isDefined && list.head._2.get.state != "") {
-          resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agreement.active"))
+  @POST
+  @Path("{id}/agreements/confirm")
+  @Operation(summary = "Confirms if this agbot agreement is active", description = "Confirms whether or not this agreement id is valid, is owned by an agbot owned by this same username, and is a currently active agreement. Can only be run by an agbot or user.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to be updated.")),
+    requestBody = new RequestBody(description = """
+```
+{
+  "agreementId": "ABCDEF"
+}
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostAgreementsConfirmRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotAgreementConfirmRoute: Route = (post & path("orgs" / Segment / "agreements" / "confirm") & entity(as[PostAgreementsConfirmRequest])) { (orgid, reqBody) =>
+    exchAuth(TAgbot(OrgAndId(orgid,"#").toString), Access.READ) { ident =>
+      complete({
+        val creds = ident.creds
+        val owner = ident match { case IUser(creds2) => creds2.id; case _ => "" }
+        if (owner != "") {
+          // the user invoked this rest method, so look for an agbot owned by this user with this agr id
+          val agbotAgreementJoin = for {
+            (agbot, agr) <- AgbotsTQ.rows joinLeft AgbotAgreementsTQ.rows on (_.id === _.agbotId)
+            if agbot.owner === owner && agr.map(_.agrId) === reqBody.agreementId
+          } yield (agbot, agr)
+          db.run(agbotAgreementJoin.result).map({ list =>
+            logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
+            // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.owner === owner && agr.agrId === req.agreementId
+            if (list.nonEmpty && list.head._2.isDefined && list.head._2.get.state != "") {
+              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
+            } else {
+              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
+            }
+          })
         } else {
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agreement.not.found.not.active"))
+          // an agbot invoked this rest method, so look for the agbot with this id and for the agbot with this agr id, and see if they are owned by the same user
+          val agbotAgreementJoin = for {
+            (agbot, agr) <- AgbotsTQ.rows joinLeft AgbotAgreementsTQ.rows on (_.id === _.agbotId)
+            if agbot.id === creds.id || agr.map(_.agrId) === reqBody.agreementId
+          } yield (agbot, agr)
+          db.run(agbotAgreementJoin.result).map({ list =>
+            logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
+            if (list.nonEmpty) {
+              // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.id === creds.id || agr.agrId === req.agreementId
+              val agbot1 = list.find(r => r._1.id == creds.id).orNull
+              val agbot2 = list.find(r => r._2.isDefined && r._2.get.agrId == reqBody.agreementId).orNull
+              if (agbot1 != null && agbot2 != null && agbot1._1.owner == agbot2._1.owner && agbot2._2.get.state != "") {
+                (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
+              } else {
+                (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
+              }
+            } else {
+              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
+            }
+          })
         }
-      })
-    } else {
-      // an agbot invoked this rest method, so look for the agbot with this id and for the agbot with this agr id, and see if they are owned by the same user
-      val agbotAgreementJoin = for {
-        (agbot, agr) <- AgbotsTQ.rows joinLeft AgbotAgreementsTQ.rows on (_.id === _.agbotId)
-        if agbot.id === creds.id || agr.map(_.agrId) === req.agreementId
-      } yield (agbot, agr)
-      db.run(agbotAgreementJoin.result).map({ list =>
-        logger.debug("POST /agreements/confirm of "+req.agreementId+" result: "+list.toString)
-        if (list.nonEmpty) {
-          // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.id === creds.id || agr.agrId === req.agreementId
-          val agbot1 = list.find(r => r._1.id == creds.id).orNull
-          val agbot2 = list.find(r => r._2.isDefined && r._2.get.agrId == req.agreementId).orNull
-          if (agbot1 != null && agbot2 != null && agbot1._1.owner == agbot2._1.owner && agbot2._2.get.state != "") {
-            resp.setStatus(HttpCode.POST_OK)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agreement.active"))
-          } else {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agreement.not.found.not.active"))
-          }
-        } else {
-          resp.setStatus(HttpCode.NOT_FOUND)
-          ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agreement.not.found.not.active"))
-        }
-      })
-    }
-  })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== POST /orgs/{orgid}/agbots/{id}/msgs ===============================
-  val postAgbotsMsgs =
-    (apiOperation[ApiResponse]("postAgbotsMsgs")
-      summary "Sends a msg from a node to a agbot"
-      description """Sends a msg from a node to a agbot. The node must 1st sign the msg (with its private key) and then encrypt the msg (with the agbots's public key). Can be run by any node."""
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to send a msg to."), paramType = ParamType.Path),
-        // Node id/token must be in the header
-        Parameter("body", DataType[PostAgbotsMsgsRequest],
-          Option[String]("Signed/encrypted message to send to the agbot. See details in the Implementation Notes above."),
-          paramType = ParamType.Body)
-        )
-      responseMessages(ResponseMessage(HttpCode.POST_OK,"created/updated"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-  val postAgbotsMsgs2 = (apiOperation[PostAgbotsMsgsRequest]("postAgbotsMsgs2") summary("a") description("a"))
-
-  // The credentials for this are usually a node id
-  post("/orgs/:orgid/agbots/:id/msgs", operation(postAgbotsMsgs)) ({
-    val orgid = params("orgid")
-    val id = params("id")
-    val compositeId = OrgAndId(orgid,id).toString
-    val ident = authenticate().authorizeTo(TAgbot(compositeId),Access.SEND_MSG_TO_AGBOT)
-    val nodeId = ident.creds.id      //todo: handle the case where the acls allow users to send msgs
-    var msgNum = ""
-    val msg = try { parse(request.body).extract[PostAgbotsMsgsRequest] }
-    catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("error.parsing.input.json", e))) }    // the specific exception is MappingException
-    val resp = response
-    // Remove msgs whose TTL is past, then check the mailbox is not full, then get the node publicKey, then write the agbotmsgs row, all in the same db.run thread
-    db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs delete expired result: "+xs.toString)
-      AgbotMsgsTQ.getNumOwned(compositeId).result
-    }).flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs mailbox size: "+xs)
-      val mailboxSize = xs
-      val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
-      if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) NodesTQ.getPublicKey(nodeId).result.asTry
-      else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("agbot.mailbox.full", compositeId, maxMessagesInMailbox) )).asTry
-    }).flatMap({ xs =>
-      logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs node publickey result: "+xs.toString)
-      xs match {
-        case Success(v) => val nodePubKey = v.head
-          if (nodePubKey != "") AgbotMsgRow(0, compositeId, nodeId, nodePubKey, msg.message, ApiTime.nowUTC, ApiTime.futureUTC(msg.ttl)).insert.asTry
-          else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("agbot.message.invalid.input"))).asTry
-        case Failure(t) => DBIO.failed(t).asTry       // rethrow the error to the next step
-      }
-    }).flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("POST /orgs/{orgid}/agbots/"+id+"/msgs write row result: "+xs.toString)
-      xs match {
-        case Success(v) =>
-          msgNum = v.toString
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotmsgs", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("POST /orgs/{orgid}/agbots/"+id+"/msgs updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) => resp.setStatus(HttpCode.POST_OK)
-          ApiResponse(ApiResponseType.OK, "agbot msg "+msgNum+" inserted")
-        case Failure(t: DBProcessingError) => if(t.httpCode == HttpCode.BAD_INPUT) {
-            resp.setStatus(HttpCode.BAD_INPUT)
-            ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, ExchangeMessage.translateMessage("agbot.message.invalid.input")))
-          } else if (t.httpCode == HttpCode.ACCESS_DENIED){
-            resp.setStatus(HttpCode.ACCESS_DENIED)
-            ApiResponse(ApiResponseType.ACCESS_DENIED, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, t.getMessage))
-          }
-        case Failure(t) => if (t.getMessage.contains("is not present in table")) {
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.message.agbotid.not.found", compositeId, t.getMessage))
-          } else {
-            resp.setStatus(HttpCode.INTERNAL_ERROR)
-            ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.message.not.inserted", compositeId, t.toString))
-          }
-        }
-    })
-  })
+  @POST
+  @Path("{id}/msgs")
+  @Operation(summary = "Sends a msg from a node to an agbot", description = "Sends a msg from a node to an agbot. The node must 1st sign the msg (with its private key) and then encrypt the msg (with the agbots's public key). Can be run by any node.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to send a message to.")),
+    requestBody = new RequestBody(description = """
+```
+{
+  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs",    // msg to be sent to the agbot
+  "ttl": 86400       // time-to-live of this msg, in seconds
+}
+```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostAgbotsMsgsRequest])))),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotPostMsgRoute: Route = (post & path("orgs" / Segment / "agbots" / Segment / "msgs") & entity(as[PostAgbotsMsgsRequest])) { (orgid, id, reqBody) =>
+    val compositeId = OrgAndId(orgid, id).toString
+    exchAuth(TAgbot(compositeId),Access.SEND_MSG_TO_AGBOT) { ident =>
+      complete({
+        val nodeId = ident.creds.id      //somday: handle the case where the acls allow users to send msgs
+        var msgNum = ""
+        // Remove msgs whose TTL is past, then check the mailbox is not full, then get the node publicKey, then write the agbotmsgs row, all in the same db.run thread
+        db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
+          logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs delete expired result: "+xs.toString)
+          AgbotMsgsTQ.getNumOwned(compositeId).result
+        }).flatMap({ xs =>
+          logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs mailbox size: "+xs)
+          val mailboxSize = xs
+          val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
+          if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) NodesTQ.getPublicKey(nodeId).result.asTry
+          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("agbot.mailbox.full", compositeId, maxMessagesInMailbox) )).asTry
+        }).flatMap({
+          case Success(v) =>
+            logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/msgs node publickey result: " + v)
+            val nodePubKey = v.head
+            if (nodePubKey != "") AgbotMsgRow(0, compositeId, nodeId, nodePubKey, reqBody.message, ApiTime.nowUTC, ApiTime.futureUTC(reqBody.ttl)).insert.asTry
+            else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, ExchMsg.translate("agbot.message.invalid.input"))).asTry
+          case Failure(t) =>
+            DBIO.failed(t).asTry // rethrow the error to the next step
+        }).flatMap({
+          case Success(v) =>
+            // Add the resource to the resourcechanges table
+            logger.debug("POST /orgs/{orgid}/agbots/" + id + "/msgs write row result: " + v)
+            msgNum = v.toString
+            val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotmsgs", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+            agbotChange.insert.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("POST /orgs/{orgid}/agbots/" + id + "/msgs updated in changes table: " + v)
+            (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, "agbot msg " + msgNum + " inserted"))
+          case Failure(t: DBProcessingError) =>
+            t.toComplete
+          case Failure(t) =>
+            if (t.getMessage.contains("is not present in table")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.message.agbotid.not.found", compositeId, t.getMessage)))
+            else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.inserted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   /* ====== GET /orgs/{orgid}/agbots/{id}/msgs ================================ */
-  val getAgbotMsgs =
-    (apiOperation[GetAgbotMsgsResponse]("getAgbotMsgs")
-      summary("Returns all msgs sent to this agbot")
-      description("""Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.""")
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot."), paramType=ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.BAD_INPUT,"bad input"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  get("/orgs/:orgid/agbots/:id/msgs", operation(getAgbotMsgs)) ({
-    val orgid = params("orgid")
-    val id = params("id")
+  @GET
+  @Path("{id}/msgs")
+  @Operation(summary = "Returns all msgs sent to this agbot", description = "Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotMsgsResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotGetMsgsRoute: Route = (get & path("orgs" / Segment / "agbots" / Segment / "msgs")) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
-    authenticate().authorizeTo(TAgbot(compositeId),Access.READ)
-    val resp = response
-    // Remove msgs whose TTL is past, and then get the msgs for this agbot
-    db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
-      logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs delete expired result: "+xs.toString)
-      AgbotMsgsTQ.getMsgs(compositeId).result
-    })).map({ list =>
-      logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result size: "+list.size)
-      //logger.trace("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result: "+list.toString)
-      val listSorted = list.sortWith(_.msgId < _.msgId)
-      val msgs = new ListBuffer[AgbotMsg]
-      if (listSorted.nonEmpty) for (m <- listSorted) { msgs += m.toAgbotMsg }
-      if (msgs.nonEmpty) resp.setStatus(HttpCode.OK)
-      else resp.setStatus(HttpCode.NOT_FOUND)
-      GetAgbotMsgsResponse(msgs.toList, 0)
-    })
-  })
+    exchAuth(TAgbot(compositeId),Access.READ) { _ =>
+      complete({
+        // Remove msgs whose TTL is past, and then get the msgs for this agbot
+        db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
+          logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs delete expired result: "+xs.toString)
+          AgbotMsgsTQ.getMsgs(compositeId).result
+        })).map({ list =>
+          logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result size: "+list.size)
+          //logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result: "+list.toString)
+          val listSorted = list.sortWith(_.msgId < _.msgId)
+          val msgs = listSorted.map(_.toAgbotMsg).toList
+          val code = if (msgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetAgbotMsgsResponse(msgs, 0))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/msgs/{msgid} ===============================
-  val deleteAgbotMsg =
-    (apiOperation[ApiResponse]("deleteAgbotMsg")
-      summary "Deletes an msg of a agbot"
-      description "Deletes an msg that was sent to a agbot. This should be done by the agbot after each msg is read. Can be run by the owning user or the agbot."
-      parameters(
-        Parameter("orgid", DataType.String, Option[String]("Organization id."), paramType=ParamType.Path),
-        Parameter("id", DataType.String, Option[String](" ID (orgid/agbotid) of the agbot to be deleted."), paramType = ParamType.Path),
-        Parameter("msgid", DataType.String, Option[String]("ID of the msg to be deleted."), paramType = ParamType.Path),
-        Parameter("token", DataType.String, Option[String]("Token of the agbot. This parameter can also be passed in the HTTP Header."), paramType=ParamType.Query, required=false)
-        )
-      responseMessages(ResponseMessage(HttpCode.DELETED,"deleted"), ResponseMessage(HttpCode.BADCREDS,"invalid credentials"), ResponseMessage(HttpCode.ACCESS_DENIED,"access denied"), ResponseMessage(HttpCode.NOT_FOUND,"not found"))
-      )
-
-  delete("/orgs/:orgid/agbots/:id/msgs/:msgid", operation(deleteAgbotMsg)) ({
-    val orgid = params("orgid")
-    val id = params("id")
+  @DELETE
+  @Path("{id}/msgs/{msgid}")
+  @Operation(summary = "Deletes a msg of an agbot", description = "Deletes a message that was sent to an agbot. This should be done by the agbot after each msg is read. Can be run by the owning user or the agbot.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
+      new Parameter(name = "msgid", in = ParameterIn.PATH, description = "ID of the msg to be deleted.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "204", description = "deleted"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def agbotDeleteMsgRoute: Route = (delete & path("orgs" / Segment / "agbots" / Segment / "msgs" / Segment)) { (orgid, id, msgIdStr) =>
     val compositeId = OrgAndId(orgid,id).toString
-    val msgId = try { params("msgid").toInt } catch { case e: Exception => halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("msgid.must.be.int", e))) }    // the specific exception is NumberFormatException
-
-    authenticate().authorizeTo(TAgbot(compositeId),Access.WRITE)
-    val resp = response
-    db.run(AgbotMsgsTQ.getMsg(compositeId,msgId).delete.asTry.flatMap({ xs =>
-      // Add the resource to the resourcechanges table
-      logger.debug("DELETE /agbots/"+id+"/msgs/"+msgId+" result: "+xs.toString)
-      xs match {
-        case Success(v) => if (v > 0) { // there were no db errors, but determine if it actually found it or not
-          val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotmsgs", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
-          agbotChange.insert.asTry
-        } else {
-          DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.message.not.found", msgId, compositeId))).asTry
-        }
-        case Failure(t) => DBIO.failed(t).asTry
-      }
-    })).map({ xs =>
-      logger.debug("DELETE /agbots/"+id+"/msgs/"+msgId+" updated in changes table: "+xs.toString)
-      xs match {
-        case Success(_) =>
-            resp.setStatus(HttpCode.DELETED)
-            ApiResponse(ApiResponseType.OK, ExchangeMessage.translateMessage("agbot.message.deleted"))
-        case Failure(t: DBProcessingError) =>
-            resp.setStatus(HttpCode.NOT_FOUND)
-            ApiResponse(ApiResponseType.NOT_FOUND, ExchangeMessage.translateMessage("agbot.message.not.found", msgId, compositeId))
-        case Failure(t) => resp.setStatus(HttpCode.INTERNAL_ERROR)
-          ApiResponse(ApiResponseType.INTERNAL_ERROR, ExchangeMessage.translateMessage("agbot.message.not.deleted", msgId, compositeId, t.toString))
-        }
-    })
-  })
+    exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
+      complete({
+        try {
+          val msgId =  msgIdStr.toInt   // this can throw an exception, that's why this whole section is in a try/catch
+          db.run(AgbotMsgsTQ.getMsg(compositeId,msgId).delete.asTry.flatMap({
+            case Success(v) =>
+              // Add the resource to the resourcechanges table
+              logger.debug("DELETE /agbots/" + id + "/msgs/" + msgId + " result: " + v)
+              if (v > 0) { // there were no db errors, but determine if it actually found it or not
+                val agbotChange = ResourceChangeRow(0, orgid, id, "agbot", "false", "agbotmsgs", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+                agbotChange.insert.asTry
+              } else {
+                DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.message.not.found", msgId, compositeId))).asTry
+              }
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug("DELETE /agbots/" + id + "/msgs/" + msgId + " updated in changes table: " + v)
+              (HttpCode.DELETED,  ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.message.deleted")))
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.deleted", msgId, compositeId, t.toString)))
+          })
+        } catch { case e: Exception => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", e))) }    // the specific exception is NumberFormatException
+      }) // end of complete
+    } // end of exchAuth
+  }
 
 }

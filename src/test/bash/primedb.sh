@@ -142,7 +142,8 @@ function curlfind {
     auth="$1"
     url=$2
 	if [[ $auth != "" ]]; then
-		auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+		#auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+		auth="-u $auth"
 	fi
     #echo curl $curlBasicArgs $auth --output /dev/null $EXCHANGE_URL_ROOT/v1/$url >&2
     rc=$(curl $curlBasicArgs $auth --output /dev/null $EXCHANGE_URL_ROOT/v1/$url 2>&1)
@@ -157,7 +158,8 @@ function curlcreate {
     body="$4"
     cont="$5"
 	if [[ $auth != "" ]]; then
-		auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+		#auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+		auth="-u $auth"
 	fi
 	if [[ $cont == "" ]]; then
 		cont="$content"
@@ -172,7 +174,8 @@ function curlputpost {
     auth=$2
     url=$3
     body="$4"
-	auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+	  #auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+    auth="-u $auth"
     if [[ $body == "" ]]; then
         echo curl -X $method $curlBasicArgs $auth $EXCHANGE_URL_ROOT/v1/$url
         rc=$(curl -X $method $curlBasicArgs $auth $EXCHANGE_URL_ROOT/v1/$url 2>&1)
@@ -195,7 +198,7 @@ function curlputpost {
 rc=$(curlfind "$rootauth" "orgs/$orgidcloud")
 checkrc "$rc" 200 404
 if [[ $rc == 404 ]]; then
-    curlcreate "POST" "$rootauth" "orgs/$orgidcloud" '{"label": "Carls org", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
+    curlcreate "POST" "$rootauth" "orgs/$orgidcloud" '{"label": "BPs org", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
 else
     echo "orgs/$orgidcloud exists"
 fi
@@ -219,7 +222,7 @@ fi
 rc=$(curlfind "$rootauth" "orgs/$orgid2")
 checkrc "$rc" 200 404
 if [[ $rc == 404 ]]; then
-    curlcreate "POST" "$rootauth" "orgs/$orgid2" '{"label": "Another org under carls ibm cloud acct", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
+    curlcreate "POST" "$rootauth" "orgs/$orgid2" '{"label": "Another org under BPs ibm cloud acct", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
 else
     echo "orgs/$orgid2 exists"
 fi
@@ -227,7 +230,7 @@ fi
 rc=$(curlfind "$rootauth" "orgs/$orgid/users/$user")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-        curlcreate "PUT" "$rootauth" "orgs/$orgid/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
+        curlcreate "POST" "$rootauth" "orgs/$orgid/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
 else
     echo "orgs/$orgid/users/$user exists"
 fi
@@ -236,7 +239,7 @@ fi
 #rc=$(curlfind "$rootauth" "orgs/$orgid2/users/$user")
 #checkrc "$rc" 200 404
 #if [[ $rc != 200 ]]; then
-#        curlcreate "PUT" "$rootauth" "orgs/$orgid2/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
+#        curlcreate "POST" "$rootauth" "orgs/$orgid2/users/$user" '{"password": "'$pw'", "admin": true, "email": "'$email'"}'
 #else
 #    echo "orgs/$orgid2/users/$user exists"
 #fi
@@ -309,7 +312,7 @@ if [[ $rc != 200 ]]; then
   ],
   "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:4.5.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
   "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",
-  "pkg": {
+  "imageStore": {
     "storeType": "dockerRegistry"
   }
 }'

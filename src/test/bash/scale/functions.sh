@@ -101,11 +101,15 @@ function curlget {
     local auth=$1
     local url=$2
     local otherRcs=$3
+	if [[ $auth != "" ]]; then
+		#auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+		auth="-u $auth"
+	fi
 	if [[ -n "$VERBOSE" ]]; then echo "Running GET ($auth) $url"; fi
 	#start=`date +%s`
 	#local i
 	#for (( i=1 ; i<=$numtimes ; i++ )) ; do
-		local httpcode=$(curl -X GET $CURL_BASIC_ARGS -H "Authorization:Basic $auth" $HZN_EXCHANGE_URL/$url)
+		local httpcode=$(curl -X GET $CURL_BASIC_ARGS $auth $HZN_EXCHANGE_URL/$url)
 		checkhttpcode $httpcode "200 $otherRcs" "GET $url" 'continue'
 		#echo -n .
 		bignum=$(($bignum+1))
@@ -124,7 +128,8 @@ function curlcreate {
     local cont=$7
 	local start=`date +%s`
 	if [[ $auth != "" ]]; then
-		auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+		#auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+		auth="-u $auth"
 	fi
 	if [[ -n "$VERBOSE" ]]; then echo "Running $method/create ($auth) $urlbase $numtimes times:"; fi
 	local i
@@ -148,7 +153,8 @@ function curlcreateone {
     local otherRcs=$5
     local cont=$6
 	if [[ $auth != "" ]]; then
-		auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+		#auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+		auth="-u $auth"
 	fi
 	if [[ -n "$VERBOSE" ]]; then echo "Running $method/create ($auth) $url"; fi
     # echo curl -X $method $CURL_BASIC_ARGS $content $auth -d "$body" $HZN_EXCHANGE_URL/$url
@@ -167,7 +173,8 @@ function curlputpost {
     local otherRcs=$5
 	if [[ -n "$VERBOSE" ]]; then echo "Running $method ($auth) $url"; fi
 	#start=`date +%s`
-	local auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+	#auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+  auth="-u $auth"
 	local httpcode
 	#local i
 	#for (( i=1 ; i<=$numtimes ; i++ )) ; do
@@ -194,7 +201,8 @@ function curlputpostmulti {
     local body="$5"
 	if [[ -n "$VERBOSE" ]]; then echo "Running $method ($auth) $url $numtimes times:"; fi
 	local start=`date +%s`
-	local auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+	#auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+  auth="-u $auth"
 	local httpcode
 	local i
 	for (( i=1 ; i<=$numtimes ; i++ )) ; do
@@ -219,7 +227,8 @@ function curldelete {
     local otherRcs=$4
 	if [[ -n "$VERBOSE" ]]; then echo "Running DELETE ($auth) $urlbase $numtimes times:"; fi
 	local start=`date +%s`
-	local auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+	#auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+  auth="-u $auth"
 	local httpcode
 	local i
     for (( i=1 ; i<=$numtimes ; i++ )) ; do
@@ -239,7 +248,8 @@ function curldeleteone {
     local url=$2
     local otherRcs=$3
 	if [[ -n "$VERBOSE" ]]; then echo "Running DELETE ($auth) $url"; fi
-	local auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+	#auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+  auth="-u $auth"
     #echo curl -X DELETE $CURL_BASIC_ARGS $auth $HZN_EXCHANGE_URL/$url
     local httpcode=$(curl -X DELETE $CURL_BASIC_ARGS $auth $HZN_EXCHANGE_URL/$url)
     checkhttpcode $httpcode "204 $otherRcs" "DELETE $url" 'continue'
@@ -253,7 +263,8 @@ function curladmin {
     local url=$3
 	if [[ -n "$VERBOSE" ]]; then echo "Running $method ($auth) $url:"; fi
 	local start=`date +%s`
-	local auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+	#auth="-H Authorization:Basic$auth"    # no spaces so we do not need to quote it
+  auth="-u $auth"
     local httpcode=$(curl -X $method $CURL_BASIC_ARGS $auth $HZN_EXCHANGE_URL/$url)
     checkhttpcode $httpcode 201 "$method $url"
     bignum=$(($bignum+1))

@@ -70,7 +70,7 @@ object ServicesTQ {
   val rows = TableQuery[Services]
 
   def formId(orgid: String, url: String, version: String, arch: String): String = {
-    // Remove the https:// from the beginning of serviceUrl and replace troublesome chars with a dash. It has already been checked as a valid URL in validate().
+    // Remove the https:// from the beginning of serviceUrl and replace troublesome chars with a dash. It has already been checked as a valid URL in validateWithMsg().
     val serviceUrl2 = """^[A-Za-z0-9+.-]*?://""".r replaceFirstIn (url, "")
     val serviceUrl3 = """[$!*,;/?@&~=%]""".r replaceAllIn (serviceUrl2, "-")     // I think possible chars in valid urls are: $_.+!*,;/?:@&~=%-
     return OrgAndId(orgid, serviceUrl3 + "_" + version + "_" + arch).toString

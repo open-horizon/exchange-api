@@ -1,9 +1,10 @@
 package com.horizon.exchangeapi.tables
 
-import com.horizon.exchangeapi.ApiJsonUtil
+import com.horizon.exchangeapi.ApiUtils
 import org.json4s._
+import org.json4s.jackson.Serialization.write
 import ExchangePostgresProfile.api._
-import slick.lifted.ProvenShape
+//import slick.lifted.ProvenShape
 //import org.json4s.jackson.Serialization.read
 //import ExchangePostgresProfile.jsonMethods._
 
@@ -13,9 +14,7 @@ import slick.lifted.ProvenShape
 case class OrgRow(orgId: String, orgType: String, label: String, description: String, lastUpdated: String, tags: Option[JValue]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def toOrg: Org = {
-    new Org(orgType, label, description, lastUpdated, tags.flatMap(_.extractOpt[Map[String, String]]))
-  }
+  def toOrg: Org = Org(orgType, label, description, lastUpdated, tags.flatMap(_.extractOpt[Map[String, String]]))
 
   // update returns a DB action to update this row
   def update: DBIO[_] = (for { m <- OrgsTQ.rows if m.orgid === orgId } yield m).update(this)
@@ -41,6 +40,7 @@ class Orgs(tag: Tag) extends Table[OrgRow](tag, "orgs") {
 
 // Instance to access the orgs table
 object OrgsTQ {
+  protected implicit val jsonFormats: Formats = DefaultFormats
   val rows = TableQuery[Orgs]
 
   def getOrgid(orgid: String) = rows.filter(_.orgid === orgid)
@@ -60,27 +60,32 @@ object OrgsTQ {
       case "label" => filter.map(_.label)
       case "description" => filter.map(_.description)
       case "lastUpdated" => filter.map(_.lastUpdated)
-      case "tags" => filter.map(_.tags.getOrElse(ApiJsonUtil.asJValue(Map.empty)))
+      case "tags" => filter.map(_.tags.getOrElse(ApiUtils.asJValue(Map.empty)))
       case _ => null
     }
   }
 
   /** Returns the actions to delete the org and the blockchains that reference it */
   def getDeleteActions(orgid: String): DBIO[_] = getOrgid(orgid).delete   // with the foreign keys set up correctly and onDelete=cascade, the db will automatically delete these associated blockchain rows
+
+  // Needed to convert the tags attribute into a string a json to return to the client
+  def renderAttribute(attribute: scala.Seq[Any]): String = {
+    if (attribute.isEmpty) ""
+    else attribute.head match {
+      case attr: JValue => write(attr)
+      case attr => attr.toString
+    }
+  }
 }
 
 // This is the org table minus the key - used as the data structure to return to the REST clients
-class Org(var orgType: String, var label: String, var description: String, var lastUpdated: String, var tags: Option[Map[String, String]]) {
-  //def copy = new Org(orgType, label, description, lastUpdated)
-}
+final case class Org(orgType: String, label: String, description: String, lastUpdated: String, tags: Option[Map[String, String]])
 
 /** Contains the object representations of the DB tables related to resource changes. */
-case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String) {
+final case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def toResourceChange: ResourceChange = {
-    new ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)
-  }
+  def toResourceChange: ResourceChange = ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)
 
   // update returns a DB action to update this row
   def update: DBIO[_] = (for { m <- ResourceChangesTQ.rows if m.changeId === changeId} yield m).update(this)
@@ -139,5 +144,4 @@ object ResourceChangesTQ {
   }
 }
 
-class ResourceChange(var changeId: Int, var orgId: String, var id: String, var category: String, var public: String, var resource: String, var operation: String, var lastUpdated: String) {
-}
+final case class ResourceChange(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String)

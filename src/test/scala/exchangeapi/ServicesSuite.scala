@@ -38,23 +38,23 @@ class ServicesSuite extends FunSuite {
   val user = "9999"
   val orguser = authpref+user
   val pw = user+"pw"
-  val USERAUTH = ("Authorization","Basic "+orguser+":"+pw)
+  val USERAUTH = ("Authorization","Basic "+ApiUtils.encode(orguser+":"+pw))
   val user2 = "10000"
   val orguser2 = authpref+user2
   val pw2 = user2+"pw"
-  val USER2AUTH = ("Authorization","Basic "+orguser2+":"+pw2)
+  val USER2AUTH = ("Authorization","Basic "+ApiUtils.encode(orguser2+":"+pw2))
   val rootuser = Role.superUser
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
-  val ROOTAUTH = ("Authorization","Basic "+rootuser+":"+rootpw)
+  val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
   val nodeId = "9912"     // the 1st node created, that i will use to run some rest methods
   val nodeToken = nodeId+"tok"
-  val NODEAUTH = ("Authorization","Basic "+authpref+nodeId+":"+nodeToken)
+  val NODEAUTH = ("Authorization","Basic "+ApiUtils.encode(authpref+nodeId+":"+nodeToken))
   val nodeId2 = "9913"     // the 1st node created, that i will use to run some rest methods
   val nodeToken2 = nodeId2+"tok"
-  val NODEAUTH2 = ("Authorization","Basic "+authpref+nodeId2+":"+nodeToken2)
+  val NODEAUTH2 = ("Authorization","Basic "+ApiUtils.encode(authpref+nodeId2+":"+nodeToken2))
   val agbotId = "9947"
   val agbotToken = agbotId+"tok"
-  val AGBOTAUTH = ("Authorization","Basic "+authpref+agbotId+":"+agbotToken)
+  val AGBOTAUTH = ("Authorization","Basic "+ApiUtils.encode(authpref+agbotId+":"+agbotToken))
   val svcBase = "svc9920"
   val svcDoc = "http://" + svcBase
   val svcUrl = "" + svcBase
@@ -120,7 +120,7 @@ class ServicesSuite extends FunSuite {
     for (i <- List(user,user2)) {
       val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+      assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
     }
   }
 
@@ -129,12 +129,12 @@ class ServicesSuite extends FunSuite {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED || response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
     val input = PostPutOrgRequest(None, "My Org", "desc", None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the services, because they are deleted when the user is deleted. */
@@ -148,41 +148,41 @@ class ServicesSuite extends FunSuite {
     var userInput = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK)
+    assert(userResponse.code === HttpCode.POST_OK.intValue)
 
     userInput = PostPutUsersRequest(pw2, admin = false, user2+"@hotmail.com")
     userResponse = Http(URL+"/users/"+user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK)
+    assert(userResponse.code === HttpCode.POST_OK.intValue)
 
     val devInput = PutNodesRequest(nodeToken, "bc dev test", "", None, None, None, None, "", None)
     val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
-    assert(devResponse.code === HttpCode.PUT_OK)
+    assert(devResponse.code === HttpCode.PUT_OK.intValue)
 
     val devInput2 = PutNodesRequest(nodeToken2, "bc dev test", "", None, None, None, None, "", None)
     val devResponse2 = Http(URL+"/nodes/"+nodeId2).postData(write(devInput2)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse2.code)
-    assert(devResponse2.code === HttpCode.PUT_OK)
+    assert(devResponse2.code === HttpCode.PUT_OK.intValue)
 
     val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", None, "ABC")
     val agbotResponse = Http(URL+"/agbots/"+agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+agbotResponse.code+", agbotResponse.body: "+agbotResponse.body)
-    assert(agbotResponse.code === HttpCode.PUT_OK)
+    assert(agbotResponse.code === HttpCode.PUT_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" before the referenced service exists - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(""), reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add service so other services can reference it") {
     val input = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, reqsvcurl, reqsvcversion, reqsvcarch, "single", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
 
@@ -191,35 +191,35 @@ class ServicesSuite extends FunSuite {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" that is not signed - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" that needs 2 MSes - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch),ServiceRef(reqsvcurl2,orgid,Some(reqsvcversion2), None, reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" that requires service of different arch - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl3,orgid,Some(reqsvcversion3), None, reqsvcarch3))), None, "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" as user that requires a service") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("service '"+orgservice+"' created"))
   }
@@ -229,7 +229,7 @@ class ServicesSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "service")}))
@@ -239,7 +239,7 @@ class ServicesSuite extends FunSuite {
     val input = PostPutServiceRequest(svcBase3+" arm", None, public = false, None, svcUrl3, svcVersion3, svcArch3, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("service '"+orgservice3+"' created"))
   }
@@ -248,14 +248,14 @@ class ServicesSuite extends FunSuite {
     val input = PostPutServiceRequest(svcBase4+" arm", None, public = false, None, svcUrl4, svcVersion4, svcArch4, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,None, None, reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service4+" as user that requires a service with just reqService.versionRange") {
     val input = PostPutServiceRequest(svcBase4+" arm", None, public = false, None, svcUrl4, svcVersion4, svcArch4, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,None, Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("service '"+orgservice4+"' created"))
   }
@@ -264,42 +264,42 @@ class ServicesSuite extends FunSuite {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ALREADY_EXISTS)
+    assert(response.code === HttpCode.ALREADY_EXISTS.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update to need 2 MSes - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch),ServiceRef(reqsvcurl2,orgid,Some(reqsvcversion2), None, reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update changing arch - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, "amd64", "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid, Some(reqsvcversion), None, reqsvcarch))), None, "", "", None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update with invalid sharable value - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "foobar", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), None, "", "", None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add 2nd service so services can reference both") {
     val input = PostPutServiceRequest("testSvc", None, public = false, None, reqsvcurl2, reqsvcversion2, reqsvcarch2, "single", None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update to need 2 MSes - this time should succeed") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch),ServiceRef(reqsvcurl2,orgid,Some(reqsvcversion2), None, reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " was updated and stored") {
@@ -307,7 +307,7 @@ class ServicesSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "service")}))
@@ -317,21 +317,21 @@ class ServicesSuite extends FunSuite {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some("2.0.0"), None, reqsvcarch),ServiceRef(reqsvcurl2,orgid,Some(reqsvcversion2), None, reqsvcarch2))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update as 2nd user - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update as agbot - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - invalid service body") {
@@ -340,56 +340,56 @@ class ServicesSuite extends FunSuite {
     }"""
     val response = Http(URL+"/services/"+service2).postData(badJsonInput).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service2+" as node - should fail") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = false, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service2+" as 2nd user, with no referenced MSes") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - add "+service2+" as 2nd user, with a referenced MS so future GETs work") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - add "+service2+" as 2nd user, with added reqServices.versionRange") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - add "+service2+" as 2nd user, with changing version or reqSer to None") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,None, Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - add "+service2+" as 2nd user, with no version or versionRange -- should fail") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,None, None, reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - add "+service2+" as 2nd user, add back reqSer.versionRange") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
     val response = Http(URL+"/services/"+service2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   /*todo: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
@@ -405,19 +405,19 @@ class ServicesSuite extends FunSuite {
       var configInput = AdminConfigRequest("api.limits.maxServices", "1")    // user only owns 1 currently
       var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK)
+      assert(response.code === HttpCode.PUT_OK.intValue)
 
       // Now try adding another 2 services - expect it to be rejected
       var input = PostPutServiceRequest(svcBase4+" arm", None, public = true, None, svcUrl4, "0.0.1", "arm", "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
       response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.POST_OK)
+      assert(response.code === HttpCode.POST_OK.intValue)
 
       // Now try adding another service - expect it to be rejected
       input = PostPutServiceRequest(svcBase3+" arm", None, public = true, None, svcUrl3, "0.0.1", "arm", "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
       response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED)
+      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
       val respObj = parse(response.body).extract[ApiResponse]
       assert(respObj.msg.contains("Access Denied: you are over the limit of 1 services"))
 
@@ -425,12 +425,12 @@ class ServicesSuite extends FunSuite {
       configInput = AdminConfigRequest("api.limits.maxServices", origMaxServices.toString)
       response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK)
+      assert(response.code === HttpCode.PUT_OK.intValue)
 
       //ServicesSuiteTests/svc9923_0.0.1_arm
       response = Http(URL+"/services/svc9923_0.0.1_arm").method("delete").headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED)
+      assert(response.code === HttpCode.DELETED.intValue)
     }
   }
   */
@@ -439,7 +439,7 @@ class ServicesSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetServicesResponse]
     assert(respObj.services.size === 6)
 
@@ -454,11 +454,21 @@ class ServicesSuite extends FunSuite {
     assert(wk.owner === orguser2)
   }
 
-  test("GET /orgs/"+orgid+"/services - filter owner and serviceUrl") {
-    val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("specRef",reqsvcurl).asString
+  test("GET /orgs/"+orgid+"/services - filter owner and requiredurl") {
+    val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("requiredurl",reqsvcurl).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetServicesResponse]
+    assert(respObj.services.size === 1)
+    assert(respObj.services.contains(orgservice2))
+  }
+
+  test("GET /orgs/"+orgid+"/services - filter url and arch") {
+    val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("url",svcUrl2).param("arch",svcArch2).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetServicesResponse]
     assert(respObj.services.size === 1)
     assert(respObj.services.contains(orgservice2))
@@ -468,7 +478,7 @@ class ServicesSuite extends FunSuite {
     // Find the public==true services
     var response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("public","true").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     var respObj = parse(response.body).extract[GetServicesResponse]
     assert(respObj.services.size === 1)
     assert(respObj.services.contains(orgservice2))
@@ -476,7 +486,7 @@ class ServicesSuite extends FunSuite {
     // Find the public==false services
     response = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("public","false").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     respObj = parse(response.body).extract[GetServicesResponse]
     assert(respObj.services.size === 5)
     assert(respObj.services.contains(orgservice))
@@ -486,7 +496,7 @@ class ServicesSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetServicesResponse]
     assert(respObj.services.size === 6)
   }
@@ -494,7 +504,7 @@ class ServicesSuite extends FunSuite {
   test("GET /orgs/"+orgid+"/services - as agbot") {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetServicesResponse]
     assert(respObj.services.size === 6)
   }
@@ -503,7 +513,7 @@ class ServicesSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/services/"+service).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetServicesResponse]
     assert(respObj.services.size === 1)
 
@@ -523,21 +533,21 @@ class ServicesSuite extends FunSuite {
     val jsonInput = """{ "arch": "amd64" }"""
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - invalid sharable value - should fail") {
     val jsonInput = """{ "sharable": "foobar" }"""
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - as user") {
     val jsonInput = """{ "sharable": "exclusive" }"""
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " was updated via PATCH and stored") {
@@ -546,7 +556,7 @@ class ServicesSuite extends FunSuite {
     Thread.sleep(1000)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.MODIFIED) && (y.resource == "service")}))
@@ -556,7 +566,7 @@ class ServicesSuite extends FunSuite {
     val jsonInput = """    { "sharable": "exclusive" }      """
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - as user with newlines") {
@@ -566,15 +576,15 @@ class ServicesSuite extends FunSuite {
         """
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch required service -- bad input") {
     val jsonInput = write(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch)))
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT)
-    assert(response.body.contains("invalid input"))
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    //assert(response.body.contains("invalid input"))
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch required service") {
@@ -584,7 +594,7 @@ class ServicesSuite extends FunSuite {
     info(write(input))
     val response = Http(URL+"/services/"+service).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch versionRange of required service") {
@@ -594,7 +604,7 @@ class ServicesSuite extends FunSuite {
     info(write(input))
     val response = Http(URL+"/services/"+service).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch version of required service") {
@@ -604,7 +614,7 @@ class ServicesSuite extends FunSuite {
     info(write(input))
     val response = Http(URL+"/services/"+service).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch versionRange of required service to None") {
@@ -614,21 +624,21 @@ class ServicesSuite extends FunSuite {
     info(write(input))
     val response = Http(URL+"/services/"+service).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - as user2 - should fail") {
-    val jsonInput = """{ "downloadUrl": "this is now patched" }"""
+    val jsonInput = """{ "label": "this is now patched" }"""
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
   test("GET /orgs/"+orgid+"/services/"+service+" - as agbot, check patch by getting that 1 attr") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","sharable").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetServiceAttributeResponse]
     assert(respObj.attribute === "sharable")
     assert(respObj.value === "exclusive")
@@ -638,7 +648,7 @@ class ServicesSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"notthere").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
     //val getServiceResp = parse(response.body).extract[GetServicesResponse]
     //assert(getServiceResp.services.size === 0)
   }
@@ -650,14 +660,14 @@ class ServicesSuite extends FunSuite {
     val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, "{\"services\":{}}", "a", None)
     val response = Http(IBMURL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("GET /orgs/IBM/services") {
     val response: HttpResponse[String] = Http(IBMURL+"/services").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetServicesResponse]
     //assert(respObj.services.size === 1)  // cant check this because there could be other services defined in the IBM org
 
@@ -670,7 +680,7 @@ class ServicesSuite extends FunSuite {
     val response: HttpResponse[String] = Http(IBMURL+"/services/"+ibmService).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetServicesResponse]
     assert(respObj.services.size === 1)  // cant check this because there could be other services defined in the IBM org
 
@@ -687,7 +697,7 @@ class ServicesSuite extends FunSuite {
     val input = PutServicePolicyRequest(Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b")))
     val response = Http(URL+"/services/"+service+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " policy was created and stored") {
@@ -695,7 +705,7 @@ class ServicesSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "servicepolicies")}))
@@ -704,7 +714,7 @@ class ServicesSuite extends FunSuite {
   test("GET /orgs/"+orgid+"/services/"+service+"/policy - as node") {
     val response = Http(URL+"/services/"+service+"/policy").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val getResp = parse(response.body).extract[ServicePolicy]
     assert(getResp.properties.size === 1)
     assert(getResp.properties.head.name === "purpose")
@@ -713,7 +723,7 @@ class ServicesSuite extends FunSuite {
   test("DELETE /orgs/"+orgid+"/services/"+service+"/policy - as user") {
     val response = Http(URL+"/services/"+service+"/policy").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " policy was deleted and stored") {
@@ -721,7 +731,7 @@ class ServicesSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "servicepolicies")}))
@@ -730,14 +740,14 @@ class ServicesSuite extends FunSuite {
   test("GET /orgs/"+orgid+"/services/"+service+"/policy - as node - should not be there") {
     val response = Http(URL+"/services/"+service+"/policy").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   // Key tests ==============================================
   test("GET /orgs/"+orgid+"/services/"+service+"/keys - no keys have been created yet - should fail") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
     val resp = parse(response.body).extract[List[String]]
     assert(resp.size === 0)
   }
@@ -746,7 +756,7 @@ class ServicesSuite extends FunSuite {
     //val input = PutServiceKeyRequest(key)
     val response = Http(URL+"/services/"+service+"/keys/"+keyId).postData(key).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " key was created and stored") {
@@ -754,7 +764,7 @@ class ServicesSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "servicekeys")}))
@@ -764,13 +774,13 @@ class ServicesSuite extends FunSuite {
     //val input = PutServiceKeyRequest(key2)
     val response = Http(URL+"/services/"+service+"/keys/"+keyId2).postData(key2).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("GET /orgs/"+orgid+"/services/"+service+"/keys - should be 2 now") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val resp = parse(response.body).extract[List[String]]
     assert(resp.size === 2)
     assert(resp.contains(keyId) && resp.contains(keyId2))
@@ -782,14 +792,14 @@ class ServicesSuite extends FunSuite {
     //val bodyStr = (response.body.map(_.toChar)).mkString
     //info("code: "+response.code+", response.body: "+bodyStr)
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     assert(response.body === key)
   }
 
   test("DELETE /orgs/"+orgid+"/services/"+service+"/keys/"+keyId) {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys/"+keyId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " key was deleted and stored") {
@@ -797,7 +807,7 @@ class ServicesSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "servicekeys")}))
@@ -806,19 +816,19 @@ class ServicesSuite extends FunSuite {
   test("DELETE /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" try deleting it again - should fail") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys/"+keyId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("GET /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" - verify it is gone") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys/"+keyId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("DELETE /orgs/"+orgid+"/services/"+service+"/keys - delete all keys") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys").method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " all keys were deleted and stored") {
@@ -826,7 +836,7 @@ class ServicesSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "servicekeys")}))
@@ -835,7 +845,7 @@ class ServicesSuite extends FunSuite {
   test("GET /orgs/"+orgid+"/services/"+service+"/keys - all keys should be gone now") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
     val resp = parse(response.body).extract[List[String]]
     assert(resp.size === 0)
   }
@@ -844,7 +854,7 @@ class ServicesSuite extends FunSuite {
   test("GET /orgs/"+orgid+"/services/"+service+"/dockauths - no dockauths have been created yet - should fail") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/dockauths").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
     val resp = parse(response.body).extract[List[ServiceDockAuth]]
     assert(resp.size === 0)
   }
@@ -853,14 +863,14 @@ class ServicesSuite extends FunSuite {
     val input = PostPutServiceDockAuthRequest(dockAuthRegistry+"-updated", None, dockAuthToken+"-updated")
     val response = Http(URL+"/services/"+service+"/dockauths/1").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services/"+service+"/dockauths - add a dockauth as user") {
     val input = PostPutServiceDockAuthRequest(dockAuthRegistry, Some(dockAuthUsername), dockAuthToken)
     val response = Http(URL+"/services/"+service+"/dockauths").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + "dockauth was created and stored") {
@@ -868,7 +878,7 @@ class ServicesSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "servicedockauths")}))
@@ -878,14 +888,14 @@ class ServicesSuite extends FunSuite {
     val input = PostPutServiceDockAuthRequest(dockAuthRegistry2, None, dockAuthToken2)
     val response = Http(URL+"/services/"+service+"/dockauths").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services/"+service+"/dockauths - add a duplicate, it should just update the existing") {
     val input = PostPutServiceDockAuthRequest(dockAuthRegistry2, None, dockAuthToken2)
     val response = Http(URL+"/services/"+service+"/dockauths").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("GET all the dockauths, PUT one, GET one, DELETE one, and verify") {
@@ -893,7 +903,7 @@ class ServicesSuite extends FunSuite {
     info("GET /orgs/"+orgid+"/services/"+service+"/dockauths - as node, should be 2 now")
     var response: HttpResponse[String] = Http(URL+"/services/"+service+"/dockauths").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     val resp = parse(response.body).extract[List[ServiceDockAuth]]
     assert(resp.size === 2)
     var dockAuth = resp.find(d => d.registry == dockAuthRegistry).orNull
@@ -908,17 +918,17 @@ class ServicesSuite extends FunSuite {
     assert(dockAuth.token === dockAuthToken2)
 
     info("PUT /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" - update "+dockAuthId+" as user")
-    var input = PostPutServiceDockAuthRequest(dockAuthRegistry+"-updated", Some(dockAuthUsername+"-updated"), dockAuthToken+"-updated")
+    val input = PostPutServiceDockAuthRequest(dockAuthRegistry+"-updated", Some(dockAuthUsername+"-updated"), dockAuthToken+"-updated")
     response = Http(URL+"/services/"+service+"/dockauths/"+dockAuthId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK)
+    assert(response.code === HttpCode.PUT_OK.intValue)
 
     info("POST /orgs/"+orgid+"/changes - verify " + service + "dockauth was created and stored")
     val time = ApiTime.pastUTC(secondsAgo)
     val anotherInput = ResourceChangesRequest(0, Some(time), maxRecords, None)
     response = Http(URL+"/changes").postData(write(anotherInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "servicedockauths")}))
@@ -926,7 +936,7 @@ class ServicesSuite extends FunSuite {
     info("GET /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" - and check content")
     response = Http(URL+"/services/"+service+"/dockauths/"+dockAuthId).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK)
+    assert(response.code === HttpCode.OK.intValue)
     dockAuth = parse(response.body).extract[ServiceDockAuth]
     assert(dockAuth.dockAuthId === dockAuthId)
     assert(dockAuth.registry === dockAuthRegistry+"-updated")
@@ -936,17 +946,17 @@ class ServicesSuite extends FunSuite {
     info("DELETE /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId)
     response = Http(URL+"/services/"+service+"/dockauths/"+dockAuthId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
 
     info("DELETE /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" try deleting it again - should fail")
     response = Http(URL+"/services/"+service+"/dockauths/"+dockAuthId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
 
     info("GET /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" - verify it is gone")
     response = Http(URL+"/services/"+service+"/dockauths/"+dockAuthId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + "dockauth was deleted and stored") {
@@ -954,7 +964,7 @@ class ServicesSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "servicedockauths")}))
@@ -963,7 +973,7 @@ class ServicesSuite extends FunSuite {
   test("DELETE /orgs/"+orgid+"/services/"+service+"/dockauths - delete all keys") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/dockauths").method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " all dockauths were deleted and stored") {
@@ -971,7 +981,7 @@ class ServicesSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "servicedockauths")}))
@@ -980,7 +990,7 @@ class ServicesSuite extends FunSuite {
   test("GET /orgs/"+orgid+"/services/"+service+"/dockauths - all dockauths should be gone now") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/dockauths").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
     val resp = parse(response.body).extract[List[ServiceDockAuth]]
     assert(resp.size === 0)
   }
@@ -990,7 +1000,7 @@ class ServicesSuite extends FunSuite {
   test("DELETE /orgs/"+orgid+"/services/"+service) {
     val response = Http(URL+"/services/"+service).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " was deleted and stored") {
@@ -998,7 +1008,7 @@ class ServicesSuite extends FunSuite {
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK)
+    assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "service")}))
@@ -1008,7 +1018,7 @@ class ServicesSuite extends FunSuite {
     val response: HttpResponse[String] = Http(URL+"/services/"+service).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
     //val getServiceResp = parse(response.body).extract[GetServicesResponse]
     //assert(getServiceResp.services.size === 0)
   }
@@ -1016,20 +1026,20 @@ class ServicesSuite extends FunSuite {
   test("DELETE /orgs/"+orgid+"/services/"+service2+" - so its owner cache entry is also deleted") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service2).method("delete").headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("DELETE /orgs/"+orgid+"/users/"+user2) {
     val response = Http(URL+"/users/"+user2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("GET /orgs/"+orgid+"/services/"+service2+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service2).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
     //val getServiceResp = parse(response.body).extract[GetServicesResponse]
     //assert(getServiceResp.services.size === 0)
   }
@@ -1037,24 +1047,24 @@ class ServicesSuite extends FunSuite {
   test("DELETE /orgs/IBM/services/"+ibmService) {
     val response = Http(IBMURL+"/services/"+ibmService).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("GET /orgs/IBM/services"+ibmService+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(IBMURL+"/services/"+ibmService).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
-    //assert(response.code === HttpCode.NOT_FOUND)
+    //assert(response.code === HttpCode.NOT_FOUND.intValue)
     //todo: change this to NOT_FOUND when issue anax issue 778 is fixed
-    assert(response.code === HttpCode.ACCESS_DENIED)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
   test("DELETE IBM changes") {
     val res = List(ibmService)
     val input = DeleteIBMChangesRequest(res)
-    val response = Http(urlRoot+"/v1/orgs/IBM/changes/cleanup").postData(write(input)).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(urlRoot+"/v1/orgs/IBM/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   /** Clean up, delete all the test users */
@@ -1067,7 +1077,7 @@ class ServicesSuite extends FunSuite {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
 }

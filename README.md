@@ -54,8 +54,8 @@ make gen-key
 
 - `sbt`
 - `~reStart`
-- Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/admin/version](http://localhost:8080/v1/admin/version)
-- To see the swagger output, browse: [http://localhost:8080/api](http://localhost:8080/api)
+- Once the server starts, to see the swagger output, browse: [http://localhost:8080/v1/swagger](http://localhost:8080/v1/swagger)
+- To try a simple rest method curl: `curl -X GET "http://localhost:8080/v1/admin/version"`. You should get the exchange version number as the response.  
 - A convenience script `src/test/bash/primedb.sh` can be run to prime the DB with some exchange resources to use in manually testing:
 ```
 export EXCHANGE_USER=<my-user-in-IBM-org>

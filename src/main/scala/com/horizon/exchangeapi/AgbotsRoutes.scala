@@ -59,7 +59,7 @@ final case class PatchAgbotsRequest(token: Option[String], name: Option[String],
   /** Returns a tuple of the db action to update parts of the agbot, and the attribute name being updated. */
   def getDbUpdate(id: String, orgid: String, hashedTok: String): (DBIO[_],String) = {
     val lastHeartbeat = ApiTime.nowUTC
-    //todo: support updating more than 1 attribute
+    //somday: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
     token match {
       case Some(_) =>
@@ -1085,7 +1085,7 @@ class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.SEND_MSG_TO_AGBOT) { ident =>
       complete({
-        val nodeId = ident.creds.id      //todo: handle the case where the acls allow users to send msgs
+        val nodeId = ident.creds.id      //somday: handle the case where the acls allow users to send msgs
         var msgNum = ""
         // Remove msgs whose TTL is past, then check the mailbox is not full, then get the node publicKey, then write the agbotmsgs row, all in the same db.run thread
         db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>

@@ -467,7 +467,7 @@ object IbmCloudAuth {
         logger.error(s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for ${authInfo.org}")
         DBIO.failed(OrgNotFound(authInfo))
       } else if (authInfo.keyType == "iamtoken" && userInfo.accountId == "") {
-        //todo: this is the case with tokens from the edge mgmt ui, the ui already verified the org and is using the right none, but we still need to
+        //todo: this is the case with tokens from the edge mgmt ui, the ui already verified the org and is using the right one, but we still need to
         //      verify the org in case someone is spoofing being the ui
         DBIO.successful(authInfo.org)
       } else if (orgAcctId.getOrElse("") != userInfo.accountId) {

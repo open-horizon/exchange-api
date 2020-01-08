@@ -78,7 +78,6 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
     import com.horizon.exchangeapi.tables.ExchangePostgresProfile.plainAPI._
     import scala.concurrent.ExecutionContext.Implicits.global
     val lastUpdated = ApiTime.nowUTC
-    //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this org
     orgType match { case Some(ot) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.orgType, d.lastUpdated)).update((orgId, ot, lastUpdated)), "orgType"); case _ => ; }
     label match { case Some(lab) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.label, d.lastUpdated)).update((orgId, lab, lastUpdated)), "label"); case _ => ; }
@@ -594,7 +593,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
         complete({
           // Variables to help with building the query
           val lastTime = reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)
-          //todo: reduce these 2 db queries to 1 db query
+          //perf: reduce these 2 db queries to 1 db query
           val qOrg = for {
             r <- ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
           } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)

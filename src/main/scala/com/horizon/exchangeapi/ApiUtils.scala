@@ -289,7 +289,7 @@ object ExchConfig {
     })
   }
 
-  //todo: we should catch ConfigException.Missing and ConfigException.WrongType, but they are always set by the built-in config.json
+  //someday: we should catch ConfigException.Missing and ConfigException.WrongType, but they are always set by the built-in config.json
   /** Returns the value of the specified config variable. Throws com.typesafe.config.ConfigException.* if not found. */
   def getString(key: String): String = { return config.getString(key) }
 

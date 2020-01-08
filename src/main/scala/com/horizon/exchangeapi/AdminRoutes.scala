@@ -138,7 +138,7 @@ class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     exchAuthTAction(), Access.UTILITIES) { _ =>
       complete({
         if (LogLevel.validLevels.contains(req.loggingLevel)) {
-          //todo: not sure yet how to change the log level while the app is running
+          //someday: not sure yet how to change the log level while the app is running
           (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("logging.level.set")))
         } else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.logging.level", reqBody.loggingLevel)))
       }) // end of complete
@@ -243,7 +243,7 @@ class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
     exchAuth(TAction(), Access.STATUS) { _ =>
       complete({
         val statusResp = new AdminStatus()
-        //TODO: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
+        //perf: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
         db.run(UsersTQ.rows.length.result.asTry.flatMap({
           case Success(v) => statusResp.numberOfUsers = v
             NodesTQ.rows.length.result.asTry

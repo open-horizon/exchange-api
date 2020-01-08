@@ -85,7 +85,6 @@ final case class PatchBusinessPolicyRequest(label: Option[String], description: 
   /** Returns a tuple of the db action to update parts of the businessPolicy, and the attribute name being updated. */
   def getDbUpdate(businessPolicy: String, orgid: String): (DBIO[_],String) = {
     val lastUpdated = ApiTime.nowUTC
-    //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this businessPolicy
     label match { case Some(lab) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.label,d.lastUpdated)).update((businessPolicy, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.description,d.lastUpdated)).update((businessPolicy, desc, lastUpdated)), "description"); case _ => ; }

@@ -329,7 +329,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
     def getDbAction(id: String): DBIO[Seq[String]] = BusinessPoliciesTQ.getOwner(id).result
   }
 
-  //todo: These methods were originally here to allow us to use either the new or old cache. We maybe can eliminate them now.
+  //perf: These methods were originally here to allow us to use either the new or old cache. We maybe can eliminate them now.
   def getUser(id: String): Option[String] = {
     ids.getOne(id)
   }

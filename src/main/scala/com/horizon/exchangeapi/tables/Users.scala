@@ -39,7 +39,7 @@ class Users(tag: Tag) extends Table[UserRow](tag, "users") {
   def password = column[String]("password")
   def admin = column[Boolean]("admin")
   def email = column[String]("email")
-  // def lastUpdated = column[Timestamp]("lastupdated")    //todo: need this is UTC, not local time zone
+  // def lastUpdated = column[Timestamp]("lastupdated")    //someday: need this is UTC, not local time zone
   def lastUpdated = column[String]("lastupdated")
   def updatedBy = column[String]("updatedby")
   def * = (username, orgid, password, admin, email, lastUpdated, updatedBy) <> (UserRow.tupled, UserRow.unapply)

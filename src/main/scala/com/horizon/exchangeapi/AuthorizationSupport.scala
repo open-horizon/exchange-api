@@ -373,7 +373,7 @@ trait AuthorizationSupport {
           }
         }
       if (Role.hasAuthorization(role, requiredAccess)) Success(this)
-      else Failure(new AccessDeniedException(accessDeniedMsg(access, target)))
+      else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
     }
 
     override def isAdmin: Boolean = {
@@ -452,7 +452,7 @@ trait AuthorizationSupport {
           }
         }
       if (Role.hasAuthorization(role, requiredAccess)) Success(this)
-      else Failure(new AccessDeniedException(accessDeniedMsg(access, target)))
+      else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
 
     }
 
@@ -522,7 +522,7 @@ trait AuthorizationSupport {
           }
         }
       if (Role.hasAuthorization(role, requiredAccess)) Success(this)
-      else Failure(new AccessDeniedException(accessDeniedMsg(access, target)))
+      else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
     }
 
     override def isMultiTenantAgbot: Boolean = return getOrg == "IBM"    //someday: implement instance-level ACLs instead of hardcoding this
@@ -532,7 +532,7 @@ trait AuthorizationSupport {
   case class IApiKey(creds: Creds) extends Identity {
     def authorizeTo(target: Target, access: Access): Authorization = {
       if (hasFrontEndAuthority) return FrontendAuth // allow whatever it wants to do
-      halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, accessDeniedMsg(access))) // should not ever get here
+      halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, accessDeniedMsg(requiredAccess))) // should not ever get here
     }
   }
   */
@@ -602,7 +602,7 @@ trait AuthorizationSupport {
           }
         }
       if (Role.hasAuthorization(role, requiredAccess)) Success(this)
-      else Failure(new AccessDeniedException(accessDeniedMsg(access, target)))
+      else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
     }
   }
 

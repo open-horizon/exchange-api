@@ -124,7 +124,7 @@ object NodesTQ {
     for (s <- userInput) {
       svcRefs += ServiceRef2(s.serviceUrl, s.serviceOrgid, s.serviceVersionRange.getOrElse("[0.0.0,INFINITY)"), s.serviceArch.getOrElse(""))  // the service ref is just for reporting bad input errors
       val arch = if (s.serviceArch.isEmpty || s.serviceArch.get == "") "%" else s.serviceArch.get
-      //todo: the best we can do is use the version if the range is a single version, otherwise use %
+      //perf: the best we can do is use the version if the range is a single version, otherwise use %
       val svc = if (s.serviceVersionRange.getOrElse("") == "") "%"
       else {
         val singleVer = VersionRange(s.serviceVersionRange.get).singleVersion

@@ -223,7 +223,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 ## Changes in 2.0.x
 
 - Rebased exchange api server to akka-http
-- Fixed bug in notifcation framework db steps where it didn't check the length of the returned vector before accessing the head.
+- Fixed bugs:
+  - In notifcation framework db steps, it didn't check the length of the returned vector before accessing the head
+  - Copy/paste bug with service url params
+  - Msg for access denied was showing access, instead of requiredaccess
 - Removed old functionality:
   - Authorization:Basic header value must now always be base64 encoded
   - The Try it out button on the swagger display is not supported.

@@ -102,7 +102,6 @@ final case class PatchPatternRequest(label: Option[String], description: Option[
   /** Returns a tuple of the db action to update parts of the pattern, and the attribute name being updated. */
   def getDbUpdate(pattern: String, orgid: String): (DBIO[_],String) = {
     val lastUpdated = ApiTime.nowUTC
-    //todo: support updating more than 1 attribute
     // find the 1st attribute that was specified in the body and create a db action to update it for this pattern
     label match { case Some(lab) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.label,d.lastUpdated)).update((pattern, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.description,d.lastUpdated)).update((pattern, desc, lastUpdated)), "description"); case _ => ; }

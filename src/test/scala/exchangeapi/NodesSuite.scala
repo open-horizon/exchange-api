@@ -314,6 +314,7 @@ class NodesSuite extends FunSuite {
     assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "node") && (y.resourceChanges.size == 1)}))
     assert(parsedBody.changes.size <= maxRecords)
     assert(parsedBody.mostRecentChangeId != 0)
+    assert(parsedBody.maxChangeIdOfQuery != 0)
     assert(parsedBody.exchangeVersion == ExchangeApiAppMethods.adminVersion().toString)
   }
 
@@ -2307,13 +2308,21 @@ class NodesSuite extends FunSuite {
     assert(response.body.contains("update all but token"))
   }
 
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - add an error to later grab it from the changes route") {
+    val input = """{ "errors": [{ "record_id":"1", "message":"test error 1", "event_code":"500", "hidden":false, "workload":{"url":"myservice"}, "timestamp":"yesterday" }] }"""
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("POST DATA: " + write(input))
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId) {
     val response = Http(URL+"/nodes/"+nodeId).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
-  test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " was deleted and logged as deleted") {
+  test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " was deleted and logged as deleted also that node error change is there") {
     val time = ApiTime.pastUTC(60)
     val input = ResourceChangesRequest(0, Some(time), 1000, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -2321,7 +2330,8 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.DELETED)}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "node")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "nodeerrors")}))
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId + " try to delete again -- should fail") {

@@ -412,8 +412,8 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
       complete({
         val q = for {
-          (n) <- NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]")
-        } yield n.nodeId
+          (n, _) <- NodesTQ.rows.filter(_.orgid === orgid) join NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]") on (_.id === _.nodeId)
+        } yield n.id
 
         db.run(q.result).map({ list =>
           logger.debug("POST /orgs/"+orgid+"/search/nodes/error result size: "+list.size)
@@ -601,7 +601,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
           } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
 
           val qPublic = for {
-            r <- ResourceChangesTQ.rows.filter(_.public === "true").filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
+            r <- ResourceChangesTQ.rows.filter(_.orgId =!= orgId).filter(_.public === "true").filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
           } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
 
           var qOrgResp : scala.Seq[(Int, String, String, String, String, String, String, String)] = null

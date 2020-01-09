@@ -33,8 +33,11 @@ class ServicesSuite extends FunSuite {
   val CONTENT = ("Content-Type","application/json")
   val CONTENTTEXT = ("Content-Type","text/plain")
   val orgid = "ServicesSuiteTests"
+  val orgid2 = "ServicesSuiteTests-SecondOrg"
   val authpref=orgid+"/"
+  val authpref2=orgid2+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
+  val URL2 = urlRoot+"/v1/orgs/"+orgid2
   val user = "9999"
   val orguser = authpref+user
   val pw = user+"pw"
@@ -62,6 +65,7 @@ class ServicesSuite extends FunSuite {
   val svcArch = "arm"
   val service = svcBase + "_" + svcVersion + "_" + svcArch
   val orgservice = authpref+service
+  val org2service = authpref2+service
   val svcBase2 = "svc9921"
   val svcUrl2 = "http://" + svcBase2
   val svcVersion2 = "1.0.0"
@@ -133,6 +137,19 @@ class ServicesSuite extends FunSuite {
 
     val input = PostPutOrgRequest(None, "My Org", "desc", None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+  }
+
+  /** Create a second org to use for this test */
+  test("POST /orgs/"+orgid2+" - create org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    var response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+
+    val input = PostPutOrgRequest(None, "My Second Org", "desc", None)
+    response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
@@ -224,6 +241,15 @@ class ServicesSuite extends FunSuite {
     assert(respObj.msg.contains("service '"+orgservice+"' created"))
   }
 
+  test("POST /orgs/"+orgid2+"/services - add public "+service+" as root in second org to check that its in response") {
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = true, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val response = Http(URL2+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("service '"+org2service+"' created"))
+  }
+
   test("POST /orgs/"+orgid+"/changes - verify " + service + " was created and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
@@ -232,7 +258,8 @@ class ServicesSuite extends FunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "service")}))
+    assert(parsedBody.changes.exists(y => {(y.orgId == orgid) && (y.id == service) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "service")}))
+    assert(parsedBody.changes.exists(y => {(y.orgId == orgid2) && (y.id == service) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "service")}))
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service3+" as user that requires a service with reqService.versionRange and version") {

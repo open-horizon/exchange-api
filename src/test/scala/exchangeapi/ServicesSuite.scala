@@ -131,7 +131,7 @@ class ServicesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    val input = PostPutOrgRequest(None, "My Org", "desc", None)
+    val input = PostPutOrgRequest(None, "My Org", "desc", None, None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -155,12 +155,12 @@ class ServicesSuite extends FunSuite {
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)
 
-    val devInput = PutNodesRequest(nodeToken, "bc dev test", "", None, None, None, None, "", None)
+    val devInput = PutNodesRequest(nodeToken, "bc dev test", "", None, None, None, None, "", None, None)
     val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK.intValue)
 
-    val devInput2 = PutNodesRequest(nodeToken2, "bc dev test", "", None, None, None, None, "", None)
+    val devInput2 = PutNodesRequest(nodeToken2, "bc dev test", "", None, None, None, None, "", None, None)
     val devResponse2 = Http(URL+"/nodes/"+nodeId2).postData(write(devInput2)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse2.code)
     assert(devResponse2.code === HttpCode.PUT_OK.intValue)
@@ -392,7 +392,7 @@ class ServicesSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  /*todo: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
+  /*someday: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
   test("POST /orgs/"+orgid+"/services - with low maxServices - should fail") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
@@ -1055,7 +1055,6 @@ class ServicesSuite extends FunSuite {
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
     //assert(response.code === HttpCode.NOT_FOUND.intValue)
-    //todo: change this to NOT_FOUND when issue anax issue 778 is fixed
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 

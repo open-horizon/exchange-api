@@ -56,7 +56,7 @@ final case class NodeResponse(id: String, name: String, services: List[RegServic
 final case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
-final case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String]) {
+final case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
   require(token!=null && name!=null && pattern!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
@@ -82,7 +82,7 @@ final case class PutNodesRequest(token: String, name: String, pattern: String, r
   def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).upsert
+    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), write(heartbeatIntervals)).upsert
   }
 
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
@@ -90,11 +90,11 @@ final case class PutNodesRequest(token: String, name: String, pattern: String, r
   def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).update
+    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), write(heartbeatIntervals)).update
   }
 }
 
-final case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String]) {
+final case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -130,6 +130,8 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey.get, lastHeartbeat)), "publicKey")
     } else if (arch.isDefined){
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.arch,d.lastHeartbeat)).update((id, arch.get, lastHeartbeat)), "arch")
+    } else if (heartbeatIntervals.isDefined){
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.heartbeatIntervals,d.lastHeartbeat)).update((id, write(heartbeatIntervals), lastHeartbeat)), "heartbeatIntervals")
     }
     return dbAction
   }
@@ -398,7 +400,12 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
   ],
   "msgEndPoint": "",    // not currently used, but may be in the future. Leave empty or omit to use the built-in Exchange msg service
   "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the node, can omit
-  "publicKey": "ABCDEF"      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
+  "publicKey": "ABCDEF",      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
+  "heartbeatIntervals": {    // All values in seconds. This section can be omitted
+    "minInterval": 10,       // the initial heartbeat interval
+    "maxInterval": 120,      // the max the interval will ever become
+    "intervalAdjustment": 10     // how much to increase the interval if there has been no activity for a while
+  }
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutNodesRequest])))),
     responses = Array(

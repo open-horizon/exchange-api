@@ -4,7 +4,7 @@ import org.junit.runner.RunWith
 import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
 
-//TODO: use : http://blog.abhinav.ca/blog/2014/09/08/unit-testing-futures-with-scalatest/ to add slick unit tests
+//someday: use : http://blog.abhinav.ca/blog/2014/09/08/unit-testing-futures-with-scalatest/ to add slick unit tests
 
 /**
  * Tests for Slick DB table

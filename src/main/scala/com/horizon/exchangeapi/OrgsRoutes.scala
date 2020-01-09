@@ -16,6 +16,7 @@ import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson._
 import org.json4s._
 //import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization.write
 
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
@@ -52,7 +53,7 @@ final case class GetOrgsResponse(orgs: Map[String, Org], lastIndex: Int)
 final case class GetOrgAttributeResponse(attribute: String, value: String)
 
 /** Input format for PUT /orgs/<org-id> */
-final case class PostPutOrgRequest(orgType: Option[String], label: String, description: String, tags: Option[Map[String, String]]) {
+final case class PostPutOrgRequest(orgType: Option[String], label: String, description: String, tags: Option[Map[String, String]], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
   require(label!=null && description!=null)
   //require(label!=null, "label must be specified")
   //require(description!=null, "description must be specified")
@@ -63,10 +64,10 @@ final case class PostPutOrgRequest(orgType: Option[String], label: String, descr
     else None
   } */
 
-  def toOrgRow(orgId: String) = OrgRow(orgId, orgType.getOrElse(""), label, description, ApiTime.nowUTC, tags.map(ts => ApiUtils.asJValue(ts)))
+  def toOrgRow(orgId: String) = OrgRow(orgId, orgType.getOrElse(""), label, description, ApiTime.nowUTC, tags.map(ts => ApiUtils.asJValue(ts)), write(heartbeatIntervals))
 }
 
-final case class PatchOrgRequest(orgType: Option[String], label: Option[String], description: Option[String], tags: Option[Map[String, Option[String]]]) {
+final case class PatchOrgRequest(orgType: Option[String], label: Option[String], description: Option[String], tags: Option[Map[String, Option[String]]], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -82,6 +83,7 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
     orgType match { case Some(ot) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.orgType, d.lastUpdated)).update((orgId, ot, lastUpdated)), "orgType"); case _ => ; }
     label match { case Some(lab) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.label, d.lastUpdated)).update((orgId, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.description, d.lastUpdated)).update((orgId, desc, lastUpdated)), "description"); case _ => ; }
+    heartbeatIntervals match { case Some(hbIntervals) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.heartbeatIntervals, d.lastUpdated)).update((orgId, write(hbIntervals), lastUpdated)), "heartbeatIntervals"); case _ => ; }
     tags match {
       case Some(ts) =>
         val (deletes, updates) = ts.partition {
@@ -270,6 +272,11 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
   "label": "My org",
   "description": "blah blah",
   "tags": { "ibmcloud_id": "abc123def456" }
+  "heartbeatIntervals": {    // default values (in seconds) if not set in the node resource. This section can be omitted
+    "minInterval": 10,       // the initial heartbeat interval
+    "maxInterval": 120,      // the max the interval will ever become
+    "intervalAdjustment": 10     // how much to increase the interval if there has been no activity for a while
+  }
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutOrgRequest])))),
     responses = Array(

@@ -96,7 +96,7 @@ class CatalogSuite extends FunSuite {
   test("POST /orgs/"+orgid+" - create org") {
     for (url <- List(URL, URL2, URL3)) {
       val orgType = if (url == URL3) "" else "IBM"
-      val input = PostPutOrgRequest(Some(orgType), "", "desc", None)
+      val input = PostPutOrgRequest(Some(orgType), "", "desc", None, None)
       val response = Http(url).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + response.code + ", response.body: " + response.body)
       assert(response.code === HttpCode.POST_OK.intValue)
@@ -117,7 +117,7 @@ class CatalogSuite extends FunSuite {
       assert(userResponse.code === HttpCode.POST_OK.intValue)
     }
 
-    val devInput = PutNodesRequest(nodeToken, "", "", None, None, None, None, "", None)
+    val devInput = PutNodesRequest(nodeToken, "", "", None, None, None, None, "", None, None)
     val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK.intValue)

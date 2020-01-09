@@ -92,13 +92,13 @@ object ExchangeApiApp extends App {
         case MalformedRequestContentRejection(msg, _) => // this comes from the entity() directive when parsing the request body failed
           complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, msg)))
       }
-      // the default rejection handler will catch the rest
-      //todo: not sure when these will occur
+      //todo: not sure when this will occur
       .handleAll[MethodRejection] { methodRejections =>
         val names = methodRejections.map(_.supported.name)
         complete((StatusCodes.MethodNotAllowed, s"method not supported: ${names mkString " or "}"))
       }
-      .handleNotFound { complete((StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "not found"))) }
+      // this seems to be called when the route requested does not exist
+      .handleNotFound { complete((StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "unrecognized route"))) }
       .result()
 
   // Custom logging of requests and responses. See https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/debugging-directives/logRequestResult.html
@@ -115,7 +115,7 @@ object ExchangeApiApp extends App {
       }
       // Now log all the info
       Some(LogEntry(s"${req.uri.authority.host.address}:$authId ${req.method.name} ${req.uri}: ${res.status}", Logging.InfoLevel))
-    case Rejected(rejections) => Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with ${rejections.head}", Logging.DebugLevel))
+    case Rejected(rejections) => Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with ${rejections.headOption.getOrElse(NotFoundRejection("unrecognized route"))}", Logging.DebugLevel))
     case _ => None
   }
 
@@ -165,7 +165,7 @@ object ExchangeApiApp extends App {
 
   system.registerOnTermination(() => db.close())
 
-  /*todo:
+  /*
    * Before every action runs, set the content type to be in JSON format.
    * before() {
    * contentType = formats("json")

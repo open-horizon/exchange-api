@@ -115,7 +115,7 @@ class AgbotsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    val input = PostPutOrgRequest(None, "My Org", "desc", None)
+    val input = PostPutOrgRequest(None, "My Org", "desc", None, None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -127,7 +127,7 @@ class AgbotsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    val input = PostPutOrgRequest(None, "My Org2", "desc", None)
+    val input = PostPutOrgRequest(None, "My Org2", "desc", None, None)
     response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -409,7 +409,7 @@ class AgbotsSuite extends FunSuite {
 
       if (ibmAgbotId != "") {
         // Also create a node to make sure they can msg each other
-        val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", orgid + "/" + pattern, None, None, None, None, "NODEABC", None)
+        val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", orgid + "/" + pattern, None, None, None, None, "NODEABC", None, None)
         var response2 = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
         info("code: " + response2.code)
         assert(response2.code === HttpCode.PUT_OK.intValue)

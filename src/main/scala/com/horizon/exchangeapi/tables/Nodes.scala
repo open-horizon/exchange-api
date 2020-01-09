@@ -46,12 +46,14 @@ case class RegServiceSearch(url: String, properties: List[Prop]) extends RegServ
 /** Contains the object representations of the DB tables related to nodes. */
 case class RegService(url: String, numAgreements: Int, configState: Option[String], policy: String, properties: List[Prop]) extends RegServiceTrait
 
+final case class NodeHeartbeatIntervals(minInterval: Int, maxInterval: Int, intervalAdjustment: Int)
+
 // This is the node table minus the key - used as the data structure to return to the REST clients
-class Node(var token: String, var name: String, var owner: String, var pattern: String, var registeredServices: List[RegService], var userInput: List[OneUserInputService], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String, var arch: String) {
-  def copy = new Node(token, name, owner, pattern, registeredServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch)
+class Node(var token: String, var name: String, var owner: String, var pattern: String, var registeredServices: List[RegService], var userInput: List[OneUserInputService], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String, var arch: String, var heartbeatIntervals: NodeHeartbeatIntervals) {
+  def copy = new Node(token, name, owner, pattern, registeredServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals)
 }
 
-case class NodeRow(id: String, orgid: String, token: String, name: String, owner: String, pattern: String, regServices: String, userInput: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String, arch: String) {
+case class NodeRow(id: String, orgid: String, token: String, name: String, owner: String, pattern: String, regServices: String, userInput: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String, arch: String, heartbeatIntervals: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNode(superUser: Boolean): Node = {
@@ -61,7 +63,8 @@ case class NodeRow(id: String, orgid: String, token: String, name: String, owner
     // Default new configState attr if it doesnt exist. This ends up being called by GET nodes, GET nodes/id, and POST search/nodes
     val rsvc2 = rsvc.map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
     val input = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
-    new Node(tok, name, owner, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat, publicKey, arch)
+    val hbInterval = if (heartbeatIntervals != "") read[NodeHeartbeatIntervals](heartbeatIntervals) else NodeHeartbeatIntervals(0, 0, 0)
+    new Node(tok, name, owner, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat, publicKey, arch, hbInterval)
   }
 
   def putInHashMap(isSuperUser: Boolean, nodes: MutableHashMap[String,Node]): Unit = {
@@ -73,14 +76,14 @@ case class NodeRow(id: String, orgid: String, token: String, name: String, owner
 
   def upsert: DBIO[_] = {
     //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
-    if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch)).insertOrUpdate((id, orgid, token, name, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch))
-    else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, token, name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch))
+    if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch, d.heartbeatIntervals)).insertOrUpdate((id, orgid, token, name, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals))
+    else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, token, name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals))
   }
 
   def update: DBIO[_] = {
     //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
-    if (owner == "") (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.orgid,d.token,d.name,d.pattern,d.regServices,d.userInput,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey, d.arch)).update((id, orgid, token, name, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch))
-    else (for { d <- NodesTQ.rows if d.id === id } yield d).update(NodeRow(id, orgid, token, name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch))
+    if (owner == "") (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.orgid,d.token,d.name,d.pattern,d.regServices,d.userInput,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey, d.arch, d.heartbeatIntervals)).update((id, orgid, token, name, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals))
+    else (for { d <- NodesTQ.rows if d.id === id } yield d).update(NodeRow(id, orgid, token, name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals))
   }
 }
 
@@ -100,9 +103,10 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def publicKey = column[String]("publickey")     // this is last because that is where alter table in upgradedb puts it
   def lastHeartbeat = column[String]("lastheartbeat")
   def arch = column[String]("arch")
+  def heartbeatIntervals = column[String]("heartbeatintervals")
 
   // this describes what you get back when you return rows from a query
-  def * = (id, orgid, token, name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch) <> (NodeRow.tupled, NodeRow.unapply)
+  def * = (id, orgid, token, name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals) <> (NodeRow.tupled, NodeRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   //def patKey = foreignKey("pattern_fk", pattern, PatternsTQ.rows)(_.pattern, onUpdate=ForeignKeyAction.Cascade)     // <- we can't make this a foreign key because it is optional
@@ -149,6 +153,7 @@ object NodesTQ {
   def getLastHeartbeat(id: String) = rows.filter(_.id === id).map(_.lastHeartbeat)
   def getPublicKey(id: String) = rows.filter(_.id === id).map(_.publicKey)
   def getArch(id: String) = rows.filter(_.id === id).map(_.arch)
+  def getHeartbeatIntervals(id: String) = rows.filter(_.id === id).map(_.heartbeatIntervals)
   def getNodeUsingPolicy(id: String) = rows.filter(_.id === id).map(x => (x.pattern, x.publicKey))
 
   def setLastHeartbeat(id: String, lastHeartbeat: String) = rows.filter(_.id === id).map(_.lastHeartbeat).update(lastHeartbeat)
@@ -170,6 +175,7 @@ object NodesTQ {
       case "lastHeartbeat" => filter.map(_.lastHeartbeat)
       case "publicKey" => filter.map(_.publicKey)
       case "arch" => filter.map(_.arch)
+      case "heartbeatIntervals" => filter.map(_.heartbeatIntervals)
       case _ => null
     }
   }

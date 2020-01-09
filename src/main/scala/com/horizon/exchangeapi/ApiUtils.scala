@@ -95,6 +95,7 @@ trait ExchangeRejection extends Rejection {
   def apiRespMsg: String
   def toApiResp = ApiResponse(apiRespCode, apiRespMsg)
   def toJsonStr = write(ApiResponse(apiRespCode, apiRespMsg))
+  override def toString : String = s"Rejection http code: $httpCode, message: $apiRespMsg"
 }
 
 // Converts an exception into an auth rejection
@@ -151,6 +152,11 @@ final case class BadGwRejection(apiRespMsg: String) extends ExchangeRejection {
 final case class GwTimeoutRejection(apiRespMsg: String) extends ExchangeRejection {
   def httpCode = StatusCodes.GatewayTimeout
   def apiRespCode = ApiRespType.GW_TIMEOUT
+}
+
+final case class InternalErrorRejection(apiRespMsg: String) extends ExchangeRejection {
+  def httpCode = HttpCode.INTERNAL_ERROR
+  def apiRespCode = ApiRespType.INTERNAL_ERROR
 }
 
 // Returns a msg from the translated files, with the args substituted
@@ -268,7 +274,7 @@ object ExchConfig {
     //val rootemail = config.getString("api.root.email")
     val rootemail = ""
     // Create the root org, create the IBM org, and create the root user (all only if necessary)
-    db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None).upsert.asTry.flatMap({ xs =>
+    db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None, "").upsert.asTry.flatMap({ xs =>
       logger.debug("Upsert /orgs/root result: " + xs.toString)
       xs match {
         case Success(_) => UserRow(Role.superUser, "root", rootHashedPw, admin = true, rootemail, ApiTime.nowUTC, Role.superUser).upsertUser.asTry // next action
@@ -277,7 +283,7 @@ object ExchConfig {
     }).flatMap({ xs =>
       logger.debug("Upsert /orgs/root/users/root (root) result: " + xs.toString)
       xs match {
-        case Success(_) => OrgRow("IBM", "IBM", "IBM Org", "Organization containing IBM services", ApiTime.nowUTC, None).upsert.asTry // next action
+        case Success(_) => OrgRow("IBM", "IBM", "IBM Org", "Organization containing IBM services", ApiTime.nowUTC, None, "").upsert.asTry // next action
         case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
       }
     })).map({ xs =>

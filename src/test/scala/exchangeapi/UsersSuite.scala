@@ -8,6 +8,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import com.horizon.exchangeapi._
+import com.horizon.exchangeapi.tables.NodeHeartbeatIntervals
 //import com.horizon.exchangeapi.tables._
 import scala.collection.immutable._
 
@@ -124,21 +125,27 @@ class UsersSuite extends FunSuite {
     assert(response.code === HttpCode.BAD_INPUT.intValue) // for now this is what is returned when the json-to-scala conversion fails
 
     // Now add a good org
-    var input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", Some(Map("tagName" -> "test")))
+    var input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", Some(Map("tagName" -> "test")), None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
     // Update the org
-    input = PostPutOrgRequest(Some("IBM"), "My Org", "desc - updated", None)
+    input = PostPutOrgRequest(Some("IBM"), "My Org", "desc - updated", None, Some(NodeHeartbeatIntervals(5,15,2)))
     response = Http(URL).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
     assert(!response.body.contains("tags"))
 
-    // Patch the org
+    // Patch the org description
     val jsonInput = """{ "description": "desc - patched" }"""
     response = Http(URL).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+
+    // Patch the org heartbeatIntervals
+    val hbInput = """{ "heartbeatIntervals": { "minInterval": 6, "maxInterval": 15, "intervalAdjustment": 2 } }"""
+    response = Http(URL).postData(hbInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
 
@@ -176,7 +183,7 @@ class UsersSuite extends FunSuite {
     assert(!tagResponse.orgs(orgid).tags.get.contains("tagName"))
 
     // Add a 2nd org, no tags to make sure it is optional
-    val input2 = PostPutOrgRequest(None, "My Other Org", "desc", None)
+    val input2 = PostPutOrgRequest(None, "My Other Org", "desc", None, Some(NodeHeartbeatIntervals(5,15,2)))
     response = Http(URL2).postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -200,6 +207,7 @@ class UsersSuite extends FunSuite {
     val o = getOrgsResp.orgs(orgid)
     assert(o.description === "desc - patched")
     assert(o.orgType === "IBM")
+    assert(o.heartbeatIntervals.minInterval === 6)
   }
 
   /** Try adding an invalid user body */
@@ -293,7 +301,7 @@ class UsersSuite extends FunSuite {
   }
 
   test("PUT /orgs/" + orgid + " - admin user set orgType to foo") {
-    val input = PostPutOrgRequest(Some("foo"), "My Org", "desc", Some(Map("tagName" -> "test")))
+    val input = PostPutOrgRequest(Some("foo"), "My Org", "desc", Some(Map("tagName" -> "test")), None)
     var response = Http(URL).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -307,13 +315,13 @@ class UsersSuite extends FunSuite {
   }
 
   test("PUT /orgs/" + orgid + " - admin user try to set orgType to IBM - should fail") {
-    var input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", Some(Map("tagName" -> "test")))
+    var input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", Some(Map("tagName" -> "test")), None)
     var response = Http(URL).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
 
     // But now have root really set the orgType back to IBM for the rest of the tests
-    input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", Some(Map("tagName" -> "test")))
+    input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", Some(Map("tagName" -> "test")), None)
     response = Http(URL).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -807,7 +815,7 @@ class UsersSuite extends FunSuite {
       assert(response.code === HttpCode.POST_OK.intValue)
 
       // ensure we can add a node to check acls to other objects
-      val inputNode = PutNodesRequest("abc", "my node", "", None, None, None, None, "ABC", None)
+      val inputNode = PutNodesRequest("abc", "my node", "", None, None, None, None, "ABC", None, None)
       response = Http(URL+"/nodes/n1").postData(write(inputNode)).method("put").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)

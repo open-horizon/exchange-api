@@ -163,7 +163,7 @@ class PatternsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    val input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", None)
+    val input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", None, None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -176,7 +176,7 @@ class PatternsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    val input = PostPutOrgRequest(None, "My Second Org", "Org of orgType not IBM", None)
+    val input = PostPutOrgRequest(None, "My Second Org", "Org of orgType not IBM", None, None)
     response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -189,7 +189,7 @@ class PatternsSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    val input = PostPutOrgRequest(Some("IBM"), "My Second Org", "Org of orgType not IBM", None)
+    val input = PostPutOrgRequest(Some("IBM"), "My Second Org", "Org of orgType not IBM", None, None)
     response = Http(URL3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -216,7 +216,7 @@ class PatternsSuite extends FunSuite {
     val devInput = PutNodesRequest(nodeToken, "bc dev test", "", Some(List(RegService("foo", 1, None, "{}", List(
       Prop("arch", "arm", "string", "in"),
       Prop("version", "2.0.0", "version", "in"),
-      Prop("blockchainProtocols", "agProto", "list", "in"))))), None, None, None, "NODEABC", None)
+      Prop("blockchainProtocols", "agProto", "list", "in"))))), None, None, None, "NODEABC", None, None)
     val devResponse = Http(URL + "/nodes/" + nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK.intValue)
@@ -1054,7 +1054,7 @@ class PatternsSuite extends FunSuite {
           Prop("version","1.0.0","version","in")))
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      None, Some(Map("horizon"->"3.2.3")), "NODEABC", None)
+      None, Some(Map("horizon"->"3.2.3")), "NODEABC", None, None)
     val response = Http(URL+"/nodes/"+nodeIdSearchTest1).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1066,7 +1066,7 @@ class PatternsSuite extends FunSuite {
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", Some("amd64"))
+      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", Some("amd64"), None)
     val response = Http(URL+"/nodes/"+nodeId2SearchTest2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1078,7 +1078,7 @@ class PatternsSuite extends FunSuite {
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", Some("amd64"))
+      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", Some("amd64"), None)
     val response = Http(URL+"/nodes/"+nodeId2SearchTest2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1106,7 +1106,7 @@ class PatternsSuite extends FunSuite {
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE3ABC", None)
+      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE3ABC", None, None)
     val response = Http(URL+"/nodes/"+nodeId3SearchTest3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1136,7 +1136,7 @@ class PatternsSuite extends FunSuite {
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE4ABC", None)
+      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE4ABC", None, None)
     val response = Http(URL+"/nodes/"+nodeId4SearchTest4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1173,7 +1173,7 @@ class PatternsSuite extends FunSuite {
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE5ABC", Some("arm32"))
+      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE5ABC", Some("arm32"), None)
     val response = Http(URL+"/nodes/"+nodeId5SearchTest5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1185,7 +1185,7 @@ class PatternsSuite extends FunSuite {
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE6ABC", Some("amd64"))
+      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE6ABC", Some("amd64"), None)
     val response = Http(URL+"/nodes/"+nodeId6SearchTest6).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)

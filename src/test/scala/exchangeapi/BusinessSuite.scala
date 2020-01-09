@@ -97,7 +97,7 @@ class BusinessSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    var input = PostPutOrgRequest(None, "My Org", "desc", None)
+    var input = PostPutOrgRequest(None, "My Org", "desc", None, None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -107,7 +107,7 @@ class BusinessSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    input = PostPutOrgRequest(None, "My Org2", "desc", None)
+    input = PostPutOrgRequest(None, "My Org2", "desc", None, None)
     response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -138,7 +138,7 @@ class BusinessSuite extends FunSuite {
     val devInput = PutNodesRequest(nodeToken, "bc dev test", "", Some(List(RegService("foo", 1, None, "{}", List(
       Prop("arch", "arm", "string", "in"),
       Prop("version", "2.0.0", "version", "in"),
-      Prop("blockchainProtocols", "agProto", "list", "in"))))), None, None, None, "NODEABC", None)
+      Prop("blockchainProtocols", "agProto", "list", "in"))))), None, None, None, "NODEABC", None, None)
     val devResponse = Http(URL + "/nodes/" + nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK.intValue)

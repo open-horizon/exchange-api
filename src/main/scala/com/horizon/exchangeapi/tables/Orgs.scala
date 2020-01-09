@@ -2,6 +2,7 @@ package com.horizon.exchangeapi.tables
 
 import com.horizon.exchangeapi.ApiUtils
 import org.json4s._
+import org.json4s.jackson.Serialization.read
 import org.json4s.jackson.Serialization.write
 import ExchangePostgresProfile.api._
 //import slick.lifted.ProvenShape
@@ -11,10 +12,13 @@ import ExchangePostgresProfile.api._
 
 /** Contains the object representations of the DB tables related to orgs. */
 
-case class OrgRow(orgId: String, orgType: String, label: String, description: String, lastUpdated: String, tags: Option[JValue]) {
+case class OrgRow(orgId: String, orgType: String, label: String, description: String, lastUpdated: String, tags: Option[JValue], heartbeatIntervals: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def toOrg: Org = Org(orgType, label, description, lastUpdated, tags.flatMap(_.extractOpt[Map[String, String]]))
+  def toOrg: Org = {
+    val hbInterval = if (heartbeatIntervals != "") read[NodeHeartbeatIntervals](heartbeatIntervals) else NodeHeartbeatIntervals(0, 0, 0)
+    Org(orgType, label, description, lastUpdated, tags.flatMap(_.extractOpt[Map[String, String]]), hbInterval)
+  }
 
   // update returns a DB action to update this row
   def update: DBIO[_] = (for { m <- OrgsTQ.rows if m.orgid === orgId } yield m).update(this)
@@ -34,8 +38,9 @@ class Orgs(tag: Tag) extends Table[OrgRow](tag, "orgs") {
   def description = column[String]("description")
   def lastUpdated = column[String]("lastupdated")
   def tags = column[Option[JValue]]("tags")
+  def heartbeatIntervals = column[String]("heartbeatintervals")
   // this describes what you get back when you return rows from a query
-  def * = (orgid, orgType, label, description, lastUpdated, tags) <> (OrgRow.tupled, OrgRow.unapply)
+  def * = (orgid, orgType, label, description, lastUpdated, tags, heartbeatIntervals) <> (OrgRow.tupled, OrgRow.unapply)
 }
 
 // Instance to access the orgs table
@@ -49,6 +54,7 @@ object OrgsTQ {
   def getDescription(orgid: String) = rows.filter(_.orgid === orgid).map(_.description)
   def getLastUpdated(orgid: String) = rows.filter(_.orgid === orgid).map(_.lastUpdated)
   def getTag(orgid: String, tag: String) = rows.filter(_.orgid === orgid).map(_.tags.map(tags => tags +>> tag))
+  def getHeartbeatIntervals(orgid: String) = rows.filter(_.orgid === orgid).map(_.heartbeatIntervals)
   def getOrgidsOfType(orgType: String) = rows.filter(_.orgType === orgType).map(_.orgid)
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
@@ -61,6 +67,7 @@ object OrgsTQ {
       case "description" => filter.map(_.description)
       case "lastUpdated" => filter.map(_.lastUpdated)
       case "tags" => filter.map(_.tags.getOrElse(ApiUtils.asJValue(Map.empty)))
+      case "heartbeatIntervals" => filter.map(_.heartbeatIntervals)
       case _ => null
     }
   }
@@ -79,7 +86,7 @@ object OrgsTQ {
 }
 
 // This is the org table minus the key - used as the data structure to return to the REST clients
-final case class Org(orgType: String, label: String, description: String, lastUpdated: String, tags: Option[Map[String, String]])
+final case class Org(orgType: String, label: String, description: String, lastUpdated: String, tags: Option[Map[String, String]], heartbeatIntervals: NodeHeartbeatIntervals)
 
 /** Contains the object representations of the DB tables related to resource changes. */
 final case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String) {

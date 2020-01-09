@@ -2,6 +2,7 @@ package exchangeapi
 
 import java.time._
 
+import akka.http.scaladsl.model.StatusCodes
 import com.horizon.exchangeapi._
 import com.horizon.exchangeapi.tables._
 import org.json4s._
@@ -379,8 +380,7 @@ class PatternsSuite extends FunSuite {
     assert(respObj.msg.contains("duplicate key value violates unique constraint"))
   }
 
-  //todo: check w/sadiyah about exactly what this is trying to test, but i don't think this a is valid rest api, and akka-http is kicking it out as a 505
-  ignore("POST /orgs/"+orgid+"/patterns/  "+pattern+" - try to add "+pattern+" again with whitespace in front") {
+  test("POST /orgs/"+orgid+"/patterns/  "+pattern+" - try to add "+pattern+" again with whitespace in front") {
     val input = PostPutPatternRequest("  "+pattern+" ", Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
@@ -388,7 +388,8 @@ class PatternsSuite extends FunSuite {
     )
     val response = Http(URL+"/patterns/"+"  "+pattern+" ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    //assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.HTTPVersionNotSupported.intValue)
   }
 
   /** This pattern sets up pattern5 used for testing functionality of public field in PUT and PATCH routes **/
@@ -585,7 +586,7 @@ class PatternsSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  /*todo: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
+  /*someday: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
   test("POST /orgs/"+orgid+"/patterns - with low maxPatterns - should fail") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
@@ -1296,7 +1297,6 @@ class PatternsSuite extends FunSuite {
     assert(resp.contains(keyId) && resp.contains(keyId2))
   }
 
-  //todo: figure this out
   test("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" - get 1 of the keys and check content") {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys/"+keyId).headers(ACCEPTTEXT).headers(USERAUTH).asString
     //val response: HttpResponse[Array[Byte]] = Http(URL+"/patterns/"+pattern+"/keys/"+keyId).headers(ACCEPTTEXT).headers(USERAUTH).asBytes
@@ -1422,7 +1422,6 @@ class PatternsSuite extends FunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     //assert(response.code === HttpCode.NOT_FOUND.intValue)
-    //todo: change this to NOT_FOUND when issue anax issue 778 is fixed
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 

@@ -272,7 +272,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
   "label": "My org",
   "description": "blah blah",
   "tags": { "ibmcloud_id": "abc123def456" }
-  "heartbeatIntervals": {    // default values if not set in the node resource. This section can be omitted
+  "heartbeatIntervals": {    // default values (in seconds) if not set in the node resource. This section can be omitted
     "minInterval": 10,       // the initial heartbeat interval
     "maxInterval": 120,      // the max the interval will ever become
     "intervalAdjustment": 10     // how much to increase the interval if there has been no activity for a while

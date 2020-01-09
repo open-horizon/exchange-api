@@ -392,7 +392,7 @@ class ServicesSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  /*todo: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
+  /*someday: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
   test("POST /orgs/"+orgid+"/services - with low maxServices - should fail") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
@@ -1055,7 +1055,6 @@ class ServicesSuite extends FunSuite {
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
     //assert(response.code === HttpCode.NOT_FOUND.intValue)
-    //todo: change this to NOT_FOUND when issue anax issue 778 is fixed
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 

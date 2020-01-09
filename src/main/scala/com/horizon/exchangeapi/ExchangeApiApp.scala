@@ -165,7 +165,7 @@ object ExchangeApiApp extends App {
 
   system.registerOnTermination(() => db.close())
 
-  /*todo:
+  /*
    * Before every action runs, set the content type to be in JSON format.
    * before() {
    * contentType = formats("json")

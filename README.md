@@ -222,7 +222,8 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 ## Changes in 2.1.0
 
-- Added `heartbeatIntervals` field to node resource
+- Added `heartbeatIntervals` field to org and node resources
+- Fixed exception when route unrecognized
 
 ## Changes in 2.0.x
 

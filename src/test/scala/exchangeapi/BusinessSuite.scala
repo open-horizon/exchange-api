@@ -652,7 +652,7 @@ class BusinessSuite extends FunSuite {
   }
 
   /*
-  todo: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
+  someday: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
   ExchConfig.load()
   test("POST /orgs/"+orgid+"/business/policies/anotherOne - with low maxMessagesInMailbox") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode

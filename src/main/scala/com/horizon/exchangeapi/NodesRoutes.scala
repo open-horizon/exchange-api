@@ -401,7 +401,7 @@ class NodesRoutes(implicit val system: ActorSystem) extends JacksonSupport with 
   "msgEndPoint": "",    // not currently used, but may be in the future. Leave empty or omit to use the built-in Exchange msg service
   "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the node, can omit
   "publicKey": "ABCDEF",      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
-  "heartbeatIntervals": {    // this section can be omitted
+  "heartbeatIntervals": {    // All values in seconds. This section can be omitted
     "minInterval": 10,       // the initial heartbeat interval
     "maxInterval": 120,      // the max the interval will ever become
     "intervalAdjustment": 10     // how much to increase the interval if there has been no activity for a while

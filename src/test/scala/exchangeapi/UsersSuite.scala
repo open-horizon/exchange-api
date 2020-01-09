@@ -8,8 +8,8 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import com.horizon.exchangeapi._
-import com.horizon.exchangeapi.tables.NodeHeartbeatIntervals
-//import com.horizon.exchangeapi.tables._
+//import com.horizon.exchangeapi.tables.NodeHeartbeatIntervals
+import com.horizon.exchangeapi.tables._
 import scala.collection.immutable._
 
 /**
@@ -621,15 +621,13 @@ class UsersSuite extends FunSuite {
     assert(u.updatedBy.contentEquals("UsersSuiteTests/u1"))
   }
 
-  /**
-   * todo: restore: Add a normal agbot
-   * test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - verify we can add an agbot as root") {
-   * val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-normal", None, "ABC")
-   * val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-   * info("code: "+response.code+", response.body: "+response.body)
-   * assert(response.code === HttpCode.PUT_OK.intValue)
-   * }
-   */
+  // Add a normal agbot
+  test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - verify we can add an agbot as root") {
+    val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-normal", None, "ABC")
+    val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
 
   test("POST /orgs/" + orgid2 + "/users/" + user + " - create user in org2 so we can test cross-org ACLs") {
     val input = PostPutUsersRequest(pw, admin = true, user + "@hotmail.com")
@@ -658,7 +656,6 @@ class UsersSuite extends FunSuite {
     }
   }
 
-  /*todo: restore
   test("POST /orgs/"+orgid+"/services - add "+service+" as not public in 1st org") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -751,7 +748,6 @@ class UsersSuite extends FunSuite {
     val respObj = parse(response.body).extract[GetPatternsResponse]
     assert(respObj.patterns.size === 1)
   }
-  */
 
   test("IAM login") {
     // these tests will perform authentication with IBM cloud and will only run
@@ -807,7 +803,6 @@ class UsersSuite extends FunSuite {
       info("code: " + response.code)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
 
-      /*todo: restore
       // ensure we can add a service to check acls to other objects
       val inputSvc = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, "s1", "1.2.3", "amd64", "single", None, None, None, "a","b",None)
       response = Http(URL+"/services").postData(write(inputSvc)).method("post").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
@@ -819,7 +814,6 @@ class UsersSuite extends FunSuite {
       response = Http(URL+"/nodes/n1").postData(write(inputNode)).method("put").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
-      */
 
       // Test a 2nd org associated with the ibm cloud account
       if (!iamAccountId.isEmpty && !iamOtherKey.isEmpty && !iamOtherAccountId.isEmpty) {
@@ -828,12 +822,10 @@ class UsersSuite extends FunSuite {
         info("DELETE " + iamUser + ", code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-        /*todo: restore
         // clear auth cache
         response = Http(NOORGURL+"/admin/clearauthcaches").method("post").headers(ACCEPT).headers(ROOTAUTH).asString
         info("CLEAR CACHE code: "+response.code+", response.body: "+response.body)
         assert(response.code === HttpCode.POST_OK.intValue)
-        */
 
         // add ibmcloud_id to different org
         var tagInput = s"""{ "tags": {"ibmcloud_id": "$iamAccountId"} }"""
@@ -846,7 +838,7 @@ class UsersSuite extends FunSuite {
         info("test for api key not part of this org: code: " + response.code + ", response.body: " + response.body)
         //info("code: "+response.code)
         assert(response.code === HttpCode.BADCREDS.intValue)
-        val errorMsg = s"IAM authentication succeeded, but the cloud account id of the org $iamAccountId does not match that of the cloud account credentials $iamOtherAccountId"
+        var errorMsg = s"IAM authentication succeeded, but the cloud account id of the org $iamAccountId does not match that of the cloud account credentials $iamOtherAccountId"
         assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
 
         // remove ibmcloud_id from org
@@ -855,13 +847,11 @@ class UsersSuite extends FunSuite {
         info("code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.PUT_OK.intValue)
 
-        /*todo: doesn't fail as expected, because we aren't clearing the cache right now
         response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
         info("code: "+response.code)
         assert(response.code === HttpCode.BADCREDS.intValue)
         errorMsg = s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for $orgid"
         assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
-        */
       }
 
       /* remove ibmcloud_id from org - do not need to do this, because we delete both orgs at the end

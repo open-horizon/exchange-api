@@ -75,8 +75,6 @@ When at the `sbt` sub-command prompt:
 - Get a list of tasks: `task -V`
 - Start your app such that it will restart on code changes: `~reStart`
 - Clean all built files (if the incremental build needs to be reset): `clean`
-- Build docker image: `sbt docker:publishLocal`
-- Create just the dockerfile to see its content: `sbt docker:stage`
 
 ## Running the Automated Tests in Local Sandbox
 
@@ -115,9 +113,10 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 
 - See https://www.codemunity.io/tutorials/dockerising-akka-http/
 - Uses the sbt-native-packager plugin. See the above URL for what to add to your sbt-related files
+- Build docker image: `sbt docker:publishLocal`
 - Manually build and run the exchange executable
   - `sbt stage`
-  - `./target/universal/stage/bin/exchange-api -Djava.security.auth.login.config=src/main/resources/jaas.config`
+  - `./target/universal/stage/bin/exchange-api`
 - To see the dockerfile that gets created:
   - `sbt docker:stage`
   - `cat target/docker/stage/Dockerfile`

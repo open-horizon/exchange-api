@@ -54,8 +54,8 @@ make gen-key
 
 - `sbt`
 - `~reStart`
-- Once the server starts, to try a simple rest method browse: [http://localhost:8080/v1/admin/version](http://localhost:8080/v1/admin/version)
-- To see the swagger output, browse: [http://localhost:8080/api](http://localhost:8080/api)
+- Once the server starts, to see the swagger output, browse: [http://localhost:8080/v1/swagger](http://localhost:8080/v1/swagger)
+- To try a simple rest method curl: `curl -X GET "http://localhost:8080/v1/admin/version"`. You should get the exchange version number as the response.  
 - A convenience script `src/test/bash/primedb.sh` can be run to prime the DB with some exchange resources to use in manually testing:
 ```
 export EXCHANGE_USER=<my-user-in-IBM-org>
@@ -219,6 +219,11 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 2.2.0
+
+- Issue 258: Notification Framework bugfixes
+- Issue 265: POST /v1/orgs/{orgid}/search/nodes/error now filters on orgid 
 
 ## Changes in 2.1.0
 

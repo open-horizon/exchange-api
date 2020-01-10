@@ -126,7 +126,7 @@ final case class ChangeEntry(orgId: String, var resource: String, id: String, va
   def setOperation(newOp: String) {this.operation = newOp}
   def setResource(newResource: String) {this.resource = newResource}
 }
-final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, exchangeVersion: String)
+final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, maxChangeIdOfQuery: Int, exchangeVersion: String)
 
 /** Routes for /orgs */
 @Path("/v1/orgs")
@@ -419,8 +419,8 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
       complete({
         val q = for {
-          (n) <- NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]")
-        } yield n.nodeId
+          (n, _) <- NodesTQ.rows.filter(_.orgid === orgid) join NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]") on (_.id === _.nodeId)
+        } yield n.id
 
         db.run(q.result).map({ list =>
           logger.debug("POST /orgs/"+orgid+"/search/nodes/error result size: "+list.size)
@@ -526,6 +526,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
     val changesList = ListBuffer[ChangeEntry]()
     var mostRecentChangeId = 0
     var entryCounter = 0
+    var maxChangeIdOfQuery = 0
     breakable {
       for(input <- inputList) { //this for loop should only ever be of size 2
         val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
@@ -544,18 +545,19 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
             }
            */
           val resChange = ResourceChangesInnerObject(entry._1, entry._8)
-          if(changesMap.isDefinedAt(entry._3)){  // using the map allows for better searching and entry
-            if(changesMap(entry._3).resourceChanges.last.changeId < entry._1){
+          if(changesMap.isDefinedAt(entry._3+"_"+entry._6)){  // using the map allows for better searching and entry
+            if(changesMap(entry._3+"_"+entry._6).resourceChanges.last.changeId < entry._1){
               // the entry we are looking at actually happened later than the last entry in resourceChanges
               // doing this check by changeId on the off chance two changes happen at the exact same time changeId tells which one is most updated
-              changesMap(entry._3).addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
-              changesMap(entry._3).setOperation(entry._7) // update the most recent operation performed
-              changesMap(entry._3).setResource(entry._6) // update exactly what resource was most recently touched
+              changesMap(entry._3+"_"+entry._6).addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
+              changesMap(entry._3+"_"+entry._6).setOperation(entry._7) // update the most recent operation performed
             }
           } else{
             val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
-            changesMap(entry._3) = ChangeEntry(entry._2, entry._6, entry._3, entry._7, resChangeListBuffer)
+            changesMap(entry._3+"_"+entry._6) = ChangeEntry(entry._2, entry._6, entry._3, entry._7, resChangeListBuffer)
           }
+          //check maxChangeIdOfQuery
+          if (entry._1 > maxChangeIdOfQuery) {maxChangeIdOfQuery = entry._1}
         }
         // convert changesMap to ListBuffer[ChangeEntry]
         breakable {
@@ -569,7 +571,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
         if (entryCounter > maxResp) break // if we are over the count of allowed entries just stop and return the list as is
       }
     }
-    ResourceChangesRespObject(changesList.toList, mostRecentChangeId, exchangeVersion)
+    ResourceChangesRespObject(changesList.toList, mostRecentChangeId, maxChangeIdOfQuery, exchangeVersion)
   }
 
   /* ====== POST /orgs/{orgid}/changes ================================ */
@@ -605,22 +607,22 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
             r <- ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
           } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
 
-          val qIBM = for {
-            r <- ResourceChangesTQ.rows.filter(_.orgId === "IBM").filter(_.public === "true").filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
+          val qPublic = for {
+            r <- ResourceChangesTQ.rows.filter(_.orgId =!= orgId).filter(_.public === "true").filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
           } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
 
           var qOrgResp : scala.Seq[(Int, String, String, String, String, String, String, String)] = null
-          var qIBMResp : scala.Seq[(Int, String, String, String, String, String, String, String)] = null
+          var qPublicResp : scala.Seq[(Int, String, String, String, String, String, String, String)] = null
 
           db.run(qOrg.result.asTry.flatMap({
             case Success(qOrgResult) =>
               //logger.debug("POST /orgs/" + orgId + "/changes changes in caller org: " + qOrgResult.toString())
               logger.debug("POST /orgs/" + orgId + "/changes changes in caller org: " + qOrgResult.size)
               qOrgResp = qOrgResult
-              qIBM.result.asTry
+              qPublic.result.asTry
             case Failure(t) => DBIO.failed(t).asTry
           }).flatMap({
-            case Success(qIBMResult) => qIBMResp = qIBMResult
+            case Success(qIBMResult) => qPublicResp = qIBMResult
               //logger.debug("POST /orgs/" + orgId + "/changes public changes in IBM org: " + qIBMResult.toString())
               logger.debug("POST /orgs/" + orgId + "/changes public changes in IBM org: " + qIBMResult.size)
               val id = orgId + "/" + ident.getIdentity
@@ -638,7 +640,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
           })).map({
             case Success(n) =>
               logger.debug(s"POST /orgs/$orgId result: $n")
-              if (n > 0) (HttpCode.POST_OK, buildResourceChangesResponse(qOrgResp, qIBMResp, reqBody.maxRecords))
+              if (n > 0) (HttpCode.POST_OK, buildResourceChangesResponse(qOrgResp, qPublicResp, reqBody.maxRecords))
               else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", ident.getIdentity)))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))

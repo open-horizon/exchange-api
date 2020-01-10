@@ -1,0 +1,18 @@
+FROM ubuntu:latest
+# FROM debian:jessie
+MAINTAINER bruce potter <bp@us.ibm.com>
+
+ARG SCALA_VERSION
+
+# install build tools: curl, java, sbt
+# https is needed to get the sbt deb from its apt repo
+RUN apt-get update && apt-get install -y apt-transport-https gnupg ca-certificates
+RUN echo "deb https://dl.bintray.com/sbt/debian /" > /etc/apt/sources.list.d/sbt.list && apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 2EE0EA64E40A89B84B2DF73499E82A75642AC823
+RUN  apt-get update && apt-get install -y curl openjdk-8-jdk sbt
+
+# install scala
+RUN curl -s http://downloads.lightbend.com/scala/$SCALA_VERSION/scala-$SCALA_VERSION.tgz | tar -zx -C /usr/local/share
+RUN ln -s `ls -1dr /usr/local/share/scala-2* | head -1` /usr/local/share/scala
+ENV PATH="/usr/local/share/scala/bin:$PATH"
+
+# you can use this container for running the tests with: cd $EXCHANGE_API_DIR && sbt test

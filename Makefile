@@ -21,7 +21,7 @@ image-string = $(DOCKER_REGISTRY)/$(ARCH)_exchange-api
 
 # Some of these vars are also used by the Dockerfiles
 # try to sync this version with the version of scala you have installed on your dev machine, and with what is specified in build.sbt
-#SCALA_VERSION ?= 2.12.7
+SCALA_VERSION ?= 2.12.10
 #SCALA_VERSION_SHORT ?= 2.12
 # this version corresponds to the Version variable in project/build.scala
 #EXCHANGE_API_WAR_VERSION ?= 0.1.0
@@ -47,33 +47,27 @@ EXCHANGE_HOST_ALIAS ?= edge-fab-exchange
 EXCHANGE_CONTAINER_KEYSTORE_DIR ?= /var/lib/jetty/etc
 # The public cert we should use to connect to an ibm cloud postgres db
 EXCHANGE_HOST_POSTGRES_CERT_FILE ?= $(EXCHANGE_HOST_CONFIG_DIR)/postres-cert/root.crt
-EXCHANGE_CONTAINER_POSTGRES_CERT_FILE ?= /home/jetty/.postgresql/root.crt
+# Note: this home dir in the container must match what is set for daemonUser in build.sbt
+EXCHANGE_CONTAINER_POSTGRES_CERT_FILE ?= /home/exchangeuser/.postgresql/root.crt
 
 
 default: .docker-exec-run
 
-# Removes exec container, but not bld container
-clean: clean-exec-image
-
-clean-exec-image:
+clean:
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
 	- docker rmi $(image-string):{$(DOCKER_TAG),$(DOCKER_LATEST)} 2> /dev/null || :
-	rm -f .docker-exec*
-
-# Also remove the bld image/container
-clean-all: clean
-	- docker rm -f $(DOCKER_NAME)_bld 2> /dev/null || :
-	- docker rmi $(image-string):bld 2> /dev/null || :
+	- docker rm -f $(DOCKER_NAME)_test 2> /dev/null || :
+	- docker rmi $(image-string):test 2> /dev/null || :
 	- docker network remove $(DOCKER_NETWORK) 2> /dev/null || :
 	rm -f .docker-*
 
-# rem-docker-bld:
-# 	- docker rm -f $(DOCKER_NAME)_bld 2> /dev/null || :
-
+# Altho the name is a little misleading, .docker-exec just means build the container used for running the exchange
 docker: .docker-exec
 
+# Note: Using dot files to hold the modification time the docker image/container was built
+
 # Both of these cmds can fail for legitimate reasons:
-#  - the remove because the network is not there or the bld container is currently running and using it
+#  - the remove because the network is not there or the test container is currently running and using it
 #  - the create because the network already exists because of the build step
 .docker-network:
 	- docker network remove $(DOCKER_NETWORK) 2> /dev/null || :
@@ -96,9 +90,16 @@ docker: .docker-exec
 	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -v $(EXCHANGE_HOST_CONFIG_DIR):$(EXCHANGE_CONFIG_DIR) $(image-string):$(DOCKER_TAG)
 	@touch $@
 
-# Run the automated tests in the bld container against the exchange svr running in the exec container
-# Note: this target is used by travis as part of testing
-test: .docker-bld
+# Run the automated tests in the test container against the exchange svr running in the exec container
+# Note: these targets is used by travis as part of testing
+#someday: can we create an "excutable" of the tests using sbt-native-packager instead?
+.docker-test: .docker-network
+	docker build -t $(image-string):test $(DOCKER_OPTS) -f Dockerfile-test --build-arg SCALA_VERSION=$(SCALA_VERSION) .
+	- docker rm -f $(DOCKER_NAME)_test 2> /dev/null || :
+	docker run --name $(DOCKER_NAME)_test --network $(DOCKER_NETWORK) -d -t -v $(CURDIR):$(EXCHANGE_API_DIR) $(image-string):test /bin/bash
+	@touch $@
+
+test: .docker-test
 	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
 	docker exec -t \
 		-e EXCHANGE_URL_ROOT=http://$(DOCKER_NAME):8080 \
@@ -106,7 +107,7 @@ test: .docker-bld
 		-e "EXCHANGE_IAM_KEY=$$EXCHANGE_IAM_KEY" \
 		-e "EXCHANGE_IAM_EMAIL=$$EXCHANGE_IAM_EMAIL" \
 		-e "EXCHANGE_IAM_ACCOUNT=$$EXCHANGE_IAM_ACCOUNT" \
-		$(DOCKER_NAME)_bld /bin/bash -c 'cd $(EXCHANGE_API_DIR) && sbt test'
+		$(DOCKER_NAME)_test /bin/bash -c 'cd $(EXCHANGE_API_DIR) && sbt test'
 
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:
@@ -168,4 +169,4 @@ version:
 
 .SECONDARY:
 
-.PHONY: default clean clean-exec-image clean-all docker test docker-push-only docker-push-version-only docker-push docker-push-to-prod gen-key sync-swagger-ui testmake version
+.PHONY: default clean docker test docker-push-only docker-push-version-only docker-push docker-push-to-prod gen-key sync-swagger-ui testmake version

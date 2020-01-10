@@ -79,6 +79,7 @@ lazy val root = (project in file(".")).
 
     // These settings are for the sbt-native-packager plugin building the docker image. See: https://sbt-native-packager.readthedocs.io/en/stable/formats/docker.html
     packageName in Docker := "openhorizon/amd64_exchange-api",
+    daemonUser in Docker := "exchangeuser",
     dockerExposedPorts ++= Seq(8080),
     dockerBaseImage := "openjdk:8-jre"
     //dockerEntrypoint ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config")

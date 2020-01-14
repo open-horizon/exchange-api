@@ -275,6 +275,7 @@ service.key.not.deleted=key ''{0}'' for service ''{1}'' not deleted: {2}
 duplicate.dockauth.resource.already.exists=duplicate dockauth resource already exists
 dockauth.resource.updated=dockauth resource updated
 dockauth.num.added=dockauth {0} added
+dockauth.unexpected=unexpected result from the DB when trying to add a dockauth
 service.dockauth.not.inserted=dockAuthId ''{0}'' for service ''{1}'' not inserted: {1}
 dockauth.updated=dockauth {0} updated
 dockauth.not.found=dockauth {0} not found

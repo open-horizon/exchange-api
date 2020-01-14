@@ -230,6 +230,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 - Added back in Makefile `test` target for travis
 - Updated local postgres config instructions in README.md
 - Fixed issue 270: Wrong error response when org not prepended
+- Fixed corner-case bug in `POST /orgs/{orgid}/services/{service}/dockauths`
 
 ## Changes in 2.2.0
 

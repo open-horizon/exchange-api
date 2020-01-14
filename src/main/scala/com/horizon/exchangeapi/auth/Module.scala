@@ -63,7 +63,8 @@ class Module extends LoginModule with AuthorizationSupport {
       // Get the creds from the header or params
       //val creds = credentials(reqInfo)
       //val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
-      val (_, id) = IbmCloudAuth.compositeIdSplit(creds.id)
+      val (org, id) = IbmCloudAuth.compositeIdSplit(creds.id)
+      if (org == "") throw new OrgNotSpecifiedException
       if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException
       //logger.info("User or id " + userOrId + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
       if (isDbMigration && !Role.isSuperUser(creds.id)) throw new IsDbMigrationException()

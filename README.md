@@ -12,11 +12,17 @@ services in the exchange.
 - [Install sbt](https://www.scala-sbt.org/1.x/docs/Setup.html)
 - (optional) Install conscript and giter8 if you want to get example code from scalatra.org
 - Install postgresql locally (unless you have a remote instance you are using). Instructions for installing on Mac OS X:
-    - `brew install postgresql`
-    - `echo 'host all all <my-local-subnet> trust' >> /usr/local/var/postgres/pg_hba.conf`
-    - `sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = 'my-ip'/" /usr/local/var/postgres/postgresql.conf`
-    - `brew services start postgresql`
-    - test: `psql "host=<my-ip> dbname=postgres user=<myuser> password=''"`
+    - Install: `brew install postgresql`
+    - Note: when running/testing the exchange svr in a docker container, it can't reach you postgres instance on `localhost`, so configure it to also listen on your local IP:
+      - set this to your IP: `export MY_IP=<my-ip>`
+      - `echo "host all all $MY_IP/32 trust" >> /usr/local/var/postgres/pg_hba.conf`
+      - `sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = '$MY_IP'/" /usr/local/var/postgres/postgresql.conf`
+      - `brew services start postgresql` or if it is already running `brew services restart postgresql`
+    - Or if your test machine is on a private subnet:
+      - trust all clients on your subnet: `echo 'host all all 192.168.1.0/24 trust' >> /usr/local/var/postgres/pg_hba.conf`
+      - listen on all interfaces: `sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /usr/local/var/postgres/postgresql.conf`
+      - `brew services start postgresql` or if it is already running `brew services restart postgresql`
+    - Test: `psql "host=$MY_IP dbname=postgres user=<myuser> password=''"`
 - Add a config file on your development system at /etc/horizon/exchange/config.json with at least the following content (this is needed for the automated tests. Defaults and the full list of config variables are in `src/main/resources/config.json`):
 
 ```
@@ -75,8 +81,6 @@ When at the `sbt` sub-command prompt:
 - Get a list of tasks: `task -V`
 - Start your app such that it will restart on code changes: `~reStart`
 - Clean all built files (if the incremental build needs to be reset): `clean`
-- Build docker image: `sbt docker:publishLocal`
-- Create just the dockerfile to see its content: `sbt docker:stage`
 
 ## Running the Automated Tests in Local Sandbox
 
@@ -101,7 +105,7 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - Compile your local code and build the exchange container: `make .docker-exec`
     - Run the container locally: `make start-docker-exec`
 - Manually test container locally: `curl -sS -w %{http_code} http://localhost:8080/v1/admin/version`
-    - Note: the container can not access a postgres db running locally on the docker host if the db is only listening for unix domain sockets or 127.0.0.1.
+    - Note: the container can not access a postgres db running locally on the host if the db is only listening for unix domain sockets or 127.0.0.1. See the **Preconditions** section above.
 - Manually test the local container via https:
     - If you haven't already, set EXCHANGE_KEY_PW and run `make gen-key`
     - Add `edge-fab-exchange` as an alias for `localhost` in `/etc/hosts`
@@ -115,9 +119,10 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 
 - See https://www.codemunity.io/tutorials/dockerising-akka-http/
 - Uses the sbt-native-packager plugin. See the above URL for what to add to your sbt-related files
+- Build docker image: `sbt docker:publishLocal`
 - Manually build and run the exchange executable
   - `sbt stage`
-  - `./target/universal/stage/bin/exchange-api -Djava.security.auth.login.config=src/main/resources/jaas.config`
+  - `./target/universal/stage/bin/exchange-api`
 - To see the dockerfile that gets created:
   - `sbt docker:stage`
   - `cat target/docker/stage/Dockerfile`
@@ -219,6 +224,13 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 2.3.0
+
+- Added back in Makefile `test` target for travis
+- Updated local postgres config instructions in README.md
+- Fixed issue 270: Wrong error response when org not prepended
+- Fixed corner-case bug in `POST /orgs/{orgid}/services/{service}/dockauths`
 
 ## Changes in 2.2.0
 

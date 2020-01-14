@@ -31,6 +31,8 @@ class DbConnectionException(msg: String) extends AuthException(HttpCode.BAD_GW, 
 
 class InvalidCredentialsException(msg: String = ExchMsg.translate("invalid.credentials")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 
+class OrgNotSpecifiedException(msg: String = ExchMsg.translate("org.not.specified")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+
 class AccessDeniedException(msg: String = ExchMsg.translate("access.denied")) extends AuthException(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, msg)
 
 class BadInputException(msg: String = ExchMsg.translate("bad.input")) extends AuthException(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, msg)

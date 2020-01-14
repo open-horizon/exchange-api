@@ -225,10 +225,11 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
-## Changes in 2.2.0
+## Changes in 2.3.0
 
 - Added back in Makefile `test` target for travis
 - Updated local postgres config instructions in README.md
+- Fixed issue 270: Wrong error response when org not prepended
 
 ## Changes in 2.2.0
 

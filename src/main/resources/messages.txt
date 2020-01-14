@@ -28,6 +28,7 @@ api.internal.error=internal_error
 api.not.implemented=not-implemented
 api.db.connection.error=database-connection-error
 api.db.timeout=database-timeout
+org.not.specified=No org was specified at the beginning of the request credentials
 org.not.found.user.facing.error=IAM authentication succeeded, but no matching exchange org with a cloud account id was found for {0}
 incorrect.org.found.user.facing.error=IAM authentication succeeded, but the cloud account id of the org {0} does not match that of the cloud account credentials {1}
 incorrect.org.found.user.facing.error.ICP=ICP IAM authentication succeeded, but the org specified in the request {0} does not match the org associated with the ICP credentials {1}

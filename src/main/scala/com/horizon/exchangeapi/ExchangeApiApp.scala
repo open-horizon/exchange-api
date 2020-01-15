@@ -37,7 +37,6 @@ import org.json4s._
 //import org.json4s.jackson.JsonMethods._
 //import org.json4s.jackson.Serialization.write
 
-import com.typesafe.config._
 import scala.io.Source
 
 object ExchangeApiConstants {
@@ -63,9 +62,9 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
 
   // Set up ActorSystem and other dependencies here
   ExchConfig.load() // get config file, normally in /etc/horizon/exchange/config.json
-  val actorConfig = ConfigFactory.parseString("akka.loglevel=" + ExchConfig.getLogLevel)
+  //val actorConfig = ConfigFactory.parseString("akka.loglevel=" + ExchConfig.getLogLevel)
   // Note: this object extends App which extends DelayedInit, so these values won't be available immediately. See https://stackoverflow.com/questions/36710169/why-are-implicit-variables-not-initialized-in-scala-when-called-from-unit-test/36710170
-  implicit val system: ActorSystem = ActorSystem("actors", actorConfig)
+  implicit val system: ActorSystem = ActorSystem("actors", ExchConfig.getAkkaConfig)
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val executionContext: ExecutionContext = system.dispatcher
   ExchConfig.defaultExecutionContext = executionContext // need this set in an object that doesn't use DelayedInit

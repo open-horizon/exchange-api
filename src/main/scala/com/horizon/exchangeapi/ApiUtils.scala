@@ -10,6 +10,8 @@ import akka.http.scaladsl.server._
 import com.horizon.exchangeapi.tables.{OrgRow, UserRow}
 import com.osinka.i18n.{Lang, Messages}
 import com.typesafe.config._
+//import collection.JavaConversions._  deprecated
+//import scala.collection.JavaConverters._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
@@ -235,6 +237,14 @@ object ExchConfig {
       println("Invalid logging level '" + loglev + "' specified in config.json. Continuing with the default logging level " + LogLevel.INFO + ".")
       LogLevel.INFO // fallback
     }
+  }
+
+  def getAkkaConfig: Config = {
+    var akkaConfig = config.getObject("api.akka").asScala.toMap
+    akkaConfig = akkaConfig ++ Map[scala.Predef.String,ConfigValue]("akka.loglevel" -> ConfigValueFactory.fromAnyRef(ExchConfig.getLogLevel))
+    printf("Running with akka config: %s\n", akkaConfig.toString())
+    //ConfigFactory.parseMap(Map("akka.loglevel" -> ExchConfig.getLogLevel).asJava, "akka overrides")
+    ConfigFactory.parseMap(akkaConfig.asJava, "akka overrides")
   }
 
   // Put the root user in the auth cache in case the db has not been inited yet and they need to be able to run POST /admin/initdb

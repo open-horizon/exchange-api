@@ -3,19 +3,22 @@ package com.horizon.exchangeapi
 
 import javax.ws.rs._
 import akka.actor.ActorSystem
-import akka.event.{ Logging, LoggingAdapter }
+import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson._
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.{ Content, Schema }
+import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations._
-import scala.concurrent.ExecutionContext.Implicits.global
+
+//import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
 import org.json4s._
+
 import scala.collection.immutable._
+import scala.concurrent.ExecutionContext
 import scala.util._
 
 //import org.json4s.jackson.JsonMethods._
@@ -77,12 +80,14 @@ final case class ChangePwRequest(newPassword: String) {
 
 /** Implementation for all of the /users routes */
 @Path("/v1/orgs/{orgid}/users")
-class UsersRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
-  def db: Database = ExchangeApiApp.getDb
-  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
-  //protected implicit def jsonFormats: Formats
+trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
+  // Will pick up these values when it is mixed in with ExchangeApiApp
+  def db: Database
+  def system: ActorSystem
+  def logger: LoggingAdapter
+  implicit def executionContext: ExecutionContext
 
-  def routes: Route = usersGetRoute ~ userGetRoute ~ userPostRoute ~ userPutRoute ~ userPatchRoute ~ userDeleteRoute ~ userConfirmRoute ~ userChangePwRoute
+  def usersRoutes: Route = usersGetRoute ~ userGetRoute ~ userPostRoute ~ userPutRoute ~ userPatchRoute ~ userDeleteRoute ~ userConfirmRoute ~ userChangePwRoute
 
   /* ====== GET /orgs/{orgid}/users ================================ */
   @GET

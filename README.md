@@ -225,6 +225,11 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.4.0
+
+- Switch the db.run() steps to use the akka execution context
+- Enabled setting akka config in the exchange `config.json` file
+
 ## Changes in 2.3.0
 
 - Added back in Makefile `test` target for travis

@@ -10,17 +10,21 @@ import akka.http.scaladsl.server._
 import com.horizon.exchangeapi.tables.{OrgRow, UserRow}
 import com.osinka.i18n.{Lang, Messages}
 import com.typesafe.config._
+//import collection.JavaConversions._  deprecated
+//import scala.collection.JavaConverters._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
 import scala.util._
 import java.util.{Base64, Properties}
 
+import scala.concurrent.ExecutionContext
+
 //import ch.qos.logback.classic.Level
 import com.horizon.exchangeapi.auth.AuthException
 
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext.Implicits.global
+//import scala.concurrent.ExecutionContext.Implicits.global
 import org.json4s._
 //import org.json4s.{DefaultFormats, JValue}
 //import org.json4s.jackson.JsonMethods._
@@ -114,6 +118,13 @@ final case class AuthRejection(t: Throwable) extends ExchangeRejection {
   }
 }
 
+final case class NotFoundRejection(apiRespMsg: String) extends ExchangeRejection {
+  def httpCode = StatusCodes.NotFound
+  def apiRespCode = ApiRespType.NOT_FOUND
+}
+
+//someday: the rest of these rejections are not currently used. Instead the route implementations either do the complete() directly,
+//  or turn an AuthException into a complete() using its toComplete method. But maybe it is better for the akka framework to know it is a rejection.
 final case class BadCredsRejection(apiRespMsg: String) extends ExchangeRejection {
   def httpCode = StatusCodes.Unauthorized
   def apiRespCode = ApiRespType.BADCREDS
@@ -137,11 +148,6 @@ final case class AlreadyExistsRejection(apiRespMsg: String) extends ExchangeReje
 final case class AlreadyExists2Rejection(apiRespMsg: String) extends ExchangeRejection {
   def httpCode = StatusCodes.Conflict
   def apiRespCode = ApiRespType.ALREADY_EXISTS
-}
-
-final case class NotFoundRejection(apiRespMsg: String) extends ExchangeRejection {
-  def httpCode = StatusCodes.NotFound
-  def apiRespCode = ApiRespType.NOT_FOUND
 }
 
 final case class BadGwRejection(apiRespMsg: String) extends ExchangeRejection {
@@ -191,6 +197,8 @@ object ExchConfig {
   val configOpts = ConfigParseOptions.defaults().setSyntax(ConfigSyntax.CONF).setAllowMissing(false)
   var config = ConfigFactory.parseResources(configResourceName, configOpts) // these are the default values, this file is bundled in the jar
 
+  var defaultExecutionContext: ExecutionContext = _ // this gets set early by ExchangeApiApp
+  implicit def executionContext: ExecutionContext = defaultExecutionContext
   var defaultLogger: LoggingAdapter = _ // this gets set early by ExchangeApiApp
   def logger = defaultLogger
 
@@ -229,6 +237,14 @@ object ExchConfig {
       println("Invalid logging level '" + loglev + "' specified in config.json. Continuing with the default logging level " + LogLevel.INFO + ".")
       LogLevel.INFO // fallback
     }
+  }
+
+  def getAkkaConfig: Config = {
+    var akkaConfig = config.getObject("api.akka").asScala.toMap
+    akkaConfig = akkaConfig ++ Map[scala.Predef.String,ConfigValue]("akka.loglevel" -> ConfigValueFactory.fromAnyRef(ExchConfig.getLogLevel))
+    printf("Running with akka config: %s\n", akkaConfig.toString())
+    //ConfigFactory.parseMap(Map("akka.loglevel" -> ExchConfig.getLogLevel).asJava, "akka overrides")
+    ConfigFactory.parseMap(akkaConfig.asJava, "akka overrides")
   }
 
   // Put the root user in the auth cache in case the db has not been inited yet and they need to be able to run POST /admin/initdb

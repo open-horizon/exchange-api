@@ -27,17 +27,16 @@ import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 
-import akka.http.scaladsl.server.Directives._
+//import akka.http.scaladsl.server.Directives._
 
 //import spray.json.DefaultJsonProtocol
 //import spray.json._
-import de.heikoseeberger.akkahttpjackson._
+//import de.heikoseeberger.akkahttpjackson._
 import org.json4s._
 //import org.json4s.DefaultFormats
 //import org.json4s.jackson.JsonMethods._
 //import org.json4s.jackson.Serialization.write
 
-import com.typesafe.config._
 import scala.io.Source
 
 object ExchangeApiConstants {
@@ -49,8 +48,8 @@ object ExchangeApiConstants {
 /**
  * Main akka server for the Exchange REST API.
  */
-class ExchangeApiApp {} // so far just for the Logging
-object ExchangeApiApp extends App {
+//class ExchangeApiApp {} // so far just for the Logging
+object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRoutes with AgbotsRoutes with ServicesRoutes with PatternsRoutes with BusinessRoutes with CatalogRoutes with AdminRoutes with SwaggerUiService {
 
   /** Sets up automatic case class to JSON output serialization, required by the JValueResult trait. */
   //protected implicit val jsonFormats: Formats = DefaultFormats
@@ -58,41 +57,45 @@ object ExchangeApiApp extends App {
   //import DefaultJsonProtocol._
   //implicit val apiRespJsonFormat = jsonFormat2(ApiResponse)
   // Using jackson json (un)marshalling instead of sprayjson: https://github.com/hseeberger/akka-http-json
-  import JacksonSupport._
+  //import JacksonSupport._
   private implicit val formats = DefaultFormats
 
   // Set up ActorSystem and other dependencies here
   ExchConfig.load() // get config file, normally in /etc/horizon/exchange/config.json
-  val actorConfig = ConfigFactory.parseString("akka.loglevel=" + ExchConfig.getLogLevel)
+  //val actorConfig = ConfigFactory.parseString("akka.loglevel=" + ExchConfig.getLogLevel)
   // Note: this object extends App which extends DelayedInit, so these values won't be available immediately. See https://stackoverflow.com/questions/36710169/why-are-implicit-variables-not-initialized-in-scala-when-called-from-unit-test/36710170
-  implicit val system: ActorSystem = ActorSystem("actors", actorConfig)
+  implicit val system: ActorSystem = ActorSystem("actors", ExchConfig.getAkkaConfig)
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val executionContext: ExecutionContext = system.dispatcher
+  ExchConfig.defaultExecutionContext = executionContext // need this set in an object that doesn't use DelayedInit
 
-  /*lazy*/ implicit val logger: LoggingAdapter = Logging(system, classOf[ExchangeApiApp])
+  implicit val logger: LoggingAdapter = Logging(system, "ExchApi")
   ExchConfig.defaultLogger = logger // need this set in an object that doesn't use DelayedInit
   ExchConfig.createRootInCache()
 
-  // Catches rejections from routes and returns the http codes we want
+  // Catches rejections from routes and returns the http codes we want. See https://doc.akka.io/docs/akka-http/current/routing-dsl/rejections.html#customizing-rejection-handling
   implicit def myRejectionHandler =
     RejectionHandler.newBuilder()
+      // this handles all of our rejections
       .handle {
         case r: ExchangeRejection =>
           complete((r.httpCode, r.toApiResp))
       }
+      // we never use this one, because our AuthRejection extends ExchangeRejection above
       .handle {
         case AuthorizationFailedRejection =>
-          complete((StatusCodes.Forbidden, "You're out of your depth!"))
+          complete((StatusCodes.Forbidden, "forbidden"))
       }
       .handle {
         case ValidationRejection(msg, _) =>
           complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, msg)))
       }
+      // this comes from the entity() directive when parsing the request body failed
       .handle {
-        case MalformedRequestContentRejection(msg, _) => // this comes from the entity() directive when parsing the request body failed
+        case MalformedRequestContentRejection(msg, _) =>
           complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, msg)))
       }
-      //todo: not sure when this will occur
+      // do not know when this is run
       .handleAll[MethodRejection] { methodRejections =>
         val names = methodRejections.map(_.supported.name)
         complete((StatusCodes.MethodNotAllowed, s"method not supported: ${names mkString " or "}"))
@@ -122,21 +125,21 @@ object ExchangeApiApp extends App {
   // Create all of the routes and concat together
   case class testResp(result: String)
   def testRoute = { path("test") { get { logger.debug("In /test"); complete(testResp("OK")) } } }
-  val orgsRoutes = (new OrgsRoutes).routes
-  val usersRoutes = (new UsersRoutes).routes
-  val nodesRoutes = (new NodesRoutes).routes
-  val agbotsRoutes = (new AgbotsRoutes).routes
-  val servicesRoutes = (new ServicesRoutes).routes
-  val patternsRoutes = (new PatternsRoutes).routes
-  val businessRoutes = (new BusinessRoutes).routes
-  val catalogRoutes = (new CatalogRoutes).routes
-  val adminRoutes = (new AdminRoutes).routes
-  val swaggerDocRoutes = SwaggerDocService.routes
-  val swaggerUiRoutes = (new SwaggerUiService).routes
+  //val orgsRoutes = (new OrgsRoutes).routes
+  //val usersRoutes = (new UsersRoutes).routes
+  //val nodesRoutes = (new NodesRoutes).routes
+  //val agbotsRoutes = (new AgbotsRoutes).routes
+  //val servicesRoutes = (new ServicesRoutes).routes
+  //val patternsRoutes = (new PatternsRoutes).routes
+  //val businessRoutes = (new BusinessRoutes).routes
+  //val catalogRoutes = (new CatalogRoutes).routes
+  //val adminRoutes = (new AdminRoutes).routes
+  //val swaggerDocRoutes = SwaggerDocService.routes
+  //val swaggerUiRoutes = (new SwaggerUiService).routes
 
   // Note: all exceptions (code failures) will be handled by the akka-http exception handler. To override that, see https://doc.akka.io/docs/akka-http/current/routing-dsl/exception-handling.html#exception-handling
   //someday: use directive https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
-  lazy val routes: Route = DebuggingDirectives.logRequestResult(requestResponseLogging _) { pathPrefix("v1") { testRoute ~ orgsRoutes ~ usersRoutes ~ nodesRoutes ~ agbotsRoutes ~ servicesRoutes ~ patternsRoutes ~ businessRoutes ~ catalogRoutes ~ adminRoutes ~ swaggerDocRoutes ~ swaggerUiRoutes } }
+  lazy val routes: Route = DebuggingDirectives.logRequestResult(requestResponseLogging _) { pathPrefix("v1") { testRoute ~ orgsRoutes ~ usersRoutes ~ nodesRoutes ~ agbotsRoutes ~ servicesRoutes ~ patternsRoutes ~ businessRoutes ~ catalogRoutes ~ adminRoutes ~ SwaggerDocService.routes ~ swaggerUiRoutes } }
 
   // Load the db backend. The db access info must be in config.json
   var cpds: ComboPooledDataSource = _
@@ -166,10 +169,8 @@ object ExchangeApiApp extends App {
   system.registerOnTermination(() => db.close())
 
   /*
-   * Before every action runs, set the content type to be in JSON format.
+   * Before every action runs...
    * before() {
-   * contentType = formats("json")
-   *
    * // We have to set these ourselves because we had to disable scalatra's builtin CorsSupport because for some inexplicable reason it doesn't set Access-Control-Allow-Origin which is critical
    * //response.setHeader("Access-Control-Allow-Origin", "*")  // <- this can only be used for unauthenticated requests
    * response.setHeader("Access-Control-Allow-Origin", request.getHeader("Origin"))

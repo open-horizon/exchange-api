@@ -3,7 +3,7 @@ package com.horizon.exchangeapi
 
 import javax.ws.rs._
 import akka.actor.ActorSystem
-import akka.event.{Logging, LoggingAdapter}
+import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -14,7 +14,9 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations._
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
+
+//import scala.concurrent.ExecutionContext.Implicits.global
 
 import com.horizon.exchangeapi.tables._
 import org.json4s._
@@ -136,12 +138,14 @@ final case class GetAgbotMsgsResponse(messages: List[AgbotMsg], lastIndex: Int)
 
 /** Implementation for all of the /agbots routes */
 @Path("/v1/orgs/{orgid}/agbots")
-class AgbotsRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
-  def db: Database = ExchangeApiApp.getDb
-  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
-  //protected implicit def jsonFormats: Formats
+trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
+  // Will pick up these values when it is mixed in with ExchangeApiApp
+  def db: Database
+  def system: ActorSystem
+  def logger: LoggingAdapter
+  implicit def executionContext: ExecutionContext
 
-  def routes: Route = agbotsGetRoute ~ agbotGetRoute ~ agbotPutRoute ~ agbotPatchRoute ~ agbotDeleteRoute ~ agbotHeartbeatRoute ~ agbotGetPatternsRoute ~ agbotGetPatternRoute ~ agbotPostPatRoute ~ agbotDeletePatsRoute ~ agbotDeletePatRoute ~ agbotGetBusPolsRoute ~ agbotGetBusPolRoute ~ agbotPostBusPolRoute ~ agbotDeleteBusPolsRoute ~ agbotDeleteBusPolRoute ~ agbotGetAgreementsRoute ~ agbotGetAgreementRoute ~ agbotPutAgreementRoute ~ agbotDeleteAgreementsRoute ~ agbotDeleteAgreementRoute ~ agbotAgreementConfirmRoute ~ agbotPostMsgRoute ~ agbotGetMsgsRoute ~ agbotDeleteMsgRoute
+  def agbotsRoutes: Route = agbotsGetRoute ~ agbotGetRoute ~ agbotPutRoute ~ agbotPatchRoute ~ agbotDeleteRoute ~ agbotHeartbeatRoute ~ agbotGetPatternsRoute ~ agbotGetPatternRoute ~ agbotPostPatRoute ~ agbotDeletePatsRoute ~ agbotDeletePatRoute ~ agbotGetBusPolsRoute ~ agbotGetBusPolRoute ~ agbotPostBusPolRoute ~ agbotDeleteBusPolsRoute ~ agbotDeleteBusPolRoute ~ agbotGetAgreementsRoute ~ agbotGetAgreementRoute ~ agbotPutAgreementRoute ~ agbotDeleteAgreementsRoute ~ agbotDeleteAgreementRoute ~ agbotAgreementConfirmRoute ~ agbotPostMsgRoute ~ agbotGetMsgsRoute ~ agbotDeleteMsgRoute
 
   /* ====== GET /orgs/{orgid}/agbots ================================ */
   @GET

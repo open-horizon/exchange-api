@@ -1,19 +1,21 @@
 package com.horizon.exchangeapi.auth
 
-import java.io.{ BufferedInputStream, File, FileInputStream }
-import java.security.cert.{ Certificate, CertificateFactory }
+import java.io.{BufferedInputStream, File, FileInputStream}
+import java.security.cert.{Certificate, CertificateFactory}
 import java.util.concurrent.TimeUnit
 import java.security.KeyStore
 
 import com.google.common.cache.CacheBuilder
 import com.horizon.exchangeapi._
-import com.horizon.exchangeapi.tables.{ OrgsTQ, UserRow, UsersTQ }
-import javax.net.ssl.{ SSLContext, SSLSocketFactory, TrustManagerFactory }
+import com.horizon.exchangeapi.tables.{OrgsTQ, UserRow, UsersTQ}
+import javax.net.ssl.{SSLContext, SSLSocketFactory, TrustManagerFactory}
 import javax.security.auth._
 import javax.security.auth.callback._
 import javax.security.auth.spi.LoginModule
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+
+import scala.concurrent.ExecutionContext
 //import org.slf4j.{ Logger, LoggerFactory }
 import scalacache._
 import scalacache.guava.GuavaCache
@@ -151,7 +153,8 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
 object IbmCloudAuth {
   import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 
-  import scala.concurrent.ExecutionContext.Implicits.global
+  //import scala.concurrent.ExecutionContext.Implicits.global
+  implicit def executionContext: ExecutionContext = ExchConfig.defaultExecutionContext
 
   private var db: Database = _
   private var sslSocketFactory: SSLSocketFactory = _

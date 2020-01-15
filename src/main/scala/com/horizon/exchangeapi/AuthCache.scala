@@ -2,6 +2,8 @@ package com.horizon.exchangeapi
 
 import java.util.concurrent.TimeUnit
 
+import scala.concurrent.ExecutionContext
+
 //import akka.event.LoggingAdapter
 import com.horizon.exchangeapi.CacheIdType.CacheIdType
 import com.horizon.exchangeapi.tables._
@@ -31,6 +33,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
   //val logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
   //def logger: LoggingAdapter = ExchangeApiApp.logger  // <- can't do this because of DelayedInit
   def logger = ExchConfig.logger
+  implicit def executionContext: ExecutionContext = ExchConfig.defaultExecutionContext
 
   var cacheType = "" // set from the config file by ExchConfig.load(). Note: currently there is no other value besides guava
 

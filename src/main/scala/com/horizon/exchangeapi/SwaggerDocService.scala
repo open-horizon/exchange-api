@@ -41,8 +41,8 @@ object SwaggerDocService extends SwaggerHttpService {
   - Configuration of the UI display: https://github.com/swagger-api/swagger-ui/blob/master/docs/usage/configuration.md
   - Maybe explore using https://github.com/pragmatico/swagger-ui-akka-http to run the swagger ui
  */
-class SwaggerUiService extends Directives {
-  val routes = path("swagger") { getFromResource("swagger/index.html") } ~ getFromResourceDirectory("swagger")
+trait SwaggerUiService extends Directives {
+  val swaggerUiRoutes = path("swagger") { getFromResource("swagger/index.html") } ~ getFromResourceDirectory("swagger")
 }
 
 /* this didn't work because swagger annotations need to be constants

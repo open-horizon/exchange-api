@@ -3,8 +3,10 @@ package com.horizon.exchangeapi
 
 import javax.ws.rs._
 import akka.actor.ActorSystem
-import akka.event.{Logging, LoggingAdapter}
+import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.{HttpEntity, HttpResponse}
+
+import scala.concurrent.ExecutionContext
 //import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ContentTypes
 //import akka.http.scaladsl.model.headers.`Content-Type`
@@ -26,7 +28,7 @@ import io.swagger.v3.oas.annotations.media.{ Content, Schema }
 //import io.swagger.v3.oas.annotations.{ Operation, Parameter }
 import io.swagger.v3.oas.annotations._
 
-import scala.concurrent.ExecutionContext.Implicits.global
+//import scala.concurrent.ExecutionContext.Implicits.global
 
 import scala.util._
 
@@ -67,12 +69,14 @@ final case class DeleteIBMChangesRequest(resources: List[String]) {
 
 /** Implementation for all of the /admin routes */
 @Path("/v1/admin")
-class AdminRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
-  def db: Database = ExchangeApiApp.getDb
-  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
-  //protected implicit def jsonFormats: Formats
+trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
+  // Will pick up these values when it is mixed in with ExchangeApiApp
+  def db: Database
+  def system: ActorSystem
+  def logger: LoggingAdapter
+  implicit def executionContext: ExecutionContext
 
-  def routes: Route = adminReloadRoute ~ adminHashPwRoute ~ adminGetDbTokenRoute ~ adminDropDbRoute ~ adminInitDbRoute ~ adminGetVersionRoute ~ adminGetStatusRoute ~ adminConfigRoute ~ adminClearCacheRoute ~ adminDeleteIbmChangesRoute
+  def adminRoutes: Route = adminReloadRoute ~ adminHashPwRoute ~ adminGetDbTokenRoute ~ adminDropDbRoute ~ adminInitDbRoute ~ adminGetVersionRoute ~ adminGetStatusRoute ~ adminConfigRoute ~ adminClearCacheRoute ~ adminDeleteIbmChangesRoute
 
   // =========== POST /admin/reload ===============================
   @POST

@@ -16,11 +16,13 @@ import scala.collection.immutable._
 import scala.util._
 import java.util.{Base64, Properties}
 
+import scala.concurrent.ExecutionContext
+
 //import ch.qos.logback.classic.Level
 import com.horizon.exchangeapi.auth.AuthException
 
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext.Implicits.global
+//import scala.concurrent.ExecutionContext.Implicits.global
 import org.json4s._
 //import org.json4s.{DefaultFormats, JValue}
 //import org.json4s.jackson.JsonMethods._
@@ -193,6 +195,8 @@ object ExchConfig {
   val configOpts = ConfigParseOptions.defaults().setSyntax(ConfigSyntax.CONF).setAllowMissing(false)
   var config = ConfigFactory.parseResources(configResourceName, configOpts) // these are the default values, this file is bundled in the jar
 
+  var defaultExecutionContext: ExecutionContext = _ // this gets set early by ExchangeApiApp
+  implicit def executionContext: ExecutionContext = defaultExecutionContext
   var defaultLogger: LoggingAdapter = _ // this gets set early by ExchangeApiApp
   def logger = defaultLogger
 

@@ -1,12 +1,14 @@
 /** Services routes for all of the /orgs api methods. */
 package com.horizon.exchangeapi
 
-import javax.ws.rs._ // this does not have the PATCH method
+import javax.ws.rs._
 import akka.actor.ActorSystem
-import akka.event.{ Logging, LoggingAdapter }
+import akka.event.LoggingAdapter
+//import akka.event.{ Logging, LoggingAdapter }
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import scala.concurrent.ExecutionContext
 
 // Not using the built-in spray json
 //import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
@@ -35,7 +37,7 @@ import scala.collection.mutable.ListBuffer
 import scala.util._
 import scala.util.control.Breaks._
 //import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
+//import scala.concurrent.ExecutionContext.Implicits.global
 
 /*someday: when we start using actors:
 import akka.actor.{ ActorRef, ActorSystem }
@@ -75,9 +77,9 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
     None
   }
   /** Returns a tuple of the db action to update parts of the org, and the attribute name being updated. */
-  def getDbUpdate(orgId: String): (DBIO[_], String) = {
+  def getDbUpdate(orgId: String)(implicit executionContext: ExecutionContext): (DBIO[_], String) = {
     import com.horizon.exchangeapi.tables.ExchangePostgresProfile.plainAPI._
-    import scala.concurrent.ExecutionContext.Implicits.global
+    //import scala.concurrent.ExecutionContext.Implicits.global
     val lastUpdated = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this org
     orgType match { case Some(ot) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.orgType, d.lastUpdated)).update((orgId, ot, lastUpdated)), "orgType"); case _ => ; }
@@ -130,7 +132,7 @@ final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecen
 
 /** Routes for /orgs */
 @Path("/v1/orgs")
-class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with AuthenticationSupport {
+trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // Tell spray how to marshal our types (models) to/from the rest client
   // old way: protected implicit def jsonFormats: Formats
   //import DefaultJsonProtocol._
@@ -143,8 +145,14 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
   implicit val postPutOrgRequestJsonFormat = jsonFormat4(PostPutOrgRequest) */
   //implicit val actionPerformedJsonFormat = jsonFormat1(ActionPerformed)
 
-  def db: Database = ExchangeApiApp.getDb
-  lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
+  //def db: Database = ExchangeApiApp.getDb
+  //lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
+
+  // Will pick up these values when it is mixed in with ExchangeApiApp
+  def db: Database
+  def system: ActorSystem
+  def logger: LoggingAdapter
+  implicit def executionContext: ExecutionContext
 
   /* when using actors
   implicit def system: ActorSystem
@@ -156,7 +164,7 @@ class OrgsRoutes(implicit val system: ActorSystem) extends JacksonSupport with A
   */
 
   // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
-  def routes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute
+  def orgsRoutes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute
 
   // ====== GET /orgs ================================
 

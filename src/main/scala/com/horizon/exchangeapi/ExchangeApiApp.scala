@@ -27,11 +27,11 @@ import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 
-import akka.http.scaladsl.server.Directives._
+//import akka.http.scaladsl.server.Directives._
 
 //import spray.json.DefaultJsonProtocol
 //import spray.json._
-import de.heikoseeberger.akkahttpjackson._
+//import de.heikoseeberger.akkahttpjackson._
 import org.json4s._
 //import org.json4s.DefaultFormats
 //import org.json4s.jackson.JsonMethods._
@@ -49,8 +49,8 @@ object ExchangeApiConstants {
 /**
  * Main akka server for the Exchange REST API.
  */
-class ExchangeApiApp {} // so far just for the Logging
-object ExchangeApiApp extends App {
+//class ExchangeApiApp {} // so far just for the Logging
+object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRoutes with AgbotsRoutes with ServicesRoutes with PatternsRoutes with BusinessRoutes with CatalogRoutes with AdminRoutes with SwaggerUiService {
 
   /** Sets up automatic case class to JSON output serialization, required by the JValueResult trait. */
   //protected implicit val jsonFormats: Formats = DefaultFormats
@@ -58,7 +58,7 @@ object ExchangeApiApp extends App {
   //import DefaultJsonProtocol._
   //implicit val apiRespJsonFormat = jsonFormat2(ApiResponse)
   // Using jackson json (un)marshalling instead of sprayjson: https://github.com/hseeberger/akka-http-json
-  import JacksonSupport._
+  //import JacksonSupport._
   private implicit val formats = DefaultFormats
 
   // Set up ActorSystem and other dependencies here
@@ -68,8 +68,9 @@ object ExchangeApiApp extends App {
   implicit val system: ActorSystem = ActorSystem("actors", actorConfig)
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val executionContext: ExecutionContext = system.dispatcher
+  ExchConfig.defaultExecutionContext = executionContext // need this set in an object that doesn't use DelayedInit
 
-  /*lazy*/ implicit val logger: LoggingAdapter = Logging(system, classOf[ExchangeApiApp])
+  implicit val logger: LoggingAdapter = Logging(system, "ExchApi")
   ExchConfig.defaultLogger = logger // need this set in an object that doesn't use DelayedInit
   ExchConfig.createRootInCache()
 
@@ -125,21 +126,21 @@ object ExchangeApiApp extends App {
   // Create all of the routes and concat together
   case class testResp(result: String)
   def testRoute = { path("test") { get { logger.debug("In /test"); complete(testResp("OK")) } } }
-  val orgsRoutes = (new OrgsRoutes).routes
-  val usersRoutes = (new UsersRoutes).routes
-  val nodesRoutes = (new NodesRoutes).routes
-  val agbotsRoutes = (new AgbotsRoutes).routes
-  val servicesRoutes = (new ServicesRoutes).routes
-  val patternsRoutes = (new PatternsRoutes).routes
-  val businessRoutes = (new BusinessRoutes).routes
-  val catalogRoutes = (new CatalogRoutes).routes
-  val adminRoutes = (new AdminRoutes).routes
-  val swaggerDocRoutes = SwaggerDocService.routes
-  val swaggerUiRoutes = (new SwaggerUiService).routes
+  //val orgsRoutes = (new OrgsRoutes).routes
+  //val usersRoutes = (new UsersRoutes).routes
+  //val nodesRoutes = (new NodesRoutes).routes
+  //val agbotsRoutes = (new AgbotsRoutes).routes
+  //val servicesRoutes = (new ServicesRoutes).routes
+  //val patternsRoutes = (new PatternsRoutes).routes
+  //val businessRoutes = (new BusinessRoutes).routes
+  //val catalogRoutes = (new CatalogRoutes).routes
+  //val adminRoutes = (new AdminRoutes).routes
+  //val swaggerDocRoutes = SwaggerDocService.routes
+  //val swaggerUiRoutes = (new SwaggerUiService).routes
 
   // Note: all exceptions (code failures) will be handled by the akka-http exception handler. To override that, see https://doc.akka.io/docs/akka-http/current/routing-dsl/exception-handling.html#exception-handling
   //someday: use directive https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
-  lazy val routes: Route = DebuggingDirectives.logRequestResult(requestResponseLogging _) { pathPrefix("v1") { testRoute ~ orgsRoutes ~ usersRoutes ~ nodesRoutes ~ agbotsRoutes ~ servicesRoutes ~ patternsRoutes ~ businessRoutes ~ catalogRoutes ~ adminRoutes ~ swaggerDocRoutes ~ swaggerUiRoutes } }
+  lazy val routes: Route = DebuggingDirectives.logRequestResult(requestResponseLogging _) { pathPrefix("v1") { testRoute ~ orgsRoutes ~ usersRoutes ~ nodesRoutes ~ agbotsRoutes ~ servicesRoutes ~ patternsRoutes ~ businessRoutes ~ catalogRoutes ~ adminRoutes ~ SwaggerDocService.routes ~ swaggerUiRoutes } }
 
   // Load the db backend. The db access info must be in config.json
   var cpds: ComboPooledDataSource = _

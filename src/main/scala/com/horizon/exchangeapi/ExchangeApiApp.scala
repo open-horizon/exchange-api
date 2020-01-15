@@ -73,26 +73,29 @@ object ExchangeApiApp extends App {
   ExchConfig.defaultLogger = logger // need this set in an object that doesn't use DelayedInit
   ExchConfig.createRootInCache()
 
-  // Catches rejections from routes and returns the http codes we want
+  // Catches rejections from routes and returns the http codes we want. See https://doc.akka.io/docs/akka-http/current/routing-dsl/rejections.html#customizing-rejection-handling
   implicit def myRejectionHandler =
     RejectionHandler.newBuilder()
+      // this handles all of our rejections
       .handle {
         case r: ExchangeRejection =>
           complete((r.httpCode, r.toApiResp))
       }
+      // we never use this one, because our AuthRejection extends ExchangeRejection above
       .handle {
         case AuthorizationFailedRejection =>
-          complete((StatusCodes.Forbidden, "You're out of your depth!"))
+          complete((StatusCodes.Forbidden, "forbidden"))
       }
       .handle {
         case ValidationRejection(msg, _) =>
           complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, msg)))
       }
+      // this comes from the entity() directive when parsing the request body failed
       .handle {
-        case MalformedRequestContentRejection(msg, _) => // this comes from the entity() directive when parsing the request body failed
+        case MalformedRequestContentRejection(msg, _) =>
           complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, msg)))
       }
-      //todo: not sure when this will occur
+      // do not know when this is run
       .handleAll[MethodRejection] { methodRejections =>
         val names = methodRejections.map(_.supported.name)
         complete((StatusCodes.MethodNotAllowed, s"method not supported: ${names mkString " or "}"))
@@ -166,10 +169,8 @@ object ExchangeApiApp extends App {
   system.registerOnTermination(() => db.close())
 
   /*
-   * Before every action runs, set the content type to be in JSON format.
+   * Before every action runs...
    * before() {
-   * contentType = formats("json")
-   *
    * // We have to set these ourselves because we had to disable scalatra's builtin CorsSupport because for some inexplicable reason it doesn't set Access-Control-Allow-Origin which is critical
    * //response.setHeader("Access-Control-Allow-Origin", "*")  // <- this can only be used for unauthenticated requests
    * response.setHeader("Access-Control-Allow-Origin", request.getHeader("Origin"))

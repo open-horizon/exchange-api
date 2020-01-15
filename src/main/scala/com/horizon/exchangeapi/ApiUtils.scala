@@ -114,6 +114,13 @@ final case class AuthRejection(t: Throwable) extends ExchangeRejection {
   }
 }
 
+final case class NotFoundRejection(apiRespMsg: String) extends ExchangeRejection {
+  def httpCode = StatusCodes.NotFound
+  def apiRespCode = ApiRespType.NOT_FOUND
+}
+
+//someday: the rest of these rejections are not currently used. Instead the route implementations either do the complete() directly,
+//  or turn an AuthException into a complete() using its toComplete method. But maybe it is better for the akka framework to know it is a rejection.
 final case class BadCredsRejection(apiRespMsg: String) extends ExchangeRejection {
   def httpCode = StatusCodes.Unauthorized
   def apiRespCode = ApiRespType.BADCREDS
@@ -137,11 +144,6 @@ final case class AlreadyExistsRejection(apiRespMsg: String) extends ExchangeReje
 final case class AlreadyExists2Rejection(apiRespMsg: String) extends ExchangeRejection {
   def httpCode = StatusCodes.Conflict
   def apiRespCode = ApiRespType.ALREADY_EXISTS
-}
-
-final case class NotFoundRejection(apiRespMsg: String) extends ExchangeRejection {
-  def httpCode = StatusCodes.NotFound
-  def apiRespCode = ApiRespType.NOT_FOUND
 }
 
 final case class BadGwRejection(apiRespMsg: String) extends ExchangeRejection {

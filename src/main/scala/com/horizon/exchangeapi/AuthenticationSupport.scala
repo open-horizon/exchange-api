@@ -68,6 +68,11 @@ object AuthenticationSupport {
         new AppConfigurationEntry("com.horizon.exchangeapi.auth.Module", AppConfigurationEntry.LoginModuleControlFlag.SUFFICIENT, new util.HashMap[String, String]()))
     }
   }
+
+  // Note: not currently ever set to true, because db migrations happen during startup, before we start server requests
+  var migratingDb = false // used to lock everyone out during db migration
+  def isDbMigration = migratingDb
+  // def setDbMigration(dbMigration: Boolean): Unit = { migratingDb = dbMigration }
 }
 
 trait AuthenticationSupport extends AuthorizationSupport {
@@ -76,11 +81,6 @@ trait AuthenticationSupport extends AuthorizationSupport {
 
   def db: Database // get access to the db object in ExchangeApiApp
   implicit def logger: LoggingAdapter
-
-  //todo: i think this needs to be moved to an object to have a single value
-  var migratingDb = false // used to lock everyone out during db migration
-  def isDbMigration = migratingDb
-  // def setDbMigration(dbMigration: Boolean): Unit = { migratingDb = dbMigration }
 
   // Custom directive to extract the request body (a.k.a entity) as a string (w/o json unmarshalling)
   //someday: currently this must be used as a separate directive, don't yet know how to combine it with the other directives using &
@@ -196,7 +196,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
     if (creds.isEmpty) return Failure(new InvalidCredentialsException)
     val loginCtx = new LoginContext(
       "ExchangeApiLogin", null,
-      new ExchCallbackHandler(RequestInfo(creds.get, /*request, params,*/ isDbMigration /*, anonymousOk*/ , hint)),
+      new ExchCallbackHandler(RequestInfo(creds.get, /*request, params,*/ AuthenticationSupport.isDbMigration /*, anonymousOk*/ , hint)),
       AuthenticationSupport.loginConfig)
     for (err <- Try(loginCtx.login()).failed) {
       return Failure(err)

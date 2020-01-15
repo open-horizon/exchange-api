@@ -7,7 +7,6 @@ import com.github.swagger.akka.SwaggerHttpService
 import com.github.swagger.akka.model.{Info, License}
 import io.swagger.v3.oas.models.ExternalDocumentation
 //import io.swagger.v3.oas.annotations._
-//import akka.http.scaladsl.model.StatusCode
 //import io.swagger.v3.oas.annotations.media.{Content, Schema}
 
 /*Swagger references:

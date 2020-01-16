@@ -197,8 +197,8 @@ object ExchConfig {
   val configOpts = ConfigParseOptions.defaults().setSyntax(ConfigSyntax.CONF).setAllowMissing(false)
   var config = ConfigFactory.parseResources(configResourceName, configOpts) // these are the default values, this file is bundled in the jar
 
-  var defaultExecutionContext: ExecutionContext = _ // this gets set early by ExchangeApiApp
-  implicit def executionContext: ExecutionContext = defaultExecutionContext
+  //var defaultExecutionContext: ExecutionContext = _ // this gets set early by ExchangeApiApp
+  implicit def executionContext: ExecutionContext = ExchangeApi.defaultExecutionContext
   def logger = ExchangeApi.defaultLogger
 
   var rootHashedPw = "" // so we can remember the hashed pw between load() and createRoot()

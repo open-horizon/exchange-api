@@ -45,6 +45,7 @@ object ExchangeApi {
   // But putting them here and using them from here implies we have to manually verify that we set them before they are used
   var serviceHost = ""
   var servicePort = 0
+  var defaultExecutionContext: ExecutionContext = _
   var defaultLogger: LoggingAdapter = _
 
   // Returns the exchange's version. Loading version.txt only once and then storing the value
@@ -85,7 +86,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   implicit val system: ActorSystem = ActorSystem("actors", ExchConfig.getAkkaConfig)  // includes the loglevel
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val executionContext: ExecutionContext = system.dispatcher
-  ExchConfig.defaultExecutionContext = executionContext // need this set in an object that doesn't use DelayedInit
+  ExchangeApi.defaultExecutionContext = executionContext // need this set in an object that doesn't use DelayedInit
 
   implicit val logger: LoggingAdapter = Logging(system, "ExchApi")
   ExchangeApi.defaultLogger = logger // need this set in an object that doesn't use DelayedInit

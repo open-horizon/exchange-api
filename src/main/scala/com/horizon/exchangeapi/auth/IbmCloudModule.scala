@@ -154,7 +154,7 @@ object IbmCloudAuth {
   import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 
   //import scala.concurrent.ExecutionContext.Implicits.global
-  implicit def executionContext: ExecutionContext = ExchConfig.defaultExecutionContext
+  implicit def executionContext: ExecutionContext = ExchangeApi.defaultExecutionContext
 
   private var db: Database = _
   private var sslSocketFactory: SSLSocketFactory = _

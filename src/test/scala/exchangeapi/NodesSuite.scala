@@ -315,7 +315,7 @@ class NodesSuite extends FunSuite {
     assert(parsedBody.changes.size <= maxRecords)
     assert(parsedBody.mostRecentChangeId != 0)
     assert(parsedBody.maxChangeIdOfQuery != 0)
-    assert(parsedBody.exchangeVersion == ExchangeApiAppMethods.adminVersion().toString)
+    assert(parsedBody.exchangeVersion == ExchangeApi.adminVersion().toString)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - try to set pattern when publicKey already exists - should fail") {

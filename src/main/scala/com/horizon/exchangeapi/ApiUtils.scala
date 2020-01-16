@@ -2,9 +2,10 @@
 package com.horizon.exchangeapi
 
 import java.io.File
+import java.lang.management.ManagementFactory
 import java.time._
 
-import akka.event.LoggingAdapter
+//import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server._
 import com.horizon.exchangeapi.tables.{OrgRow, UserRow}
@@ -197,10 +198,9 @@ object ExchConfig {
   val configOpts = ConfigParseOptions.defaults().setSyntax(ConfigSyntax.CONF).setAllowMissing(false)
   var config = ConfigFactory.parseResources(configResourceName, configOpts) // these are the default values, this file is bundled in the jar
 
-  var defaultExecutionContext: ExecutionContext = _ // this gets set early by ExchangeApiApp
-  implicit def executionContext: ExecutionContext = defaultExecutionContext
-  var defaultLogger: LoggingAdapter = _ // this gets set early by ExchangeApiApp
-  def logger = defaultLogger
+  //var defaultExecutionContext: ExecutionContext = _ // this gets set early by ExchangeApiApp
+  implicit def executionContext: ExecutionContext = ExchangeApi.defaultExecutionContext
+  def logger = ExchangeApi.defaultLogger
 
   var rootHashedPw = "" // so we can remember the hashed pw between load() and createRoot()
 
@@ -239,9 +239,19 @@ object ExchConfig {
     }
   }
 
+  def getHostAndPort = {
+    var host = config.getString("api.service.host")
+    if (host == "") host = "0.0.0.0"
+    val port = try { config.getInt("api.service.port") } catch { case _: Exception => 8080 }
+    (host, port)
+  }
+
+  // Get relevant values from our config file to create the akka config
   def getAkkaConfig: Config = {
     var akkaConfig = config.getObject("api.akka").asScala.toMap
     akkaConfig = akkaConfig ++ Map[scala.Predef.String,ConfigValue]("akka.loglevel" -> ConfigValueFactory.fromAnyRef(ExchConfig.getLogLevel))
+    val secondsToWait = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete")
+    akkaConfig = akkaConfig ++ Map[scala.Predef.String,ConfigValue]("akka.coordinated-shutdown.phases.service-unbind.timeout" -> ConfigValueFactory.fromAnyRef(s"${secondsToWait}s"))
     printf("Running with akka config: %s\n", akkaConfig.toString())
     //ConfigFactory.parseMap(Map("akka.loglevel" -> ExchConfig.getLogLevel).asJava, "akka overrides")
     ConfigFactory.parseMap(akkaConfig.asJava, "akka overrides")
@@ -493,6 +503,13 @@ object ApiUtils {
     implicit val formats: AnyRef with Formats = Serialization.formats(NoTypeHints)
 
     Extraction.decompose(src)
+  }
+
+  // Get the JVM arguments that were passed to it
+  def getJvmArgs = {
+    val runtimeMXBean = ManagementFactory.getRuntimeMXBean
+    val jvmArgs = runtimeMXBean.getInputArguments
+    jvmArgs
   }
 
   /* This apparently ony works when run from a war file, not straight from sbt. Get our version from build.sbt

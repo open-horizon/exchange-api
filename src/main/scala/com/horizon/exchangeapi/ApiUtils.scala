@@ -4,7 +4,7 @@ package com.horizon.exchangeapi
 import java.io.File
 import java.time._
 
-import akka.event.LoggingAdapter
+//import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server._
 import com.horizon.exchangeapi.tables.{OrgRow, UserRow}
@@ -199,8 +199,7 @@ object ExchConfig {
 
   var defaultExecutionContext: ExecutionContext = _ // this gets set early by ExchangeApiApp
   implicit def executionContext: ExecutionContext = defaultExecutionContext
-  var defaultLogger: LoggingAdapter = _ // this gets set early by ExchangeApiApp
-  def logger = defaultLogger
+  def logger = ExchangeApi.defaultLogger
 
   var rootHashedPw = "" // so we can remember the hashed pw between load() and createRoot()
 
@@ -237,6 +236,13 @@ object ExchConfig {
       println("Invalid logging level '" + loglev + "' specified in config.json. Continuing with the default logging level " + LogLevel.INFO + ".")
       LogLevel.INFO // fallback
     }
+  }
+
+  def getHostAndPort = {
+    var host = config.getString("api.service.host")
+    if (host == "") host = "0.0.0.0"
+    val port = try { config.getInt("api.service.port") } catch { case _: Exception => 8080 }
+    (host, port)
   }
 
   def getAkkaConfig: Config = {

@@ -228,7 +228,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
         content = Array(new Content(schema = new Schema(implementation = classOf[String]))))))
   def adminGetVersionRoute: Route = (get & path("admin" / "version")) {
     logger.debug("Doing POST /admin/version")
-    val version = ExchangeApiAppMethods.adminVersion() + "\n"
+    val version = ExchangeApi.adminVersion() + "\n"
     //complete({ (HttpCode.POST_OK, version) }) // <- this sends it as json, so with double quotes around it and \n explicitly in the string
     complete(HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, version)))
   }

@@ -529,7 +529,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   }
 
   def buildResourceChangesResponse(orgList: scala.Seq[(Int, String, String, String, String, String, String, String)], ibmList: scala.Seq[(Int, String, String, String, String, String, String, String)], maxResp : Int): ResourceChangesRespObject ={
-    val exchangeVersion = ExchangeApiAppMethods.adminVersion()
+    val exchangeVersion = ExchangeApi.adminVersion()
     val inputList = List(orgList, ibmList)
     val changesList = ListBuffer[ChangeEntry]()
     var mostRecentChangeId = 0

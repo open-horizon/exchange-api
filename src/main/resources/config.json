@@ -47,6 +47,10 @@
 			"enabled": true,      // if set to false it will not honor the root credentials
 			"password": ""			// set this in your own version of this config file
 		},
+		"service": {
+			"host": "0.0.0.0",
+			"port": 8080
+		},
 		"acls": {
 			"Anonymous": ["RESET_USER_PW"],
 			"User": ["READ_MYSELF", "WRITE_MYSELF", "RESET_USER_PW", "CREATE_NODE", "READ_MY_NODES", "WRITE_MY_NODES", "READ_ALL_NODES", "CREATE_AGBOT", "READ_MY_AGBOTS", "WRITE_MY_AGBOTS", "DATA_HEARTBEAT_MY_AGBOTS", "READ_ALL_AGBOTS", "STATUS", "UTILITIES", "READ_MY_SERVICES", "READ_ALL_SERVICES", "WRITE_MY_SERVICES", "CREATE_SERVICES", "READ_MY_PATTERNS", "READ_ALL_PATTERNS", "WRITE_MY_PATTERNS", "CREATE_PATTERNS", "READ_MY_BUSINESS", "READ_ALL_BUSINESS", "WRITE_MY_BUSINESS", "CREATE_BUSINESS", "READ_MY_ORG", "READ_IBM_ORGS"],

@@ -39,11 +39,28 @@ import org.json4s._
 
 import scala.io.Source
 
+// Global vals and methods
+object ExchangeApi {
+  // Global vals - these values are stored here instead of in ExchangeApiApp, because the latter extends DelayedInit, so the compiler checking wouldn't know when they are available. See https://stackoverflow.com/questions/36710169/why-are-implicit-variables-not-initialized-in-scala-when-called-from-unit-test/36710170
+  // But putting them here and using them from here implies we have to manually verify that we set them before they are used
+  var serviceHost = ""
+  var servicePort = 0
+  var defaultLogger: LoggingAdapter = _
+
+  // Returns the exchange's version. Loading version.txt only once and then storing the value
+  val versionSource = Source.fromResource("version.txt")      // returns BufferedSource
+  val versionText : String = versionSource.getLines.next()
+  versionSource.close()
+  def adminVersion(): String = versionText
+}
+
+/* moved to config.json
 object ExchangeApiConstants {
   //val serviceHost = "localhost"
   val serviceHost = "0.0.0.0"
   val servicePort = 8080
 }
+*/
 
 /**
  * Main akka server for the Exchange REST API.
@@ -62,18 +79,19 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
 
   // Set up ActorSystem and other dependencies here
   ExchConfig.load() // get config file, normally in /etc/horizon/exchange/config.json
+  //(ExchangeApi.serviceHost, ExchangeApi.servicePort) = ExchConfig.getHostAndPort  // <- scala does not support this
+  ExchConfig.getHostAndPort match { case (h, p) => ExchangeApi.serviceHost = h; ExchangeApi.servicePort = p }
   //val actorConfig = ConfigFactory.parseString("akka.loglevel=" + ExchConfig.getLogLevel)
-  // Note: this object extends App which extends DelayedInit, so these values won't be available immediately. See https://stackoverflow.com/questions/36710169/why-are-implicit-variables-not-initialized-in-scala-when-called-from-unit-test/36710170
-  implicit val system: ActorSystem = ActorSystem("actors", ExchConfig.getAkkaConfig)
+  implicit val system: ActorSystem = ActorSystem("actors", ExchConfig.getAkkaConfig)  // includes the loglevel
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val executionContext: ExecutionContext = system.dispatcher
   ExchConfig.defaultExecutionContext = executionContext // need this set in an object that doesn't use DelayedInit
 
   implicit val logger: LoggingAdapter = Logging(system, "ExchApi")
-  ExchConfig.defaultLogger = logger // need this set in an object that doesn't use DelayedInit
+  ExchangeApi.defaultLogger = logger // need this set in an object that doesn't use DelayedInit
   ExchConfig.createRootInCache()
 
-  // Catches rejections from routes and returns the http codes we want. See https://doc.akka.io/docs/akka-http/current/routing-dsl/rejections.html#customizing-rejection-handling
+  // Set a custom rejection handler. See https://doc.akka.io/docs/akka-http/current/routing-dsl/rejections.html#customizing-rejection-handling
   implicit def myRejectionHandler =
     RejectionHandler.newBuilder()
       // this handles all of our rejections
@@ -104,7 +122,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       .handleNotFound { complete((StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "unrecognized route"))) }
       .result()
 
-  // Custom logging of requests and responses. See https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/debugging-directives/logRequestResult.html
+  // Set a custom logging of requests and responses. See https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/debugging-directives/logRequestResult.html
   val basicAuthRegex = new Regex("^Basic ?(.*)$")
   def requestResponseLogging(req: HttpRequest): RouteResult => Option[LogEntry] = {
     case RouteResult.Complete(res) =>
@@ -112,9 +130,10 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       val optionalEncodedAuth = req.getHeader("Authorization") // this is type: com.typesafe.config.Optional[akka.http.scaladsl.model.HttpHeader]
       val encodedAuth = if (optionalEncodedAuth.isPresent) optionalEncodedAuth.get().value() else ""
       val authId = encodedAuth match {
+        case "" => "<no-auth>"
         case basicAuthRegex(basicAuthEncoded) =>
-          AuthenticationSupport.parseCreds(basicAuthEncoded).map(_.id).getOrElse("<invalid-auth>")
-        case _ => "<invalid-auth>"
+          AuthenticationSupport.parseCreds(basicAuthEncoded).map(_.id).getOrElse("<invalid-auth-format>")
+        case _ => "<invalid-auth-format>"
       }
       // Now log all the info
       Some(LogEntry(s"${req.uri.authority.host.address}:$authId ${req.method.name} ${req.uri}: ${res.status}", Logging.InfoLevel))
@@ -125,17 +144,6 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   // Create all of the routes and concat together
   case class testResp(result: String)
   def testRoute = { path("test") { get { logger.debug("In /test"); complete(testResp("OK")) } } }
-  //val orgsRoutes = (new OrgsRoutes).routes
-  //val usersRoutes = (new UsersRoutes).routes
-  //val nodesRoutes = (new NodesRoutes).routes
-  //val agbotsRoutes = (new AgbotsRoutes).routes
-  //val servicesRoutes = (new ServicesRoutes).routes
-  //val patternsRoutes = (new PatternsRoutes).routes
-  //val businessRoutes = (new BusinessRoutes).routes
-  //val catalogRoutes = (new CatalogRoutes).routes
-  //val adminRoutes = (new AdminRoutes).routes
-  //val swaggerDocRoutes = SwaggerDocService.routes
-  //val swaggerUiRoutes = (new SwaggerUiService).routes
 
   // Note: all exceptions (code failures) will be handled by the akka-http exception handler. To override that, see https://doc.akka.io/docs/akka-http/current/routing-dsl/exception-handling.html#exception-handling
   //someday: use directive https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
@@ -205,7 +213,8 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   // Initialize authentication cache from objects in the db
   AuthCache.initAllCaches(db, includingIbmAuth = true)
 
-  val serverBinding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, ExchangeApiConstants.serviceHost, ExchangeApiConstants.servicePort)
+  // Start serving client requests
+  val serverBinding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, ExchangeApi.serviceHost, ExchangeApi.servicePort)
 
   serverBinding.onComplete {
     case Success(bound) =>
@@ -217,13 +226,5 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   }
 
   Await.result(system.whenTerminated, Duration.Inf)
-}
-
-object ExchangeApiAppMethods {
-  // Loading version.txt only once and then storing the value
-  val versionSource = Source.fromResource("version.txt")      // returns BufferedSource
-  val versionText : String = versionSource.getLines.next()
-  versionSource.close()
-  def adminVersion(): String = versionText
 }
 

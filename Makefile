@@ -90,6 +90,12 @@ docker: .docker-exec
 	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -v $(EXCHANGE_HOST_CONFIG_DIR):$(EXCHANGE_CONFIG_DIR) $(image-string):$(DOCKER_TAG)
 	@touch $@
 
+# Build the executable and run it locally (not in sbt and not in docker)
+# Note: this is the same way it is run inside the docker container
+runexecutable:
+	sbt stage
+	./target/universal/stage/bin/exchange-api
+
 # Run the automated tests in the test container against the exchange svr running in the exec container
 # Note: these targets is used by travis as part of testing
 #someday: can we create an "excutable" of the tests using sbt-native-packager instead?
@@ -169,4 +175,4 @@ version:
 
 .SECONDARY:
 
-.PHONY: default clean docker test docker-push-only docker-push-version-only docker-push docker-push-to-prod gen-key sync-swagger-ui testmake version
+.PHONY: default clean docker runexecutable test docker-push-only docker-push-version-only docker-push docker-push-to-prod gen-key sync-swagger-ui testmake version

@@ -228,6 +228,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 - Made the IP and port the exchange listens on configurable in `config.json`
 - Added graceful shutdown, and made wait time for in-flight requests configurable
+- Enabled passing args to the exchange svr JVM by setting JAVA_OPTS
 
 ## Changes in 2.4.0
 

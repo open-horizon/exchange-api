@@ -81,6 +81,7 @@ lazy val root = (project in file(".")).
     packageName in Docker := "openhorizon/amd64_exchange-api",
     daemonUser in Docker := "exchangeuser",
     dockerExposedPorts ++= Seq(8080),
-    dockerBaseImage := "openjdk:8-jre"
-    //dockerEntrypoint ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config")
+    dockerBaseImage := "openjdk:8-jre",
+    dockerEnvVars := Map("JAVA_OPTS" -> "")   // this is here so JAVA_OPTS can be overridden on the docker run cmd with a value like: -Xmx1G
+    //dockerEntrypoint ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config")  // <- had trouble getting this to work
   )

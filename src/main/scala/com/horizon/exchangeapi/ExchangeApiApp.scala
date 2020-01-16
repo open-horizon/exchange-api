@@ -82,6 +82,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   private implicit val formats = DefaultFormats
 
   // Set up ActorSystem and other dependencies here
+  println(s"Running with java arguments: ${ApiUtils.getJvmArgs}")
   ExchConfig.load() // get config file, normally in /etc/horizon/exchange/config.json
   //(ExchangeApi.serviceHost, ExchangeApi.servicePort) = ExchConfig.getHostAndPort  // <- scala does not support this
   ExchConfig.getHostAndPort match { case (h, p) => ExchangeApi.serviceHost = h; ExchangeApi.servicePort = p }

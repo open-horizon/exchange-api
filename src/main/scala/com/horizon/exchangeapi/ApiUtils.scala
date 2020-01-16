@@ -2,6 +2,7 @@
 package com.horizon.exchangeapi
 
 import java.io.File
+import java.lang.management.ManagementFactory
 import java.time._
 
 //import akka.event.LoggingAdapter
@@ -502,6 +503,13 @@ object ApiUtils {
     implicit val formats: AnyRef with Formats = Serialization.formats(NoTypeHints)
 
     Extraction.decompose(src)
+  }
+
+  // Get the JVM arguments that were passed to it
+  def getJvmArgs = {
+    val runtimeMXBean = ManagementFactory.getRuntimeMXBean
+    val jvmArgs = runtimeMXBean.getInputArguments
+    jvmArgs
   }
 
   /* This apparently ony works when run from a war file, not straight from sbt. Get our version from build.sbt

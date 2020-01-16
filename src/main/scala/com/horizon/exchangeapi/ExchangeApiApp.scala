@@ -6,7 +6,9 @@
 
 package com.horizon.exchangeapi
 
-import akka.event.{ Logging, LoggingAdapter }
+import akka.Done
+import akka.actor.CoordinatedShutdown
+import akka.event.{Logging, LoggingAdapter}
 
 import scala.util.matching.Regex
 //import akka.http.scaladsl.model.headers.HttpCredentials
@@ -16,7 +18,7 @@ import com.mchange.v2.c3p0.ComboPooledDataSource
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.{ Await, ExecutionContext, Future }
-import scala.concurrent.duration.Duration
+//import scala.concurrent.duration.Duration
 import scala.util.{ Failure, Success }
 
 import akka.actor.ActorSystem
@@ -38,6 +40,7 @@ import org.json4s._
 //import org.json4s.jackson.Serialization.write
 
 import scala.io.Source
+import scala.concurrent.duration._
 
 // Global vals and methods
 object ExchangeApi {
@@ -217,6 +220,21 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   // Start serving client requests
   val serverBinding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, ExchangeApi.serviceHost, ExchangeApi.servicePort)
 
+  // Configure graceful termination. See: https://doc.akka.io/docs/akka-http/current/server-side/graceful-termination.html
+  // But also see: https://discuss.lightbend.com/t/graceful-termination-on-sigterm-using-akka-http/1619
+  // Note: can't test this in sbt. Use 'make runexecutable' and then ctrl-c
+  val secondsToWait = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete")  // ExchConfig.getAkkaConfig() also makes the akka unbind phase this long
+  CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "http_shutdown") { () =>
+    serverBinding.flatMap({ s =>
+      println(s"Exchange server unbound, waiting up to $secondsToWait seconds for in-flight requests to complete...")
+      s.terminate(hardDeadline = secondsToWait.seconds)
+    }).map { _ =>
+      println("Exchange server exiting.")
+      Done
+    }
+  }
+
+  // When the server has initialized
   serverBinding.onComplete {
     case Success(bound) =>
       println(s"Server online at http://${bound.localAddress.getHostString}:${bound.localAddress.getPort}/")
@@ -227,5 +245,12 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   }
 
   Await.result(system.whenTerminated, Duration.Inf)
+
+  /* this is from the akka graceful termination doc, but gets run as soon as the server completes initializing. They left out the key part of how to get this invoked at the right time.
+  val onceAllConnectionsTerminated: Future[Http.HttpTerminated] =
+  Await.result(serverBinding, 10.seconds)
+    .terminate(hardDeadline = 3.seconds)
+  // when the above future completes, exit
+  onceAllConnectionsTerminated.flatMap { _ => println("Exchange API exiting..."); system.terminate() } */
 }
 

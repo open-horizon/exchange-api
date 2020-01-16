@@ -227,6 +227,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 ## Changes in 2.5.0
 
 - Made the IP and port the exchange listens on configurable in `config.json`
+- Added graceful shutdown, and made wait time for in-flight requests configurable
 
 ## Changes in 2.4.0
 

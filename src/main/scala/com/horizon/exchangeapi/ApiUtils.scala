@@ -245,9 +245,12 @@ object ExchConfig {
     (host, port)
   }
 
+  // Get relevant values from our config file to create the akka config
   def getAkkaConfig: Config = {
     var akkaConfig = config.getObject("api.akka").asScala.toMap
     akkaConfig = akkaConfig ++ Map[scala.Predef.String,ConfigValue]("akka.loglevel" -> ConfigValueFactory.fromAnyRef(ExchConfig.getLogLevel))
+    val secondsToWait = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete")
+    akkaConfig = akkaConfig ++ Map[scala.Predef.String,ConfigValue]("akka.coordinated-shutdown.phases.service-unbind.timeout" -> ConfigValueFactory.fromAnyRef(s"${secondsToWait}s"))
     printf("Running with akka config: %s\n", akkaConfig.toString())
     //ConfigFactory.parseMap(Map("akka.loglevel" -> ExchConfig.getLogLevel).asJava, "akka overrides")
     ConfigFactory.parseMap(akkaConfig.asJava, "akka overrides")

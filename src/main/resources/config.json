@@ -49,7 +49,8 @@
 		},
 		"service": {
 			"host": "0.0.0.0",
-			"port": 8080
+			"port": 8080,
+			"shutdownWaitForRequestsToComplete": 60   // number of seconds to let in-flight requests complete before exiting the server
 		},
 		"acls": {
 			"Anonymous": ["RESET_USER_PW"],

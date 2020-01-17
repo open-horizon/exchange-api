@@ -21,7 +21,7 @@ EXCHANGE_EMAIL="${EXCHANGE_EMAIL:-me@email.com}"
 EXCHANGE_NODEAUTH="${EXCHANGE_NODEAUTH:-n1:abc123}"
 EXCHANGE_AGBOTAUTH="${EXCHANGE_AGBOTAUTH:-a1:abcdef}"
 
-: ${EXCHANGE_IAM_ORG:?} : ${EXCHANGE_IAM_ACCOUNT_ID:?} : ${EXCHANGE_IAM_KEY:?}
+: ${EXCHANGE_IAM_ORG:?} : ${EXCHANGE_IAM_KEY:?}
 orgidcloud="$EXCHANGE_IAM_ORG"
 orgcloudid="$EXCHANGE_IAM_ACCOUNT_ID"
 cloudapikey="$EXCHANGE_IAM_KEY"
@@ -46,7 +46,8 @@ contenttext="-H Content-Type:text/plain"
 orgid="IBM"
 orgid2="org2"
 orgicp="major-peacock-icp-cluster"
-orgicp2="edge-rtp-321-icp-cluster"
+orgicp2="mycluster"   # this is the mcm-321 test cluster
+#orgicp2="edge-rtp-321-icp-cluster"
 
 userauth="$orgid/$user:$pw"
 email=$EXCHANGE_EMAIL
@@ -195,12 +196,23 @@ function curlputpost {
 #    echo "orgs/$orgid exists"
 #fi
 
-rc=$(curlfind "$rootauth" "orgs/$orgidcloud")
-checkrc "$rc" 200 404
-if [[ $rc == 404 ]]; then
-    curlcreate "POST" "$rootauth" "orgs/$orgidcloud" '{"label": "BPs org", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
-else
-    echo "orgs/$orgidcloud exists"
+if [[ -n "$EXCHANGE_IAM_ACCOUNT_ID" ]]; then
+  # Create ibm public cloud orgs
+  rc=$(curlfind "$rootauth" "orgs/$orgidcloud")
+  checkrc "$rc" 200 404
+  if [[ $rc == 404 ]]; then
+      curlcreate "POST" "$rootauth" "orgs/$orgidcloud" '{"label": "BPs org", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
+  else
+      echo "orgs/$orgidcloud exists"
+  fi
+
+  rc=$(curlfind "$rootauth" "orgs/$orgid2")
+  checkrc "$rc" 200 404
+  if [[ $rc == 404 ]]; then
+      curlcreate "POST" "$rootauth" "orgs/$orgid2" '{"label": "Another org under BPs ibm cloud acct", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
+  else
+      echo "orgs/$orgid2 exists"
+  fi
 fi
 
 rc=$(curlfind "$rootauth" "orgs/$orgicp")
@@ -214,17 +226,9 @@ fi
 rc=$(curlfind "$rootauth" "orgs/$orgicp2")
 checkrc "$rc" 200 404
 if [[ $rc == 404 ]]; then
-    curlcreate "POST" "$rootauth" "orgs/$orgicp2" '{"label": "'$orgicp2'", "description": "blah blah" }'
+    curlcreate "POST" "$rootauth" "orgs/$orgicp2" '{"label": "'$orgicp2'", "description": "the icp-mcm-321 test cluster" }'
 else
     echo "orgs/$orgicp2 exists"
-fi
-
-rc=$(curlfind "$rootauth" "orgs/$orgid2")
-checkrc "$rc" 200 404
-if [[ $rc == 404 ]]; then
-    curlcreate "POST" "$rootauth" "orgs/$orgid2" '{"label": "Another org under BPs ibm cloud acct", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
-else
-    echo "orgs/$orgid2 exists"
 fi
 
 rc=$(curlfind "$rootauth" "orgs/$orgid/users/$user")

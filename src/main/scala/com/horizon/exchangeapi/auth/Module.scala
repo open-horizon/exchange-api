@@ -21,8 +21,7 @@ class Module extends LoginModule with AuthorizationSupport {
   private var handler: CallbackHandler = _
   private var identity: Identity = _
   private var succeeded = false
-  //lazy val logger: Logger = LoggerFactory.getLogger(ExchConfig.LOGGER)
-  def logger = ExchConfig.logger
+  def logger = ExchangeApi.defaultLogger
 
   override def initialize(
     subject: Subject,

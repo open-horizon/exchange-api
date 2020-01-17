@@ -5,12 +5,15 @@ import com.horizon.exchangeapi.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
 import javax.security.auth.login.{FailedLoginException, LoginException}
 
 // Base class for all of the exchange authentication and authorization failures
+//todo: make all of these final case classes
 class AuthException(var httpCode: StatusCode, var apiResponse: String, msg: String) extends LoginException(msg) {
   def toComplete = (httpCode, ApiResponse(apiResponse, getMessage))
 }
 
-// Auth errors we need to report to the user, like the creds looked like an ibm cloud cred, but their org didnt point to a cloud acct
-class UserFacingError(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+// These error msgs are matched by UsersSuite.scala, so change them there if you change them here
+case class OrgNotFound(authInfo: IamAuthCredentials) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("org.not.found.user.facing.error", authInfo.org))
+case class IncorrectOrgFound(orgAcctId: String, userInfo: IamUserInfo) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error", orgAcctId, userInfo.accountId))
+case class IncorrectIcpOrgFound(requestOrg: String, clusterName: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error.ICP", requestOrg, clusterName))
 
 // Error class to use to define specific error responses from problems happening in DB threads
 // Note: this is not strictly an auth error, but it is handy to inherit from AuthException
@@ -46,6 +49,7 @@ class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BAD
 
 // The keyword specified was for icp, but not in an icp environment (or vice versa)
 class IamApiErrorException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+
 
 // An error occurred while building the SSLSocketFactory with the self-signed cert
 class SelfSignedCertException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)

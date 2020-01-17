@@ -458,14 +458,14 @@ object IbmCloudAuth {
       // IBM Cloud - we already have the account id from iam from the creds, and the account id of the exchange org
       if (orgAcctId.isEmpty) {
         //logger.error(s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for ${authInfo.org}")
-        DBIO.failed(OrgNotFound(authInfo))
+        DBIO.failed(OrgNotFound(authInfo.org))
       } else if (authInfo.keyType == "iamtoken" && userInfo.accountId == "") {
         //todo: this is the case with tokens from the edge mgmt ui, the ui already verified the org and is using the right one, but we still need to
         //      verify the org in case someone is spoofing being the ui
         DBIO.successful(authInfo.org)
       } else if (orgAcctId.getOrElse("") != userInfo.accountId) {
         //logger.error(s"IAM authentication succeeded, but the cloud account id of the org $orgAcctId does not match that of the cloud account ${userInfo.accountId}")
-        DBIO.failed(IncorrectOrgFound(orgAcctId.getOrElse(""), userInfo))
+        DBIO.failed(IncorrectOrgFound(authInfo.org, userInfo.accountId))
       } else {
         DBIO.successful(authInfo.org)
       }

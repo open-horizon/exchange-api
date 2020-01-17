@@ -855,8 +855,8 @@ class UsersSuite extends FunSuite {
         info("test for api key not part of this org: code: " + response.code + ", response.body: " + response.body)
         //info("code: "+response.code)
         assert(response.code === HttpCode.BADCREDS.intValue)
-        var errorMsg = s"IAM authentication succeeded, but the cloud account id of the org $iamAccountId does not match that of the cloud account credentials $iamOtherAccountId"
-        assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
+        var errorMsg = s"the iamapikey or iamtoken specified can not be used with org '$cloudorg' prepended to it, because the iamapikey or iamtoken is not associated with that org."
+        assert(parse(response.body).extract[Map[String, String]].apply("msg").startsWith(errorMsg))
 
         // remove ibmcloud_id from org
         tagInput = """{ "tags": {"ibmcloud_id": null} }"""
@@ -867,8 +867,8 @@ class UsersSuite extends FunSuite {
         response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
         info("code: "+response.code)
         assert(response.code === HttpCode.BADCREDS.intValue)
-        errorMsg = s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for $cloudorg"
-        assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
+        errorMsg = s"the iamapikey or iamtoken specified can not be used with org '$cloudorg' prepended to it, because the exchange does not recognize"
+        assert(parse(response.body).extract[Map[String, String]].apply("msg").startsWith(errorMsg))
       } else {
         info("Skipping IAM public cloud tests tests")
       }

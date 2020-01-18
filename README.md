@@ -227,6 +227,8 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 ## Changes in 2.6.0
 
 - Fixed issue 262 - get icp cluster name once at the beginning
+- Fixed issue 256 - trying to access a non-existent resource in another org incorrectly returned 403 instead of 404
+- Fixed issue 264 - for auth exceptions, prefer returning retryable http codes
 
 ## Changes in 2.5.0
 

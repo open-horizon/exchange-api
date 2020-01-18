@@ -185,18 +185,16 @@ case class CompositeId(compositeId: String) {
     val reg = """^(\S*?)/(\S*)$""".r
     compositeId match {
       case reg(org, id) => return (org, id)
-      case reg(org, _) => return (org, "")
-      case reg(_, id) => return ("", id)
+      // These 2 lines never get run, and aren't needed. If we really want to handle a special, put something like this as the 1st case above: case reg(org, "") => return (org, "")
+      //case reg(org, _) => return (org, "")
+      //case reg(_, id) => return ("", id)
       case _ => return ("", "")
     }
   }
 }
 
-case class RequestInfo(
-  creds: Creds,
-  dbMigration: Boolean,
-  hint: String,
-)
+// The context info about the request passed into the login() methods
+case class RequestInfo(creds: Creds, isDbMigration: Boolean, hint: String)
 
 /*
 AuthorizationSupport is used by AuthenticationSupport, auth/Module, and auth/IbmCloudModule.
@@ -322,7 +320,7 @@ trait AuthorizationSupport {
         if (isMyOrg(target) || target.isPublic) {
           target match {
             case TUser(id) => access match { // a user accessing a user
-              case Access.READ => logger.debug("id="+id+", creds.id=",creds.id); if (id == creds.id) Access.READ_MYSELF else Access.READ_ALL_USERS
+              case Access.READ => logger.debug(s"id=$id, creds.id=${creds.id}"); if (id == creds.id) Access.READ_MYSELF else Access.READ_ALL_USERS
               case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else Access.WRITE_ALL_USERS
               case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
               case _ => access

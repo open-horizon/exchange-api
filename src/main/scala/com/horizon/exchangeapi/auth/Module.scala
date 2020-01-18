@@ -49,25 +49,18 @@ class Module extends LoginModule with AuthorizationSupport {
         logger.debug("Unable to get HTTP request while authenticating")
         throw new AuthInternalErrorException(ExchMsg.translate("unable.to.get.http.request.when.authenticating"))
       }
-      val reqInfo = reqCallback.request.get
-      val RequestInfo(creds, /*req, _,*/ isDbMigration /*, _*/ , hint) = reqInfo
+      val reqInfo = reqCallback.request.get   // reqInfo is of type RequestInfo
+      //logger.debug(s"auth/Module.login(): reqInfo: $reqInfo")
+      //val RequestInfo(creds, /*req, _,*/ isDbMigration /*, _*/ , hint) = reqInfo
       //val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
 
-      /* val feIdentity = frontEndCreds(reqInfo)
-      if (feIdentity != null) {
-        logger.info("User or id " + feIdentity.creds.id + " from " + clientIp + " (via front end) running " + req.getMethod + " " + req.getPathInfo)
-        identity = feIdentity.authenticate()
-      } else {
-      */
-      // Get the creds from the header or params
-      //val creds = credentials(reqInfo)
-      //val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
-      val (org, id) = IbmCloudAuth.compositeIdSplit(creds.id)
+      // Get the creds from the request
+      val (org, id) = IbmCloudAuth.compositeIdSplit(reqInfo.creds.id)
       if (org == "") throw new OrgNotSpecifiedException
       if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException
       //logger.info("User or id " + userOrId + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
-      if (isDbMigration && !Role.isSuperUser(creds.id)) throw new IsDbMigrationException()
-      identity = IIdentity(creds).authenticate(hint) // authenticate() is in AuthorizationSupport and both authenticates this identity and returns the correct IIdentity subclass (IUser, Inode, or IAgbot)
+      if (reqInfo.isDbMigration && !Role.isSuperUser(reqInfo.creds.id)) throw new IsDbMigrationException()
+      identity = IIdentity(reqInfo.creds).authenticate(reqInfo.hint) // authenticate() is in AuthorizationSupport and both authenticates this identity and returns the correct IIdentity subclass (IUser, Inode, or IAgbot)
       //}
       true
     }

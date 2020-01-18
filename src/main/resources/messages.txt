@@ -75,6 +75,7 @@ agbot.added.updated=agbot added or updated
 agbot.not.inserted.or.updated=agbot ''{0}'' not inserted or updated: {1}
 no.valid.agbot.attribute.specified=no valid agbot attribute specified
 agbot.attribute.updated=attribute ''{0}'' of agbot ''{1}'' updated
+resource.not.found=resource ''{0}'' not found
 agbot.not.found=agbot ''{0}'' not found
 unexpected.result.from.update=Unexpected result from update: {0}
 agbot.deleted=agbot deleted

@@ -66,6 +66,8 @@ object Access extends Enumeration {
   val ALL_IN_ORG = Value("ALL_IN_ORG")
   val ALL = Value("ALL")
   val NONE = Value("NONE") // should not be put in any role below
+
+  val NOT_FOUND = Value("NOT_FOUND") // special case where the target we are trying to determine access to does not exist
 }
 import com.horizon.exchangeapi.Access._
 
@@ -317,14 +319,7 @@ trait AuthorizationSupport {
     override def authorizeTo(target: Target, access: Access): Try[Identity] = {
       val requiredAccess =
         // Transform any generic access into specific access
-        if (!isMyOrg(target) && !target.isPublic) {
-          access match {
-            case Access.READ => Access.READ_OTHER_ORGS
-            case Access.WRITE => Access.WRITE_OTHER_ORGS
-            case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
-            case _ => access
-          }
-        } else {      // the target is in the same org as the identity
+        if (isMyOrg(target) || target.isPublic) {
           target match {
             case TUser(id) => access match { // a user accessing a user
               case Access.READ => logger.debug("id="+id+", creds.id=",creds.id); if (id == creds.id) Access.READ_MYSELF else Access.READ_ALL_USERS
@@ -371,8 +366,18 @@ trait AuthorizationSupport {
             }
             case TAction(_) => access // a user running an action
           }
+        } else if (!target.isThere && access == Access.READ) {  // not my org, not public, not there, and we are trying to read it
+          Access.NOT_FOUND
+        } else {  // not my org and not public, but is there or we might create it
+          access match {
+            case Access.READ => Access.READ_OTHER_ORGS
+            case Access.WRITE => Access.WRITE_OTHER_ORGS
+            case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
+            case _ => access
+          }
         }
-      if (Role.hasAuthorization(role, requiredAccess)) Success(this)
+      if (requiredAccess == Access.NOT_FOUND) Failure(new ResourceNotFoundException(ExchMsg.translate("resource.not.found", target.id)))
+      else if (Role.hasAuthorization(role, requiredAccess)) Success(this)
       else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
     }
 
@@ -397,14 +402,7 @@ trait AuthorizationSupport {
     def authorizeTo(target: Target, access: Access): Try[Identity] = {
       // Transform any generic access into specific access
       val requiredAccess =
-        if (!isMyOrg(target) && !target.isPublic && !isMsgToMultiTenantAgbot(target,access)) {
-          access match {
-            case Access.READ => Access.READ_OTHER_ORGS
-            case Access.WRITE => Access.WRITE_OTHER_ORGS
-            case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
-            case _ => access
-          }
-        } else { // the target is in the same org as the identity
+        if (isMyOrg(target) || target.isPublic || isMsgToMultiTenantAgbot(target,access)) {
           target match {
             case TUser(id) => access match { // a node accessing a user
               case Access.READ => Access.READ_ALL_USERS
@@ -450,8 +448,18 @@ trait AuthorizationSupport {
             }
             case TAction(_) => access // a node running an action
           }
+        } else if (!target.isThere && access == Access.READ) {  // not my org, not public, not there, and we are trying to read it
+          Access.NOT_FOUND
+        } else {  // not my org and not public, not a msg send to agbot, but is there or we might create it
+          access match {
+            case Access.READ => Access.READ_OTHER_ORGS
+            case Access.WRITE => Access.WRITE_OTHER_ORGS
+            case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
+            case _ => access
+          }
         }
-      if (Role.hasAuthorization(role, requiredAccess)) Success(this)
+      if (requiredAccess == Access.NOT_FOUND) Failure(new ResourceNotFoundException(ExchMsg.translate("resource.not.found", target.id)))
+      else if (Role.hasAuthorization(role, requiredAccess)) Success(this)
       else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
 
     }
@@ -467,14 +475,7 @@ trait AuthorizationSupport {
     def authorizeTo(target: Target, access: Access): Try[Identity] = {
       // Transform any generic access into specific access
       val requiredAccess =
-        if (!isMyOrg(target) && !target.isPublic && !isMultiTenantAgbot) {
-          access match {
-            case Access.READ => Access.READ_OTHER_ORGS
-            case Access.WRITE => Access.WRITE_OTHER_ORGS
-            case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
-            case _ => access
-          }
-        } else { // the target is in the same org as the identity
+        if (isMyOrg(target) || target.isPublic || isMultiTenantAgbot) {
           target match {
             case TUser(id) => access match { // a agbot accessing a user
               case Access.READ => Access.READ_ALL_USERS
@@ -520,41 +521,34 @@ trait AuthorizationSupport {
             }
             case TAction(_) => access // a agbot running an action
           }
-        }
-      if (Role.hasAuthorization(role, requiredAccess)) Success(this)
-      else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
-    }
-
-    override def isMultiTenantAgbot: Boolean = return getOrg == "IBM"    //someday: implement instance-level ACLs instead of hardcoding this
-  }
-
-  /*
-  case class IApiKey(creds: Creds) extends Identity {
-    def authorizeTo(target: Target, access: Access): Authorization = {
-      if (hasFrontEndAuthority) return FrontendAuth // allow whatever it wants to do
-      halt(HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, accessDeniedMsg(requiredAccess))) // should not ever get here
-    }
-  }
-  */
-
-  case class IAnonymous(creds: Creds) extends Identity {
-    override lazy val role = AuthRoles.Anonymous
-
-    //override def getOrg = Role.publicOrg  // no longer support the special public org
-
-    def authorizeTo(target: Target, access: Access): Try[Identity] = {
-      // Transform any generic access into specific access
-      val requiredAccess =
-        // Note: the !isMyOrg(target) call would make anonymous never work, but we want it to work for RESET_USER_PW, altho that is outdated
-        if (access == Access.RESET_USER_PW) Access.RESET_USER_PW
-        else if (!isMyOrg(target) && !target.isPublic) {  // Note: IAnonymous.isMyOrg() is always false, except for admin operations
+        } else if (!target.isThere && access == Access.READ) {  // not my org, not public, not there, and we are trying to read it
+          Access.NOT_FOUND
+        } else {  // not my org and not public, not a msg send to node, but is there or we might create it
           access match {
             case Access.READ => Access.READ_OTHER_ORGS
             case Access.WRITE => Access.WRITE_OTHER_ORGS
             case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
             case _ => access
           }
-        } else { // the target is in the same org as the identity
+        }
+      if (requiredAccess == Access.NOT_FOUND) Failure(new ResourceNotFoundException(ExchMsg.translate("resource.not.found", target.id)))
+      else if (Role.hasAuthorization(role, requiredAccess)) Success(this)
+      else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
+    }
+
+    override def isMultiTenantAgbot: Boolean = return getOrg == "IBM"    //someday: implement instance-level ACLs instead of hardcoding this
+  }
+
+  // Note: i don't think this is used now
+  case class IAnonymous(creds: Creds) extends Identity {
+    override lazy val role = AuthRoles.Anonymous
+
+    def authorizeTo(target: Target, access: Access): Try[Identity] = {
+      // Transform any generic access into specific access
+      val requiredAccess =
+        // Note: IAnonymous.isMyOrg() is always false (except for admin operations), so if we had another route that should work for anonymous, so something like:
+        //if (access == Access.RESET_USER_PW) Access.RESET_USER_PW else
+        if (isMyOrg(target) || target.isPublic) {
           target match {
             case TUser(id) => access match { // a anonymous accessing a user
               case Access.READ => Access.READ_ALL_USERS
@@ -600,8 +594,18 @@ trait AuthorizationSupport {
             }
             case TAction(_) => access // a anonymous running an action
           }
+        } else if (!target.isThere && access == Access.READ) {  // not my org, not public, not there, and we are trying to read it
+          Access.NOT_FOUND
+        } else {  // not my org and not public, but is there or we might create it
+          access match {
+            case Access.READ => Access.READ_OTHER_ORGS
+            case Access.WRITE => Access.WRITE_OTHER_ORGS
+            case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
+            case _ => access
+          }
         }
-      if (Role.hasAuthorization(role, requiredAccess)) Success(this)
+      if (requiredAccess == Access.NOT_FOUND) Failure(new ResourceNotFoundException(ExchMsg.translate("resource.not.found", target.id)))
+      else if (Role.hasAuthorization(role, requiredAccess)) Success(this)
       else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
     }
   }
@@ -612,8 +616,9 @@ trait AuthorizationSupport {
     def all: Boolean = return getId == "*"
     def mine: Boolean = return getId == "#"
     def isPublic: Boolean = return false    // is overridden by some subclasses
+    def isThere: Boolean = return false    // is overridden by some subclasses
     def isOwner(user: IUser): Boolean = return false    // is overridden by some subclasses
-    def label: String = ""    // overridden by subclasses. This should be the exchange resource
+    def label: String = ""    // overridden by subclasses. This should be the exchange resource type
     def toAccessMsg = s"$label=$id"  // the way the target should be described in access denied msgs
 
     // Returns just the orgid part of the resource
@@ -638,11 +643,13 @@ trait AuthorizationSupport {
   case class TOrg(id: String) extends Target {
     override def getOrg = id    // otherwise the regex in the base class will return blank because there is no /
     override def getId = ""
+    override def isThere: Boolean = return true   // we don't have a cache to quickly tell if this org exists, so return true and let the db access sort it out
     override def label = "org"
   }
 
   case class TUser(id: String) extends Target {
     override def isOwner(user: IUser): Boolean = id == user.creds.id
+    override def isThere: Boolean = AuthCache.getUserIsAdmin(id).nonEmpty
     override def label = "user"
   }
 
@@ -653,6 +660,7 @@ trait AuthorizationSupport {
         case None => return true    // if we did not find it, we consider that as owning it because we will create it
       }
     }
+    override def isThere: Boolean = AuthCache.getNodeOwner(id).nonEmpty
     override def label = "node"
   }
 
@@ -663,6 +671,7 @@ trait AuthorizationSupport {
         case None => return true    // if we did not find it, we consider that as owning it because we will create it
       }
     }
+    override def isThere: Boolean = AuthCache.getAgbotOwner(id).nonEmpty
     override def label = "agbot"
   }
 
@@ -674,6 +683,7 @@ trait AuthorizationSupport {
       }
     }
     override def isPublic: Boolean = if (all) return true else return AuthCache.getServiceIsPublic(id).getOrElse(false)
+    override def isThere: Boolean = AuthCache.getServiceOwner(id).nonEmpty
     override def label = "service"
   }
 
@@ -685,6 +695,7 @@ trait AuthorizationSupport {
       }
     }
     override def isPublic: Boolean = if (all) return true else return AuthCache.getPatternIsPublic(id).getOrElse(false)
+    override def isThere: Boolean = AuthCache.getPatternOwner(id).nonEmpty
     override def label = "pattern"
   }
 
@@ -696,6 +707,7 @@ trait AuthorizationSupport {
       }
     }
     override def isPublic: Boolean = if (all) return true else return AuthCache.getBusinessIsPublic(id).getOrElse(false)
+    override def isThere: Boolean = AuthCache.getBusinessOwner(id).nonEmpty
     override def label = "business policy"
   }
 

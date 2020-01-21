@@ -410,7 +410,7 @@ object IbmCloudAuth {
         //associatedOrgId <- fetchOrg(userInfo) // can no longer use this, because the account id it uses to find the org is not necessarily unique...
         //orgId <- verifyOrg(authInfo, userInfo, associatedOrgId)
         orgAcctId <- fetchOrg(authInfo.org)
-        orgId <- verifyOrg(authInfo, userInfo, orgAcctId.flatten) // verify cloud acct id of the apikey and the org entry match
+        orgId <- verifyOrg(authInfo, userInfo, orgAcctId.flatten) // verify the org exists in the db, and in the public cloud case the cloud acct id of the apikey and the org entry match
         userRow <- fetchUser(orgId, userInfo)
         userAction <- {
           if (userRow.isEmpty) createUser(orgId, userInfo)
@@ -455,9 +455,16 @@ object IbmCloudAuth {
 
   // Get the associated ibm cloud id of the org that was specified in the client request credentials
   //someday: add a db query that will work for icp (e.g. get the orgid) so in verifyOrg we can tell in both cases if the org was not found in the db. But in the mean time, logic in verifyOrg handles it
-  private def fetchOrg(org: String) = {
-    logger.debug("Fetching org: " + org)
-    OrgsTQ.getOrgid(org)
+  private def fetchOrg(authOrg: String) = {
+    logger.debug("Fetching org: " + authOrg)
+    /*someday: Could not figure out how to make this return type be the same as in the public cloud case. So for now, in verifyOrg in the ICP case
+              we depend on this result being None instead of Some("") to know that the org was not found in the db.
+    if (isIcp) {
+      // ICP/OCP - just verify that the org referenced in the client creds exists in the db
+      OrgsTQ.getOrgid(authOrg).map(_.orgid).result.headOption
+    } else { */
+      // IBM public cloud - try to get the cloud account id from the exchange org that was referenced in the client creds
+    OrgsTQ.getOrgid(authOrg)
       .map(_.tags.+>>("ibmcloud_id"))
       //.take(1)  // not sure what the purpose of this was
       .result
@@ -467,16 +474,21 @@ object IbmCloudAuth {
   // Verify that the cloud acct id of the cloud api key and the exchange org entry match
   // authInfo is the creds they passed in, userInfo is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db
   private def verifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, orgAcctId: Option[String]): DBIOAction[String, NoStream, Effect] = {
-    //logger.debug("Verifying org: "+authInfo+", "+userInfo+", "+orgAcctId)
+    logger.debug(s"Verifying org: $authInfo, $userInfo, $orgAcctId")
     if (isIcp) {
-      // We are here because the client creds (authInfo) were either an icp iamtoken or iamapikey. Those are only valid in the cluster name org (not the IBM org).
-      // So confirm that authInfo.org equals the cluster name
-      getIcpClusterName match {
-        case Success(clusterName) =>
-          if (authInfo.org == clusterName) return DBIO.successful(authInfo.org)
-          else return DBIO.failed(IncorrectIcpOrgFound(authInfo.org, clusterName))
-        case Failure(t) =>
-          return DBIO.failed(t)
+      // Even though the orgAcctId only applies to the public cloud case, we can tell if the org was not found at all in the db if this option is None
+      if (orgAcctId.isEmpty) {
+        DBIO.failed(OrgNotFound(authInfo.org))
+      } else {
+        // We are here because the client creds (authInfo) were either an icp iamtoken or iamapikey. Those are only valid in the cluster name org (not the IBM org).
+        // So confirm that authInfo.org equals the cluster name
+        getIcpClusterName match {
+          case Success(clusterName) =>
+            if (authInfo.org == clusterName) return DBIO.successful(authInfo.org)
+            else return DBIO.failed(IncorrectIcpOrgFound(authInfo.org, clusterName))
+          case Failure(t) =>
+            return DBIO.failed(t)
+        }
       }
     } else {
       // IBM Cloud - we already have the account id from iam from the creds, and the account id of the exchange org

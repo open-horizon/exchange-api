@@ -212,8 +212,9 @@ object IbmCloudAuth {
   private def getIcpIdentityProviderUrl = {
     // https://$ICP_EXTERNAL_MGMT_INGRESS/idprovider  or  https://platform-identity-provider:$PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT
     if (isEnvSet("ICP_EXTERNAL_MGMT_INGRESS")) {
-      val ICP_EXTERNAL_MGMT_INGRESS = getEnv("ICP_EXTERNAL_MGMT_INGRESS", "")
-      s"https://$ICP_EXTERNAL_MGMT_INGRESS/idprovider"
+      var ICP_EXTERNAL_MGMT_INGRESS = getEnv("ICP_EXTERNAL_MGMT_INGRESS", "")
+      if (!ICP_EXTERNAL_MGMT_INGRESS.startsWith("https://")) ICP_EXTERNAL_MGMT_INGRESS = s"https://$ICP_EXTERNAL_MGMT_INGRESS"
+      s"$ICP_EXTERNAL_MGMT_INGRESS/idprovider"
     } else {
       // ICP kube automatically sets this env var and hostname
       val PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT = getEnv("PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT", "4300")
@@ -221,23 +222,12 @@ object IbmCloudAuth {
     }
   }
 
-  /* private def getIcpIdentityMgmtUrl = {
-    // https://$ICP_EXTERNAL_MGMT_INGRESS/idmgmt  or  https://platform-identity-management:$PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT
-    if (isEnvSet("ICP_EXTERNAL_MGMT_INGRESS")) {
-      val ICP_EXTERNAL_MGMT_INGRESS = getEnv("ICP_EXTERNAL_MGMT_INGRESS", "")
-      s"https://$ICP_EXTERNAL_MGMT_INGRESS/idmgmt"
-    } else {
-      // ICP kube automatically sets this env var and hostname
-      val PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT = getEnv("PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT", "4500")
-      s"https://platform-identity-management:$PLATFORM_IDENTITY_MANAGEMENT_SERVICE_PORT"
-    }
-  } */
-
   private def getIcpMgmtIngressUrl = {
     // https://$ICP_EXTERNAL_MGMT_INGRESS  or  https://icp-management-ingress.kube-system:$ICP_MANAGEMENT_INGRESS_SERVICE_PORT
     if (isEnvSet("ICP_EXTERNAL_MGMT_INGRESS")) {
-      val ICP_EXTERNAL_MGMT_INGRESS = getEnv("ICP_EXTERNAL_MGMT_INGRESS", "")
-      s"https://$ICP_EXTERNAL_MGMT_INGRESS"
+      var ICP_EXTERNAL_MGMT_INGRESS = getEnv("ICP_EXTERNAL_MGMT_INGRESS", "")
+      if (!ICP_EXTERNAL_MGMT_INGRESS.startsWith("https://")) ICP_EXTERNAL_MGMT_INGRESS = s"https://$ICP_EXTERNAL_MGMT_INGRESS"
+      ICP_EXTERNAL_MGMT_INGRESS
     } else {
       // ICP kube automatically sets this env var and hostname
       val ICP_MANAGEMENT_INGRESS_SERVICE_PORT = getEnv("ICP_MANAGEMENT_INGRESS_SERVICE_PORT", "8443")
@@ -254,7 +244,7 @@ object IbmCloudAuth {
       case null =>
         icpClusterNameTry = _getIcpClusterName
         icpClusterNameTry
-      case Failure(_: IamApiTimeoutException) =>
+      case Failure(_: IamApiTimeoutException) | Failure(_: IamApiErrorException) =>
         // Getting the cluster name failed before with a retryable error, so retry a few times
         if (icpClusterNameNumRetries < iamRetryNum) {
           icpClusterNameTry = _getIcpClusterName  // Note: this method has retries within it

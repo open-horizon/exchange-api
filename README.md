@@ -230,6 +230,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 - Fixed issue 256 - trying to access a non-existent resource in another org incorrectly returned 403 instead of 404
 - Fixed issue 264 - for auth exceptions, prefer returning retryable http codes
 - Verified authentication using OCP
+- Modified use of `ICP_EXTERNAL_MGMT_INGRESS` env var so it can optionally have `https://` prepended
 
 ## Changes in 2.5.0
 

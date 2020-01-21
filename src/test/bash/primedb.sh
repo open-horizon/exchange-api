@@ -13,6 +13,14 @@ if [[ -z $EXCHANGE_ROOTPW ]]; then
 fi
 namebase=""
 
+isPublicCloud() {
+	if [[ -n "$EXCHANGE_IAM_ACCOUNT_ID" ]]; then
+		return 0   # means yes it is the ibm public cloud
+	else
+		return 1
+	fi
+}
+
 # Test configuration. You can override these before invoking the script, if you want.
 EXCHANGE_URL_ROOT="${EXCHANGE_URL_ROOT:-http://localhost:8080}"
 user="${EXCHANGE_USER:-me}"
@@ -21,7 +29,7 @@ EXCHANGE_EMAIL="${EXCHANGE_EMAIL:-me@email.com}"
 EXCHANGE_NODEAUTH="${EXCHANGE_NODEAUTH:-n1:abc123}"
 EXCHANGE_AGBOTAUTH="${EXCHANGE_AGBOTAUTH:-a1:abcdef}"
 
-: ${EXCHANGE_IAM_ORG:?} : ${EXCHANGE_IAM_ACCOUNT_ID:?} : ${EXCHANGE_IAM_KEY:?}
+: ${EXCHANGE_IAM_ORG:?} : ${EXCHANGE_IAM_KEY:?}
 orgidcloud="$EXCHANGE_IAM_ORG"
 orgcloudid="$EXCHANGE_IAM_ACCOUNT_ID"
 cloudapikey="$EXCHANGE_IAM_KEY"
@@ -44,9 +52,11 @@ content="-H Content-Type:$appjson"
 contenttext="-H Content-Type:text/plain"
 
 orgid="IBM"
-orgid2="org2"
-orgicp="major-peacock-icp-cluster"
-orgicp2="edge-rtp-321-icp-cluster"
+orgid2="org2"  # can only use with the public cloud
+# now orgidcloud is used instead of these
+#orgicp="major-peacock-icp-cluster"
+#orgicp2="mycluster"   # this is the mcm-321 test cluster
+#orgicp2="edge-rtp-321-icp-cluster"
 
 userauth="$orgid/$user:$pw"
 email=$EXCHANGE_EMAIL
@@ -195,6 +205,7 @@ function curlputpost {
 #    echo "orgs/$orgid exists"
 #fi
 
+# Create the cloud org
 rc=$(curlfind "$rootauth" "orgs/$orgidcloud")
 checkrc "$rc" 200 404
 if [[ $rc == 404 ]]; then
@@ -203,28 +214,14 @@ else
     echo "orgs/$orgidcloud exists"
 fi
 
-rc=$(curlfind "$rootauth" "orgs/$orgicp")
-checkrc "$rc" 200 404
-if [[ $rc == 404 ]]; then
-    curlcreate "POST" "$rootauth" "orgs/$orgicp" '{"label": "'$orgicp'", "description": "blah blah" }'
-else
-    echo "orgs/$orgicp exists"
-fi
-
-rc=$(curlfind "$rootauth" "orgs/$orgicp2")
-checkrc "$rc" 200 404
-if [[ $rc == 404 ]]; then
-    curlcreate "POST" "$rootauth" "orgs/$orgicp2" '{"label": "'$orgicp2'", "description": "blah blah" }'
-else
-    echo "orgs/$orgicp2 exists"
-fi
-
-rc=$(curlfind "$rootauth" "orgs/$orgid2")
-checkrc "$rc" 200 404
-if [[ $rc == 404 ]]; then
-    curlcreate "POST" "$rootauth" "orgs/$orgid2" '{"label": "Another org under BPs ibm cloud acct", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
-else
-    echo "orgs/$orgid2 exists"
+if isPublicCloud; then
+  rc=$(curlfind "$rootauth" "orgs/$orgid2")
+  checkrc "$rc" 200 404
+  if [[ $rc == 404 ]]; then
+      curlcreate "POST" "$rootauth" "orgs/$orgid2" '{"label": "Another org under BPs ibm cloud acct", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
+  else
+      echo "orgs/$orgid2 exists"
+  fi
 fi
 
 rc=$(curlfind "$rootauth" "orgs/$orgid/users/$user")
@@ -320,15 +317,17 @@ else
     echo "orgs/$orgid/services/$svc2id exists"
 fi
 
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/services/$svcid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauthorg2 "orgs/$orgid2/services" '{"label": "GPS for amd64", "description": "blah blah", "public": false, "url": "'$svcurl'",
-  "version": "'$svcversion'", "arch": "'$svcarch'", "sharable": "singleton",
-  "deployment": "",
-  "deploymentSignature": "" }'
-else
-    echo "orgs/$orgid2/services/$svcid exists"
+if isPublicCloud; then
+  rc=$(curlfind $userauthorg2 "orgs/$orgid2/services/$svcid")
+  checkrc "$rc" 200 404
+  if [[ $rc != 200 ]]; then
+      curlcreate "POST" $userauthorg2 "orgs/$orgid2/services" '{"label": "GPS for amd64", "description": "blah blah", "public": false, "url": "'$svcurl'",
+    "version": "'$svcversion'", "arch": "'$svcarch'", "sharable": "singleton",
+    "deployment": "",
+    "deploymentSignature": "" }'
+  else
+      echo "orgs/$orgid2/services/$svcid exists"
+  fi
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/patterns/$patid")
@@ -387,57 +386,59 @@ else
     echo "orgs/$orgid/patterns/$patid/keys/$ptKeyId exists"
 fi
 
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid2")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid2" '{"label": "My other Pattern",
-  "services": [
-    {
-      "serviceUrl": "'$svcurl'",
-      "serviceOrgid": "'$orgid'",
-      "serviceArch": "'$svcarch'",
-      "serviceVersions": [
-        {
-          "version": "'$svcversion'"
-        }
-      ]
-    }
-  ] }'
-else
-    echo "orgs/$orgid2/patterns/$patid2 exists"
-fi
+if isPublicCloud; then
+  rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid2")
+  checkrc "$rc" 200 404
+  if [[ $rc != 200 ]]; then
+      curlcreate "POST" $userauthorg2 "orgs/$orgid2/patterns/$patid2" '{"label": "My other Pattern",
+    "services": [
+      {
+        "serviceUrl": "'$svcurl'",
+        "serviceOrgid": "'$orgid'",
+        "serviceArch": "'$svcarch'",
+        "serviceVersions": [
+          {
+            "version": "'$svcversion'"
+          }
+        ]
+      }
+    ] }'
+  else
+      echo "orgs/$orgid2/patterns/$patid2 exists"
+  fi
 
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/business/policies/$buspol")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauthorg2 "orgs/$orgid2/business/policies/$buspol" '{ "label": "my business policy",
-  "service": { "name": "'$svcurl'", "org": "'$orgid'", "arch": "'$svcarch'", "serviceVersions": [{ "version": "'$svcversion'" }] },
-  "userInput": [
-    {
-      "serviceOrgid": "'$orgid'",
-      "serviceUrl": "'$svc2url'",
-      "serviceArch": "",
-      "serviceVersionRange": "[0.0.0,INFINITY)",
-      "inputs": [
-        {
-          "name": "foo",
-          "value": "1234ABC"
-        }
-      ]
-    }
-  ],
-  "properties": [{"name":"purpose", "value":"location", "type":"string"}],
-  "constraints":["a == b"] }'
-else
-    echo "orgs/$orgid2/business/policies/$buspol exists"
-fi
+  rc=$(curlfind $userauthorg2 "orgs/$orgid2/business/policies/$buspol")
+  checkrc "$rc" 200 404
+  if [[ $rc != 200 ]]; then
+      curlcreate "POST" $userauthorg2 "orgs/$orgid2/business/policies/$buspol" '{ "label": "my business policy",
+    "service": { "name": "'$svcurl'", "org": "'$orgid'", "arch": "'$svcarch'", "serviceVersions": [{ "version": "'$svcversion'" }] },
+    "userInput": [
+      {
+        "serviceOrgid": "'$orgid'",
+        "serviceUrl": "'$svc2url'",
+        "serviceArch": "",
+        "serviceVersionRange": "[0.0.0,INFINITY)",
+        "inputs": [
+          {
+            "name": "foo",
+            "value": "1234ABC"
+          }
+        ]
+      }
+    ],
+    "properties": [{"name":"purpose", "value":"location", "type":"string"}],
+    "constraints":["a == b"] }'
+  else
+      echo "orgs/$orgid2/business/policies/$buspol exists"
+  fi
 
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/business/policies/$buspol2")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauthorg2 "orgs/$orgid2/business/policies/$buspol2" '{ "label": "my business policy", "service": { "name": "'$svcurl'", "org": "'$orgid'", "arch": "*", "serviceVersions": [{ "version": "'$svcversion'" }] }, "properties": [{"name":"purpose", "value":"location", "type":"string"}], "constraints":["a == b"] }'
-else
-    echo "orgs/$orgid2/business/policies/$buspol2 exists"
+  rc=$(curlfind $userauthorg2 "orgs/$orgid2/business/policies/$buspol2")
+  checkrc "$rc" 200 404
+  if [[ $rc != 200 ]]; then
+      curlcreate "POST" $userauthorg2 "orgs/$orgid2/business/policies/$buspol2" '{ "label": "my business policy", "service": { "name": "'$svcurl'", "org": "'$orgid'", "arch": "*", "serviceVersions": [{ "version": "'$svcversion'" }] }, "properties": [{"name":"purpose", "value":"location", "type":"string"}], "constraints":["a == b"] }'
+  else
+      echo "orgs/$orgid2/business/policies/$buspol2 exists"
+  fi
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid")
@@ -454,13 +455,6 @@ if [[ $rc != 200 ]]; then
         { "name": "arch", "value": "arm", "propType": "string", "op": "in" },
         { "name": "version", "value": "1.0.0", "propType": "version", "op": "in" }
       ]
-    },
-    {
-      "url": "'$orgid2'/'$svc2url'",
-      "configState": "active",
-      "numAgreements": 1,
-      "policy": "{json policy for n2 location}",
-      "properties": []
     }
   ],
   "userInput": [
@@ -493,17 +487,19 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid2'/'$patid2'", "registeredServices": [{"url": "'$orgid'/'$svcurl'", "numAgreements": 1, "policy": "", "properties": []}], "publicKey": "ABC" }'
+    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [{"url": "'$orgid'/'$svcurl'", "numAgreements": 1, "policy": "", "properties": []}], "publicKey": "ABC" }'
 else
     echo "orgs/$orgid/nodes/$nodeid2 exists"
 fi
 
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [], "publicKey": "ABC" }'
-else
-    echo "orgs/$orgid2/nodes/$nodeid exists"
+if isPublicCloud; then
+  rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid")
+  checkrc "$rc" 200 404
+  if [[ $rc != 200 ]]; then
+      curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [], "publicKey": "ABC" }'
+  else
+      echo "orgs/$orgid2/nodes/$nodeid exists"
+  fi
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/status")
@@ -522,12 +518,14 @@ else
     echo "orgs/$orgid/nodes/$nodeid/policy exists"
 fi
 
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid2")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "", "publicKey": "ABC" }'
-else
-    echo "orgs/$orgid2/nodes/$nodeid2 exists"
+if isPublicCloud; then
+  rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid2")
+  checkrc "$rc" 200 404
+  if [[ $rc != 200 ]]; then
+      curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "", "publicKey": "ABC" }'
+  else
+      echo "orgs/$orgid2/nodes/$nodeid2 exists"
+  fi
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid")
@@ -538,12 +536,14 @@ else
     echo "orgs/$orgid/agbots/$agbotid exists"
 fi
 
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/agbots/$agbotid")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauthorg2 "orgs/$orgid2/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "publicKey": "ABC"}'
-else
-    echo "orgs/$orgid2/agbots/$agbotid exists"
+if isPublicCloud; then
+  rc=$(curlfind $userauthorg2 "orgs/$orgid2/agbots/$agbotid")
+  checkrc "$rc" 200 404
+  if [[ $rc != 200 ]]; then
+      curlcreate "PUT" $userauthorg2 "orgs/$orgid2/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "publicKey": "ABC"}'
+  else
+      echo "orgs/$orgid2/agbots/$agbotid exists"
+  fi
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_${patid}_${orgid}")
@@ -554,12 +554,14 @@ else
     echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_${patid}_${orgid} exists"
 fi
 
-rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid2}_*_${orgid}")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "POST" $userauth "orgs/$orgid/agbots/$agbotid/patterns" '{ "patternOrgid": "'$orgid2'", "pattern": "*", "nodeOrgid": "'$orgid'" }'
-else
-    echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid2}_*_${orgid} exists"
+if isPublicCloud; then
+  rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid2}_*_${orgid}")
+  checkrc "$rc" 200 404
+  if [[ $rc != 200 ]]; then
+      curlcreate "POST" $userauth "orgs/$orgid/agbots/$agbotid/patterns" '{ "patternOrgid": "'$orgid2'", "pattern": "*", "nodeOrgid": "'$orgid'" }'
+  else
+      echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid2}_*_${orgid} exists"
+  fi
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/businesspols/${orgid}_*_${orgid}")
@@ -581,17 +583,19 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"services": [], "agreementService": {"orgid": "'$orgid2'", "pattern": "'$orgid'/'$patid2'", "url": "'$orgid'/'$svcurl'"}, "state": "negotiating"}'
+    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$orgid'/'$patid2'", "url": "'$orgid'/'$svcurl'"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2 exists"
 fi
 
-rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauthorg2 "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$orgid'/'$patid'", "url": "'$orgid'/'$svc2url'"}, "state": "negotiating"}'
-else
-    echo "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3 exists"
+if isPublicCloud; then
+  rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3")
+  checkrc "$rc" 200 404
+  if [[ $rc != 200 ]]; then
+      curlcreate "PUT" $nodeauthorg2 "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$orgid'/'$patid'", "url": "'$orgid'/'$svc2url'"}, "state": "negotiating"}'
+  else
+      echo "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3 exists"
+  fi
 fi
 
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/agreements/$agreementid1")

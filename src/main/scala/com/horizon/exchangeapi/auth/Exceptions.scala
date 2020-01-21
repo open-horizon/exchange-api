@@ -2,15 +2,19 @@ package com.horizon.exchangeapi.auth
 
 import akka.http.scaladsl.model.StatusCode
 import com.horizon.exchangeapi.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
-import javax.security.auth.login.{FailedLoginException, LoginException}
+import javax.security.auth.login.LoginException
 
 // Base class for all of the exchange authentication and authorization failures
+// See also case class AuthRejection in ApiUtils.scala that can turn any exception into a rejection
+//todo: make all of these final case classes
 class AuthException(var httpCode: StatusCode, var apiResponse: String, msg: String) extends LoginException(msg) {
   def toComplete = (httpCode, ApiResponse(apiResponse, getMessage))
 }
 
-// Auth errors we need to report to the user, like the creds looked like an ibm cloud cred, but their org didnt point to a cloud acct
-class UserFacingError(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+// These error msgs are matched by UsersSuite.scala, so change them there if you change them here
+case class OrgNotFound(authInfoOrg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("org.not.found.user.facing.error", authInfoOrg))
+case class IncorrectOrgFound(authInfoOrg: String, userInfoAcctId: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error", authInfoOrg, userInfoAcctId))
+case class IncorrectIcpOrgFound(requestOrg: String, clusterName: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error.ICP", requestOrg, clusterName))
 
 // Error class to use to define specific error responses from problems happening in DB threads
 // Note: this is not strictly an auth error, but it is handy to inherit from AuthException
@@ -39,13 +43,16 @@ class BadInputException(msg: String = ExchMsg.translate("bad.input")) extends Au
 
 class ResourceNotFoundException(msg: String = ExchMsg.translate("not.found")) extends AuthException(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, msg)
 
-class UserCreateException(msg: String = ExchMsg.translate("error.creating.user.noargs")) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
+class UserCreateException(msg: String = ExchMsg.translate("error.creating.user.noargs")) extends AuthException(HttpCode.BAD_GW, ApiRespType.BAD_GW, msg)
 
-// The IAM token we were given was expired, or some similar problem
-class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+// Not currently used. The IAM token we were given was expired, or some similar problem
+//class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 
-// The keyword specified was for icp, but not in an icp environment (or vice versa)
-class IamApiErrorException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+// Unexpected http code or response body from an IAM API call
+class IamApiErrorException(msg: String) extends AuthException(HttpCode.BAD_GW, ApiRespType.BAD_GW, msg)
+
+// Didn't get a response from an IAM API after a number of retries
+class IamApiTimeoutException(msg: String) extends AuthException(HttpCode.GW_TIMEOUT, ApiRespType.GW_TIMEOUT, msg)
 
 // An error occurred while building the SSLSocketFactory with the self-signed cert
 class SelfSignedCertException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
@@ -55,6 +62,7 @@ class IdNotFoundException extends AuthException(HttpCode.INTERNAL_ERROR, ApiResp
 
 class AuthInternalErrorException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
 
+/* not used any more
 object AuthErrors {
   def message(t: Throwable): (StatusCode, String, String) = {
     t match {
@@ -67,3 +75,4 @@ object AuthErrors {
     }
   }
 }
+*/

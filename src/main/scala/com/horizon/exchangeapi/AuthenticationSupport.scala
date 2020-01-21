@@ -36,7 +36,7 @@ The main authenticate/authorization flow is:
     - determines if the Identity has the specific access required
 */
 object AuthenticationSupport {
-  def logger = ExchConfig.logger
+  def logger = ExchangeApi.defaultLogger
   val decodedAuthRegex = new Regex("""^(.+):(.+)\s?$""")
 
   // Decodes the basic auth and parses it to return Some(Creds) or None if the creds aren't there or aren't parsable

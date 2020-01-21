@@ -1421,8 +1421,8 @@ class PatternsSuite extends FunSuite {
     val response: HttpResponse[String] = Http(IBMURL+"/patterns/"+ibmPattern).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    //assert(response.code === HttpCode.NOT_FOUND.intValue)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    //assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
   test("DELETE /orgs/IBM/services/"+ibmService) {

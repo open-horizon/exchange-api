@@ -30,6 +30,11 @@ class UsersSuite extends FunSuite {
   val orgid2 = "UsersSuiteTests2"
   val URL = urlRoot + "/v1/orgs/" + orgid
   val URL2 = urlRoot + "/v1/orgs/" + orgid2
+  val cloudorg = sys.env.get("EXCHANGE_IAM_ACCOUNT_ID") match {
+    case Some(_) => orgid   // we are allowed to use our org as a public cloud org
+    case None => sys.env.getOrElse("ICP_CLUSTER_NAME", "")  // for icp we have to point to the real org
+  }
+  val CLOUDURL = urlRoot + "/v1/orgs/" + cloudorg
   val NOORGURL = urlRoot + "/v1"
   val user = "u1" // this is an admin user
   val orguser = orgid + "/" + user
@@ -752,73 +757,85 @@ class UsersSuite extends FunSuite {
   test("IAM login") {
     // these tests will perform authentication with IBM cloud and will only run
     // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY, EXCHANGE_IAM_EMAIL, and EXCHANGE_IAM_ACCOUNT_ID
-    if (!iamKey.isEmpty && !iamUser.isEmpty) {
-      if (!iamAccountId.isEmpty) {
+    if (iamKey.nonEmpty && iamUser.nonEmpty) {
+      if (iamAccountId.nonEmpty) {
         // Add ibmcloud_id to org. Not needed for ICP
         val tagInput = s"""{ "tags": {"ibmcloud_id": "$iamAccountId"} }"""
-        val response = Http(URL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        val response = Http(CLOUDURL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
         info("code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.PUT_OK.intValue)
       }
 
       // authenticate as a cloud user and view org (action they are authorized for)
-      info("authenticating to ibm cloud with " + IAMAUTH(orgid) + " and GETing " + URL)
-      var response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
-      info("GET " + URL + " code: " + response.code)
+      info("authenticating to ibm cloud with " + IAMAUTH(cloudorg) + " and GETing " + CLOUDURL)
+      var response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
+      info("GET " + CLOUDURL + " code: " + response.code)
       assert(response.code === HttpCode.OK.intValue)
 
       // authenticate as a cloud user and view org, ensuring cached user works
-      response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
       assert(response.code === HttpCode.OK.intValue)
 
       // authenticate as a cloud user and view this user
-      //response = Http(URL+"/users/"+iamEmail).headers(ACCEPT).headers(ROOTAUTH).asString
-      response = Http(URL + "/users/" + iamUser).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      response = Http(CLOUDURL + "/users/" + iamUser).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code + ", response.body: " + response.body)
       assert(response.code === HttpCode.OK.intValue)
       var getUserResp = parse(response.body).extract[GetUsersResponse]
       assert(getUserResp.users.size === 1)
-      assert(getUserResp.users.contains(orgid + "/" + iamUser))
-      var u = getUserResp.users(orgid + "/" + iamUser)
+      assert(getUserResp.users.contains(cloudorg + "/" + iamUser))
+      var u = getUserResp.users(cloudorg + "/" + iamUser)
       assert(u.email === iamUser)
 
       // run special case of authenticate as a cloud user and view your own user
-      response = Http(URL + "/users/iamapikey").headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      response = Http(CLOUDURL + "/users/iamapikey").headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
       assert(response.code === HttpCode.OK.intValue)
       getUserResp = parse(response.body).extract[GetUsersResponse]
       assert(getUserResp.users.size === 1)
-      assert(getUserResp.users.contains(orgid + "/" + iamUser))
-      u = getUserResp.users(orgid + "/" + iamUser)
+      assert(getUserResp.users.contains(cloudorg + "/" + iamUser))
+      u = getUserResp.users(cloudorg + "/" + iamUser)
       assert(u.email === iamUser)
 
       // ensure user does not have admin auth by trying to get other users
-      response = Http(URL + "/users/" + user).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      response = Http(CLOUDURL + "/users/" + user).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
 
       // ensure user can't view other org (action they are not authorized for)
-      response = Http(URL2).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      response = Http(URL2).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
 
-      // ensure we can add a service to check acls to other objects
-      val inputSvc = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, "s1", "1.2.3", "amd64", "single", None, None, None, "a","b",None)
-      response = Http(URL+"/services").postData(write(inputSvc)).method("post").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      // ensure user has auth to view patterns
+      response = Http(CLOUDURL + "/patterns").headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
+      info("code: " + response.code)
+      assert(response.code === HttpCode.OK.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-      // ensure we can add a node to check acls to other objects
-      val inputNode = PutNodesRequest("abc", "my node", "", None, None, None, None, "ABC", None, None)
-      response = Http(URL+"/nodes/n1").postData(write(inputNode)).method("put").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      // Can only add resources to an ibm public cloud org that we created (the icp org is the one in the cluster)
+      if (iamAccountId.nonEmpty) {
+        // ensure we can add a service to check acls to other objects
+        val inputSvc = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, "s1", "1.2.3", "amd64", "single", None, None, None, "a", "b", None)
+        response = Http(CLOUDURL + "/services").postData(write(inputSvc)).method("post").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
+        info("code: " + response.code + ", response.body: " + response.body)
+        assert(response.code === HttpCode.POST_OK.intValue)
+
+        // Only for ibm public cloud: ensure we can add a node to check acls to other objects
+        val inputNode = PutNodesRequest("abc", "my node", "", None, None, None, None, "ABC", None, None)
+        response = Http(CLOUDURL + "/nodes/n1").postData(write(inputNode)).method("put").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
+        info("code: " + response.code + ", response.body: " + response.body)
+        assert(response.code === HttpCode.PUT_OK.intValue)
+      } else {
+        // ICP case - ensure using the cloud creds with a different org prepended fails
+        response = Http(CLOUDURL + "/patterns").headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+        info("code: " + response.code)
+        assert(response.code === HttpCode.BADCREDS.intValue)
+      }
 
       // Test a 2nd org associated with the ibm cloud account
-      if (!iamAccountId.isEmpty && !iamOtherKey.isEmpty && !iamOtherAccountId.isEmpty) {
+      if (iamAccountId.nonEmpty && iamOtherKey.nonEmpty && iamOtherAccountId.nonEmpty) {
         // remove created user
-        response = Http(URL + "/users/" + iamUser).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+        response = Http(CLOUDURL + "/users/" + iamUser).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
         info("DELETE " + iamUser + ", code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
@@ -834,24 +851,26 @@ class UsersSuite extends FunSuite {
         assert(response.code === HttpCode.PUT_OK.intValue)
 
         // authenticating with wrong org should notify user
-        response = Http(URL).headers(ACCEPT).headers(IAMOTHERAUTH(orgid)).asString
+        response = Http(CLOUDURL).headers(ACCEPT).headers(IAMOTHERAUTH(cloudorg)).asString
         info("test for api key not part of this org: code: " + response.code + ", response.body: " + response.body)
         //info("code: "+response.code)
         assert(response.code === HttpCode.BADCREDS.intValue)
-        var errorMsg = s"IAM authentication succeeded, but the cloud account id of the org $iamAccountId does not match that of the cloud account credentials $iamOtherAccountId"
-        assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
+        var errorMsg = s"the iamapikey or iamtoken specified can not be used with org '$cloudorg' prepended to it, because the iamapikey or iamtoken is not associated with that org."
+        assert(parse(response.body).extract[Map[String, String]].apply("msg").startsWith(errorMsg))
 
         // remove ibmcloud_id from org
         tagInput = """{ "tags": {"ibmcloud_id": null} }"""
-        response = Http(URL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        response = Http(CLOUDURL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
         info("code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.PUT_OK.intValue)
 
-        response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+        response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
         info("code: "+response.code)
         assert(response.code === HttpCode.BADCREDS.intValue)
-        errorMsg = s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for $orgid"
-        assert(parse(response.body).extract[Map[String, String]].apply("msg") === errorMsg)
+        errorMsg = s"the iamapikey or iamtoken specified can not be used with org '$cloudorg' prepended to it, because the exchange does not recognize"
+        assert(parse(response.body).extract[Map[String, String]].apply("msg").startsWith(errorMsg))
+      } else {
+        info("Skipping IAM public cloud tests tests")
       }
 
       /* remove ibmcloud_id from org - do not need to do this, because we delete both orgs at the end
@@ -861,7 +880,7 @@ class UsersSuite extends FunSuite {
       assert(response.code === HttpCode.PUT_OK.intValue)
       */
     } else {
-      info("skipping")
+      info("Skipping all IAM login tests")
     }
   }
 

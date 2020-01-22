@@ -1721,6 +1721,17 @@ class NodesSuite extends FunSuite {
     assert(parsedBody.changes.exists(y => {(y.id == nodeId3) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "node")}))
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " doesn't see changes from other nodes") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(!parsedBody.changes.exists(y => {y.id == nodeId3}))
+  }
+
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/9952 - Try to add a 3rd agreement with low maxAgreements") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward

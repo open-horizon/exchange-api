@@ -224,6 +224,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.7.0
+
+- Notification Framework Update: Nodes only receive node changes about themselves, not other nodes
+
 ## Changes in 2.6.0
 
 - Fixed issue 262 - get icp cluster name once at the beginning

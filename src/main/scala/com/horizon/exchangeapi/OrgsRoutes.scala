@@ -611,10 +611,16 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           // Variables to help with building the query
           val lastTime = reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)
           //perf: reduce these 2 db queries to 1 db query
-          val qOrg = for {
+          var qOrg = for {
             r <- ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
           } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
-
+          ident match {
+            case _: INode =>
+              qOrg = for {
+                r <- ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId).filter(u => u.category === "node" && u.id === ident.getIdentity)
+              } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
+            case _ => qOrg = qOrg
+          }
           val qPublic = for {
             r <- ResourceChangesTQ.rows.filter(_.orgId =!= orgId).filter(_.public === "true").filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
           } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)

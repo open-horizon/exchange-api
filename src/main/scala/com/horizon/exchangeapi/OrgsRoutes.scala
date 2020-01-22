@@ -528,7 +528,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  def buildResourceChangesResponse(orgList: scala.Seq[(Int, String, String, String, String, String, String, String)], ibmList: scala.Seq[(Int, String, String, String, String, String, String, String)], maxResp : Int): ResourceChangesRespObject ={
+  def buildResourceChangesResponse(orgList: scala.Seq[ResourceChangeRow], ibmList: scala.Seq[ResourceChangeRow], maxResp : Int): ResourceChangesRespObject ={
     val exchangeVersion = ExchangeApi.adminVersion()
     val inputList = List(orgList, ibmList)
     val changesList = ListBuffer[ChangeEntry]()
@@ -539,33 +539,21 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       for(input <- inputList) { //this for loop should only ever be of size 2
         val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
         for( entry <- input) {
-          /*
-          Example of what entry might look like
-            {
-              "_1":167,   --> changeId
-              "_2":"org2",    --> orgID
-              "_3":"resourcetest",    --> id
-              "_4":"node",    --> category
-              "_5":"false",   --> public
-              "_6":"node",    --> resource
-              "_7":"created/modified",  --> operation
-              "_8":"2019-12-12T19:28:05.309Z[UTC]",   --> lastUpdated
-            }
-           */
-          val resChange = ResourceChangesInnerObject(entry._1, entry._8)
-          if(changesMap.isDefinedAt(entry._3+"_"+entry._6)){  // using the map allows for better searching and entry
-            if(changesMap(entry._3+"_"+entry._6).resourceChanges.last.changeId < entry._1){
-              // the entry we are looking at actually happened later than the last entry in resourceChanges
-              // doing this check by changeId on the off chance two changes happen at the exact same time changeId tells which one is most updated
-              changesMap(entry._3+"_"+entry._6).addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
-              changesMap(entry._3+"_"+entry._6).setOperation(entry._7) // update the most recent operation performed
-            }
-          } else{
-            val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
-            changesMap(entry._3+"_"+entry._6) = ChangeEntry(entry._2, entry._6, entry._3, entry._7, resChangeListBuffer)
+          val resChange = ResourceChangesInnerObject(entry.changeId, entry.lastUpdated)
+          changesMap.get(entry.id+"_"+entry.resource) match { // using the map allows for better searching and entry
+            case Some(change) =>
+              if(change.resourceChanges.last.changeId < entry.changeId){
+                // the entry we are looking at actually happened later than the last entry in resourceChanges
+                // doing this check by changeId on the off chance two changes happen at the exact same time changeId tells which one is most updated
+                change.addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
+                change.setOperation(entry.operation) // update the most recent operation performed
+              }
+            case None => // add the change to the changesMap
+              val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
+              changesMap.put(entry.id+"_"+entry.resource, ChangeEntry(entry.orgId, entry.resource, entry.id, entry.operation, resChangeListBuffer))
           }
           //check maxChangeIdOfQuery
-          if (entry._1 > maxChangeIdOfQuery) {maxChangeIdOfQuery = entry._1}
+          if (entry.changeId > maxChangeIdOfQuery) {maxChangeIdOfQuery = entry.changeId}
         }
         // convert changesMap to ListBuffer[ChangeEntry]
         breakable {
@@ -611,16 +599,19 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           // Variables to help with building the query
           val lastTime = reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)
           //perf: reduce these 2 db queries to 1 db query
-          val qOrg = for {
-            r <- ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
-          } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
-
+          var qOrgQuery = ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
+          ident match {
+            case _: INode =>
+              qOrgQuery = qOrgQuery.filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
+            case _ => ;
+          }
+          val qOrg = for { r <- qOrgQuery } yield r
           val qPublic = for {
             r <- ResourceChangesTQ.rows.filter(_.orgId =!= orgId).filter(_.public === "true").filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
-          } yield (r.changeId, r.orgId, r.id, r.category, r.public, r.resource, r.operation, r.lastUpdated)
+          } yield r
 
-          var qOrgResp : scala.Seq[(Int, String, String, String, String, String, String, String)] = null
-          var qPublicResp : scala.Seq[(Int, String, String, String, String, String, String, String)] = null
+          var qOrgResp : scala.Seq[ResourceChangeRow] = null
+          var qPublicResp : scala.Seq[ResourceChangeRow] = null
 
           db.run(qOrg.result.asTry.flatMap({
             case Success(qOrgResult) =>

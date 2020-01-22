@@ -107,6 +107,13 @@ class NodesSuite extends FunSuite {
   val ibmService = "TestIBMService"
   val maxRecords = 10000
   val secondsAgo = 120
+  val svcBase = "svc9920"
+  val svcDoc = "http://" + svcBase
+  val svcUrl = "" + svcBase
+  val svcVersion = "1.0.0"
+  val svcArch = "arm"
+  val service = svcBase + "_" + svcVersion + "_" + svcArch
+  val orgservice = authpref+service
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -1721,7 +1728,16 @@ class NodesSuite extends FunSuite {
     assert(parsedBody.changes.exists(y => {(y.id == nodeId3) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "node")}))
   }
 
-  test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " doesn't see changes from other nodes") {
+  test("POST /orgs/"+orgid+"/services - add "+service+" as user that requires a service") {
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("service '"+orgservice+"' created"))
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " doesn't see changes from other nodes but still sees normal changes") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
@@ -1730,6 +1746,7 @@ class NodesSuite extends FunSuite {
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(!parsedBody.changes.exists(y => {y.id == nodeId3}))
+    assert(parsedBody.changes.exists(y => {(y.orgId == orgid) && (y.id == service) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "service")}))
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/9952 - Try to add a 3rd agreement with low maxAgreements") {

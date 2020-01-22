@@ -226,7 +226,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 ## Changes in 2.7.0
 
-- Notification Framework Update: Nodes only receive node changes about themselves, not other nodes
+- Issue 277: Notification Framework Updates
 
 ## Changes in 2.6.0
 

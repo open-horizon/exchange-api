@@ -647,7 +647,7 @@ trait AuthorizationSupport {
 
   case class TUser(id: String) extends Target {
     override def isOwner(user: IUser): Boolean = id == user.creds.id
-    override def isThere: Boolean = AuthCache.getUserIsAdmin(id).nonEmpty
+    override def isThere: Boolean = all || mine || AuthCache.getUserIsAdmin(id).nonEmpty
     override def label = "user"
   }
 
@@ -658,7 +658,7 @@ trait AuthorizationSupport {
         case None => return true    // if we did not find it, we consider that as owning it because we will create it
       }
     }
-    override def isThere: Boolean = AuthCache.getNodeOwner(id).nonEmpty
+    override def isThere: Boolean = all || mine || AuthCache.getNodeOwner(id).nonEmpty
     override def label = "node"
   }
 
@@ -669,7 +669,7 @@ trait AuthorizationSupport {
         case None => return true    // if we did not find it, we consider that as owning it because we will create it
       }
     }
-    override def isThere: Boolean = AuthCache.getAgbotOwner(id).nonEmpty
+    override def isThere: Boolean = all || mine || AuthCache.getAgbotOwner(id).nonEmpty
     override def label = "agbot"
   }
 
@@ -681,7 +681,7 @@ trait AuthorizationSupport {
       }
     }
     override def isPublic: Boolean = if (all) return true else return AuthCache.getServiceIsPublic(id).getOrElse(false)
-    override def isThere: Boolean = AuthCache.getServiceOwner(id).nonEmpty
+    override def isThere: Boolean = all || mine || AuthCache.getServiceOwner(id).nonEmpty
     override def label = "service"
   }
 
@@ -693,7 +693,7 @@ trait AuthorizationSupport {
       }
     }
     override def isPublic: Boolean = if (all) return true else return AuthCache.getPatternIsPublic(id).getOrElse(false)
-    override def isThere: Boolean = AuthCache.getPatternOwner(id).nonEmpty
+    override def isThere: Boolean = all || mine || AuthCache.getPatternOwner(id).nonEmpty
     override def label = "pattern"
   }
 
@@ -705,7 +705,7 @@ trait AuthorizationSupport {
       }
     }
     override def isPublic: Boolean = if (all) return true else return AuthCache.getBusinessIsPublic(id).getOrElse(false)
-    override def isThere: Boolean = AuthCache.getBusinessOwner(id).nonEmpty
+    override def isThere: Boolean = all || mine || AuthCache.getBusinessOwner(id).nonEmpty
     override def label = "business policy"
   }
 

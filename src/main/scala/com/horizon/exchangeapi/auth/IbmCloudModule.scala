@@ -403,6 +403,7 @@ object IbmCloudAuth {
         orgId <- verifyOrg(authInfo, userInfo, orgAcctId.flatten) // verify the org exists in the db, and in the public cloud case the cloud acct id of the apikey and the org entry match
         userRow <- fetchUser(orgId, userInfo)
         userAction <- {
+          logger.debug(s"userRow: $userRow")
           if (userRow.isEmpty) createUser(orgId, userInfo)
           else DBIO.successful(Success(userRow.get)) // to produce error case below, instead use: createUser(orgId, userInfo)
         }

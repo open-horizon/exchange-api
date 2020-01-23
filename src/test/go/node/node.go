@@ -197,9 +197,9 @@ func main() {
 		perfutils.ExchangeP(http.MethodPut, "orgs/"+org+"/nodes/"+mynodeid, userauth, nil, `{"token": "`+nodetoken+`", "name": "pi", "pattern": "`+org+`/`+patternid+`", "arch": "`+svcarch+`", "publicKey": "ABC"}`, nil, false)
 		perfutils.ExchangeGet("orgs/"+org+"/nodes/"+mynodeid, mynodeauth, nil, nil)
 		perfutils.ExchangeGet("orgs/"+org, mynodeauth, nil, nil)
-		perfutils.ExchangeGet("orgs/"+org+"/patterns/"+patternid, mynodeauth, nil, nil)
+		perfutils.ExchangeGet("orgs/"+org+"/patterns/"+patternid, mynodeauth, []int{404}, nil)
 		perfutils.ExchangeP(http.MethodPatch, "orgs/"+org+"/nodes/"+mynodeid, mynodeauth, nil, `{ "registeredServices": [{"url": "`+org+`/`+svcurl+`", "numAgreements": 1, "policy": "{blob}", "properties": [{"name": "arch", "value": "`+svcarch+`", "propType": "string", "op": "in"},{"name": "version", "value": "1.0.0", "propType": "version", "op": "in"}]}] }`, nil, true)
-		perfutils.ExchangeGet("orgs/"+org+"/patterns/"+patternid, mynodeauth, nil, nil)
+		perfutils.ExchangeGet("orgs/"+org+"/patterns/"+patternid, mynodeauth, []int{404}, nil)
 		perfutils.ExchangeGet("orgs/"+org+"/services", mynodeauth, nil, nil)
 		perfutils.ExchangeP(http.MethodPut, "orgs/"+org+"/nodes/"+mynodeid+"/policy", mynodeauth, nil, `{ "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }`, nil, true)
 

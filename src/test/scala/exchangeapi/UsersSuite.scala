@@ -867,7 +867,7 @@ class UsersSuite extends FunSuite {
         response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
         info("code: "+response.code)
         assert(response.code === HttpCode.BADCREDS.intValue)
-        errorMsg = s"the iamapikey or iamtoken specified can not be used with org '$cloudorg' prepended to it, because the exchange does not recognize"
+        errorMsg = s"the iamapikey or iamtoken specified can not be used with org '$cloudorg' prepended to it, because the iamapikey or iamtoken is not associated with that org"
         assert(parse(response.body).extract[Map[String, String]].apply("msg").startsWith(errorMsg))
       } else {
         info("Skipping IAM public cloud tests tests")

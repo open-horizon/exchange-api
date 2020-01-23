@@ -14,6 +14,8 @@ import javax.security.auth.callback._
 import javax.security.auth.spi.LoginModule
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+//import slick.dbio.Effect
+//import slick.sql.SqlAction
 
 import scala.concurrent.ExecutionContext
 //import org.slf4j.{ Logger, LoggerFactory }
@@ -397,10 +399,9 @@ object IbmCloudAuth {
     // This can throw exceptions OrgNotFound or IncorrectOrgFound
     val userQuery =
       for {
-        //associatedOrgId <- fetchOrg(userInfo) // can no longer use this, because the account id it uses to find the org is not necessarily unique...
-        //orgId <- verifyOrg(authInfo, userInfo, associatedOrgId)
-        orgAcctId <- fetchOrg(authInfo.org)
-        orgId <- verifyOrg(authInfo, userInfo, orgAcctId.flatten) // verify the org exists in the db, and in the public cloud case the cloud acct id of the apikey and the org entry match
+        //orgAcctId <- fetchOrg(authInfo.org)
+        //orgId <- verifyOrg(authInfo, userInfo, orgAcctId) // verify the org exists in the db, and in the public cloud case the cloud acct id of the apikey and the org entry match
+        orgId <- fetchVerifyOrg(authInfo, userInfo) // verify the org exists in the db, and in the public cloud case the cloud acct id of the apikey and the org entry match
         userRow <- fetchUser(orgId, userInfo)
         userAction <- {
           logger.debug(s"userRow: $userRow")
@@ -444,22 +445,24 @@ object IbmCloudAuth {
     awaitResult
   }
 
+  /*
   // Get the associated ibm cloud id of the org that was specified in the client request credentials
   //someday: add a db query that will work for icp (e.g. get the orgid) so in verifyOrg we can tell in both cases if the org was not found in the db. But in the mean time, logic in verifyOrg handles it
   private def fetchOrg(authOrg: String) = {
     logger.debug("Fetching org: " + authOrg)
-    /*someday: Could not figure out how to make this return type be the same as in the public cloud case. So for now, in verifyOrg in the ICP case
-              we depend on this result being None instead of Some("") to know that the org was not found in the db.
+    //someday: Could not figure out how to make this return type be the same as in the public cloud case. So for now, in verifyOrg in the ICP case we depend on this result being None instead of Some("") to know that the org was not found in the db.
     if (isIcp) {
       // ICP/OCP - just verify that the org referenced in the client creds exists in the db
       OrgsTQ.getOrgid(authOrg).map(_.orgid).result.headOption
-    } else { */
+    } else {
       // IBM public cloud - try to get the cloud account id from the exchange org that was referenced in the client creds
-    OrgsTQ.getOrgid(authOrg)
-      .map(_.tags.+>>("ibmcloud_id"))
-      //.take(1)  // not sure what the purpose of this was
-      .result
-      .headOption
+      OrgsTQ.getOrgid(authOrg)
+        .map(_.tags.+>>("ibmcloud_id"))
+        //.take(1)  // not sure what the purpose of this was
+        .result
+        .headOption
+        .flatten
+    }
   }
 
   // Verify that the cloud acct id of the cloud api key and the exchange org entry match
@@ -487,7 +490,7 @@ object IbmCloudAuth {
         //logger.error(s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for ${authInfo.org}")
         DBIO.failed(OrgNotFound(authInfo.org))
       } else if (authInfo.keyType == "iamtoken" && userInfo.accountId == "") {
-        //todo: this is the case with tokens from the edge mgmt ui (because we don't get the accountId when we validate an iamtoken). The ui already verified the org and is using the right one,
+        //todx: this is the case with tokens from the edge mgmt ui (because we don't get the accountId when we validate an iamtoken). The ui already verified the org and is using the right one,
         //      so there is no exposure there. But we still need to verify the org in case someone is spoofing being the ui. But to get here, the iamtoken has to be valid, just not for this org.
         //      With IECM on ICP/OCP, the only exposure is using an iamtoken from the cluster org to manage resources in the IBM org.
         DBIO.successful(authInfo.org)
@@ -497,6 +500,51 @@ object IbmCloudAuth {
       } else {
         DBIO.successful(authInfo.org)
       }
+    }
+  }
+  */
+
+  // Verify that the cloud acct id of the cloud api key and the exchange org entry match
+  // authInfo is the creds they passed in, userInfo is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db
+  private def fetchVerifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo) = {
+    if (isIcp) {
+      logger.debug(s"Fetching and verifying ICP/OCP org: $authInfo, $userInfo, $getIcpClusterName")
+      OrgsTQ.getOrgid(authInfo.org).map(_.orgid).result.headOption.flatMap({
+        case None =>
+          DBIO.failed(OrgNotFound(authInfo.org))
+        case Some(result) =>
+          // We are here because the client creds (authInfo) were either an icp iamtoken or iamapikey. Those are only valid in the cluster name org (not the IBM org).
+          // So confirm that authInfo.org equals the cluster name
+          logger.debug(s"fetch org result: $result")
+          getIcpClusterName match {
+            case Success(clusterName) =>
+              if (authInfo.org == clusterName) DBIO.successful(authInfo.org)
+              else DBIO.failed(IncorrectIcpOrgFound(authInfo.org, clusterName))
+            case Failure(t) =>
+              DBIO.failed(t)
+          }
+      })
+    } else {
+      // IBM Cloud - we already have the account id from iam from the creds, and the account id of the exchange org
+      logger.debug(s"Fetching and verifying IBM public cloud org: $authInfo, $userInfo")
+      OrgsTQ.getOrgid(authInfo.org).map(_.tags.+>>("ibmcloud_id")).result.headOption.flatMap({
+        case None =>
+          //logger.error(s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for ${authInfo.org}")
+          DBIO.failed(OrgNotFound(authInfo.org))
+        case Some(acctIdOpt) => // acctIdOpt is type Option[String]
+          logger.debug(s"fetch org acctIdOpt: $acctIdOpt")
+          if (authInfo.keyType == "iamtoken" && userInfo.accountId == "") {
+            //todo: this is the case with tokens from the edge mgmt ui (because we don't get the accountId when we validate an iamtoken). The ui already verified the org and is using the right one,
+            //      so there is no exposure there. But we still need to verify the org in case someone is spoofing being the ui. But to get here, the iamtoken has to be valid, just not for this org.
+            //      With IECM on ICP/OCP, the only exposure is using an iamtoken from the cluster org to manage resources in the IBM org.
+            DBIO.successful(authInfo.org)
+          } else if (acctIdOpt.getOrElse("") != userInfo.accountId) {
+            //logger.error(s"IAM authentication succeeded, but the cloud account id of the org $orgAcctId does not match that of the cloud account ${userInfo.accountId}")
+            DBIO.failed(IncorrectOrgFound(authInfo.org, userInfo.accountId))
+          } else {
+            DBIO.successful(authInfo.org)
+          }
+      })
     }
   }
 

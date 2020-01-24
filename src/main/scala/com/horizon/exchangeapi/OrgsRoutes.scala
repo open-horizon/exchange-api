@@ -505,46 +505,35 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  def buildResourceChangesResponse(orgList: scala.Seq[ResourceChangeRow], ibmList: scala.Seq[ResourceChangeRow], maxResp : Int): ResourceChangesRespObject ={
+  def buildResourceChangesResponse(inputList: scala.Seq[ResourceChangeRow], maxRecords : Int): ResourceChangesRespObject ={
+    // fill in some values we can before processing
     val exchangeVersion = ExchangeApi.adminVersion()
-    val inputList = List(orgList, ibmList)
-    val changesList = ListBuffer[ChangeEntry]()
-    var mostRecentChangeId = 0
+    val maxChangeIdOfQuery = inputList.last.changeId // this is the maximum changeId of the entire query from the db
+    // set up needed variables
     var entryCounter = 0
-    var maxChangeIdOfQuery = 0
+    var mostRecentChangeId = 0
+    val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
+    // fill in changesMap
     breakable {
-      for(input <- inputList) { //this for loop should only ever be of size 2
-        val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
-        for( entry <- input) {
-          val resChange = ResourceChangesInnerObject(entry.changeId, entry.lastUpdated)
-          changesMap.get(entry.id+"_"+entry.resource) match { // using the map allows for better searching and entry
-            case Some(change) =>
-              if(change.resourceChanges.last.changeId < entry.changeId){
-                // the entry we are looking at actually happened later than the last entry in resourceChanges
-                // doing this check by changeId on the off chance two changes happen at the exact same time changeId tells which one is most updated
-                change.addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
-                change.setOperation(entry.operation) // update the most recent operation performed
-              }
-            case None => // add the change to the changesMap
-              val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
-              changesMap.put(entry.id+"_"+entry.resource, ChangeEntry(entry.orgId, entry.resource, entry.id, entry.operation, resChangeListBuffer))
-          }
-          //check maxChangeIdOfQuery
-          if (entry.changeId > maxChangeIdOfQuery) {maxChangeIdOfQuery = entry.changeId}
-        }
-        // convert changesMap to ListBuffer[ChangeEntry]
-        breakable {
-          for (entry <- changesMap) {
-            if (entryCounter > maxResp) break // if we are over the count of allowed entries just stop and go to outer loop
-            changesList += entry._2 // if we are not just continue adding to the changesList
-            if (mostRecentChangeId < entry._2.resourceChanges.last.changeId) { mostRecentChangeId = entry._2.resourceChanges.last.changeId } //set the mostRecentChangeId value
-            entryCounter += 1 // increment our count of how many entries there are in changesList
-          }
-        }
-        if (entryCounter > maxResp) break // if we are over the count of allowed entries just stop and return the list as is
-      }
+      for (entry <- inputList) { // looping through every single ResourceChangeRow in inputList
+        val resChange = ResourceChangesInnerObject(entry.changeId, entry.lastUpdated)
+        changesMap.get(entry.orgId+"_"+entry.id+"_"+entry.resource) match { // using the map allows for better searching and entry
+          case Some(change) =>
+            // inputList is already sorted by changeId from the query so we know this change happened later
+            change.addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
+            change.setOperation(entry.operation) // update the most recent operation performed
+          case None => // add the change to the changesMap
+            val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
+            changesMap.put(entry.orgId+"_"+entry.id+"_"+entry.resource, ChangeEntry(entry.orgId, entry.resource, entry.id, entry.operation, resChangeListBuffer))
+        } // end of match
+        if (entry.changeId > mostRecentChangeId) {mostRecentChangeId = entry.changeId} // set the maximum changeId that will be in the response
+        entryCounter += 1 // increment our count of how many changeId's we've gone through
+        if (entryCounter >= maxRecords) break // if we have now met or are over the count of allowed entries just stop and make the map into a list
+      } // end of for loop
     }
-    ResourceChangesRespObject(changesList.toList, mostRecentChangeId, maxChangeIdOfQuery, exchangeVersion)
+    // now we have changesMap which is Map[String, ChangeEntry] we need to convert that to a List[ChangeEntry]
+    val changesList = changesMap.values.toList
+    ResourceChangesRespObject(changesList, mostRecentChangeId, maxChangeIdOfQuery, exchangeVersion)
   }
 
   /* ====== POST /orgs/{orgid}/changes ================================ */
@@ -575,32 +564,21 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         complete({
           // Variables to help with building the query
           val lastTime = reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)
-          //perf: reduce these 2 db queries to 1 db query
-          var qOrgQuery = ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
+          // filter by lastUpdated and changeId then filter by either it's in the org OR it's not in the same org but is public
+          var qFilter = ResourceChangesTQ.rows.filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
           ident match {
             case _: INode =>
-              qOrgQuery = qOrgQuery.filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
+              // if its a node calling then it doesn't want information about any other nodes
+              qFilter = qFilter.filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
             case _ => ;
           }
-          val qOrg = for { r <- qOrgQuery } yield r
-          val qPublic = for {
-            r <- ResourceChangesTQ.rows.filter(_.orgId =!= orgId).filter(_.public === "true").filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId)
-          } yield r
-
-          var qOrgResp : scala.Seq[ResourceChangeRow] = null
-          var qPublicResp : scala.Seq[ResourceChangeRow] = null
-
-          db.run(qOrg.result.asTry.flatMap({
-            case Success(qOrgResult) =>
-              //logger.debug("POST /orgs/" + orgId + "/changes changes in caller org: " + qOrgResult.toString())
-              logger.debug("POST /orgs/" + orgId + "/changes changes in caller org: " + qOrgResult.size)
-              qOrgResp = qOrgResult
-              qPublic.result.asTry
-            case Failure(t) => DBIO.failed(t).asTry
-          }).flatMap({
-            case Success(qIBMResult) => qPublicResp = qIBMResult
-              //logger.debug("POST /orgs/" + orgId + "/changes public changes in IBM org: " + qIBMResult.toString())
-              logger.debug("POST /orgs/" + orgId + "/changes public changes in IBM org: " + qIBMResult.size)
+          val q = for { r <- qFilter.sortBy(_.changeId) } yield r //sort the response by changeId
+          var qResp : scala.Seq[ResourceChangeRow] = null
+          db.run(q.result.asTry.flatMap({
+            case Success(qResult) =>
+              //logger.debug("POST /orgs/" + orgId + "/changes changes : " + qOrgResult.toString())
+              logger.debug("POST /orgs/" + orgId + "/changes changes : " + qResult.size)
+              qResp = qResult
               val id = orgId + "/" + ident.getIdentity
               ident match {
                 case _: INode =>
@@ -612,12 +590,12 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
                   // v in the next step must be > 0 so any n > 0 works
                   DBIO.successful(1).asTry
               }
-            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+            case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(n) =>
-              logger.debug(s"POST /orgs/$orgId result: $n")
-              if (n > 0) (HttpCode.POST_OK, buildResourceChangesResponse(qOrgResp, qPublicResp, reqBody.maxRecords))
-              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", ident.getIdentity)))
+              logger.debug(s"POST /orgs/$orgId/changes node/agbot heartbeat result: $n")
+              if (n > 0) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, reqBody.maxRecords))
+            else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", ident.getIdentity)))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
           })

@@ -9,20 +9,11 @@ import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson._
 
 import scala.concurrent.ExecutionContext
-//import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{ Content, Schema }
 import io.swagger.v3.oas.annotations._
-//import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
-//import org.json4s._
-//import scala.collection.immutable._
-//import scala.util._
-
-//import com.horizon.exchangeapi.tables._
 import slick.jdbc.PostgresProfile.api._
-
-//import scala.collection.mutable.{HashMap => MutableHashMap}
 
 // Provides routes for browsing the services and patterns in the IBM catalog
 @Path("/v1/catalog")
@@ -49,7 +40,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def catalogGetServicesRoute: Route = (get & path("catalog" / "services") & parameter(('orgtype.?))) { (orgType) =>
+  def catalogGetServicesRoute: Route = (path("catalog" / "services") & get & parameter(('orgtype.?))) { (orgType) =>
     exchAuth(TService(OrgAndId("*","*").toString),Access.READ_ALL_SERVICES) { _ =>
         complete({
           val svcQuery = for {
@@ -80,7 +71,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def catalogGetPatternsRoute: Route = (get & path("catalog" / "patterns") & parameter(('orgtype.?))) { (orgType) =>
+  def catalogGetPatternsRoute: Route = (path("catalog" / "patterns") & get & parameter(('orgtype.?))) { (orgType) =>
     exchAuth(TPattern(OrgAndId("*","*").toString),Access.READ_ALL_PATTERNS) { _ =>
       complete({
         val svcQuery = for {

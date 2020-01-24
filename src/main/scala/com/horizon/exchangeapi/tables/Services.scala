@@ -7,15 +7,15 @@ import slick.jdbc.PostgresProfile.api._
 
 
 /** Contains the object representations of the DB tables related to services. */
-case class ServiceRef(url: String, org: String, version: Option[String], versionRange: Option[String], arch: String)
-case class ServiceRef2(url: String, org: String, versionRange: String, arch: String)
+final case class ServiceRef(url: String, org: String, version: Option[String], versionRange: Option[String], arch: String)
+final case class ServiceRef2(url: String, org: String, versionRange: String, arch: String)
 
 // This is the service table minus the key - used as the data structure to return to the REST clients
 class Service(var owner: String, var label: String, var description: String, var public: Boolean, var documentation: String, var url: String, var version: String, var arch: String, var sharable: String, var matchHardware: Map[String,Any], var requiredServices: List[ServiceRef], var userInput: List[Map[String,String]], var deployment: String, var deploymentSignature: String, var imageStore: Map[String,Any], var lastUpdated: String) {
   def copy = new Service(owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, imageStore, lastUpdated)
 }
 
-case class ServiceRow(service: String, orgid: String, owner: String, label: String, description: String, public: Boolean, documentation: String, url: String, version: String, arch: String, sharable: String, matchHardware: String, requiredServices: String, userInput: String, deployment: String, deploymentSignature: String, imageStore: String, lastUpdated: String) {
+final case class ServiceRow(service: String, orgid: String, owner: String, label: String, description: String, public: Boolean, documentation: String, url: String, version: String, arch: String, sharable: String, matchHardware: String, requiredServices: String, userInput: String, deployment: String, deploymentSignature: String, imageStore: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toService: Service = {
@@ -127,9 +127,9 @@ object ServicesTQ {
 
 
 // Policy is a sub-resource of service
-case class OneProperty(name: String, `type`: Option[String], value: Any)
+final case class OneProperty(name: String, `type`: Option[String], value: Any)
 
-case class ServicePolicyRow(serviceId: String, properties: String, constraints: String, lastUpdated: String) {
+final case class ServicePolicyRow(serviceId: String, properties: String, constraints: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toServicePolicy: ServicePolicy = {
@@ -155,11 +155,11 @@ object ServicePolicyTQ {
   def getServicePolicy(serviceId: String) = rows.filter(_.serviceId === serviceId)
 }
 
-case class ServicePolicy(properties: List[OneProperty], constraints: List[String], lastUpdated: String)
+final case class ServicePolicy(properties: List[OneProperty], constraints: List[String], lastUpdated: String)
 
 
 // Key is a sub-resource of service
-case class ServiceKeyRow(keyId: String, serviceId: String, key: String, lastUpdated: String) {
+final case class ServiceKeyRow(keyId: String, serviceId: String, key: String, lastUpdated: String) {
   def toServiceKey = ServiceKey(key, lastUpdated)
 
   def upsert: DBIO[_] = ServiceKeysTQ.rows.insertOrUpdate(this)
@@ -182,11 +182,11 @@ object ServiceKeysTQ {
   def getKey(serviceId: String, keyId: String) = rows.filter( r => {r.serviceId === serviceId && r.keyId === keyId} )
 }
 
-case class ServiceKey(key: String, lastUpdated: String)
+final case class ServiceKey(key: String, lastUpdated: String)
 
 
 // DockAuth is a sub-resource of service
-case class ServiceDockAuthRow(dockAuthId: Int, serviceId: String, registry: String, username: String, token: String, lastUpdated: String) {
+final case class ServiceDockAuthRow(dockAuthId: Int, serviceId: String, registry: String, username: String, token: String, lastUpdated: String) {
   def toServiceDockAuth = ServiceDockAuth(dockAuthId, registry, username, token, lastUpdated)
 
   // The returning operator is necessary on insert to have it return the id auto-generated, instead of the number of rows inserted
@@ -215,4 +215,4 @@ object ServiceDockAuthsTQ {
   def getLastUpdatedAction(serviceId: String, dockAuthId: Int) = rows.filter( r => {r.serviceId === serviceId && r.dockAuthId === dockAuthId} ).map(_.lastUpdated).update(ApiTime.nowUTC)
 }
 
-case class ServiceDockAuth(dockAuthId: Int, registry: String, username: String, token: String, lastUpdated: String)
+final case class ServiceDockAuth(dockAuthId: Int, registry: String, username: String, token: String, lastUpdated: String)

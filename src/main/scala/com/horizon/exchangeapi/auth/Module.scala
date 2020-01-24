@@ -1,15 +1,11 @@
 package com.horizon.exchangeapi.auth
 
-//import java.security._
-
 import com.horizon.exchangeapi._
 import javax.security.auth._
 import javax.security.auth.callback._
 import javax.security.auth.login.FailedLoginException
 import javax.security.auth.spi.LoginModule
-//import org.slf4j.{ Logger, LoggerFactory }
 
-//import scala.util.{ Failure, Success, Try }
 import scala.util._
 
 /**
@@ -51,7 +47,6 @@ class Module extends LoginModule with AuthorizationSupport {
       }
       val reqInfo = reqCallback.request.get   // reqInfo is of type RequestInfo
       //logger.debug(s"auth/Module.login(): reqInfo: $reqInfo")
-      //val RequestInfo(creds, /*req, _,*/ isDbMigration /*, _*/ , hint) = reqInfo
       //val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
 
       // Get the creds from the request
@@ -125,15 +120,15 @@ class RequestCallback extends Callback {
   def request: Option[RequestInfo] = req
 }
 
-/* Everything below here is for authorization, but not using the java authorization framework anymore, because it doesn't add any value for us and adds complexity
+/* Everything below here is for JAAS authorization, but not using the java authorization framework anymore, because it doesn't add any value for us and adds complexity
 // Both ExchangeRole and AccessPermission are listed in resources/auth.policy
-case class ExchangeRole(role: String) extends Principal {
+final case class ExchangeRole(role: String) extends Principal {
   override def getName = role
 }
 
-case class AccessPermission(name: String) extends BasicPermission(name)
+final case class AccessPermission(name: String) extends BasicPermission(name)
 
-case class PermissionCheck(permission: String) extends PrivilegedAction[Unit] {
+final case class PermissionCheck(permission: String) extends PrivilegedAction[Unit] {
   import Access._
 
   // It is easier to list the actions an admin user is *not* allowed to do

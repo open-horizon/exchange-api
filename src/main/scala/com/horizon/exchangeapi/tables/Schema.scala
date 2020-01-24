@@ -2,14 +2,13 @@ package com.horizon.exchangeapi.tables
 
 import com.horizon.exchangeapi.ApiTime
 import slick.jdbc.PostgresProfile.api._
-//import org.slf4j._
 import scala.collection.mutable.ListBuffer
 import akka.event.LoggingAdapter
 
 
 /** Stores the current DB schema version, and includes methods to upgrade to the latest schema. */
 
-case class SchemaRow(id: Int, schemaVersion: Int, description: String, lastUpdated: String) {
+final case class SchemaRow(id: Int, schemaVersion: Int, description: String, lastUpdated: String) {
   //protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toSchema: Schema = Schema(id, schemaVersion, description, lastUpdated)
@@ -184,7 +183,7 @@ final case class Schema(id: Int, schemaVersion: Int, description: String, lastUp
 
 
 // Test table
-case class FooRow(bar: String, description: String)
+final case class FooRow(bar: String, description: String)
 class FooTable(tag: Tag) extends Table[FooRow](tag, "foo") {
   def bar = column[String]("bar", O.PrimaryKey)
   def description = column[String]("description")

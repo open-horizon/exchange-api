@@ -4,7 +4,6 @@ package com.horizon.exchangeapi
 import javax.ws.rs._
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
-//import akka.event.{ Logging, LoggingAdapter }
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -17,27 +16,20 @@ import scala.concurrent.ExecutionContext
 
 import de.heikoseeberger.akkahttpjackson._
 import org.json4s._
-//import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
 
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{ Content, Schema }
-//import io.swagger.v3.oas.annotations.responses.ApiResponse
-//import io.swagger.v3.oas.annotations.{ Operation, Parameter }
 import io.swagger.v3.oas.annotations._
-//import io.swagger.v3.jaxrs2   // this also does not have the PATCH method
 
 import com.horizon.exchangeapi.tables._
 import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
-//import com.horizon.exchangeapi.auth.DBProcessingError
 
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
 import scala.util._
 import scala.util.control.Breaks._
-//import scala.concurrent.Future
-//import scala.concurrent.ExecutionContext.Implicits.global
 
 /*someday: when we start using actors:
 import akka.actor.{ ActorRef, ActorSystem }
@@ -57,14 +49,8 @@ final case class GetOrgAttributeResponse(attribute: String, value: String)
 /** Input format for PUT /orgs/<org-id> */
 final case class PostPutOrgRequest(orgType: Option[String], label: String, description: String, tags: Option[Map[String, String]], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
   require(label!=null && description!=null)
-  //require(label!=null, "label must be specified")
-  //require(description!=null, "description must be specified")
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = None
-  /* def getAnyProblem: Option[String] = {
-    if (label==null || description==null) Some("A required field is missing")
-    else None
-  } */
 
   def toOrgRow(orgId: String) = OrgRow(orgId, orgType.getOrElse(""), label, description, ApiTime.nowUTC, tags.map(ts => ApiUtils.asJValue(ts)), write(heartbeatIntervals))
 }
@@ -73,13 +59,11 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
-    //println(s"raw request body: $requestBody")
     None
   }
   /** Returns a tuple of the db action to update parts of the org, and the attribute name being updated. */
   def getDbUpdate(orgId: String)(implicit executionContext: ExecutionContext): (DBIO[_], String) = {
     import com.horizon.exchangeapi.tables.ExchangePostgresProfile.plainAPI._
-    //import scala.concurrent.ExecutionContext.Implicits.global
     val lastUpdated = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this org
     orgType match { case Some(ot) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.orgType, d.lastUpdated)).update((orgId, ot, lastUpdated)), "orgType"); case _ => ; }
@@ -133,8 +117,7 @@ final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecen
 /** Routes for /orgs */
 @Path("/v1/orgs")
 trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
-  // Tell spray how to marshal our types (models) to/from the rest client
-  // old way: protected implicit def jsonFormats: Formats
+  // Not using Spray, but left here for reference, in case we want to switch to it - Tell spray how to marshal our types (models) to/from the rest client
   //import DefaultJsonProtocol._
   // Note: it is important to use the immutable version of collections like Map
   // Note: if you accidentally omit a class here, you may get a msg like: [error] /Users/bp/src/github.com/open-horizon/exchange-api/src/main/scala/com/horizon/exchangeapi/OrgsRoutes.scala:49:44: could not find implicit value for evidence parameter of type spray.json.DefaultJsonProtocol.JF[scala.collection.immutable.Seq[com.horizon.exchangeapi.TmpOrg]]
@@ -144,9 +127,6 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   implicit val getOrgAttributeResponseJsonFormat = jsonFormat2(GetOrgAttributeResponse)
   implicit val postPutOrgRequestJsonFormat = jsonFormat4(PostPutOrgRequest) */
   //implicit val actionPerformedJsonFormat = jsonFormat1(ActionPerformed)
-
-  //def db: Database = ExchangeApiApp.getDb
-  //lazy implicit val logger: LoggingAdapter = Logging(system, classOf[OrgsRoutes])
 
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -193,14 +173,11 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgsGetRoute: Route = (get & path("orgs") & parameter(('orgtype.?, 'label.?))) { (orgType, label) =>
+  def orgsGetRoute: Route = (path("orgs") & get & parameter(('orgtype.?, 'label.?))) { (orgType, label) =>
     logger.debug(s"Doing GET /orgs with orgType:$orgType, label:$label")
     // If filter is orgType=IBM then it is a different access required than reading all orgs
     val access = if (orgType.getOrElse("").contains("IBM")) Access.READ_IBM_ORGS else Access.READ_OTHER_ORGS
     exchAuth(TOrg("*"), access) { ident =>
-    /* auth(creds, TOrg("*"), access) match {
-      case Failure(t) => reject(AuthRejection(t))
-      case Success(ident) => */
       validate(orgType.isEmpty || orgType.get == "IBM", ExchMsg.translate("org.get.orgtype")) {
         complete({ // this is an anonymous function that returns Future[(StatusCode, GetOrgsResponse)]
           logger.debug("GET /orgs identity: " + ident)
@@ -239,7 +216,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgGetRoute: Route = (get & path("orgs" / Segment) & parameter('attribute.?)) { (orgId, attribute) =>
+  def orgGetRoute: Route = (path("orgs" / Segment) & get & parameter('attribute.?)) { (orgId, attribute) =>
     exchAuth(TOrg(orgId), Access.READ) { ident =>
       logger.debug(s"GET /orgs/$orgId ident: ${ident.getIdentity}")
       complete({
@@ -294,7 +271,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPostRoute: Route = (post & path("orgs" / Segment) & entity(as[PostPutOrgRequest])) { (orgId, reqBody) =>
+  def orgPostRoute: Route = (path("orgs" / Segment) & post & entity(as[PostPutOrgRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgId")
     exchAuth(TOrg(""), Access.CREATE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -327,7 +304,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPutRoute: Route = (put & path("orgs" / Segment) & entity(as[PostPutOrgRequest])) { (orgId, reqBody) =>
+  def orgPutRoute: Route = (path("orgs" / Segment) & put & entity(as[PostPutOrgRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgId with orgId:$orgId")
     val access = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
     exchAuth(TOrg(orgId), access) { _ =>
@@ -360,7 +337,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPatchRoute: Route = (patch & path("orgs" / Segment) & entity(as[PatchOrgRequest])) { (orgId, reqBody) =>
+  def orgPatchRoute: Route = (path("orgs" / Segment) & patch & entity(as[PatchOrgRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgId with orgId:$orgId")
     val access = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
     exchAuth(TOrg(orgId), access) { _ =>
@@ -392,7 +369,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgDeleteRoute: Route = (delete & path("orgs" / Segment)) { (orgId) =>
+  def orgDeleteRoute: Route = (path("orgs" / Segment) & delete) { (orgId) =>
     logger.debug(s"Doing DELETE /orgs/$orgId")
     exchAuth(TOrg(orgId), Access.WRITE) { _ =>
       complete({
@@ -422,7 +399,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPostNodesErrorRoute: Route = (post & path("orgs" / Segment / "search" / "nodes" / "error")) { (orgid) =>
+  def orgPostNodesErrorRoute: Route = (path("orgs" / Segment / "search" / "nodes" / "error") & post) { (orgid) =>
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/error")
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
       complete({
@@ -461,7 +438,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPostNodesServiceRoute: Route = (post & path("orgs" / Segment / "search" / "nodes" / "service") & entity(as[PostServiceSearchRequest])) { (orgid, reqBody) =>
+  def orgPostNodesServiceRoute: Route = (path("orgs" / Segment / "search" / "nodes" / "service") & post & entity(as[PostServiceSearchRequest])) { (orgid, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/service")
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -502,7 +479,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPostNodesHealthRoute: Route = (post & path("orgs" / Segment / "search" / "nodehealth") & entity(as[PostNodeHealthRequest])) { (orgid, reqBody) =>
+  def orgPostNodesHealthRoute: Route = (path("orgs" / Segment / "search" / "nodehealth") & post & entity(as[PostNodeHealthRequest])) { (orgid, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/service")
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -591,7 +568,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgChangesRoute: Route = (post & path("orgs" / Segment / "changes") & entity(as[ResourceChangesRequest])) { (orgId, reqBody) =>
+  def orgChangesRoute: Route = (path("orgs" / Segment / "changes") & post & entity(as[ResourceChangesRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgId/changes")
     exchAuth(TOrg(orgId), Access.READ) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {

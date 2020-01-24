@@ -1,15 +1,12 @@
 package com.horizon.exchangeapi.tables
-// import slick.driver.PostgresDriver.api._
 import com.horizon.exchangeapi._
 import org.json4s._
-//import org.json4s.jackson.Serialization.read
 import slick.jdbc.PostgresProfile.api._
 
 
 /** Contains the object representations of the DB tables related to agbots. */
-//case class APattern(orgid: String, pattern: String)
 
-case class AgbotRow(id: String, orgid: String, token: String, name: String, owner: String, /*patterns: String,*/ msgEndPoint: String, lastHeartbeat: String, publicKey: String) {
+final case class AgbotRow(id: String, orgid: String, token: String, name: String, owner: String, /*patterns: String,*/ msgEndPoint: String, lastHeartbeat: String, publicKey: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toAgbot(superUser: Boolean): Agbot = {
@@ -83,7 +80,7 @@ class Agbot(var token: String, var name: String, var owner: String, /*var patter
 }
 
 
-case class AgbotPatternRow(patId: String, agbotId: String, patternOrgid: String, pattern: String, nodeOrgid: String, lastUpdated: String) {
+final case class AgbotPatternRow(patId: String, agbotId: String, patternOrgid: String, pattern: String, nodeOrgid: String, lastUpdated: String) {
   def toAgbotPattern = AgbotPattern(patternOrgid, pattern, nodeOrgid, lastUpdated)
 
   def upsert: DBIO[_] = AgbotPatternsTQ.rows.insertOrUpdate(this)
@@ -109,10 +106,10 @@ object AgbotPatternsTQ {
   def getPattern(agbotId: String, patId: String) = rows.filter( r => {r.agbotId === agbotId && r.patId === patId} )
 }
 
-case class AgbotPattern(patternOrgid: String, pattern: String, nodeOrgid: String, lastUpdated: String)
+final case class AgbotPattern(patternOrgid: String, pattern: String, nodeOrgid: String, lastUpdated: String)
 
 
-case class AgbotBusinessPolRow(busPolId: String, agbotId: String, businessPolOrgid: String, businessPol: String, nodeOrgid: String, lastUpdated: String) {
+final case class AgbotBusinessPolRow(busPolId: String, agbotId: String, businessPolOrgid: String, businessPol: String, nodeOrgid: String, lastUpdated: String) {
   def toAgbotBusinessPol = AgbotBusinessPol(businessPolOrgid, businessPol, nodeOrgid, lastUpdated)
 
   def upsert: DBIO[_] = AgbotBusinessPolsTQ.rows.insertOrUpdate(this)
@@ -138,13 +135,13 @@ object AgbotBusinessPolsTQ {
   def getBusinessPol(agbotId: String, busPolId: String) = rows.filter( r => {r.agbotId === agbotId && r.busPolId === busPolId} )
 }
 
-case class AgbotBusinessPol(businessPolOrgid: String, businessPol: String, nodeOrgid: String, lastUpdated: String)
+final case class AgbotBusinessPol(businessPolOrgid: String, businessPol: String, nodeOrgid: String, lastUpdated: String)
 
 
-case class AAWorkload(orgid: String, pattern: String, url: String)
-case class AAService(orgid: String, pattern: String, url: String)
+final case class AAWorkload(orgid: String, pattern: String, url: String)
+final case class AAService(orgid: String, pattern: String, url: String)
 
-case class AgbotAgreementRow(agrId: String, agbotId: String, serviceOrgid: String, servicePattern: String, serviceUrl: String, state: String, lastUpdated: String, dataLastReceived: String) {
+final case class AgbotAgreementRow(agrId: String, agbotId: String, serviceOrgid: String, servicePattern: String, serviceUrl: String, state: String, lastUpdated: String, dataLastReceived: String) {
   def toAgbotAgreement = AgbotAgreement(AAService(serviceOrgid, servicePattern, serviceUrl), state, lastUpdated, dataLastReceived)
 
   def upsert: DBIO[_] = AgbotAgreementsTQ.rows.insertOrUpdate(this)
@@ -172,11 +169,11 @@ object AgbotAgreementsTQ {
   def getAgreementsWithState = rows.filter(_.state =!= "")
 }
 
-case class AgbotAgreement(service: AAService, state: String, lastUpdated: String, dataLastReceived: String)
+final case class AgbotAgreement(service: AAService, state: String, lastUpdated: String, dataLastReceived: String)
 
 
 /** The agbotmsgs table holds the msgs sent to agbots by nodes */
-case class AgbotMsgRow(msgId: Int, agbotId: String, nodeId: String, nodePubKey: String, message: String, timeSent: String, timeExpires: String) {
+final case class AgbotMsgRow(msgId: Int, agbotId: String, nodeId: String, nodePubKey: String, message: String, timeSent: String, timeExpires: String) {
   def toAgbotMsg = AgbotMsg(msgId, nodeId, nodePubKey, message, timeSent, timeExpires)
 
   def insert: DBIO[_] = ((AgbotMsgsTQ.rows returning AgbotMsgsTQ.rows.map(_.msgId)) += this)  // inserts the row and returns the msgId of the new row
@@ -205,4 +202,4 @@ object AgbotMsgsTQ {
   def getNumOwned(agbotId: String) = rows.filter(_.agbotId === agbotId).length
 }
 
-case class AgbotMsg(msgId: Int, nodeId: String, nodePubKey: String, message: String, timeSent: String, timeExpires: String)
+final case class AgbotMsg(msgId: Int, nodeId: String, nodePubKey: String, message: String, timeSent: String, timeExpires: String)

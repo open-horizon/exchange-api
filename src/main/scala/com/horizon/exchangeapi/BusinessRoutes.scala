@@ -139,7 +139,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def busPolsGetRoute: Route = (get & path("orgs" / Segment / "business" / "policies") & parameter(('idfilter.?, 'owner.?, 'label.?, 'description.?))) { (orgid, idfilter, owner, label, description) =>
+  def busPolsGetRoute: Route = (path("orgs" / Segment / "business" / "policies") & get & parameter(('idfilter.?, 'owner.?, 'label.?, 'description.?))) { (orgid, idfilter, owner, label, description) =>
     exchAuth(TBusiness(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       complete({
         var q = BusinessPoliciesTQ.getAllBusinessPolicies(orgid)
@@ -173,7 +173,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def busPolGetRoute: Route = (get & path("orgs" / Segment / "business" / "policies" / Segment) & parameter(('attribute.?))) { (orgid, policy, attribute) =>
+  def busPolGetRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & get & parameter(('attribute.?))) { (orgid, policy, attribute) =>
     val compositeId = OrgAndId(orgid,policy).toString
     exchAuth(TBusiness(compositeId), Access.READ) { _ =>
       complete({
@@ -277,7 +277,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def busPolPostRoute: Route = (post & path("orgs" / Segment / "business" / "policies" / Segment) & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
+  def busPolPostRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & post & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
     val compositeId = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.CREATE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -352,7 +352,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def busPolPutRoute: Route = (put & path("orgs" / Segment / "business" / "policies" / Segment) & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
+  def busPolPutRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & put & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
     val compositeId = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -421,7 +421,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def busPolPatchRoute: Route = (patch & path("orgs" / Segment / "business" / "policies" / Segment) & entity(as[PatchBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
+  def busPolPatchRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & patch & entity(as[PatchBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/business/policies/$policy")
     val compositeId = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.WRITE) { _ =>
@@ -492,7 +492,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def busPolDeleteRoute: Route = (delete & path("orgs" / Segment / "business" / "policies" / Segment)) { (orgid, policy) =>
+  def busPolDeleteRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & delete) { (orgid, policy) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/business/policies/$policy")
     val compositeId = OrgAndId(orgid,policy).toString
     exchAuth(TBusiness(compositeId), Access.WRITE) { _ =>
@@ -545,7 +545,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def busPolPostSearchRoute: Route = (post & path("orgs" / Segment / "business" / "policies" / Segment / "search") & entity(as[PostBusinessPolicySearchRequest])) { (orgid, policy, reqBody) =>
+  def busPolPostSearchRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment / "search") & post & entity(as[PostBusinessPolicySearchRequest])) { (orgid, policy, reqBody) =>
     val compositeId = OrgAndId(orgid, policy).toString
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {

@@ -144,7 +144,6 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       Some(LogEntry(s"${req.uri.authority.host.address}:$authId ${req.method.name} ${req.uri}: ${res.status}", Logging.InfoLevel))
     //case Rejected(rejections) => Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with ${rejections.headOption.getOrElse(NotFoundRejection("unrecognized route"))}", Logging.DebugLevel))
     //case Rejected(rejections) => Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with: $rejections", Logging.InfoLevel))
-    //todo: might have a performance issue with the way we arrange the routes - a zillion MethodRejection objects and TransformationRejection objects cancelling them
     case Rejected(rejections) =>
       var interestingRejections = rejections.filter({
         case _: TransformationRejection => false

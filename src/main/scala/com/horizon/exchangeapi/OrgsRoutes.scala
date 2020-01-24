@@ -193,7 +193,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgsGetRoute: Route = (get & path("orgs") & parameter(('orgtype.?, 'label.?))) { (orgType, label) =>
+  def orgsGetRoute: Route = (path("orgs") & get & parameter(('orgtype.?, 'label.?))) { (orgType, label) =>
     logger.debug(s"Doing GET /orgs with orgType:$orgType, label:$label")
     // If filter is orgType=IBM then it is a different access required than reading all orgs
     val access = if (orgType.getOrElse("").contains("IBM")) Access.READ_IBM_ORGS else Access.READ_OTHER_ORGS
@@ -239,7 +239,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgGetRoute: Route = (get & path("orgs" / Segment) & parameter('attribute.?)) { (orgId, attribute) =>
+  def orgGetRoute: Route = (path("orgs" / Segment) & get & parameter('attribute.?)) { (orgId, attribute) =>
     exchAuth(TOrg(orgId), Access.READ) { ident =>
       logger.debug(s"GET /orgs/$orgId ident: ${ident.getIdentity}")
       complete({
@@ -294,7 +294,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPostRoute: Route = (post & path("orgs" / Segment) & entity(as[PostPutOrgRequest])) { (orgId, reqBody) =>
+  def orgPostRoute: Route = (path("orgs" / Segment) & post & entity(as[PostPutOrgRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgId")
     exchAuth(TOrg(""), Access.CREATE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -327,7 +327,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPutRoute: Route = (put & path("orgs" / Segment) & entity(as[PostPutOrgRequest])) { (orgId, reqBody) =>
+  def orgPutRoute: Route = (path("orgs" / Segment) & put & entity(as[PostPutOrgRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgId with orgId:$orgId")
     val access = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
     exchAuth(TOrg(orgId), access) { _ =>
@@ -360,7 +360,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPatchRoute: Route = (patch & path("orgs" / Segment) & entity(as[PatchOrgRequest])) { (orgId, reqBody) =>
+  def orgPatchRoute: Route = (path("orgs" / Segment) & patch & entity(as[PatchOrgRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgId with orgId:$orgId")
     val access = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
     exchAuth(TOrg(orgId), access) { _ =>
@@ -392,7 +392,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgDeleteRoute: Route = (delete & path("orgs" / Segment)) { (orgId) =>
+  def orgDeleteRoute: Route = (path("orgs" / Segment) & delete) { (orgId) =>
     logger.debug(s"Doing DELETE /orgs/$orgId")
     exchAuth(TOrg(orgId), Access.WRITE) { _ =>
       complete({
@@ -422,7 +422,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPostNodesErrorRoute: Route = (post & path("orgs" / Segment / "search" / "nodes" / "error")) { (orgid) =>
+  def orgPostNodesErrorRoute: Route = (path("orgs" / Segment / "search" / "nodes" / "error") & post) { (orgid) =>
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/error")
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
       complete({
@@ -461,7 +461,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPostNodesServiceRoute: Route = (post & path("orgs" / Segment / "search" / "nodes" / "service") & entity(as[PostServiceSearchRequest])) { (orgid, reqBody) =>
+  def orgPostNodesServiceRoute: Route = (path("orgs" / Segment / "search" / "nodes" / "service") & post & entity(as[PostServiceSearchRequest])) { (orgid, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/service")
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -502,7 +502,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgPostNodesHealthRoute: Route = (post & path("orgs" / Segment / "search" / "nodehealth") & entity(as[PostNodeHealthRequest])) { (orgid, reqBody) =>
+  def orgPostNodesHealthRoute: Route = (path("orgs" / Segment / "search" / "nodehealth") & post & entity(as[PostNodeHealthRequest])) { (orgid, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/service")
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -591,7 +591,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgChangesRoute: Route = (post & path("orgs" / Segment / "changes") & entity(as[ResourceChangesRequest])) { (orgId, reqBody) =>
+  def orgChangesRoute: Route = (path("orgs" / Segment / "changes") & post & entity(as[ResourceChangesRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgId/changes")
     exchAuth(TOrg(orgId), Access.READ) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {

@@ -287,7 +287,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodesGetRoute: Route = (get & path("orgs" / Segment / "nodes") & parameter(('idfilter.?, 'name.?, 'owner.?, 'arch.?))) { (orgid, idfilter, name, owner, arch) =>
+  def nodesGetRoute: Route = (path("orgs" / Segment / "nodes") & get & parameter(('idfilter.?, 'name.?, 'owner.?, 'arch.?))) { (orgid, idfilter, name, owner, arch) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes")
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { ident =>
       complete({
@@ -323,7 +323,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeGetRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment) & parameter(('attribute.?))) { (orgid, id, attribute) =>
+  def nodeGetRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & get & parameter(('attribute.?))) { (orgid, id, attribute) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.READ) { ident =>
@@ -418,7 +418,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePutRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment) & entity(as[PutNodesRequest])) { (orgid, id, reqBody) =>
+  def nodePutRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & put & entity(as[PutNodesRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { ident =>
@@ -517,7 +517,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePatchRoute: Route = (patch & path("orgs" / Segment / "nodes" / Segment) & entity(as[PatchNodesRequest])) { (orgid, id, reqBody) =>
+  def nodePatchRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & patch & entity(as[PatchNodesRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
@@ -619,7 +619,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePostConfigStateRoute: Route = (post & path("orgs" / Segment / "nodes" / Segment / "services_configstate") & entity(as[PostNodeConfigStateRequest])) { (orgid, id, reqBody) =>
+  def nodePostConfigStateRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "services_configstate") & post & entity(as[PostNodeConfigStateRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -663,7 +663,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeDeleteRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment)) { (orgid, id) =>
+  def nodeDeleteRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & delete) { (orgid, id) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
@@ -707,7 +707,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeHeartbeatRoute: Route = (post & path("orgs" / Segment / "nodes" / Segment / "heartbeat")) { (orgid, id) =>
+  def nodeHeartbeatRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "heartbeat") & post) { (orgid, id) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$id/heartbeat")
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
@@ -740,7 +740,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeGetErrorsRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment / "errors")) { (orgid, id) =>
+  def nodeGetErrorsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "errors") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
@@ -780,7 +780,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePutErrorsRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "errors") & entity(as[PutNodeErrorRequest])) { (orgid, id, reqBody) =>
+  def nodePutErrorsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "errors") & put & entity(as[PutNodeErrorRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -817,7 +817,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeDeleteErrorsRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "errors")) { (orgid, id) =>
+  def nodeDeleteErrorsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "errors") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
@@ -859,7 +859,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeGetStatusRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment / "status")) { (orgid, id) =>
+  def nodeGetStatusRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "status") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
@@ -911,7 +911,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePutStatusRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "status") & entity(as[PutNodeStatusRequest])) { (orgid, id, reqBody) =>
+  def nodePutStatusRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "status") & put & entity(as[PutNodeStatusRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -948,7 +948,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeDeleteStatusRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "status")) { (orgid, id) =>
+  def nodeDeleteStatusRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "status") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
@@ -990,7 +990,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeGetPolicyRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment / "policy")) { (orgid, id) =>
+  def nodeGetPolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
@@ -1031,7 +1031,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePutPolicyRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "policy") & entity(as[PutNodePolicyRequest])) { (orgid, id, reqBody) =>
+  def nodePutPolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & put & entity(as[PutNodePolicyRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -1084,7 +1084,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeDeletePolicyRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "policy")) { (orgid, id) =>
+  def nodeDeletePolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
@@ -1126,7 +1126,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeGetAgreementsRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment / "agreements")) { (orgid, id) =>
+  def nodeGetAgreementsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
@@ -1155,7 +1155,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeGetAgreementRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment)) { (orgid, id, agrId) =>
+  def nodeGetAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & get) { (orgid, id, agrId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
@@ -1197,7 +1197,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePutAgreementRoute: Route = (put & path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & entity(as[PutNodeAgreementRequest])) { (orgid, id, agrId, reqBody) =>
+  def nodePutAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & put & entity(as[PutNodeAgreementRequest])) { (orgid, id, agrId, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -1257,7 +1257,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeDeleteAgreementsRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "agreements")) { (orgid, id) =>
+  def nodeDeleteAgreementsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
@@ -1299,7 +1299,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeDeleteAgreementRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment)) { (orgid, id, agrId) =>
+  def nodeDeleteAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & delete) { (orgid, id, agrId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
@@ -1347,7 +1347,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodePostMsgRoute: Route = (post & path("orgs" / Segment / "nodes" / Segment / "msgs") & entity(as[PostNodesMsgsRequest])) { (orgid, id, reqBody) =>
+  def nodePostMsgRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs") & post & entity(as[PostNodesMsgsRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.SEND_MSG_TO_NODE) { ident =>
       complete({
@@ -1409,7 +1409,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeGetMsgsRoute: Route = (get & path("orgs" / Segment / "nodes" / Segment / "msgs")) { (orgid, id) =>
+  def nodeGetMsgsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
@@ -1442,7 +1442,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodeDeleteMsgRoute: Route = (delete & path("orgs" / Segment / "nodes" / Segment / "msgs" / Segment)) { (orgid, id, msgIdStr) =>
+  def nodeDeleteMsgRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs" / Segment) & delete) { (orgid, id, msgIdStr) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({

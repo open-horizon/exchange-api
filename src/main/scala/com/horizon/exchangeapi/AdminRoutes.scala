@@ -87,7 +87,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def adminReloadRoute: Route = (post & path("admin" / "reload")) {
+  def adminReloadRoute: Route = (path("admin" / "reload") & post) {
     logger.debug("Doing POST /admin/reload")
     exchAuth(TAction(), Access.ADMIN) { _ =>
       complete({
@@ -112,7 +112,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def adminHashPwRoute: Route = (post & path("admin" / "hashpw") & entity(as[AdminHashpwRequest])) { reqBody =>
+  def adminHashPwRoute: Route = (path("admin" / "hashpw") & post & entity(as[AdminHashpwRequest])) { reqBody =>
     logger.debug("Doing POST /admin/hashpw")
     exchAuth(TAction(), Access.UTILITIES) { _ =>
       complete({
@@ -137,7 +137,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def adminLogLevelRoute: Route = (post & path("admin/loglevel") & entity(as[AdminLogLevelRequest])) { reqBody =>
+  def adminLogLevelRoute: Route = (path("admin/loglevel") & post & entity(as[AdminLogLevelRequest])) { reqBody =>
     logger.debug(s"Doing POST /admin/loglevel")
     exchAuthTAction(), Access.UTILITIES) { _ =>
       complete({
@@ -159,7 +159,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
         content = Array(new Content(schema = new Schema(implementation = classOf[AdminDropdbTokenResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def adminGetDbTokenRoute: Route = (get & path("admin" / "dropdb" / "token")) {
+  def adminGetDbTokenRoute: Route = (path("admin" / "dropdb" / "token") & get) {
     logger.debug("Doing GET /admin/dropdb/token")
     exchAuth(TAction(), Access.ADMIN) { _ =>
       complete({
@@ -177,7 +177,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def adminDropDbRoute: Route = (post & path("admin" / "dropdb")) {
+  def adminDropDbRoute: Route = (path("admin" / "dropdb") & post) {
     logger.debug("Doing POST /admin/dropdb")
     exchAuth(TAction(), Access.ADMIN, hint = "token") { _ =>
       complete({
@@ -202,7 +202,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def adminInitDbRoute: Route = (post & path("admin" / "initdb")) {
+  def adminInitDbRoute: Route = (path("admin" / "initdb") & post) {
     logger.debug("Doing POST /admin/initdb")
     ExchConfig.createRootInCache()  // need to do this before authenticating, because dropdb cleared it out (can not do this in dropdb, because it might expire)
     exchAuth(TAction(), Access.ADMIN, hint = "token") { _ =>
@@ -226,7 +226,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[String]))))))
-  def adminGetVersionRoute: Route = (get & path("admin" / "version")) {
+  def adminGetVersionRoute: Route = (path("admin" / "version") & get) {
     logger.debug("Doing POST /admin/version")
     val version = ExchangeApi.adminVersion() + "\n"
     //complete({ (HttpCode.POST_OK, version) }) // <- this sends it as json, so with double quotes around it and \n explicitly in the string
@@ -242,7 +242,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
         content = Array(new Content(schema = new Schema(implementation = classOf[GetAdminStatusResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def adminGetStatusRoute: Route = (get & path("admin" / "status")) {
+  def adminGetStatusRoute: Route = (path("admin" / "status") & get) {
     logger.debug("Doing GET /admin/status")
     exchAuth(TAction(), Access.STATUS) { _ =>
       complete({
@@ -289,7 +289,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
 
   /** set 1 or more variables in the in-memory config (does not affect all instances in multi-node mode).
    * Intentionally not put swagger, because only used by automated tests. */
-  def adminConfigRoute: Route = (put & path("admin" / "config") &entity(as[AdminConfigRequest])) { reqBody =>
+  def adminConfigRoute: Route = (path("admin" / "config") & put & entity(as[AdminConfigRequest])) { reqBody =>
     logger.debug(s"Doing POST /admin/config")
     exchAuth(TAction(), Access.ADMIN) { _ =>
       complete({
@@ -302,7 +302,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   }
 
   // =========== POST /admin/clearAuthCaches ===============================
-  def adminClearCacheRoute: Route = (post & path("admin" / "clearauthcaches")) {
+  def adminClearCacheRoute: Route = (path("admin" / "clearauthcaches") & post) {
     logger.debug("Doing POST /admin/clearauthcaches")
     exchAuth(TAction(), Access.ADMIN) { _ =>
       complete({
@@ -316,7 +316,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   /* ====== DELETE /orgs/IBM/changes/all ================================ */
   // This route is just for unit testing as a way to clean up the changes table once testing has completed
   // Otherwise the changes table gets clogged with entries in the IBM org from testing
-  def adminDeleteIbmChangesRoute: Route = (delete & path("orgs" / "IBM" / "changes" / "cleanup") & entity(as[DeleteIBMChangesRequest])) { reqBody =>
+  def adminDeleteIbmChangesRoute: Route = (path("orgs" / "IBM" / "changes" / "cleanup") & delete & entity(as[DeleteIBMChangesRequest])) { reqBody =>
     logger.debug("Doing POST /orgs/IBM/changes/cleanup")
     exchAuth(TAction(), Access.ADMIN) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {

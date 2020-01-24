@@ -228,6 +228,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 - Issue 278: Notification Framework V1.3 (bug fix of missing changes and increased efficiency)
 
+## Changes in 2.7.2
+
+- Changed the order of the akka route directives to match the path before the http method
+
 ## Changes in 2.7.1
 
 - Fixed the logging of rejections

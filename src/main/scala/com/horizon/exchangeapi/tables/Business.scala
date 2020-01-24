@@ -10,8 +10,8 @@ import scala.collection.mutable.ListBuffer
 
 /** Contains the object representations of the DB tables related to business policies. */
 
-case class BService(name: String, org: String, arch: String, serviceVersions: List[BServiceVersions], nodeHealth: Option[Map[String,Int]])
-case class BServiceVersions(version: String, priority: Option[Map[String,Int]], upgradePolicy: Option[Map[String,String]])
+final case class BService(name: String, org: String, arch: String, serviceVersions: List[BServiceVersions], nodeHealth: Option[Map[String,Int]])
+final case class BServiceVersions(version: String, priority: Option[Map[String,Int]], upgradePolicy: Option[Map[String,String]])
 
 // This is the businesspolicies table minus the key - used as the data structure to return to the REST clients
 class BusinessPolicy(var owner: String, var label: String, var description: String, var service: BService, var userInput: List[OneUserInputService], var properties: List[OneProperty], var constraints: List[String], var lastUpdated: String, var created: String) {
@@ -19,7 +19,7 @@ class BusinessPolicy(var owner: String, var label: String, var description: Stri
 }
 
 // Note: if you add fields to this, you must also add them the update method below
-case class BusinessPolicyRow(businessPolicy: String, orgid: String, owner: String, label: String, description: String, service: String, userInput: String, properties: String, constraints: String, lastUpdated: String, created: String) {
+final case class BusinessPolicyRow(businessPolicy: String, orgid: String, owner: String, label: String, description: String, service: String, userInput: String, properties: String, constraints: String, lastUpdated: String, created: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toBusinessPolicy: BusinessPolicy = {

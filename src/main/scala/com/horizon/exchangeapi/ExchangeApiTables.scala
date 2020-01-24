@@ -5,7 +5,6 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
 
-//import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
 
 import scala.concurrent.Await

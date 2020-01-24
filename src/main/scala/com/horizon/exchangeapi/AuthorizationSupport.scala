@@ -93,7 +93,7 @@ sealed trait Authorization {
   def specificAccessRequired: Access
 }
 
-case class RequiresAccess(specificAccess: Access) extends Authorization {
+final case class RequiresAccess(specificAccess: Access) extends Authorization {
   override def as(subject: Subject): Unit = {
     Subject.doAsPrivileged(subject, PermissionCheck(specificAccess.toString), null)
   }
@@ -150,21 +150,21 @@ object Role {
   def isSuperUser(username: String): Boolean = return username == superUser // only checks the username, does not verify the pw
 }
 
-case class Creds(id: String, token: String) { // id and token are generic names and their values can actually be username and password
+final case class Creds(id: String, token: String) { // id and token are generic names and their values can actually be username and password
   //def isAnonymous: Boolean = (id == "" && token == "")
   //someday: maybe add an optional hint to this so when they specify creds as username/password we know to try to authenticate as a user 1st
 }
 
-case class OrgAndId(org: String, id: String) {
+final case class OrgAndId(org: String, id: String) {
   override def toString = if (org == "" || id.startsWith(org + "/") || id.startsWith(Role.superUser)) id.trim else org.trim + "/" + id.trim
 }
 
 // This class is separate from the one above, because when the id is for a cred, we want automatically add the org only when a different org is not there
-case class OrgAndIdCred(org: String, id: String) {
+final case class OrgAndIdCred(org: String, id: String) {
   override def toString = if (org == "" || id.contains("/") || id.startsWith(Role.superUser)) id.trim else org.trim + "/" + id.trim    // we only check for slash, because they could already have on a different org
 }
 
-case class CompositeId(compositeId: String) {
+final case class CompositeId(compositeId: String) {
   def getOrg: String = {
     val reg = """^(\S+?)/.*""".r
     compositeId match {
@@ -194,7 +194,7 @@ case class CompositeId(compositeId: String) {
 }
 
 // The context info about the request passed into the login() methods
-case class RequestInfo(creds: Creds, isDbMigration: Boolean, hint: String)
+final case class RequestInfo(creds: Creds, isDbMigration: Boolean, hint: String)
 
 /*
 AuthorizationSupport is used by AuthenticationSupport, auth/Module, and auth/IbmCloudModule.

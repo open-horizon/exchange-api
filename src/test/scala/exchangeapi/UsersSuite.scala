@@ -215,6 +215,16 @@ class UsersSuite extends FunSuite {
     assert(o.heartbeatIntervals.minInterval === 6)
   }
 
+  test("GET / and GET /notthere - ensure unsupported routes are handled correctly") {
+    var response = Http(NOORGURL + "/notthere").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+
+    response = Http(NOORGURL).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+  }
+
   /** Try adding an invalid user body */
   test("POST /orgs/" + orgid + "/users/" + user + " - bad format") {
     val badJsonInput = """{

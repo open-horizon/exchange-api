@@ -2,15 +2,12 @@ package com.horizon.exchangeapi
 
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.server.{Directive, Directive0, ValidationRejection}
-//import akka.http.scaladsl.model.headers.HttpCredentials
-//import akka.http.scaladsl.server.util.Tuple
 import akka.http.scaladsl.server.Directive1
 import com.horizon.exchangeapi.Access.Access
 import javax.security.auth.login.{AppConfigurationEntry, Configuration}
 
 import scala.util.matching.Regex
 import akka.http.scaladsl.server.Directives._
-//import akka.http.scaladsl.server.directives.RouteDirectives._
 import com.horizon.exchangeapi.auth._
 import javax.security.auth.login.LoginContext
 import org.mindrot.jbcrypt.BCrypt

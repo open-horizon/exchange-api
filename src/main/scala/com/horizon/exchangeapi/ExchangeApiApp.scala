@@ -11,34 +11,22 @@ import akka.actor.CoordinatedShutdown
 import akka.event.{Logging, LoggingAdapter}
 
 import scala.util.matching.Regex
-//import akka.http.scaladsl.model.headers.HttpCredentials
 import akka.http.scaladsl.server.RouteResult.Rejected
 import akka.http.scaladsl.server.directives.{ DebuggingDirectives, LogEntry }
 import com.mchange.v2.c3p0.ComboPooledDataSource
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.{ Await, ExecutionContext, Future }
-//import scala.concurrent.duration.Duration
 import scala.util.{ Failure, Success }
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-//import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 
-//import akka.http.scaladsl.server.Directives._
-
-//import spray.json.DefaultJsonProtocol
-//import spray.json._
-//import de.heikoseeberger.akkahttpjackson._
 import org.json4s._
-//import org.json4s.DefaultFormats
-//import org.json4s.jackson.JsonMethods._
-//import org.json4s.jackson.Serialization.write
-
 import scala.io.Source
 import scala.concurrent.duration._
 
@@ -69,16 +57,15 @@ object ExchangeApiConstants {
 /**
  * Main akka server for the Exchange REST API.
  */
-//class ExchangeApiApp {} // so far just for the Logging
 object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRoutes with AgbotsRoutes with ServicesRoutes with PatternsRoutes with BusinessRoutes with CatalogRoutes with AdminRoutes with SwaggerUiService {
 
-  /** Sets up automatic case class to JSON output serialization, required by the JValueResult trait. */
+  // An example of using Spray to marshal/unmarshal json. We chose not to use it because it requires an implicit be defined for every class that needs marshalling
   //protected implicit val jsonFormats: Formats = DefaultFormats
-  // implicit val formats = Serialization.formats(NoTypeHints)     // needed for serializing the softwareVersions map to a string (and back)
+  //implicit val formats = Serialization.formats(NoTypeHints)     // needed for serializing the softwareVersions map to a string (and back)
   //import DefaultJsonProtocol._
   //implicit val apiRespJsonFormat = jsonFormat2(ApiResponse)
+
   // Using jackson json (un)marshalling instead of sprayjson: https://github.com/hseeberger/akka-http-json
-  //import JacksonSupport._
   private implicit val formats = DefaultFormats
 
   // Set up ActorSystem and other dependencies here
@@ -142,10 +129,10 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       }
       // Now log all the info
       Some(LogEntry(s"${req.uri.authority.host.address}:$authId ${req.method.name} ${req.uri}: ${res.status}", Logging.InfoLevel))
-    //case Rejected(rejections) => Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with ${rejections.headOption.getOrElse(NotFoundRejection("unrecognized route"))}", Logging.DebugLevel))
-    //case Rejected(rejections) => Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with: $rejections", Logging.InfoLevel))
-    //todo: might have a performance issue with the way we arrange the routes - a zillion MethodRejection objects and TransformationRejection objects cancelling them
+    //case Rejected(rejections) => Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with: $rejections", Logging.InfoLevel)) // <- left here for when you temporarily want to see the full list of rejections that akka produces
     case Rejected(rejections) =>
+      // Sometimes akka produces a bunch of MethodRejection objects (for http methods in the routes that didn't match) and then
+      // TransformationRejection objects to cancel out those rejections. Filter all of these out.
       var interestingRejections = rejections.filter({
         case _: TransformationRejection => false
         case _: MethodRejection => false
@@ -157,7 +144,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   }
 
   // Create all of the routes and concat together
-  case class testResp(result: String)
+  final case class testResp(result: String)
   def testRoute = { path("test") { get { logger.debug("In /test"); complete(testResp("OK")) } } }
 
   // Note: all exceptions (code failures) will be handled by the akka-http exception handler. To override that, see https://doc.akka.io/docs/akka-http/current/routing-dsl/exception-handling.html#exception-handling
@@ -192,8 +179,8 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   system.registerOnTermination(() => db.close())
 
   /*
-   * Before every action runs...
-   * before() {
+   * When we were using scalatra - left here for reference, until we investigate the CORS support in akka-http
+   * before() {  // Before every action runs...
    * // We have to set these ourselves because we had to disable scalatra's builtin CorsSupport because for some inexplicable reason it doesn't set Access-Control-Allow-Origin which is critical
    * //response.setHeader("Access-Control-Allow-Origin", "*")  // <- this can only be used for unauthenticated requests
    * response.setHeader("Access-Control-Allow-Origin", request.getHeader("Origin"))
@@ -233,7 +220,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
 
   // Configure graceful termination. See: https://doc.akka.io/docs/akka-http/current/server-side/graceful-termination.html
   // But also see: https://discuss.lightbend.com/t/graceful-termination-on-sigterm-using-akka-http/1619
-  // Note: can't test this in sbt. Use 'make runexecutable' and then ctrl-c
+  // Note: can't test this in sbt. Instead use 'make runexecutable' and then ctrl-c
   val secondsToWait = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete")  // ExchConfig.getAkkaConfig() also makes the akka unbind phase this long
   CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "http_shutdown") { () =>
     serverBinding.flatMap({ s =>

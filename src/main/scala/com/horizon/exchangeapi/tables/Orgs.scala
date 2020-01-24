@@ -5,14 +5,11 @@ import org.json4s._
 import org.json4s.jackson.Serialization.read
 import org.json4s.jackson.Serialization.write
 import ExchangePostgresProfile.api._
-//import slick.lifted.ProvenShape
-//import org.json4s.jackson.Serialization.read
-//import ExchangePostgresProfile.jsonMethods._
 
 
 /** Contains the object representations of the DB tables related to orgs. */
 
-case class OrgRow(orgId: String, orgType: String, label: String, description: String, lastUpdated: String, tags: Option[JValue], heartbeatIntervals: String) {
+final case class OrgRow(orgId: String, orgType: String, label: String, description: String, lastUpdated: String, tags: Option[JValue], heartbeatIntervals: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toOrg: Org = {

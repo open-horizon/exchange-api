@@ -4,7 +4,6 @@ import java.util.concurrent.TimeUnit
 
 import scala.concurrent.ExecutionContext
 
-//import akka.event.LoggingAdapter
 import com.horizon.exchangeapi.CacheIdType.CacheIdType
 import com.horizon.exchangeapi.tables._
 import slick.jdbc.PostgresProfile.api._
@@ -36,7 +35,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
   var cacheType = "" // set from the config file by ExchConfig.load(). Note: currently there is no other value besides guava
 
   // The unhashed and hashed values of the token are not always both set, but if they are they are in sync.
-  case class Tokens(unhashed: String, hashed: String)
+  final case class Tokens(unhashed: String, hashed: String)
 
   /** Holds recently authenticated users, node ids, agbot ids */
   class CacheId() {

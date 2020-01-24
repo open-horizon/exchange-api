@@ -1,13 +1,9 @@
 package com.horizon.exchangeapi
 
-//import akka.actor.ActorSystem
-//import akka.stream.ActorMaterializer
 import akka.http.scaladsl.server.Directives
 import com.github.swagger.akka.SwaggerHttpService
 import com.github.swagger.akka.model.{Info, License}
 import io.swagger.v3.oas.models.ExternalDocumentation
-//import io.swagger.v3.oas.annotations._
-//import io.swagger.v3.oas.annotations.media.{Content, Schema}
 
 /*Swagger references:
   - Swagger with akka-http: https://github.com/swagger-akka-http/swagger-akka-http
@@ -16,7 +12,6 @@ import io.swagger.v3.oas.models.ExternalDocumentation
 
 //someday: disable the Try It Out button via the plugin suggestion: https://github.com/swagger-api/swagger-ui/issues/3725
 
-//class SwaggerDocService /* (system: ActorSystem) */ extends SwaggerHttpService {
 object SwaggerDocService extends SwaggerHttpService {
   //override implicit val actorSystem: ActorSystem = system
   //override implicit val materializer: ActorMaterializer = ActorMaterializer()

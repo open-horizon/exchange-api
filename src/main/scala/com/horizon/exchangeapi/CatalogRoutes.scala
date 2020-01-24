@@ -9,20 +9,11 @@ import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson._
 
 import scala.concurrent.ExecutionContext
-//import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{ Content, Schema }
 import io.swagger.v3.oas.annotations._
-//import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
-//import org.json4s._
-//import scala.collection.immutable._
-//import scala.util._
-
-//import com.horizon.exchangeapi.tables._
 import slick.jdbc.PostgresProfile.api._
-
-//import scala.collection.mutable.{HashMap => MutableHashMap}
 
 // Provides routes for browsing the services and patterns in the IBM catalog
 @Path("/v1/catalog")

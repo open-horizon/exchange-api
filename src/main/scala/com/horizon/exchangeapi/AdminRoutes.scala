@@ -7,9 +7,7 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.{HttpEntity, HttpResponse}
 
 import scala.concurrent.ExecutionContext
-//import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ContentTypes
-//import akka.http.scaladsl.model.headers.`Content-Type`
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 
@@ -17,18 +15,11 @@ import java.util.Properties
 
 import com.horizon.exchangeapi.tables._
 import de.heikoseeberger.akkahttpjackson._
-//import org.json4s._
-//import org.json4s.jackson.JsonMethods._
 import slick.jdbc.PostgresProfile.api._
 
 import io.swagger.v3.oas.annotations.parameters.RequestBody
-//import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{ Content, Schema }
-//import io.swagger.v3.oas.annotations.responses.ApiResponse
-//import io.swagger.v3.oas.annotations.{ Operation, Parameter }
 import io.swagger.v3.oas.annotations._
-
-//import scala.concurrent.ExecutionContext.Implicits.global
 
 import scala.util._
 

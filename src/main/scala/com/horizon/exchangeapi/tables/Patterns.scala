@@ -10,20 +10,20 @@ import scala.collection.mutable.ListBuffer
 
 /** Contains the object representations of the DB tables related to patterns. */
 
-case class PServices(serviceUrl: String, serviceOrgid: String, serviceArch: String, agreementLess: Option[Boolean], serviceVersions: List[PServiceVersions], dataVerification: Option[Map[String,Any]], nodeHealth: Option[Map[String,Int]])
-case class PServiceVersions(version: String, deployment_overrides: Option[String], deployment_overrides_signature: Option[String], priority: Option[Map[String,Int]], upgradePolicy: Option[Map[String,String]])
-case class PDataVerification(enabled: Boolean, URL: String, user: String, password: String, interval: Int, check_rate: Int, metering: Map[String,Any])
+final case class PServices(serviceUrl: String, serviceOrgid: String, serviceArch: String, agreementLess: Option[Boolean], serviceVersions: List[PServiceVersions], dataVerification: Option[Map[String,Any]], nodeHealth: Option[Map[String,Int]])
+final case class PServiceVersions(version: String, deployment_overrides: Option[String], deployment_overrides_signature: Option[String], priority: Option[Map[String,Int]], upgradePolicy: Option[Map[String,String]])
+final case class PDataVerification(enabled: Boolean, URL: String, user: String, password: String, interval: Int, check_rate: Int, metering: Map[String,Any])
 
 // These classes are also used by business policies and nodes
-case class OneUserInputService(serviceOrgid: String, serviceUrl: String, serviceArch: Option[String], serviceVersionRange: Option[String], inputs: List[OneUserInputValue])
-case class OneUserInputValue(name: String, value: Any)
+final case class OneUserInputService(serviceOrgid: String, serviceUrl: String, serviceArch: Option[String], serviceVersionRange: Option[String], inputs: List[OneUserInputValue])
+final case class OneUserInputValue(name: String, value: Any)
 
 // This is the pattern table minus the key - used as the data structure to return to the REST clients
 class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var services: List[PServices], var userInput: List[OneUserInputService], var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {
   def copy = new Pattern(owner, label, description, public, services, userInput, agreementProtocols, lastUpdated)
 }
 
-case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, services: String, userInput: String, agreementProtocols: String, lastUpdated: String) {
+final case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, services: String, userInput: String, agreementProtocols: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toPattern: Pattern = {
@@ -130,7 +130,7 @@ object PatternsTQ {
 
 
 // Key is a sub-resource of pattern
-case class PatternKeyRow(keyId: String, patternId: String, key: String, lastUpdated: String) {
+final case class PatternKeyRow(keyId: String, patternId: String, key: String, lastUpdated: String) {
   def toPatternKey = PatternKey(key, lastUpdated)
 
   def upsert: DBIO[_] = PatternKeysTQ.rows.insertOrUpdate(this)
@@ -153,4 +153,4 @@ object PatternKeysTQ {
   def getKey(patternId: String, keyId: String) = rows.filter( r => {r.patternId === patternId && r.keyId === keyId} )
 }
 
-case class PatternKey(key: String, lastUpdated: String)
+final case class PatternKey(key: String, lastUpdated: String)

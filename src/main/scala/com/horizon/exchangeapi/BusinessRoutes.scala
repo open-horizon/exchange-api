@@ -16,10 +16,8 @@ import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
 
-//import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
 import org.json4s._
-//import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
 import slick.jdbc.PostgresProfile.api._
 

@@ -16,16 +16,11 @@ import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
 
-//import scala.concurrent.ExecutionContext.Implicits.global
-
 import com.horizon.exchangeapi.tables._
 import org.json4s._
-//import org.json4s.jackson.JsonMethods._
-//import org.json4s.jackson.Serialization.write
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
-//import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.util._
 
 //====== These are the input and output structures for /agbots routes. Swagger and/or json seem to require they be outside the trait.

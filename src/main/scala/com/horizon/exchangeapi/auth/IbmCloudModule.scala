@@ -14,11 +14,8 @@ import javax.security.auth.callback._
 import javax.security.auth.spi.LoginModule
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-//import slick.dbio.Effect
-//import slick.sql.SqlAction
 
 import scala.concurrent.ExecutionContext
-//import org.slf4j.{ Logger, LoggerFactory }
 import scalacache._
 import scalacache.guava.GuavaCache
 import scalacache.modes.try_._
@@ -29,23 +26,23 @@ import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
 
 // Credentials specified in the client request
-case class IamAuthCredentials(org: String, keyType: String, key: String) {
+final case class IamAuthCredentials(org: String, keyType: String, key: String) {
   def cacheKey = org + "/" + keyType + ":" + key
 }
-case class IamToken(accessToken: String, tokenType: Option[String] = None)
+final case class IamToken(accessToken: String, tokenType: Option[String] = None)
 
 // Info retrieved about the user from IAM (using the iam key or token).
 // For both IBM Cloud and ICP. All the rest apis that use this must be able to parse their results into this class.
 // The account field is set when using IBM Cloud, iss is set when using ICP.
-case class IamUserInfo(account: Option[IamAccount], sub: Option[String], iss: Option[String], active: Option[Boolean]) { // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
+final case class IamUserInfo(account: Option[IamAccount], sub: Option[String], iss: Option[String], active: Option[Boolean]) { // Note: used to use the email field for ibm cloud, but switched to sub because it is common to both
   def accountId = if (account.isDefined) account.get.bss else ""
   def isActive = active.getOrElse(false)
   def user = sub.getOrElse("")
 }
-case class IamAccount(bss: String)
+final case class IamAccount(bss: String)
 
 // Response from /api/v1/config
-case class ClusterConfigResponse(cluster_name: String, cluster_url: String, cluster_ca_domain: String, kube_url: String, helm_host: String)
+final case class ClusterConfigResponse(cluster_name: String, cluster_url: String, cluster_ca_domain: String, kube_url: String, helm_host: String)
 
 // Response from ICP IAM /identity/api/v1/account
 //case class TokenAccountResponse(id: String, name: String, description: String)
@@ -444,65 +441,6 @@ object IbmCloudAuth {
     // Note: not sure how to know here whether we successfully add a user and therefore should add it to the admin cache, so we'll just let that get added next time it is needed
     awaitResult
   }
-
-  /*
-  // Get the associated ibm cloud id of the org that was specified in the client request credentials
-  //someday: add a db query that will work for icp (e.g. get the orgid) so in verifyOrg we can tell in both cases if the org was not found in the db. But in the mean time, logic in verifyOrg handles it
-  private def fetchOrg(authOrg: String) = {
-    logger.debug("Fetching org: " + authOrg)
-    //someday: Could not figure out how to make this return type be the same as in the public cloud case. So for now, in verifyOrg in the ICP case we depend on this result being None instead of Some("") to know that the org was not found in the db.
-    if (isIcp) {
-      // ICP/OCP - just verify that the org referenced in the client creds exists in the db
-      OrgsTQ.getOrgid(authOrg).map(_.orgid).result.headOption
-    } else {
-      // IBM public cloud - try to get the cloud account id from the exchange org that was referenced in the client creds
-      OrgsTQ.getOrgid(authOrg)
-        .map(_.tags.+>>("ibmcloud_id"))
-        //.take(1)  // not sure what the purpose of this was
-        .result
-        .headOption
-        .flatten
-    }
-  }
-
-  // Verify that the cloud acct id of the cloud api key and the exchange org entry match
-  // authInfo is the creds they passed in, userInfo is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db
-  private def verifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, orgAcctId: Option[String]): DBIOAction[String, NoStream, Effect] = {
-    logger.debug(s"Verifying org: $authInfo, $userInfo, $orgAcctId")
-    if (isIcp) {
-      // Even though the orgAcctId only applies to the public cloud case, we can tell if the org was not found at all in the db if this option is None
-      if (orgAcctId.isEmpty) {
-        DBIO.failed(OrgNotFound(authInfo.org))
-      } else {
-        // We are here because the client creds (authInfo) were either an icp iamtoken or iamapikey. Those are only valid in the cluster name org (not the IBM org).
-        // So confirm that authInfo.org equals the cluster name
-        getIcpClusterName match {
-          case Success(clusterName) =>
-            if (authInfo.org == clusterName) return DBIO.successful(authInfo.org)
-            else return DBIO.failed(IncorrectIcpOrgFound(authInfo.org, clusterName))
-          case Failure(t) =>
-            return DBIO.failed(t)
-        }
-      }
-    } else {
-      // IBM Cloud - we already have the account id from iam from the creds, and the account id of the exchange org
-      if (orgAcctId.isEmpty) {
-        //logger.error(s"IAM authentication succeeded, but no matching exchange org with a cloud account id was found for ${authInfo.org}")
-        DBIO.failed(OrgNotFound(authInfo.org))
-      } else if (authInfo.keyType == "iamtoken" && userInfo.accountId == "") {
-        //todx: this is the case with tokens from the edge mgmt ui (because we don't get the accountId when we validate an iamtoken). The ui already verified the org and is using the right one,
-        //      so there is no exposure there. But we still need to verify the org in case someone is spoofing being the ui. But to get here, the iamtoken has to be valid, just not for this org.
-        //      With IECM on ICP/OCP, the only exposure is using an iamtoken from the cluster org to manage resources in the IBM org.
-        DBIO.successful(authInfo.org)
-      } else if (orgAcctId.getOrElse("") != userInfo.accountId) {
-        //logger.error(s"IAM authentication succeeded, but the cloud account id of the org $orgAcctId does not match that of the cloud account ${userInfo.accountId}")
-        DBIO.failed(IncorrectOrgFound(authInfo.org, userInfo.accountId))
-      } else {
-        DBIO.successful(authInfo.org)
-      }
-    }
-  }
-  */
 
   // Verify that the cloud acct id of the cloud api key and the exchange org entry match
   // authInfo is the creds they passed in, userInfo is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db

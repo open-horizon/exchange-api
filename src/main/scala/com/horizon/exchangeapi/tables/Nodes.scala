@@ -1,5 +1,5 @@
 package com.horizon.exchangeapi.tables
-// import slick.driver.PostgresDriver.api._
+
 import com.horizon.exchangeapi._
 import org.json4s._
 import org.json4s.jackson.Serialization.read
@@ -41,10 +41,10 @@ trait RegServiceTrait {
 }
 
 /** 1 service in the search criteria */
-case class RegServiceSearch(url: String, properties: List[Prop]) extends RegServiceTrait
+final case class RegServiceSearch(url: String, properties: List[Prop]) extends RegServiceTrait
 
 /** Contains the object representations of the DB tables related to nodes. */
-case class RegService(url: String, numAgreements: Int, configState: Option[String], policy: String, properties: List[Prop]) extends RegServiceTrait
+final case class RegService(url: String, numAgreements: Int, configState: Option[String], policy: String, properties: List[Prop]) extends RegServiceTrait
 
 final case class NodeHeartbeatIntervals(minInterval: Int, maxInterval: Int, intervalAdjustment: Int)
 
@@ -53,7 +53,7 @@ class Node(var token: String, var name: String, var owner: String, var pattern: 
   def copy = new Node(token, name, owner, pattern, registeredServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals)
 }
 
-case class NodeRow(id: String, orgid: String, token: String, name: String, owner: String, pattern: String, regServices: String, userInput: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String, arch: String, heartbeatIntervals: String) {
+final case class NodeRow(id: String, orgid: String, token: String, name: String, owner: String, pattern: String, regServices: String, userInput: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String, arch: String, heartbeatIntervals: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNode(superUser: Boolean): Node = {
@@ -195,10 +195,10 @@ object NodesTQ {
 
 
 // Status is a sub-resource of node
-case class ContainerStatus(name: String, image: String, created: Int, state: String)
-case class OneService(agreementId: String, serviceUrl: String, orgid: String, version: String, arch: String, containerStatus: List[ContainerStatus])
+final case class ContainerStatus(name: String, image: String, created: Int, state: String)
+final case class OneService(agreementId: String, serviceUrl: String, orgid: String, version: String, arch: String, containerStatus: List[ContainerStatus])
 
-case class NodeStatusRow(nodeId: String, connectivity: String, services: String, runningServices: String, lastUpdated: String) {
+final case class NodeStatusRow(nodeId: String, connectivity: String, services: String, runningServices: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNodeStatus: NodeStatus = {
@@ -225,13 +225,13 @@ object NodeStatusTQ {
   def getNodeStatus(nodeId: String) = rows.filter(_.nodeId === nodeId)
 }
 
-case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], runningServices: String, lastUpdated: String)
+final case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], runningServices: String, lastUpdated: String)
 
 //Node Errors
 // We are using the type Any instead of this case class so anax and the UI can change the fields w/o our code having to change
 //case class ErrorLogEvent(record_id: String, message: String, event_code: String, hidden: Boolean)
 
-case class NodeErrorRow(nodeId: String, errors: String, lastUpdated: String) {
+final case class NodeErrorRow(nodeId: String, errors: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNodeError: NodeError = {
@@ -255,9 +255,9 @@ object NodeErrorTQ {
   def getNodeError(nodeId: String) = rows.filter(_.nodeId === nodeId)
 }
 
-case class NodeError(errors: List[Any], lastUpdated: String)
+final case class NodeError(errors: List[Any], lastUpdated: String)
 
-case class NodePolicyRow(nodeId: String, properties: String, constraints: String, lastUpdated: String) {
+final case class NodePolicyRow(nodeId: String, properties: String, constraints: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNodePolicy: NodePolicy = {
@@ -283,14 +283,14 @@ object NodePolicyTQ {
   def getNodePolicy(nodeId: String) = rows.filter(_.nodeId === nodeId)
 }
 
-case class NodePolicy(properties: List[OneProperty], constraints: List[String], lastUpdated: String)
+final case class NodePolicy(properties: List[OneProperty], constraints: List[String], lastUpdated: String)
 
 
 // Agreement is a sub-resource of node
-case class NAService(orgid: String, url: String)
-case class NAgrService(orgid: String, pattern: String, url: String)
+final case class NAService(orgid: String, url: String)
+final case class NAgrService(orgid: String, pattern: String, url: String)
 
-case class NodeAgreementRow(agId: String, nodeId: String, services: String, agrSvcOrgid: String, agrSvcPattern: String, agrSvcUrl: String, state: String, lastUpdated: String) {
+final case class NodeAgreementRow(agId: String, nodeId: String, services: String, agrSvcOrgid: String, agrSvcPattern: String, agrSvcUrl: String, state: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   // Translates the MS string into a data structure
@@ -326,7 +326,7 @@ object NodeAgreementsTQ {
   def getAgreementsWithState(orgid: String) = rows.filter( a => {(a.nodeId like orgid+"/%") && a.state =!= ""} )
 }
 
-case class NodeAgreement(services: List[NAService], agrService: NAgrService, state: String, lastUpdated: String)
+final case class NodeAgreement(services: List[NAService], agrService: NAgrService, state: String, lastUpdated: String)
 
 /** Builds a hash of the current number of agreements for each node and service in the org, so we can check them quickly */
 class AgreementsHash(dbNodesAgreements: Seq[NodeAgreementRow]) {
@@ -358,7 +358,7 @@ class AgreementsHash(dbNodesAgreements: Seq[NodeAgreementRow]) {
 
 
 /** The nodemsgs table holds the msgs sent to nodes by agbots */
-case class NodeMsgRow(msgId: Int, nodeId: String, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String) {
+final case class NodeMsgRow(msgId: Int, nodeId: String, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String) {
   def toNodeMsg = NodeMsg(msgId, agbotId, agbotPubKey, message, timeSent, timeExpires)
 
   def insert: DBIO[_] = ((NodeMsgsTQ.rows returning NodeMsgsTQ.rows.map(_.msgId)) += this)  // inserts the row and returns the msgId of the new row
@@ -387,10 +387,10 @@ object NodeMsgsTQ {
   def getNumOwned(nodeId: String) = rows.filter(_.nodeId === nodeId).length
 }
 
-case class NodeMsg(msgId: Int, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String)
+final case class NodeMsg(msgId: Int, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String)
 
 /** 1 generic property that is used in the node search criteria */
-case class Prop(name: String, value: String, propType: String, op: String) {
+final case class Prop(name: String, value: String, propType: String, op: String) {
   //def toPropRow(nodeId: String, msUrl: String) = PropRow(nodeId+"|"+msUrl+"|"+name, nodeId+"|"+msUrl, name, value, propType, op)
 
   /** Returns an error msg if the user input is invalid. */
@@ -453,7 +453,7 @@ case class Prop(name: String, value: String, propType: String, op: String) {
 }
 
 abstract class PropVar
-case class PropList(args: String*) extends PropVar
+final case class PropList(args: String*) extends PropVar
 
 // I do not think we can use actual enums in classes that get mapped to json and swagger
 object PropType {

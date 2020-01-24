@@ -13,7 +13,6 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations._
 
-//import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 
@@ -21,7 +20,6 @@ import scala.collection.immutable._
 import scala.concurrent.ExecutionContext
 import scala.util._
 
-//import org.json4s.jackson.JsonMethods._
 import slick.jdbc.PostgresProfile.api._
 
 

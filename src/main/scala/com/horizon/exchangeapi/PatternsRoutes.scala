@@ -7,7 +7,6 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
 
 import scala.concurrent.ExecutionContext
-//import akka.http.scaladsl.model.headers.`Content-Type`
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.horizon.exchangeapi.auth._
@@ -17,7 +16,6 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations._
 
-//import scala.concurrent.ExecutionContext.Implicits.global
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 
@@ -26,12 +24,8 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.util._
 import scala.util.control.Breaks._
 
-//import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
 import slick.jdbc.PostgresProfile.api._
-
-//import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
-//import scala.util.control.Breaks._
 
 //====== These are the input and output structures for /orgs/{orgid}/patterns routes. Swagger and/or json seem to require they be outside the trait.
 

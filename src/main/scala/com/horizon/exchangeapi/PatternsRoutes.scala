@@ -753,7 +753,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                 }
               }
               //        else DBIO.failed(new Throwable("the serviceUrl '"+searchSvcUrl+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
-              else DBIO.failed(new Throwable(ExchMsg.translate("service.not.in.pattern"))).asTry
+              else DBIO.failed(new Throwable(ExchMsg.translate("service.not.in.pattern", searchSvcUrl, compositeId))).asTry
 
             }
             else DBIO.failed(new Throwable(ExchMsg.translate("pattern.id.not.found", compositeId))).asTry

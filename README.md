@@ -227,6 +227,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 ## Changes in 2.8.0
 
 - Issue 278: Notification Framework V1.3 (bug fix of missing changes and increased efficiency)
+- Issue 229: Pattern Search "service not in pattern" response fixed
 
 ## Changes in 2.7.2
 

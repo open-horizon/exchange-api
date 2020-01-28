@@ -380,6 +380,7 @@ class NodesSuite extends FunSuite {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", compositePatid, None, None, None, None, nodePubKey, None, None)
     val response = Http(URL2+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code)
+    info("body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
@@ -2414,6 +2415,21 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     info("headers: "+response.headers)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify response when no new changes in db") {
+    val time = ApiTime.futureUTC(30)
+    val input = ResourceChangesRequest(0, Some(time), 1000, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code)
+    info("body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.isEmpty)
+    assert(parsedBody.maxChangeIdOfQuery==0)
+    assert(parsedBody.mostRecentChangeId==0)
+    assert(!parsedBody.exchangeVersion.isEmpty)
   }
 
   //~~~~~ Break down ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

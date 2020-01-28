@@ -1106,4 +1106,12 @@ class ServicesSuite extends FunSuite {
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
+  /** Delete the second org we used for this test */
+  test("POST /orgs/"+orgid2+" - delete org") {
+    // Try deleting it 1st, in case it is left over from previous test
+    val response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
+  }
+
 }

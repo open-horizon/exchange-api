@@ -594,7 +594,10 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           })).map({
             case Success(n) =>
               logger.debug(s"POST /orgs/$orgId/changes node/agbot heartbeat result: $n")
-              if (n > 0) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, reqBody.maxRecords))
+              if (n > 0) {
+                if(qResp.nonEmpty) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, reqBody.maxRecords))
+                else (HttpCode.POST_OK, ResourceChangesRespObject(List[ChangeEntry](), reqBody.changeId, reqBody.changeId, ExchangeApi.adminVersion()))
+              }
             else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", ident.getIdentity)))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))

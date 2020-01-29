@@ -4,21 +4,19 @@ package com.horizon.exchangeapi
 import javax.ws.rs._
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
-import akka.http.scaladsl.model.{HttpEntity, HttpResponse}
+import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpHeader, HttpResponse}
 
 import scala.concurrent.ExecutionContext
-import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-
 import java.util.Properties
 
+import akka.http.scaladsl.model.headers.RawHeader
 import com.horizon.exchangeapi.tables._
 import de.heikoseeberger.akkahttpjackson._
 import slick.jdbc.PostgresProfile.api._
-
 import io.swagger.v3.oas.annotations.parameters.RequestBody
-import io.swagger.v3.oas.annotations.media.{ Content, Schema }
+import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations._
 
 import scala.util._
@@ -221,7 +219,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug("Doing POST /admin/version")
     val version = ExchangeApi.adminVersion() + "\n"
     //complete({ (HttpCode.POST_OK, version) }) // <- this sends it as json, so with double quotes around it and \n explicitly in the string
-    complete(HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, version)))
+    complete(HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, version)).addHeader(RawHeader("Cache-Control", "no-cache")).addHeader(RawHeader("Pragma", "no-cache")))
   }
 
   // =========== GET /admin/status ===============================

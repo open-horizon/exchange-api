@@ -573,6 +573,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case _ => ;
           }
           val q = for { r <- qFilter.sortBy(_.changeId) } yield r //sort the response by changeId
+          logger.debug(s"POST /orgs/$orgId/changes db query: ${q.result.statements}")
           var qResp : scala.Seq[ResourceChangeRow] = null
           db.run(q.result.asTry.flatMap({
             case Success(qResult) =>

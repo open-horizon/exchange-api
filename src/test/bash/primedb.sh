@@ -78,6 +78,8 @@ agreementid1="${agreementbase}1"
 agreementid2="${agreementbase}2"
 agreementid3="${agreementbase}3"
 
+encodedPubKey="QUJDCg=="  # this is ABC base64 encoded
+
 #resname="res1"
 #resversion="7.8.9"
 #resid="${resname}_$resversion"
@@ -479,7 +481,7 @@ if [[ $rc != 200 ]]; then
       ]
     }
   ],
-  "publicKey": "ABC" }'
+  "publicKey": "'$encodedPubKey'" }'
 else
     echo "orgs/$orgid/nodes/$nodeid exists"
 fi
@@ -487,7 +489,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [{"url": "'$orgid'/'$svcurl'", "numAgreements": 1, "policy": "", "properties": []}], "publicKey": "ABC" }'
+    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [{"url": "'$orgid'/'$svcurl'", "numAgreements": 1, "policy": "", "properties": []}], "publicKey": "'$encodedPubKey'" }'
 else
     echo "orgs/$orgid/nodes/$nodeid2 exists"
 fi
@@ -496,7 +498,7 @@ if isPublicCloud; then
   rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid")
   checkrc "$rc" 200 404
   if [[ $rc != 200 ]]; then
-      curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [], "publicKey": "ABC" }'
+      curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [], "publicKey": "'$encodedPubKey'" }'
   else
       echo "orgs/$orgid2/nodes/$nodeid exists"
   fi
@@ -522,7 +524,7 @@ if isPublicCloud; then
   rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid2")
   checkrc "$rc" 200 404
   if [[ $rc != 200 ]]; then
-      curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "", "publicKey": "ABC" }'
+      curlcreate "PUT" $userauthorg2 "orgs/$orgid2/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "", "publicKey": "'$encodedPubKey'" }'
   else
       echo "orgs/$orgid2/nodes/$nodeid2 exists"
   fi
@@ -531,7 +533,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "publicKey": "ABC"}'
+    curlcreate "PUT" $userauth "orgs/$orgid/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "publicKey": "'$encodedPubKey'"}'
 else
     echo "orgs/$orgid/agbots/$agbotid exists"
 fi
@@ -540,7 +542,7 @@ if isPublicCloud; then
   rc=$(curlfind $userauthorg2 "orgs/$orgid2/agbots/$agbotid")
   checkrc "$rc" 200 404
   if [[ $rc != 200 ]]; then
-      curlcreate "PUT" $userauthorg2 "orgs/$orgid2/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "publicKey": "ABC"}'
+      curlcreate "PUT" $userauthorg2 "orgs/$orgid2/agbots/$agbotid" '{"token": "'$agbottoken'", "name": "agbot", "publicKey": "'$encodedPubKey'"}'
   else
       echo "orgs/$orgid2/agbots/$agbotid exists"
   fi

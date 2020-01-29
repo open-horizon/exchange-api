@@ -53,32 +53,34 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
     def init(db: Database): Unit = { this.db = db } // we intentionally don't prime the cache. We let it build on every access so we can add the unhashed token
 
     // Try to authenticate the creds and return the type (user/node/agbot) it is, or None
-    def getValidType(creds: Creds, retry: Boolean = false): CacheIdType = {
+    def getValidType(creds: Creds, alreadyRetried: Boolean = false): Try[CacheIdType] = {
       //logger.debug("CacheId:getValidType(): attempting to authenticate to the exchange with " + creds)
       val cacheValue = getCacheValue(creds)
       logger.debug("cacheValue: " + cacheValue)
-      if (cacheValue.isFailure) return CacheIdType.None
-      // we got the hashed token from the cache or db, now verify the token passed in
-      val cacheVal = cacheValue.get
-      if (cacheVal.unhashedToken != "" && Password.check(creds.token, cacheVal.unhashedToken)) { // much faster than the bcrypt check below
-        //logger.debug("CacheId:getValidType(): successfully quick-validated " + creds.id + " and its pw using the cache/db")
-        return cacheVal.idType
-      } else if (Password.check(creds.token, cacheVal.hashedToken)) {
-        //logger.debug("CacheId:getValidType(): successfully validated " + creds.id + " and its pw using the cache/db")
-        return cacheVal.idType
-      } else {
-        // the creds were invalid
-        if (retry) {
-          // we already tried clearing the cache and retrying, so give up and return that they were bad creds
-          logger.debug("CacheId:getValidType(): user " + creds.id + " not authenticated in the exchange")
-          return CacheIdType.None
-        } else {
-          // If we only used a non-expired cache entry to get here, the cache entry could be stale (e.g. they recently changed their pw/token via a different instance of the exchange).
-          // So delete the cache entry from the db and try 1 more time
-          logger.debug("CacheId:getValidType(): user " + creds.id + " was not authenticated successfully, removing cache entry in case it was stale, and trying 1 more time")
-          removeOne(creds.id)
-          return getValidType(creds, retry = true)
-        }
+      cacheValue match {
+        case Failure(t) => return Failure(t)  // bubble up the specific failure
+        case Success(cacheVal) =>
+          // we got the hashed token from the cache or db, now verify the token passed in
+          if (cacheVal.unhashedToken != "" && Password.check(creds.token, cacheVal.unhashedToken)) { // much faster than the bcrypt check below
+            //logger.debug("CacheId:getValidType(): successfully quick-validated " + creds.id + " and its pw using the cache/db")
+            return Success(cacheVal.idType)
+          } else if (Password.check(creds.token, cacheVal.hashedToken)) {
+            //logger.debug("CacheId:getValidType(): successfully validated " + creds.id + " and its pw using the cache/db")
+            return Success(cacheVal.idType)
+          } else {
+            // the creds were invalid
+            if (alreadyRetried) {
+              // we already tried clearing the cache and retrying, so give up and return that they were bad creds
+              logger.debug("CacheId:getValidType(): user " + creds.id + " not authenticated in the exchange")
+              return Success(CacheIdType.None)  // this is distinguished from Failure, because we didn't hit an error trying to access the db, it's just that the creds weren't value
+            } else {
+              // If we only used a non-expired cache entry to get here, the cache entry could be stale (e.g. they recently changed their pw/token via a different instance of the exchange).
+              // So delete the cache entry from the db and try 1 more time
+              logger.debug("CacheId:getValidType(): user " + creds.id + " was not authenticated successfully, removing cache entry in case it was stale, and trying 1 more time")
+              removeOne(creds.id)
+              return getValidType(creds, alreadyRetried = true)
+            }
+          }
       }
     }
 
@@ -198,7 +200,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
           val isValue = respVector.head
           logger.debug("CacheBoolean:getId(): " + id + " was not in the cache but found in the db, adding it with value " + isValue + " to the cache")
           Success(isValue)
-        } else Failure(new IdNotFoundException)
+        } else Failure(new IdNotFoundForAuthorizationException)
       } catch {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException =>
@@ -281,7 +283,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
           val owner = respVector.head
           logger.debug("CacheOwner:getId(): " + id + " found in the db, adding it with value " + owner + " to the cache")
           Success(owner)
-        } else Failure(new IdNotFoundException)
+        } else Failure(new IdNotFoundForAuthorizationException)
       } catch {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException =>

@@ -268,10 +268,14 @@ trait AuthorizationSupport {
         //else throw new InvalidCredentialsException("invalid token")  <- hint==token means it *could* be a token, not that it *must* be
       }
       AuthCache.ids.getValidType(creds) match {
-        case CacheIdType.User => return toIUser
-        case CacheIdType.Node => return toINode
-        case CacheIdType.Agbot => return toIAgbot
-        case CacheIdType.None => throw new InvalidCredentialsException() // will be caught by AuthenticationSupport.authenticate()
+        case Success(cacheIdType) =>
+          cacheIdType match {
+            case CacheIdType.User => return toIUser
+            case CacheIdType.Node => return toINode
+            case CacheIdType.Agbot => return toIAgbot
+            case CacheIdType.None => throw new InvalidCredentialsException() // will be caught by AuthenticationSupport.authenticate()
+          }
+        case Failure(t) => throw t  // this is usually 1 of our exceptions - will be caught by AuthenticationSupport.authenticate()
       }
     }
 

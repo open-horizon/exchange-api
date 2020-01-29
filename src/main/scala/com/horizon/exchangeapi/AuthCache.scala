@@ -200,7 +200,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
           val isValue = respVector.head
           logger.debug("CacheBoolean:getId(): " + id + " was not in the cache but found in the db, adding it with value " + isValue + " to the cache")
           Success(isValue)
-        } else Failure(new IdNotFoundException)
+        } else Failure(new IdNotFoundForAuthorizationException)
       } catch {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException =>
@@ -283,7 +283,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
           val owner = respVector.head
           logger.debug("CacheOwner:getId(): " + id + " found in the db, adding it with value " + owner + " to the cache")
           Success(owner)
-        } else Failure(new IdNotFoundException)
+        } else Failure(new IdNotFoundForAuthorizationException)
       } catch {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException =>

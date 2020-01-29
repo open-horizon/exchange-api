@@ -57,8 +57,11 @@ class IamApiTimeoutException(msg: String) extends AuthException(HttpCode.GW_TIME
 // An error occurred while building the SSLSocketFactory with the self-signed cert
 class SelfSignedCertException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
 
-// Only used internally: The local exchange id was not found in the db
-class IdNotFoundException extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, "id not found")
+// The creds id was not found in the db
+class IdNotFoundException(msg: String = ExchMsg.translate("invalid.credentials")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+
+// The id was not found in the db when looking for owner or isPublic
+class IdNotFoundForAuthorizationException(msg: String = ExchMsg.translate("access.denied")) extends AuthException(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, msg)
 
 class AuthInternalErrorException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
 

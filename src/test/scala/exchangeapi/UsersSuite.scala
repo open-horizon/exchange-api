@@ -44,7 +44,8 @@ class UsersSuite extends FunSuite {
   val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(creds))
   val ORG2USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(org2user + ":" + pw))
   //val encodedCreds = Base64.getEncoder.encodeToString(creds.getBytes("utf-8"))
-  val ENCODEDAUTH = ("Authorization", "Basic " + ApiUtils.encode(creds))
+  val BADUSERAUTH = ("Authorization", "Basic " + ApiUtils.encode(s"bad$orguser:$pw"))
+  val USERAUTHBAD = ("Authorization", "Basic " + ApiUtils.encode(s"$orguser:${pw}bad"))
   val user2 = "u2" // this is NOT an admin user
   val orguser2 = orgid + "/" + user2
   val pw2 = user2 + " pw" // intentionally adding a space in the pw
@@ -376,10 +377,9 @@ class UsersSuite extends FunSuite {
     assert(u.email === user + "@gmail.com")
   }
 
-  /** Update the normal user with encoded creds */
-  test("PUT /orgs/" + orgid + "/users/" + user + " - update normal with encoded creds") {
+  test("PUT /orgs/" + orgid + "/users/" + user + " - update normal with creds") {
     val input = PostPutUsersRequest(pw, admin = true, user + "-updated@gmail.com")
-    val response = Http(URL + "/users/" + user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ENCODEDAUTH).asString
+    val response = Http(URL + "/users/" + user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -408,9 +408,8 @@ class UsersSuite extends FunSuite {
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  /** Verify the encoded update worked */
-  test("GET /orgs/" + orgid + "/users/" + user + " - encoded creds") {
-    val response: HttpResponse[String] = Http(URL + "/users/" + user).headers(ACCEPT).headers(ENCODEDAUTH).asString
+  test("GET /orgs/" + orgid + "/users/" + user + " - with creds") {
+    val response: HttpResponse[String] = Http(URL + "/users/" + user).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -420,7 +419,6 @@ class UsersSuite extends FunSuite {
     assert(u.email === user + "-updated@gmail.com")
   }
 
-  /** Confirm user/pw for user */
   test("POST /orgs/" + orgid + "/users/" + user + "/confirm") {
     val response = Http(URL + "/users/" + user + "/confirm").method("post").headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
@@ -429,19 +427,16 @@ class UsersSuite extends FunSuite {
     assert(postConfirmResp.code === ApiRespType.OK)
   }
 
-  /** Confirm encoded user/pw for user */
-  test("POST /orgs/" + orgid + "/users/" + user + "/confirm - encoded") {
-    //info("encodedCreds=" + encodedCreds + ".")
-    val response = Http(URL + "/users/" + user + "/confirm").method("post").headers(ACCEPT).headers(ENCODEDAUTH).asString
+  test("POST /orgs/" + orgid + "/users/" + user + "/confirm - bad user") {
+    val response = Http(URL + "/users/" + user + "/confirm").method("post").headers(ACCEPT).headers(BADUSERAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === HttpCode.BADCREDS.intValue)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
-    assert(postConfirmResp.code === ApiRespType.OK)
+    assert(postConfirmResp.code === ApiRespType.BADCREDS)
   }
 
-  /** Confirm user/pw for bad pw */
   test("POST /orgs/" + orgid + "/users/" + user + "/confirm - bad pw") {
-    val response = Http(URL + "/users/" + user + "/confirm").method("post").headers(ACCEPT).headers(("Authorization", "Basic " + user + ":badpw")).asString
+    val response = Http(URL + "/users/" + user + "/confirm").method("post").headers(ACCEPT).headers(USERAUTHBAD).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.BADCREDS.intValue)
     val postConfirmResp = parse(response.body).extract[ApiResponse]

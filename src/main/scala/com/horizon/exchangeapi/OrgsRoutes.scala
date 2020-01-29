@@ -505,7 +505,11 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  def buildResourceChangesResponse(inputList: scala.Seq[ResourceChangeRow], maxRecords : Int): ResourceChangesRespObject ={
+  def buildResourceChangesResponse(inputListUnsorted: scala.Seq[ResourceChangeRow], maxRecords : Int): ResourceChangesRespObject ={
+    // Sort the rows based on the changeId. Default order is ascending, which is what we want
+    logger.debug(s"POST /orgs/{orgid}/changes sorting ${inputListUnsorted.size} rows")
+    val inputList = inputListUnsorted.sortBy(_.changeId)  // Note: we are doing the sorting here instead of in the db via sql, because the latter seems to use a lot of db cpu
+
     // fill in some values we can before processing
     val exchangeVersion = ExchangeApi.adminVersion()
     val maxChangeIdOfQuery = inputList.last.changeId // this is the maximum changeId of the entire query from the db
@@ -565,17 +569,19 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           // Variables to help with building the query
           val lastTime = reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)
           // filter by lastUpdated and changeId then filter by either it's in the org OR it's not in the same org but is public
-          var qFilter = ResourceChangesTQ.rows.filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
-          ident match {
+          //var qFilter = ResourceChangesTQ.rows.filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
+          val qFilter = ident match {
             case _: INode =>
               // if its a node calling then it doesn't want information about any other nodes
-              qFilter = qFilter.filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
-            case _ => ;
+               ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId).filter(_.lastUpdated >= lastTime).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
+            case _ =>
+              // Note: repeating some of the filters in both cases to make the final query less nested for the db
+              ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId).filter(_.lastUpdated >= lastTime).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
           }
-          val q = for { r <- qFilter.sortBy(_.changeId) } yield r //sort the response by changeId
-          logger.debug(s"POST /orgs/$orgId/changes db query: ${q.result.statements}")
+          //val q = for { r <- qFilter.sortBy(_.changeId) } yield r //sort the response by changeId
+          logger.debug(s"POST /orgs/$orgId/changes db query: ${qFilter.result.statements}")
           var qResp : scala.Seq[ResourceChangeRow] = null
-          db.run(q.result.asTry.flatMap({
+          db.run(qFilter.result.asTry.flatMap({
             case Success(qResult) =>
               //logger.debug("POST /orgs/" + orgId + "/changes changes : " + qOrgResult.toString())
               logger.debug("POST /orgs/" + orgId + "/changes changes : " + qResult.size)

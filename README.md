@@ -227,6 +227,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 ## Changes in 2.11.0
 
 - Added configurable trimming to the resourcechanges table
+- Add custom akka exception handler to return 502 for db access errors in the routes
 
 ## Changes in 2.10.0
 

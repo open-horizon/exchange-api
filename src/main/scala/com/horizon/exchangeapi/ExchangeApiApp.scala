@@ -83,6 +83,20 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   ExchangeApi.defaultLogger = logger // need this set in an object that doesn't use DelayedInit
   ExchConfig.createRootInCache()
 
+  // Set a custom exception handler. See https://doc.akka.io/docs/akka-http/current/routing-dsl/exception-handling.html#exception-handling
+  implicit def myExceptionHandler: ExceptionHandler =
+    ExceptionHandler {
+      case e: java.util.concurrent.RejectedExecutionException => // this is the exception if any of the routes have trouble reaching the db during a db.run()
+        //extractUri { uri =>   // in case we need the url for some reason
+        //}
+        val msg = if (e.getMessage != null) e.getMessage else e.toString
+        complete((StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, msg)))
+      case e: Exception =>
+        val msg = if (e.getMessage != null) e.getMessage else e.toString
+        // for now we return bad gw for any unknown exception, since that is what most of them have been
+        complete((StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, msg)))
+    }
+
   // Set a custom rejection handler. See https://doc.akka.io/docs/akka-http/current/routing-dsl/rejections.html#customizing-rejection-handling
   implicit def myRejectionHandler =
     RejectionHandler.newBuilder()
@@ -147,7 +161,6 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   final case class testResp(result: String)
   def testRoute = { path("test") { get { logger.debug("In /test"); complete(testResp("OK")) } } }
 
-  // Note: all exceptions (code failures) will be handled by the akka-http exception handler. To override that, see https://doc.akka.io/docs/akka-http/current/routing-dsl/exception-handling.html#exception-handling
   //someday: use directive https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
   lazy val routes: Route = DebuggingDirectives.logRequestResult(requestResponseLogging _) { pathPrefix("v1") { testRoute ~ orgsRoutes ~ usersRoutes ~ nodesRoutes ~ agbotsRoutes ~ servicesRoutes ~ patternsRoutes ~ businessRoutes ~ catalogRoutes ~ adminRoutes ~ SwaggerDocService.routes ~ swaggerUiRoutes } }
 

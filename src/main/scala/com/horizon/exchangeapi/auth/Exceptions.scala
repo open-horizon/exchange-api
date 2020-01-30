@@ -20,9 +20,10 @@ final case class IncorrectIcpOrgFound(requestOrg: String, clusterName: String) e
 // Note: this is not strictly an auth error, but it is handy to inherit from AuthException
 class DBProcessingError(httpCode: StatusCode, apiResponse: String, msg: String) extends AuthException(httpCode, apiResponse, msg)
 
+// These 2 exceptions will be caught by IbmCloudModule and Module respectively, and return false from login().
+// Their http code should never be used, which is why it is an internal error if it unexpectedly is.
 // Only used internally: The creds werent ibm cloud creds, so return gracefully and move on to the next login module
 class NotIbmCredsException extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, "not IBM cloud credentials")
-
 // The creds werent local exchange creds, so return gracefully and move on to the next login module
 class NotLocalCredsException extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, "User is iamapikey or iamtoken, so credentials are not local Exchange credentials")
 
@@ -64,18 +65,3 @@ class IdNotFoundException(msg: String = ExchMsg.translate("invalid.credentials")
 class IdNotFoundForAuthorizationException(msg: String = ExchMsg.translate("access.denied")) extends AuthException(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, msg)
 
 class AuthInternalErrorException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
-
-/* not used any more
-object AuthErrors {
-  def message(t: Throwable): (StatusCode, String, String) = {
-    t match {
-      case t: AuthException => (t.httpCode, t.apiResponse, t.getMessage)
-      // This is a catch all that probably doesnt get thrown
-      case t: FailedLoginException => (HttpCode.BADCREDS, ApiRespType.BADCREDS, t.getMessage)
-      // Should not get here
-      case t: Throwable => (HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, t.toString)
-      case _ => (HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("unknown.error.invalid.creds"))
-    }
-  }
-}
-*/

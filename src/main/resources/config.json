@@ -30,6 +30,9 @@
 			"authDbTimeoutSeconds": 15,   // timeout for db access for critical auth info when cache missing
 			"type": "guava"    // currently guava is the only option
 		},
+		"resourceChanges": {
+			"ttl": 604800    // number of seconds to keep the history records of resource changes - 604800 is 1 week
+		},
 		"db": {
 			"driverClass": "org.postgresql.Driver",
 			"jdbcUrl": "",		// the back-end db the exchange uses

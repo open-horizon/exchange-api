@@ -507,7 +507,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   def buildResourceChangesResponse(inputListUnsorted: scala.Seq[ResourceChangeRow], maxRecords : Int): ResourceChangesRespObject ={
     // Sort the rows based on the changeId. Default order is ascending, which is what we want
-    logger.debug(s"POST /orgs/{orgid}/changes sorting ${inputListUnsorted.size} rows")
+    logger.info(s"POST /orgs/{orgid}/changes sorting ${inputListUnsorted.size} rows")
     val inputList = inputListUnsorted.sortBy(_.changeId)  // Note: we are doing the sorting here instead of in the db via sql, because the latter seems to use a lot of db cpu
 
     // fill in some values we can before processing
@@ -566,25 +566,35 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TOrg(orgId), Access.READ) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          // Variables to help with building the query
-          val lastTime = reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)
+          // We only support either changeId or lastUpdated being specified, but not both
+          var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBody.lastUpdated.get) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)
+
+          qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
+          //val lastTime = reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)
           // filter by lastUpdated and changeId then filter by either it's in the org OR it's not in the same org but is public
           //var qFilter = ResourceChangesTQ.rows.filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
-          val qFilter = ident match {
+          ident match {
             case _: INode =>
               // if its a node calling then it doesn't want information about any other nodes
-               ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId).filter(_.lastUpdated >= lastTime).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
-            case _ =>
+              qFilter = qFilter.filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
+            case _ => ;
               // Note: repeating some of the filters in both cases to make the final query less nested for the db
-              ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId).filter(_.lastUpdated >= lastTime).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
+              //ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId).filter(_.lastUpdated >= lastTime).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
           }
-          //val q = for { r <- qFilter.sortBy(_.changeId) } yield r //sort the response by changeId
+          //val q = for { r <- qFilter.sortBy(_.changeId) } yield r //sort the response by changeId  // <- doing the sorting in the exchange instead of the db
           logger.debug(s"POST /orgs/$orgId/changes db query: ${qFilter.result.statements}")
           var qResp : scala.Seq[ResourceChangeRow] = null
-          db.run(qFilter.result.asTry.flatMap({
+
+          // Get the time for trimming rows from the table
+          val timeExpires = ApiTime.pastUTC(ExchConfig.getInt("api.resourceChanges.ttl"))
+
+          db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.flatMap({ xs =>
+            logger.debug("POST /orgs/" + orgId + "/changes number of rows deleted: " + xs.toString)
+            qFilter.result.asTry
+          }).flatMap({
             case Success(qResult) =>
               //logger.debug("POST /orgs/" + orgId + "/changes changes : " + qOrgResult.toString())
-              logger.debug("POST /orgs/" + orgId + "/changes changes : " + qResult.size)
+              logger.debug("POST /orgs/" + orgId + "/changes number of changed rows retrieved: " + qResult.size)
               qResp = qResult
               val id = orgId + "/" + ident.getIdentity
               ident match {

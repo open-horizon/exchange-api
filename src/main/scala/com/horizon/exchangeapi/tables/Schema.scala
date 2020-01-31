@@ -148,7 +148,7 @@ object SchemaTQ {
     }
   }
   val latestSchemaVersion = 31    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "added heartbeatintervals column to nodes table"
+  val latestSchemaDescription = "added indexes to resourcechanges table on columns orgid, id, category, and public"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

@@ -321,7 +321,7 @@ class NodesSuite extends FunSuite {
     assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "node") && (y.resourceChanges.size == 1)}))
     assert(parsedBody.changes.size <= maxRecords)
     assert(parsedBody.mostRecentChangeId != 0)
-    assert(parsedBody.maxChangeIdOfQuery != 0)
+    assert(!parsedBody.hitMaxRecords)
     assert(parsedBody.exchangeVersion == ExchangeApi.adminVersion().toString)
   }
 

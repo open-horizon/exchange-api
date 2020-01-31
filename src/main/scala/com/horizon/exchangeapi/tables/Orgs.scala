@@ -129,6 +129,7 @@ object ResourceChangesTQ {
   def getResource(changeid: Int) = rows.filter(_.changeId === changeid).map(_.resource)
   def getOperation(changeid: Int) = rows.filter(_.changeId === changeid).map(_.operation)
   def getLastUpdated(changeid: Int) = rows.filter(_.changeId === changeid).map(_.lastUpdated)
+  def getRowsExpired(timeExpired: String) = rows.filter(_.lastUpdated < timeExpired)
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(changeid: Int, attrName: String): Query[_,_,Seq] = {

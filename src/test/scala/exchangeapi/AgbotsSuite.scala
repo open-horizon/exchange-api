@@ -971,6 +971,15 @@ class AgbotsSuite extends FunSuite {
     }
   }
 
+  test("GET /changes/maxchangeid - verify " + agbotId + " can call it and it is non-zero") {
+    val response = Http(NOORGURL+"/changes/maxchangeid").headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[MaxChangeIdResponse]
+    assert(parsedBody.maxChangeId > 0)
+  }
+
   /** Explicit delete of agbot */
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+" - as user") {
     var response = Http(URL+"/agbots/"+agbotId).method("delete").headers(ACCEPT).headers(USERAUTH).asString

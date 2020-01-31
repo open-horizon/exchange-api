@@ -114,8 +114,10 @@ final case class ChangeEntry(orgId: String, var resource: String, id: String, va
 }
 final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, maxChangeIdOfQuery: Int, exchangeVersion: String)
 
+final case class MaxChangeIdResponse(maxChangeId: Int)
+
 /** Routes for /orgs */
-@Path("/v1/orgs")
+@Path("/v1")
 trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // Not using Spray, but left here for reference, in case we want to switch to it - Tell spray how to marshal our types (models) to/from the rest client
   //import DefaultJsonProtocol._
@@ -144,7 +146,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   */
 
   // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
-  def orgsRoutes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute
+  def orgsRoutes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute ~ orgsGetMaxChangeIdRoute
 
   // ====== GET /orgs ================================
 
@@ -160,7 +162,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // Swagger annotation reference: https://github.com/swagger-api/swagger-core/wiki/Swagger-2.X---Annotations
   // Note: i think these annotations can't have any comments between them and the method def
   @GET
-  @Path("")
+  @Path("orgs")
   @Operation(summary = "Returns all orgs", description = "Returns some or all org definitions. Can be run by any user if filter orgType=IBM is used, otherwise can only be run by the root user.",
     parameters = Array(
       new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this org type. A common org type is 'IBM'.",
@@ -205,7 +207,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ====== GET /orgs/{orgid} ================================
   @GET
-  @Path("{orgid}")
+  @Path("orgs/{orgid}")
   @Operation(summary = "Returns an org", description = "Returns the org with the specified id. Can be run by any user in this org.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -246,7 +248,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ====== POST /orgs/{orgid} ================================
   @POST
-  @Path("{orgid}")
+  @Path("orgs/{orgid}")
   @Operation(summary = "Adds an org", description = "Creates an org resource. This can only be called by the root user.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -292,7 +294,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ====== PUT /orgs/{orgid} ================================
   @PUT
-  @Path("{orgid}")
+  @Path("orgs/{orgid}")
   @Operation(summary = "Updates an org", description = "Does a full replace of an existing org. This can only be called by root or a user in the org with the admin role.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -325,7 +327,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ====== PATCH /orgs/{orgid} ================================
   @PATCH
-  @Path("{orgid}")
+  @Path("orgs/{orgid}")
   @Operation(summary = "Updates 1 attribute of an org", description = "Updates one attribute of a org. This can only be called by root or a user in the org with the admin role.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -360,7 +362,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // =========== DELETE /orgs/{org} ===============================
   @DELETE
-  @Path("{orgid}")
+  @Path("orgs/{orgid}")
   @Operation(summary = "Deletes an org", description = "Deletes an org. This can only be called by root or a user in the org with the admin role.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -388,7 +390,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ======== POST /org/{orgid}/search/nodes/error ========================
   @POST
-  @Path("{orgid}/search/nodes/error")
+  @Path("orgs/{orgid}/search/nodes/error")
   @Operation(summary = "Returns nodes in an error state", description = "Returns a list of the id's of nodes in an error state. Can be run by a user or agbot (but not a node). No request body is currently required.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -462,7 +464,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ======== POST /org/{orgid}/search/nodehealth ========================
   @POST
-  @Path("{orgid}/search/nodehealth")
+  @Path("orgs/{orgid}/search/nodehealth")
   @Operation(summary = "Returns agreement health of nodes with no pattern", description = "Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -505,17 +507,17 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  def buildResourceChangesResponse(inputListUnsorted: scala.Seq[ResourceChangeRow], maxRecords : Int): ResourceChangesRespObject ={
+  def buildResourceChangesResponse(inputListUnsorted: scala.Seq[ResourceChangeRow], maxRecords: Int, inputChangeId: Int, maxChangeIdOfTable: Int): ResourceChangesRespObject ={
     // Sort the rows based on the changeId. Default order is ascending, which is what we want
-    logger.debug(s"POST /orgs/{orgid}/changes sorting ${inputListUnsorted.size} rows")
+    logger.info(s"POST /orgs/{orgid}/changes sorting ${inputListUnsorted.size} rows")
     val inputList = inputListUnsorted.sortBy(_.changeId)  // Note: we are doing the sorting here instead of in the db via sql, because the latter seems to use a lot of db cpu
 
     // fill in some values we can before processing
     val exchangeVersion = ExchangeApi.adminVersion()
-    val maxChangeIdOfQuery = inputList.last.changeId // this is the maximum changeId of the entire query from the db
+    //val maxChangeIdOfQuery = inputList.last.changeId // <- this doesn't get the highest change id in the table, or even necessarily the highest change id we return to the client
     // set up needed variables
     var entryCounter = 0
-    var mostRecentChangeId = 0
+    var maxChangeIdInResponse = 0
     val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
     // fill in changesMap
     breakable {
@@ -530,19 +532,23 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
             changesMap.put(entry.orgId+"_"+entry.id+"_"+entry.resource, ChangeEntry(entry.orgId, entry.resource, entry.id, entry.operation, resChangeListBuffer))
         } // end of match
-        if (entry.changeId > mostRecentChangeId) {mostRecentChangeId = entry.changeId} // set the maximum changeId that will be in the response
+        if (entry.changeId > maxChangeIdInResponse) {maxChangeIdInResponse = entry.changeId} // set the maximum changeId that will be in the response
         entryCounter += 1 // increment our count of how many changeId's we've gone through
         if (entryCounter >= maxRecords) break // if we have now met or are over the count of allowed entries just stop and make the map into a list
       } // end of for loop
     }
     // now we have changesMap which is Map[String, ChangeEntry] we need to convert that to a List[ChangeEntry]
     val changesList = changesMap.values.toList
-    ResourceChangesRespObject(changesList, mostRecentChangeId, maxChangeIdOfQuery, exchangeVersion)
+    var maxChangeId = 0
+    if (entryCounter >= maxRecords) maxChangeId = maxChangeIdInResponse   // we hit the max records, so there are possibly value entries we are not returning, so the client needs to start here next time
+    else if (maxChangeIdOfTable > 0) maxChangeId = maxChangeIdOfTable   // we got a valid max change id in the table, and we returned all relevant entries, so the client can start at the end of the table next time
+    else maxChangeId = inputChangeId    // we didn't get a valid maxChangeIdInResponse or maxChangeIdOfTable, so just give the client back what they gave us
+    ResourceChangesRespObject(changesList, maxChangeId, maxChangeId, exchangeVersion)   //todo: probably remove the 2nd maxChangeId in the response
   }
 
   /* ====== POST /orgs/{orgid}/changes ================================ */
   @POST
-  @Path("{orgid}/changes")
+  @Path("orgs/{orgid}/changes")
   @Operation(summary = "Returns recent changes in this org", description = "Returns all the recent resource changes within an org that the caller has permissions to view.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -566,25 +572,44 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TOrg(orgId), Access.READ) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          // Variables to help with building the query
-          val lastTime = reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)
+          // Create a query to get the last changeid currently in the table
+          val qMaxChangeId = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
+          var maxChangeId = 0
+
+          // Create query to get the rows relevant to this client. We only support either changeId or lastUpdated being specified, but not both
+          var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBody.lastUpdated.get) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)
+
+          qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
+          //val lastTime = reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)
           // filter by lastUpdated and changeId then filter by either it's in the org OR it's not in the same org but is public
           //var qFilter = ResourceChangesTQ.rows.filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
-          val qFilter = ident match {
+          ident match {
             case _: INode =>
               // if its a node calling then it doesn't want information about any other nodes
-               ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId).filter(_.lastUpdated >= lastTime).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
-            case _ =>
+              qFilter = qFilter.filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
+            case _ => ;
               // Note: repeating some of the filters in both cases to make the final query less nested for the db
-              ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId).filter(_.lastUpdated >= lastTime).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
+              //ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId).filter(_.lastUpdated >= lastTime).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
           }
-          //val q = for { r <- qFilter.sortBy(_.changeId) } yield r //sort the response by changeId
+          //val q = for { r <- qFilter.sortBy(_.changeId) } yield r //sort the response by changeId  // <- doing the sorting in the exchange instead of the db
           logger.debug(s"POST /orgs/$orgId/changes db query: ${qFilter.result.statements}")
           var qResp : scala.Seq[ResourceChangeRow] = null
-          db.run(qFilter.result.asTry.flatMap({
+
+          // Get the time for trimming rows from the table
+          val timeExpires = ApiTime.pastUTC(ExchConfig.getInt("api.resourceChanges.ttl"))
+
+          db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.flatMap({ xs =>
+            logger.debug("POST /orgs/" + orgId + "/changes number of rows deleted: " + xs.toString)
+            qMaxChangeId.result.asTry
+          }).flatMap({
+            case Success(qMaxChangeIdResp) =>
+              maxChangeId = if (qMaxChangeIdResp.nonEmpty) qMaxChangeIdResp.head else 0
+              qFilter.result.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          }).flatMap({
             case Success(qResult) =>
               //logger.debug("POST /orgs/" + orgId + "/changes changes : " + qOrgResult.toString())
-              logger.debug("POST /orgs/" + orgId + "/changes changes : " + qResult.size)
+              logger.debug("POST /orgs/" + orgId + "/changes number of changed rows retrieved: " + qResult.size)
               qResp = qResult
               val id = orgId + "/" + ident.getIdentity
               ident match {
@@ -602,7 +627,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(n) =>
               logger.debug(s"POST /orgs/$orgId/changes node/agbot heartbeat result: $n")
               if (n > 0) {
-                if(qResp.nonEmpty) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, reqBody.maxRecords))
+                if(qResp.nonEmpty) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, reqBody.maxRecords, reqBody.changeId, maxChangeId))
                 else (HttpCode.POST_OK, ResourceChangesRespObject(List[ChangeEntry](), reqBody.changeId, reqBody.changeId, ExchangeApi.adminVersion()))
               }
             else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", ident.getIdentity)))
@@ -611,6 +636,32 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           })
         }) // end of complete
       } // end of validateWithMsg
+    } // end of exchAuth
+  }
+
+  // ====== GET /changes/maxchangeid ================================
+  @GET
+  @Path("changes/maxchangeid")
+  @Operation(summary = "Returns the max changeid of the resource changes", description = "Returns the max changeid of the resource changes. Can be run by any user, node, or agbot.",
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[MaxChangeIdResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+  def orgsGetMaxChangeIdRoute: Route = (path("changes" / "maxchangeid") & get) {
+    logger.debug("Doing GET /changes/maxchangeid")
+    exchAuth(TAction(), Access.MAXCHANGEID) { _ =>
+      complete({
+        val q = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
+        logger.debug(s"GET /changes/maxchangeid db query: ${q.result.statements}")
+
+        db.run(q.result).map({ changeIds =>
+          logger.debug("GET /changes/maxchangeid result: " + changeIds)
+          val changeId = if (changeIds.nonEmpty) changeIds.head else 0
+          (StatusCodes.OK, MaxChangeIdResponse(changeId))
+        })
+      }) // end of complete
     } // end of exchAuth
   }
 

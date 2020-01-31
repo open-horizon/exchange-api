@@ -224,6 +224,13 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.11.0
+
+- Added configurable trimming of the resourcechanges table
+- Removed `lastUpdated` filter for most common resourcechanges table query cases
+- Added custom akka exception handler to return 502 (instead of 500) for db access errors in the routes
+- Added `GET /changes/maxchangeid` route to more efficiently get max changeid during agent initialization
+
 ## Changes in 2.10.0
 
 - Fixed another case for issue 264

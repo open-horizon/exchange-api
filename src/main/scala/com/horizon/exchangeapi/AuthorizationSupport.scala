@@ -35,7 +35,7 @@ object Access extends Enumeration {
   val CREATE_SUPERUSER = Value("CREATE_SUPERUSER") // currently no one is allowed to do this, because root is only initialized from the config.json file
   val READ_ALL_USERS = Value("READ_ALL_USERS")
   val WRITE_ALL_USERS = Value("WRITE_ALL_USERS")
-  val RESET_USER_PW = Value("RESET_USER_PW")
+  //val RESET_USER_PW = Value("RESET_USER_PW")
   val READ_MY_SERVICES = Value("READ_MY_SERVICES")
   val WRITE_MY_SERVICES = Value("WRITE_MY_SERVICES")
   val READ_ALL_SERVICES = Value("READ_ALL_SERVICES")
@@ -56,6 +56,7 @@ object Access extends Enumeration {
   val SET_IBM_ORG_TYPE = Value("SET_IBM_ORG_TYPE")
   val STATUS = Value("STATUS")
   val UTILITIES = Value("UTILITIES")
+  val MAXCHANGEID = Value("MAXCHANGEID")
   val CREATE_ORGS = Value("CREATE_ORGS")
   val READ_OTHER_ORGS = Value("READ_OTHER_ORGS")
   val READ_IBM_ORGS = Value("READ_IBM_ORGS")

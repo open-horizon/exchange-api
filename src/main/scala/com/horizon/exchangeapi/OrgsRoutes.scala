@@ -114,8 +114,10 @@ final case class ChangeEntry(orgId: String, var resource: String, id: String, va
 }
 final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, maxChangeIdOfQuery: Int, exchangeVersion: String)
 
+final case class MaxChangeIdResponse(maxChangeId: Int)
+
 /** Routes for /orgs */
-@Path("/v1/orgs")
+@Path("/v1")
 trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // Not using Spray, but left here for reference, in case we want to switch to it - Tell spray how to marshal our types (models) to/from the rest client
   //import DefaultJsonProtocol._
@@ -144,7 +146,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   */
 
   // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
-  def orgsRoutes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute
+  def orgsRoutes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute ~ orgsGetMaxChangeIdRoute
 
   // ====== GET /orgs ================================
 
@@ -160,7 +162,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // Swagger annotation reference: https://github.com/swagger-api/swagger-core/wiki/Swagger-2.X---Annotations
   // Note: i think these annotations can't have any comments between them and the method def
   @GET
-  @Path("")
+  @Path("orgs")
   @Operation(summary = "Returns all orgs", description = "Returns some or all org definitions. Can be run by any user if filter orgType=IBM is used, otherwise can only be run by the root user.",
     parameters = Array(
       new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this org type. A common org type is 'IBM'.",
@@ -205,7 +207,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ====== GET /orgs/{orgid} ================================
   @GET
-  @Path("{orgid}")
+  @Path("orgs/{orgid}")
   @Operation(summary = "Returns an org", description = "Returns the org with the specified id. Can be run by any user in this org.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -246,7 +248,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ====== POST /orgs/{orgid} ================================
   @POST
-  @Path("{orgid}")
+  @Path("orgs/{orgid}")
   @Operation(summary = "Adds an org", description = "Creates an org resource. This can only be called by the root user.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -292,7 +294,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ====== PUT /orgs/{orgid} ================================
   @PUT
-  @Path("{orgid}")
+  @Path("orgs/{orgid}")
   @Operation(summary = "Updates an org", description = "Does a full replace of an existing org. This can only be called by root or a user in the org with the admin role.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -325,7 +327,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ====== PATCH /orgs/{orgid} ================================
   @PATCH
-  @Path("{orgid}")
+  @Path("orgs/{orgid}")
   @Operation(summary = "Updates 1 attribute of an org", description = "Updates one attribute of a org. This can only be called by root or a user in the org with the admin role.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -360,7 +362,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // =========== DELETE /orgs/{org} ===============================
   @DELETE
-  @Path("{orgid}")
+  @Path("orgs/{orgid}")
   @Operation(summary = "Deletes an org", description = "Deletes an org. This can only be called by root or a user in the org with the admin role.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -388,7 +390,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ======== POST /org/{orgid}/search/nodes/error ========================
   @POST
-  @Path("{orgid}/search/nodes/error")
+  @Path("orgs/{orgid}/search/nodes/error")
   @Operation(summary = "Returns nodes in an error state", description = "Returns a list of the id's of nodes in an error state. Can be run by a user or agbot (but not a node). No request body is currently required.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -462,7 +464,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ======== POST /org/{orgid}/search/nodehealth ========================
   @POST
-  @Path("{orgid}/search/nodehealth")
+  @Path("orgs/{orgid}/search/nodehealth")
   @Operation(summary = "Returns agreement health of nodes with no pattern", description = "Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -542,7 +544,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   /* ====== POST /orgs/{orgid}/changes ================================ */
   @POST
-  @Path("{orgid}/changes")
+  @Path("orgs/{orgid}/changes")
   @Operation(summary = "Returns recent changes in this org", description = "Returns all the recent resource changes within an org that the caller has permissions to view.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
@@ -621,6 +623,32 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           })
         }) // end of complete
       } // end of validateWithMsg
+    } // end of exchAuth
+  }
+
+  // ====== GET /changes/maxchangeid ================================
+  @GET
+  @Path("changes/maxchangeid")
+  @Operation(summary = "Returns the max changeid of the resource changes", description = "Returns the max changeid of the resource changes. Can be run by any user, node, or agbot.",
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[MaxChangeIdResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+  def orgsGetMaxChangeIdRoute: Route = (path("changes" / "maxchangeid") & get) {
+    logger.debug("Doing GET /changes/maxchangeid")
+    exchAuth(TAction(), Access.MAXCHANGEID) { _ =>
+      complete({
+        val q = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
+        logger.debug(s"GET /changes/maxchangeid db query: ${q.result.statements}")
+
+        db.run(q.result).map({ changeIds =>
+          logger.debug("GET /changes/maxchangeid result: " + changeIds)
+          val changeId = if (changeIds.nonEmpty) changeIds.head else 0
+          (StatusCodes.OK, MaxChangeIdResponse(changeId))
+        })
+      }) // end of complete
     } // end of exchAuth
   }
 

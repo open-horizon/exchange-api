@@ -1749,7 +1749,7 @@ class NodesSuite extends FunSuite {
     assert(respObj.msg.contains("service '"+org2service+"' created"))
   }
 
-  test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+" - add normal node as user, but with no pattern yet") {
+  test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+" - update node as root, but with no pattern yet") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-new", "", None, None, None, Some(Map("horizon"->"3.2.3")), nodePubKey, None, Some(NodeHeartbeatIntervals(5,15,2)))
     val response = Http(URL2+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code)
@@ -2392,8 +2392,26 @@ class NodesSuite extends FunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
+  test("GET /changes/maxchangeid - verify " + nodeId + " can call it and it is non-zero") {
+    val response = Http(NOORGURL+"/changes/maxchangeid").headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[MaxChangeIdResponse]
+    assert(parsedBody.maxChangeId > 0)
+  }
+
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId) {
     val response = Http(URL+"/nodes/"+nodeId).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
+  }
+
+  //todo: Need to do this to clean up some cache references, until issue 232 or 176 is implemented.
+  // What is going on here is the resources are created with 1 user, then updated with another. When the org is deleted, the resource goes away, but the cache entry doesn't go away for 5 minutes.
+  // If the test suite is run again within that time frame, the 1st create above will find the cache entry and think it is owned by another user and return 403.
+  test("DELETE /orgs/"+orgid2+"/nodes/"+nodeId) {
+    val response = Http(URL2+"/nodes/"+nodeId).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
@@ -2450,5 +2468,9 @@ class NodesSuite extends FunSuite {
 
   test("Cleanup - DELETE everything and confirm they are gone") {
     deleteAllOrgs()
+
+    // Note: this doesn't work, because it only edits the cache in this process, not the exchange svr process
+    //AuthCache.removeNodeAndOwner(org2nodeId)
   }
+
 }

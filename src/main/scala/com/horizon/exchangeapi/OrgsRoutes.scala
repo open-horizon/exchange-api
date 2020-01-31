@@ -514,7 +514,6 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
     // fill in some values we can before processing
     val exchangeVersion = ExchangeApi.adminVersion()
-    //val maxChangeIdOfQuery = inputList.last.changeId // <- this doesn't get the highest change id in the table, or even necessarily the highest change id we return to the client
     // set up needed variables
     var entryCounter = 0
     var maxChangeIdInResponse = 0
@@ -628,7 +627,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               logger.debug(s"POST /orgs/$orgId/changes node/agbot heartbeat result: $n")
               if (n > 0) {
                 if(qResp.nonEmpty) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, reqBody.maxRecords, reqBody.changeId, maxChangeId))
-                else (HttpCode.POST_OK, ResourceChangesRespObject(List[ChangeEntry](), reqBody.changeId, reqBody.changeId, ExchangeApi.adminVersion()))
+                else (HttpCode.POST_OK, ResourceChangesRespObject(List[ChangeEntry](), maxChangeId, maxChangeId, ExchangeApi.adminVersion()))
               }
             else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", ident.getIdentity)))
             case Failure(t) =>

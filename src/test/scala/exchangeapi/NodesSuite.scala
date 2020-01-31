@@ -2445,8 +2445,6 @@ class NodesSuite extends FunSuite {
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.isEmpty)
-    assert(parsedBody.maxChangeIdOfQuery==0)
-    assert(parsedBody.mostRecentChangeId==0)
     assert(!parsedBody.exchangeVersion.isEmpty)
   }
 

@@ -112,7 +112,7 @@ final case class ChangeEntry(orgId: String, var resource: String, id: String, va
   def setOperation(newOp: String) {this.operation = newOp}
   def setResource(newResource: String) {this.resource = newResource}
 }
-final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, maxChangeIdOfQuery: Int, exchangeVersion: String)
+final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, hitMaxRecords: Boolean, exchangeVersion: String)
 
 final case class MaxChangeIdResponse(maxChangeId: Int)
 
@@ -507,42 +507,37 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  def buildResourceChangesResponse(inputListUnsorted: scala.Seq[ResourceChangeRow], maxRecords: Int, inputChangeId: Int, maxChangeIdOfTable: Int): ResourceChangesRespObject ={
+  def buildResourceChangesResponse(inputList: scala.Seq[ResourceChangeRow], hitMaxRecords: Boolean, inputChangeId: Int, maxChangeIdOfTable: Int): ResourceChangesRespObject ={
     // Sort the rows based on the changeId. Default order is ascending, which is what we want
-    logger.info(s"POST /orgs/{orgid}/changes sorting ${inputListUnsorted.size} rows")
-    val inputList = inputListUnsorted.sortBy(_.changeId)  // Note: we are doing the sorting here instead of in the db via sql, because the latter seems to use a lot of db cpu
+    logger.info(s"POST /orgs/{orgid}/changes sorting ${inputList.size} rows")
+    // val inputList = inputListUnsorted.sortBy(_.changeId)  // Note: we are doing the sorting here instead of in the db via sql, because the latter seems to use a lot of db cpu
 
     // fill in some values we can before processing
     val exchangeVersion = ExchangeApi.adminVersion()
     // set up needed variables
     var entryCounter = 0
-    var maxChangeIdInResponse = 0
+    val maxChangeIdInResponse = inputList.last.changeId
     val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
     // fill in changesMap
-    breakable {
-      for (entry <- inputList) { // looping through every single ResourceChangeRow in inputList
-        val resChange = ResourceChangesInnerObject(entry.changeId, entry.lastUpdated)
-        changesMap.get(entry.orgId+"_"+entry.id+"_"+entry.resource) match { // using the map allows for better searching and entry
-          case Some(change) =>
-            // inputList is already sorted by changeId from the query so we know this change happened later
-            change.addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
-            change.setOperation(entry.operation) // update the most recent operation performed
-          case None => // add the change to the changesMap
-            val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
-            changesMap.put(entry.orgId+"_"+entry.id+"_"+entry.resource, ChangeEntry(entry.orgId, entry.resource, entry.id, entry.operation, resChangeListBuffer))
-        } // end of match
-        if (entry.changeId > maxChangeIdInResponse) {maxChangeIdInResponse = entry.changeId} // set the maximum changeId that will be in the response
-        entryCounter += 1 // increment our count of how many changeId's we've gone through
-        if (entryCounter >= maxRecords) break // if we have now met or are over the count of allowed entries just stop and make the map into a list
-      } // end of for loop
-    }
+    for (entry <- inputList) { // looping through every single ResourceChangeRow in inputList, given that we apply `.take(maxRecords)` in the query, this should never be over maxRecords, so no more need to break
+      val resChange = ResourceChangesInnerObject(entry.changeId, entry.lastUpdated)
+      changesMap.get(entry.orgId+"_"+entry.id+"_"+entry.resource) match { // using the map allows for better searching and entry
+        case Some(change) =>
+          // inputList is already sorted by changeId from the query so we know this change happened later
+          change.addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
+          change.setOperation(entry.operation) // update the most recent operation performed
+        case None => // add the change to the changesMap
+          val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
+          changesMap.put(entry.orgId+"_"+entry.id+"_"+entry.resource, ChangeEntry(entry.orgId, entry.resource, entry.id, entry.operation, resChangeListBuffer))
+      } // end of match
+    } // end of for loop
     // now we have changesMap which is Map[String, ChangeEntry] we need to convert that to a List[ChangeEntry]
     val changesList = changesMap.values.toList
     var maxChangeId = 0
-    if (entryCounter >= maxRecords) maxChangeId = maxChangeIdInResponse   // we hit the max records, so there are possibly value entries we are not returning, so the client needs to start here next time
+    if (hitMaxRecords) maxChangeId = maxChangeIdInResponse   // we hit the max records, so there are possibly value entries we are not returning, so the client needs to start here next time
     else if (maxChangeIdOfTable > 0) maxChangeId = maxChangeIdOfTable   // we got a valid max change id in the table, and we returned all relevant entries, so the client can start at the end of the table next time
     else maxChangeId = inputChangeId    // we didn't get a valid maxChangeIdInResponse or maxChangeIdOfTable, so just give the client back what they gave us
-    ResourceChangesRespObject(changesList, maxChangeId, maxChangeId, exchangeVersion)   //todo: probably remove the 2nd maxChangeId in the response
+    ResourceChangesRespObject(changesList, maxChangeId, hitMaxRecords, exchangeVersion)   //todo: probably remove the 2nd maxChangeId in the response
   }
 
   /* ====== POST /orgs/{orgid}/changes ================================ */
@@ -590,7 +585,9 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               // Note: repeating some of the filters in both cases to make the final query less nested for the db
               //ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId).filter(_.lastUpdated >= lastTime).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
           }
-          //val q = for { r <- qFilter.sortBy(_.changeId) } yield r //sort the response by changeId  // <- doing the sorting in the exchange instead of the db
+          // sort by changeId and take only maxRecords from the query
+          qFilter = qFilter.sortBy(_.changeId).take(reqBody.maxRecords)
+
           logger.debug(s"POST /orgs/$orgId/changes db query: ${qFilter.result.statements}")
           var qResp : scala.Seq[ResourceChangeRow] = null
 
@@ -626,8 +623,9 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(n) =>
               logger.debug(s"POST /orgs/$orgId/changes node/agbot heartbeat result: $n")
               if (n > 0) {
-                if(qResp.nonEmpty) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, reqBody.maxRecords, reqBody.changeId, maxChangeId))
-                else (HttpCode.POST_OK, ResourceChangesRespObject(List[ChangeEntry](), maxChangeId, maxChangeId, ExchangeApi.adminVersion()))
+                val hitMaxRecords = (qResp.size == reqBody.maxRecords) // if they are equal then we hit maxRecords
+                if(qResp.nonEmpty) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, hitMaxRecords, reqBody.changeId, maxChangeId))
+                else (HttpCode.POST_OK, ResourceChangesRespObject(List[ChangeEntry](), maxChangeId, hitMaxRecords = false, ExchangeApi.adminVersion()))
               }
             else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", ident.getIdentity)))
             case Failure(t) =>

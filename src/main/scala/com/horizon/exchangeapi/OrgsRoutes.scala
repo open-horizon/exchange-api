@@ -507,17 +507,17 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  def buildResourceChangesResponse(inputListUnsorted: scala.Seq[ResourceChangeRow], maxRecords : Int): ResourceChangesRespObject ={
+  def buildResourceChangesResponse(inputListUnsorted: scala.Seq[ResourceChangeRow], maxRecords: Int, inputChangeId: Int, maxChangeIdOfTable: Int): ResourceChangesRespObject ={
     // Sort the rows based on the changeId. Default order is ascending, which is what we want
     logger.info(s"POST /orgs/{orgid}/changes sorting ${inputListUnsorted.size} rows")
     val inputList = inputListUnsorted.sortBy(_.changeId)  // Note: we are doing the sorting here instead of in the db via sql, because the latter seems to use a lot of db cpu
 
     // fill in some values we can before processing
     val exchangeVersion = ExchangeApi.adminVersion()
-    val maxChangeIdOfQuery = inputList.last.changeId // this is the maximum changeId of the entire query from the db
+    //val maxChangeIdOfQuery = inputList.last.changeId // <- this doesn't get the highest change id in the table, or even necessarily the highest change id we return to the client
     // set up needed variables
     var entryCounter = 0
-    var mostRecentChangeId = 0
+    var maxChangeIdInResponse = 0
     val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
     // fill in changesMap
     breakable {
@@ -532,14 +532,18 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             val resChangeListBuffer = ListBuffer[ResourceChangesInnerObject](resChange)
             changesMap.put(entry.orgId+"_"+entry.id+"_"+entry.resource, ChangeEntry(entry.orgId, entry.resource, entry.id, entry.operation, resChangeListBuffer))
         } // end of match
-        if (entry.changeId > mostRecentChangeId) {mostRecentChangeId = entry.changeId} // set the maximum changeId that will be in the response
+        if (entry.changeId > maxChangeIdInResponse) {maxChangeIdInResponse = entry.changeId} // set the maximum changeId that will be in the response
         entryCounter += 1 // increment our count of how many changeId's we've gone through
         if (entryCounter >= maxRecords) break // if we have now met or are over the count of allowed entries just stop and make the map into a list
       } // end of for loop
     }
     // now we have changesMap which is Map[String, ChangeEntry] we need to convert that to a List[ChangeEntry]
     val changesList = changesMap.values.toList
-    ResourceChangesRespObject(changesList, mostRecentChangeId, maxChangeIdOfQuery, exchangeVersion)
+    var maxChangeId = 0
+    if (entryCounter >= maxRecords) maxChangeId = maxChangeIdInResponse   // we hit the max records, so there are possibly value entries we are not returning, so the client needs to start here next time
+    else if (maxChangeIdOfTable > 0) maxChangeId = maxChangeIdOfTable   // we got a valid max change id in the table, and we returned all relevant entries, so the client can start at the end of the table next time
+    else maxChangeId = inputChangeId    // we didn't get a valid maxChangeIdInResponse or maxChangeIdOfTable, so just give the client back what they gave us
+    ResourceChangesRespObject(changesList, maxChangeId, maxChangeId, exchangeVersion)   //todo: probably remove the 2nd maxChangeId in the response
   }
 
   /* ====== POST /orgs/{orgid}/changes ================================ */
@@ -568,7 +572,11 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TOrg(orgId), Access.READ) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          // We only support either changeId or lastUpdated being specified, but not both
+          // Create a query to get the last changeid currently in the table
+          val qMaxChangeId = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
+          var maxChangeId = 0
+
+          // Create query to get the rows relevant to this client. We only support either changeId or lastUpdated being specified, but not both
           var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBody.lastUpdated.get) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)
 
           qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
@@ -592,7 +600,12 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
           db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.flatMap({ xs =>
             logger.debug("POST /orgs/" + orgId + "/changes number of rows deleted: " + xs.toString)
-            qFilter.result.asTry
+            qMaxChangeId.result.asTry
+          }).flatMap({
+            case Success(qMaxChangeIdResp) =>
+              maxChangeId = if (qMaxChangeIdResp.nonEmpty) qMaxChangeIdResp.head else 0
+              qFilter.result.asTry
+            case Failure(t) => DBIO.failed(t).asTry
           }).flatMap({
             case Success(qResult) =>
               //logger.debug("POST /orgs/" + orgId + "/changes changes : " + qOrgResult.toString())
@@ -614,7 +627,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(n) =>
               logger.debug(s"POST /orgs/$orgId/changes node/agbot heartbeat result: $n")
               if (n > 0) {
-                if(qResp.nonEmpty) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, reqBody.maxRecords))
+                if(qResp.nonEmpty) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, reqBody.maxRecords, reqBody.changeId, maxChangeId))
                 else (HttpCode.POST_OK, ResourceChangesRespObject(List[ChangeEntry](), reqBody.changeId, reqBody.changeId, ExchangeApi.adminVersion()))
               }
             else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", ident.getIdentity)))

@@ -29,7 +29,6 @@ import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
 import scala.util._
-import scala.util.control.Breaks._
 
 /*someday: when we start using actors:
 import akka.actor.{ ActorRef, ActorSystem }
@@ -515,7 +514,6 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     // fill in some values we can before processing
     val exchangeVersion = ExchangeApi.adminVersion()
     // set up needed variables
-    var entryCounter = 0
     val maxChangeIdInResponse = inputList.last.changeId
     val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
     // fill in changesMap
@@ -591,13 +589,14 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           logger.debug(s"POST /orgs/$orgId/changes db query: ${qFilter.result.statements}")
           var qResp : scala.Seq[ResourceChangeRow] = null
 
+          /* to put back the table trimming: restore this commented section and remove the 1 line of db.run beneath it
           // Get the time for trimming rows from the table
           val timeExpires = ApiTime.pastUTC(ExchConfig.getInt("api.resourceChanges.ttl"))
-
           db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.flatMap({ xs =>
             logger.debug("POST /orgs/" + orgId + "/changes number of rows deleted: " + xs.toString)
             qMaxChangeId.result.asTry
-          }).flatMap({
+          }).flatMap({ */
+          db.run(qMaxChangeId.result.asTry.flatMap({
             case Success(qMaxChangeIdResp) =>
               maxChangeId = if (qMaxChangeIdResp.nonEmpty) qMaxChangeIdResp.head else 0
               qFilter.result.asTry

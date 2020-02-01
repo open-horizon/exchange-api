@@ -224,6 +224,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.12.1
+
+- Temporarily removed the trimming of the `resourcechanges` table
+
 ## Changes in 2.12.0
 
 - Notification Framework: added indices on columns, added sort and limit back to query, added hitMaxRecords boolean field to response

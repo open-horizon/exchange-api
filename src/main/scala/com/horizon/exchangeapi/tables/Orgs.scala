@@ -113,6 +113,10 @@ class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcec
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
   def * = (changeId, orgId, id, category, public, resource, operation, lastUpdated) <> (ResourceChangeRow.tupled, ResourceChangeRow.unapply)
+  def orgIndex = index("org_index", orgId)
+  def idIndex = index("id_index", id)
+  def catIndex = index("cat_index", category)
+  def pubIndex = index("pub_index", public)
   def orgidKey = foreignKey("orgid_fk", orgId, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 
 }

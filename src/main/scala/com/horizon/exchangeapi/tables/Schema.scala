@@ -137,12 +137,18 @@ object SchemaTQ {
         sqlu"alter table nodes add column heartbeatintervals character varying not null default ''",
         sqlu"alter table orgs add column heartbeatintervals character varying not null default ''"
       )
+      case 31 => DBIO.seq(   // v2.12.0
+        sqlu"create index org_index on resourcechanges (orgid)",
+        sqlu"create index id_index on resourcechanges (id)",
+        sqlu"create index cat_index on resourcechanges (category)",
+        sqlu"create index pub_index on resourcechanges (public)"
+      )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 30    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "added heartbeatintervals column to nodes table"
+  val latestSchemaVersion = 31    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "added indexes to resourcechanges table on columns orgid, id, category, and public"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

@@ -301,7 +301,7 @@ object IbmCloudAuth {
           if (response.code == HttpCode.OK.intValue) return Success(parse(response.body).camelizeKeys.extract[IamToken])
           else if (response.code == HttpCode.BAD_INPUT.intValue || response.code == HttpCode.BADCREDS.intValue || response.code == HttpCode.ACCESS_DENIED.intValue || response.code == HttpCode.NOT_FOUND.intValue) {
             // This IAM API returns BAD_INPUT (400) when the mechanics of the api call were successful, but the api key was invalid
-            return Failure(new IamApiErrorException(response.body.toString))
+            return Failure(new InvalidCredentialsException(response.body.toString))
           } else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
         } catch {
           case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchMsg.translate("error.getting.iam.token.from.api.key", e.getMessage)))
@@ -334,7 +334,7 @@ object IbmCloudAuth {
             // This api returns 200 even for an invalid api key. Have to determine its validity via the 'active' field
             val userInfo = parse(response.body).extract[IamUserInfo]
             if (userInfo.isActive && userInfo.user != "") return Success(userInfo)
-            else return Failure(new IamApiErrorException("invalid API key"))
+            else return Failure(new InvalidCredentialsException(ExchMsg.translate("invalid.iam.api.key")))
           } else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
         } catch {
           case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchMsg.translate("error.authenticating.icp.iam.key", e.getMessage)))
@@ -357,7 +357,7 @@ object IbmCloudAuth {
           if (response.code == HttpCode.OK.intValue) return Success(parse(response.body).extract[IamUserInfo])
           else if (response.code == HttpCode.BAD_INPUT.intValue || response.code == HttpCode.BADCREDS.intValue || response.code == HttpCode.ACCESS_DENIED.intValue || response.code == HttpCode.NOT_FOUND.intValue) {
             // This IAM API returns BAD_INPUT (400) when the mechanics of the api call were successful, but the token was invalid
-            return Failure(new IamApiErrorException(response.body.toString))
+            return Failure(new InvalidCredentialsException(response.body.toString))
           } else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
         } catch {
           case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchMsg.translate("error.authenticating.icp.iam.token", e.getMessage)))
@@ -380,7 +380,7 @@ object IbmCloudAuth {
             // This api returns 200 even for an invalid token. Have to determine its validity via the 'active' field
             val userInfo = parse(response.body).extract[IamUserInfo]
             if (userInfo.isActive && userInfo.user != "") return Success(userInfo)
-            else return Failure(new IamApiErrorException("invalid token"))
+            else return Failure(new InvalidCredentialsException(ExchMsg.translate("invalid.iam.token")))
           } else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
         } catch {
           case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchMsg.translate("error.authenticating.iam.token", e.getMessage)))

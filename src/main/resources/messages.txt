@@ -2,6 +2,8 @@
 # NLS_ENCODING=UTF-8
 post.ok=post ok
 invalid.credentials=invalid credentials
+invalid.iam.api.key=invalid IAM API key
+invalid.iam.token=invalid IAM token
 access.denied=access denied
 bad.input=bad input
 done=done

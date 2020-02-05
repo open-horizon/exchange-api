@@ -224,6 +224,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.12.2
+
+- Fixed issue 296: invalid OCP API key was returning 502 instead of the correct 401
+
 ## Changes in 2.12.1
 
 - Temporarily removed the trimming of the `resourcechanges` table

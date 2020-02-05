@@ -85,6 +85,7 @@ class UsersSuite extends FunSuite {
   val iamOtherKey = sys.env.getOrElse("EXCHANGE_IAM_OTHER_KEY", "")
   val iamOtherAccountId = sys.env.getOrElse("EXCHANGE_IAM_OTHER_ACCOUNT_ID", "")
   val IAMAUTH = { org: String => ("Authorization", "Basic " + ApiUtils.encode(s"$org/iamapikey:$iamKey")) }
+  val IAMBADAUTH = { org: String => ("Authorization", "Basic " + ApiUtils.encode(s"$org/iamapikey:${iamKey}bad")) }
   val IAMOTHERAUTH = { org: String => ("Authorization", "Basic " + ApiUtils.encode(s"$org/iamapikey:$iamOtherKey")) }
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
@@ -764,25 +765,24 @@ class UsersSuite extends FunSuite {
     // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY, EXCHANGE_IAM_EMAIL, and EXCHANGE_IAM_ACCOUNT_ID
     if (iamKey.nonEmpty && iamUser.nonEmpty) {
       if (iamAccountId.nonEmpty) {
-        // Add ibmcloud_id to org. Not needed for ICP
+        info("Add ibmcloud_id to org. Not needed for ICP")
         val tagInput = s"""{ "tags": {"ibmcloud_id": "$iamAccountId"} }"""
         val response = Http(CLOUDURL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
         info("code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.PUT_OK.intValue)
       }
 
-      // authenticate as a cloud user and view org (action they are authorized for)
-      info("authenticating to ibm cloud with " + IAMAUTH(cloudorg) + " and GETing " + CLOUDURL)
+      info("authenticating to cloud with iam api key and GETing " + CLOUDURL)
       var response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("GET " + CLOUDURL + " code: " + response.code)
       assert(response.code === HttpCode.OK.intValue)
 
-      // authenticate as a cloud user and view org, ensuring cached user works
+      info("authenticate as a cloud user and view org, ensuring cached user works")
       response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
       assert(response.code === HttpCode.OK.intValue)
 
-      // authenticate as a cloud user and view this user
+      info("authenticate as a cloud user and view this user")
       response = Http(CLOUDURL + "/users/" + iamUser).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code + ", response.body: " + response.body)
       assert(response.code === HttpCode.OK.intValue)
@@ -792,7 +792,7 @@ class UsersSuite extends FunSuite {
       var u = getUserResp.users(cloudorg + "/" + iamUser)
       assert(u.email === iamUser)
 
-      // run special case of authenticate as a cloud user and view your own user
+      info("run special case of authenticate as a cloud user and view your own user")
       response = Http(CLOUDURL + "/users/iamapikey").headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
       assert(response.code === HttpCode.OK.intValue)
@@ -802,20 +802,25 @@ class UsersSuite extends FunSuite {
       u = getUserResp.users(cloudorg + "/" + iamUser)
       assert(u.email === iamUser)
 
-      // ensure user does not have admin auth by trying to get other users
+      info("ensure user does not have admin auth by trying to get other users")
       response = Http(CLOUDURL + "/users/" + user).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
 
-      // ensure user can't view other org (action they are not authorized for)
+      info("ensure user can't view other org (action they are not authorized for)")
       response = Http(URL2).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
 
-      // ensure user has auth to view patterns
+      info("ensure user has auth to view patterns")
       response = Http(CLOUDURL + "/patterns").headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
       assert(response.code === HttpCode.OK.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+
+      info("ensure bad iam api key returns 401")
+      response = Http(CLOUDURL + "/patterns").headers(ACCEPT).headers(IAMBADAUTH(cloudorg)).asString
+      info("code: " + response.code)
+      assert(response.code === HttpCode.BADCREDS.intValue)
 
       // Can only add resources to an ibm public cloud org that we created (the icp org is the one in the cluster)
       if (iamAccountId.nonEmpty) {

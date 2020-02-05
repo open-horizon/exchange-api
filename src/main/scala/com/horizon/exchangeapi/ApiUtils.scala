@@ -344,19 +344,19 @@ object StrConstants {
 object ApiTime {
   /** Returns now in UTC string format */
   def nowUTC = {
-    var nowTime = ZonedDateTime.now.withZoneSameInstant(ZoneId.of("UTC")).toString
+    val nowTime = ZonedDateTime.now.withZoneSameInstant(ZoneId.of("UTC")).toString
     val nowTimeLength = nowTime.length
     /*
     length when time is fully filled out is 29
     length when time has no milliseconds 25
-    length when time has no seconds or milliseconds is 22
+    length when time has no seconds and no milliseconds is 22
     */
     if(nowTimeLength >= 29){ // if its the correct length just return it
       nowTime
     } else if (nowTimeLength == 25){ // need to add milliseconds on
-      nowTime = nowTime.substring(0, 19) + ".000Z[UTC]"
+      nowTime.substring(0, 19) + ".000Z[UTC]"
     } else if (nowTimeLength == 22) { // need to add seconds and milliseconds on
-      nowTime = nowTime.substring(0, 16) + ":00.000Z[UTC]"
+      nowTime.substring(0, 16) + ":00.000Z[UTC]"
     } else nowTime // On the off chance its some weird length
   }
 

@@ -343,7 +343,22 @@ object StrConstants {
 /** Convenience methods for setting and comparing lastUpdated and lastHeartbeat attributes */
 object ApiTime {
   /** Returns now in UTC string format */
-  def nowUTC = ZonedDateTime.now.withZoneSameInstant(ZoneId.of("UTC")).toString
+  def nowUTC = {
+    val nowTime = ZonedDateTime.now.withZoneSameInstant(ZoneId.of("UTC")).toString
+    val nowTimeLength = nowTime.length
+    /*
+    length when time is fully filled out is 29
+    length when time has no milliseconds 25
+    length when time has no seconds and no milliseconds is 22
+    */
+    if(nowTimeLength >= 29){ // if its the correct length just return it
+      nowTime
+    } else if (nowTimeLength == 25){ // need to add milliseconds on
+      nowTime.substring(0, 19) + ".000Z[UTC]"
+    } else if (nowTimeLength == 22) { // need to add seconds and milliseconds on
+      nowTime.substring(0, 16) + ":00.000Z[UTC]"
+    } else nowTime // On the off chance its some weird length
+  }
 
   /** Return UTC format of the time specified in seconds */
   def thenUTC(seconds: Long) = ZonedDateTime.ofInstant(Instant.ofEpochSecond(seconds), ZoneId.of("UTC")).toString

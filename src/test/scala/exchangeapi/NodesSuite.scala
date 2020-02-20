@@ -456,6 +456,7 @@ class NodesSuite extends FunSuite {
     assert(dev.softwareVersions.contains("horizon"))
     assert(dev.softwareVersions("horizon") === "3.2.1")
     assert(dev.arch === "amd64")
+    assert(!dev.lastUpdated.isEmpty)
     assert(dev.registeredServices.length === 2)
     // sdr reg svc
     var svc: RegService = dev.registeredServices.find(m => m.url == SDRSPEC).orNull
@@ -502,6 +503,7 @@ class NodesSuite extends FunSuite {
     assert(memProp.value === "2.0.0")
     assert(dev.softwareVersions.size === 0)
     assert(dev.arch === "amd64")
+    assert(!dev.lastUpdated.isEmpty)
 
     assert(getDevResp.nodes.contains(orgnodeId3))
     dev = getDevResp.nodes(orgnodeId3)
@@ -512,6 +514,7 @@ class NodesSuite extends FunSuite {
     archProp = svc.properties.find(p => p.name=="arch").get
     assert(archProp.value === "amd64")
     assert(dev.arch === "amd64")
+    assert(!dev.lastUpdated.isEmpty)
 
   }
 
@@ -842,11 +845,33 @@ class NodesSuite extends FunSuite {
 }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId4) {
-    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId4).headers(ACCEPT).headers(USERAUTH).asString
+    // first get the node and store the previous lastUpdated
+    var response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId4).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK)
+    var getDevResp = parse(response.body).extract[GetNodesResponse]
+    var dev = getDevResp.nodes(orgnodeId4)
+    assert(!dev.lastUpdated.isEmpty)
+    val prevLastUpdated = dev.lastUpdated
+
+    // patch the node so that the lastUpdated field gets updated
+    val jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
+    response = Http(URL+"/nodes/"+nodeId4).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+
+    // get the node again and verify that the new lastUpdated field is greater than the old one
+    response = Http(URL+"/nodes/"+nodeId4).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    getDevResp = parse(response.body).extract[GetNodesResponse]
+    dev = getDevResp.nodes(orgnodeId4)
+    assert(!dev.lastUpdated.isEmpty)
+    assert(dev.lastUpdated >  prevLastUpdated)
   }
+
 
   //~~~~~ Pattern search and nodehealth ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

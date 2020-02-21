@@ -117,7 +117,7 @@ class NodesSuite extends FunSuite {
   }
 
   def putNodeTestAgreement(nodeid: String, agreement: String): Unit ={
-    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
+    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), None, "signed")
     val response = Http(URL + "/nodes/" + nodeid + "/agreements/" + agreement).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("PUT "+nodeid+"/agreements" + agreement + ", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
@@ -1563,13 +1563,13 @@ class NodesSuite extends FunSuite {
 
   test("PUT /nodes/" + nodeId3 + "/agreements/testAgToMakeNodesStale and PUT /nodes/" + nodeId2 + "/agreements/testAgToMakeNodesStale"){
     val agreement = "testAgToMakeNodesStale"
-    var input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
-    var response = Http(URL + "/nodes/" + nodeId3 + "/agreements/" + agreement).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    var input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), None, "signed")
+    var response = Http(URL + "/nodes/" + nodeId3 + "/agreements/" + agreement).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("PUT "+nodeId3+"/agreements/" + agreement + ", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
 
-    input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
-    response = Http(URL + "/nodes/" + nodeId2 + "/agreements/" + agreement).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), None, "signed")
+    response = Http(URL + "/nodes/" + nodeId2 + "/agreements/" + agreement).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("PUT "+nodeId2+"/agreements/" + agreement + ", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
@@ -1577,15 +1577,15 @@ class NodesSuite extends FunSuite {
   test("GET /nodes/" + nodeId3 + "/agreements/testAgToMakeNodesStale and GET /nodes/" + nodeId2 + "/agreements/testAgToMakeNodesStale"){
     val agreement = "testAgToMakeNodesStale"
 
-    var response = Http(URL + "/nodes/" + nodeId3 + "/agreements").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("GET "+nodeId3+"/agreements, code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
+//    var response = Http(URL + "/nodes/" + nodeId3 + "/agreements").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+//    info("GET "+nodeId3+"/agreements, code: "+response.code+", response.body: "+response.body)
+//    assert(response.code === HttpCode.OK)
+//
+//    response = Http(URL + "/nodes/" + nodeId3 + "/agreements/" + agreement).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+//    info("GET "+nodeId3+"/agreements/" + agreement + ", code: "+response.code+", response.body: "+response.body)
+//    assert(response.code === HttpCode.OK)
 
-    response = Http(URL + "/nodes/" + nodeId3 + "/agreements/" + agreement).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("GET "+nodeId3+"/agreements/" + agreement + ", code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK)
-
-    response = Http(URL + "/nodes/" + nodeId2 + "/agreements/" + agreement).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    var response = Http(URL + "/nodes/" + nodeId2 + "/agreements/" + agreement).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("PUT "+nodeId2+"/agreements/" + agreement + ", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }

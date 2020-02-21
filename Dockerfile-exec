@@ -15,7 +15,7 @@ ARG EXCHANGE_API_WAR_VERSION
 
 # Install tools we want available
 USER root
-RUN apt-get update && apt-get install -y vim procps
+#RUN apt-get update && apt-get install -y vim procps
 #RUN apk update && apk add curl vim
 
 # install scala

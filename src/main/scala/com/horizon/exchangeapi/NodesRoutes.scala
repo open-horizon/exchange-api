@@ -1423,8 +1423,14 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(_) => NodesTQ.setLastHeartbeat(id, ApiTime.nowUTC).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
       logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastHeartbeat result: "+xs.toString)
+      xs match {
+        case Success(_) => NodesTQ.setLastUpdated(id, ApiTime.nowUTC).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastUpdated result: "+xs.toString)
       xs match {
         case Success(n) => try {
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
@@ -1600,8 +1606,14 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(_) => NodesTQ.setLastHeartbeat(id, ApiTime.nowUTC).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
       logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastHeartbeat result: "+xs.toString)
+      xs match {
+        case Success(_) => NodesTQ.setLastUpdated(id, ApiTime.nowUTC).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastUpdated result: "+xs.toString)
       xs match {
         case Success(n) => try {
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int

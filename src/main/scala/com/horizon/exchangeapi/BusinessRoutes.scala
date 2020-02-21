@@ -543,7 +543,6 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
     logger.debug("POST /orgs/"+orgid+"/business/policies/"+bareBusinessPolicy+"/search criteria: "+searchProps.toString)
     val nodeOrgids = searchProps.nodeOrgids.getOrElse(List(orgid)).toSet
     var searchSvcUrl = ""    // a composite value (org/url), will be set later in the db.run()
-    val oldestTime = if (searchProps.changedSince > 0) ApiTime.thenUTC(searchProps.changedSince) else ApiTime.beginningUTC
     val resp = response
 
     // First get the service out of the business policy
@@ -560,10 +559,11 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           After this we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
           Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
         */
+        val oldestTime = if (searchProps.changedSince > 0) ApiTime.thenUTC(searchProps.changedSince) else ApiTime.beginningUTC
         val nodeQuery =
           for {
-            ((n, a), p) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(n => {n.arch === service.arch || service.arch == "" || service.arch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId) joinLeft NodePolicyTQ.rows on (_._1.id === _.nodeId)
-          } yield (n.id, n.msgEndPoint, n.publicKey, n.lastUpdated, a.map(_.agrSvcUrl), a.map(_.state), a.map(_.lastUpdated), p.map(_.lastUpdated))
+            (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastUpdated >= oldestTime).filter(n => {n.arch === service.arch || service.arch == "" || service.arch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+          } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
         nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
       }
       else DBIO.failed(new Throwable(ExchangeMessage.translateMessage("business.policy.not.found", businessPolicy))).asTry
@@ -576,19 +576,14 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
           //todo: factor in num agreements??
           val nodeHash = new MutableHashMap[String,BusinessPolicySearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
-          for ( (nodeid, msgEndPoint, publicKey, nodeLastUpdated, agrSvcUrlOpt, stateOpt, agreementLastUpdated, policyLastUpdated) <- list ) {
+          for ( (nodeid, msgEndPoint, publicKey, agrSvcUrlOpt, stateOpt) <- list ) {
             //logger.trace("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
-            logger.info(nodeid + " nodeLastUpdated: " + nodeLastUpdated)
-            logger.info(nodeid + " agreementLastUpdated: " + agreementLastUpdated.getOrElse("9999"))
-            logger.info(nodeid + " policyLastUpdated: " + policyLastUpdated.getOrElse("9999"))
-            if(nodeLastUpdated >= oldestTime ||  agreementLastUpdated.getOrElse("9999") >= oldestTime || policyLastUpdated.getOrElse("9999") >= oldestTime){
-              nodeHash.get(nodeid) match {
-                // This node is already in the hash. Only replace it if this is an agreement for the service, because the absence of an agr for this svc isn't useful info
-                case Some(_) => if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
-                // This node is not yet in the hash. Add it with whatever value it has for agreement - this may be overridden later
-                case None => val noAgr = if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") false else true
-                  nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgr))   // this node not in the hash yet, add it
-              }
+            nodeHash.get(nodeid) match {
+              // This node is already in the hash. Only replace it if this is an agreement for the service, because the absence of an agr for this svc isn't useful info
+              case Some(_) => if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate
+              // This node is not yet in the hash. Add it with whatever value it has for agreement - this may be overridden later
+              case None => val noAgr = if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") false else true
+                nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgr))   // this node not in the hash yet, add it
             }
           }
           // Convert our hash to the list response of the rest api

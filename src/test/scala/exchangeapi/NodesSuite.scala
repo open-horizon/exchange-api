@@ -892,7 +892,7 @@ class NodesSuite extends FunSuite {
     assert((inpElem !== null) && (inpElem.value === true))
 }
 
-  test("GET /orgs/"+orgid+"/nodes/"+nodeId4) {
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId4 + " testing lastUpdated field") {
     // first get the node and store the previous lastUpdated
     var response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId4).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -901,7 +901,7 @@ class NodesSuite extends FunSuite {
     var getDevResp = parse(response.body).extract[GetNodesResponse]
     var dev = getDevResp.nodes(orgnodeId4)
     assert(!dev.lastUpdated.isEmpty)
-    val prevLastUpdated = dev.lastUpdated
+    var prevLastUpdated = dev.lastUpdated
 
     // patch the node so that the lastUpdated field gets updated
     val jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
@@ -909,6 +909,30 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
 
+    // get the node again and verify that the new lastUpdated field is greater than the old one
+    response = Http(URL+"/nodes/"+nodeId4).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    getDevResp = parse(response.body).extract[GetNodesResponse]
+    dev = getDevResp.nodes(orgnodeId4)
+    assert(!dev.lastUpdated.isEmpty)
+    assert(dev.lastUpdated >  prevLastUpdated)
+    prevLastUpdated = dev.lastUpdated
+
+    putNodeTestPolicy(nodeId4)
+    // get the node again and verify that the new lastUpdated field is greater than the old one
+    response = Http(URL+"/nodes/"+nodeId4).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+    getDevResp = parse(response.body).extract[GetNodesResponse]
+    dev = getDevResp.nodes(orgnodeId4)
+    assert(!dev.lastUpdated.isEmpty)
+    assert(dev.lastUpdated >  prevLastUpdated)
+    prevLastUpdated = dev.lastUpdated
+
+    putNodeTestAgreement(nodeId4, "testingLastUpdated")
     // get the node again and verify that the new lastUpdated field is greater than the old one
     response = Http(URL+"/nodes/"+nodeId4).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)

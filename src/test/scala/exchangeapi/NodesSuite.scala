@@ -116,6 +116,32 @@ class NodesSuite extends FunSuite {
     }
   }
 
+  def putNodeTestAgreement(nodeid: String, agreement: String): Unit ={
+    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
+    val response = Http(URL + "/nodes/" + nodeid + "/agreements/" + agreement).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("PUT "+nodeid+"/agreements" + agreement + ", code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  def deleteNodeTestAgreement(nodeid: String, agreement: String): Unit ={
+    val response = Http(URL + "/nodes/" + nodeid + "/agreements/" + agreement).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("DELETE "+nodeid+"/agreements" + agreement + ", code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
+  def putNodeTestPolicy(nodeid: String): Unit ={
+    val input = PutNodePolicyRequest(Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")))
+    val response = Http(URL + "/nodes/" + nodeid + "/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("PUT "+nodeid+"/policy, code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  def deleteNodeTestPolicy(nodeid: String): Unit ={
+    val response = Http(URL + "/nodes/" + nodeid + "/policy").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("DELETE "+nodeid+"/policy, code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED)
+  }
+
   def patchNodePublicKey(nodeid: String, publicKey: String): Unit = {
     val jsonInput = """{ "publicKey": """"+publicKey+"""" }"""
     val response = Http(URL + "/nodes/" + nodeid).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -143,6 +169,28 @@ class NodesSuite extends FunSuite {
 
     for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
       patchNodePublicKey(i, nodePubKey)
+    }
+  }
+
+  /** Patches all of the nodes to have a pattern or blank out the pattern (for business policy and node health searches) */
+  def putAllNodePolicyAndAgreements(agreement: String): Unit = {
+    // Add agreements
+    for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
+      putNodeTestAgreement(i, agreement)
+    }
+
+    for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
+      putNodeTestPolicy(i)
+    }
+  }
+
+  def deleteAllNodePolicyAndAgreements(agreement: String): Unit ={
+    for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
+      deleteNodeTestAgreement(i, agreement)
+    }
+
+    for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
+      deleteNodeTestPolicy(i)
     }
   }
 
@@ -1513,24 +1561,54 @@ class NodesSuite extends FunSuite {
     assert(nodes.count(d => d.id==orgnodeId) === 1)
   }
 
+  test("PUT /nodes/" + nodeId3 + "/agreements/testAgToMakeNodesStale and PUT /nodes/" + nodeId2 + "/agreements/testAgToMakeNodesStale"){
+    val agreement = "testAgToMakeNodesStale"
+    var input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
+    var response = Http(URL + "/nodes/" + nodeId3 + "/agreements/" + agreement).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("PUT "+nodeId3+"/agreements/" + agreement + ", code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+
+    input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
+    response = Http(URL + "/nodes/" + nodeId2 + "/agreements/" + agreement).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("PUT "+nodeId2+"/agreements/" + agreement + ", code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
+  test("GET /nodes/" + nodeId3 + "/agreements/testAgToMakeNodesStale and GET /nodes/" + nodeId2 + "/agreements/testAgToMakeNodesStale"){
+    val agreement = "testAgToMakeNodesStale"
+
+    var response = Http(URL + "/nodes/" + nodeId3 + "/agreements").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("GET "+nodeId3+"/agreements, code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+
+    response = Http(URL + "/nodes/" + nodeId3 + "/agreements/" + agreement).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("GET "+nodeId3+"/agreements/" + agreement + ", code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK)
+
+    response = Http(URL + "/nodes/" + nodeId2 + "/agreements/" + agreement).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("PUT "+nodeId2+"/agreements/" + agreement + ", code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
+  }
+
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - with a sleep, so all nodes are stale") {
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
+    putAllNodePolicyAndAgreements("testAgToMakeNodesStale") // add agreements and policies to all nodes to give them a value in the lastUpdated column
     Thread.sleep(2100)    // delay 2.1 seconds so all nodes will be stale
     val input = PostBusinessPolicySearchRequest(None, ApiTime.nowSeconds, None, None)
     val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
+    info("body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND)
     val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 0)
   }
 
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId2+"/heartbeat - so this node won't be stale for non-pattern search") {
-    val response = Http(URL+"/nodes/"+nodeId2+"/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK)
-    val devResp = parse(response.body).extract[ApiResponse]
-    assert(devResp.code === ApiResponseType.OK)
+  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId2+" - patching public key so this node won't be stale for non-pattern search") {
+    val jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
+    val response = Http(URL + "/nodes/" + nodeId2).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("PATCH "+nodeId2+", code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - so this node won't be stale either") {
@@ -1539,6 +1617,7 @@ class NodesSuite extends FunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
+
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - now 2 nodes not stales") {
     val input = PostBusinessPolicySearchRequest(None, changedSinceAgo(2), None, None)

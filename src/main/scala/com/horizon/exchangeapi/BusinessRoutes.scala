@@ -578,7 +578,10 @@ trait BusinessRoutes extends ScalatraBase with FutureSupport with SwaggerSupport
           val nodeHash = new MutableHashMap[String,BusinessPolicySearchHashElement]     // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
           for ( (nodeid, msgEndPoint, publicKey, nodeLastUpdated, agrSvcUrlOpt, stateOpt, agreementLastUpdated, policyLastUpdated) <- list ) {
             //logger.trace("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
-            if(nodeLastUpdated >= oldestTime ||  agreementLastUpdated.getOrElse("") >= oldestTime || policyLastUpdated.getOrElse("") >= oldestTime){
+            logger.info(nodeid + " nodeLastUpdated: " + nodeLastUpdated)
+            logger.info(nodeid + " agreementLastUpdated: " + agreementLastUpdated.getOrElse("9999"))
+            logger.info(nodeid + " policyLastUpdated: " + policyLastUpdated.getOrElse("9999"))
+            if(nodeLastUpdated >= oldestTime ||  agreementLastUpdated.getOrElse("9999") >= oldestTime || policyLastUpdated.getOrElse("9999") >= oldestTime){
               nodeHash.get(nodeid) match {
                 // This node is already in the hash. Only replace it if this is an agreement for the service, because the absence of an agr for this svc isn't useful info
                 case Some(_) => if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") { /*logger.trace("setting to false");*/ nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgreementYet = false)) }  // this is no longer a candidate

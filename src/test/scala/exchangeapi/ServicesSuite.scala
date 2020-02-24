@@ -503,29 +503,41 @@ class ServicesSuite extends FunSuite {
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch required service") {
-    val jsonInput = write(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch)))
-    val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val jsonInput = List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))
+    info(write(jsonInput))
+    val input = PatchServiceRequest(None, None, None, None, None, None, None, None, None, Some(jsonInput), None, None, None, None)
+    info(write(input))
+    val response = Http(URL+"/services/"+service).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch versionRange of required service") {
-    val jsonInput = write(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch)))
-    val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val jsonInput = List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))
+    info(write(jsonInput))
+    val input = PatchServiceRequest(None, None, None, None, None, None, None, None, None, Some(jsonInput), None, None, None, None)
+    info(write(input))
+    val response = Http(URL+"/services/"+service).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch version of required service") {
-    val jsonInput = write(List(ServiceRef(reqsvcurl,orgid,None, Some(reqsvcversion), reqsvcarch)))
-    val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val jsonInput = List(ServiceRef(reqsvcurl,orgid,None, Some(reqsvcversion), reqsvcarch))
+    info(write(jsonInput))
+    val input = PatchServiceRequest(None, None, None, None, None, None, None, None, None, Some(jsonInput), None, None, None, None)
+    info(write(input))
+    val response = Http(URL+"/services/"+service).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch versionRange of required service to None") {
-    val jsonInput = write(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch)))
-    val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val jsonInput = List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))
+    info(write(jsonInput))
+    val input = PatchServiceRequest(None, None, None, None, None, None, None, None, None, Some(jsonInput), None, None, None, None)
+    info(write(input))
+    val response = Http(URL+"/services/"+service).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK)
   }

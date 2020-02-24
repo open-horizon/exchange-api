@@ -142,7 +142,7 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).upsert
+    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), ApiTime.nowUTC).upsert
   }
 
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
@@ -150,7 +150,7 @@ case class PutNodesRequest(token: String, name: String, pattern: String, registe
   def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse("")).update
+    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), ApiTime.nowUTC).update
   }
 }
 
@@ -160,30 +160,31 @@ case class PatchNodesRequest(token: Option[String], name: Option[String], patter
   /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
   def getDbUpdate(id: String, hashedPw: String): (DBIO[_],String) = {
     val lastHeartbeat = ApiTime.nowUTC
+    val lastUpdated = ApiTime.nowUTC // I did this just because I was getting confused using the lastHeartbeat variable for both and I didn't want to go crazy renaming variables and break something
     //todo: support updating more than 1 attribute, but i think slick does not support dynamic db field names
     // find the 1st non-blank attribute and create a db action to update it for this node
     token match {
       case Some(token2) => if (token2 == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiResponseType.BAD_INPUT, ExchangeMessage.translateMessage("token.cannot.be.empty.string")))
         //val tok = if (Password.isHashed(token2)) token2 else Password.hash(token2)
-        return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, hashedPw, lastHeartbeat)), "token")
+        return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat, d.lastUpdated)).update((id, hashedPw, lastHeartbeat, lastUpdated)), "token")
       case _ => ;
     }
     softwareVersions match {
       case Some(swv) => val swVersions = if (swv.nonEmpty) write(softwareVersions) else ""
-        return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat)).update((id, swVersions, lastHeartbeat)), "softwareVersions")
+        return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat, d.lastUpdated)).update((id, swVersions, lastHeartbeat, lastUpdated)), "softwareVersions")
       case _ => ;
     }
     registeredServices match {
       case Some(rsvc) => val regSvc = if (rsvc.nonEmpty) write(registeredServices) else ""
-        return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat)).update((id, regSvc, lastHeartbeat)), "registeredServices")
+        return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat, d.lastUpdated)).update((id, regSvc, lastHeartbeat, lastUpdated)), "registeredServices")
       case _ => ;
     }
-    name match { case Some(name2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name2, lastHeartbeat)), "name"); case _ => ; }
-    pattern match { case Some(pattern2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat)).update((id, pattern2, lastHeartbeat)), "pattern"); case _ => ; }
-    userInput match { case Some(input) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.userInput,d.lastHeartbeat)).update((id, write(input), lastHeartbeat)), "userInput"); case _ => ; }
-    msgEndPoint match { case Some(msgEndPoint2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint2, lastHeartbeat)), "msgEndPoint"); case _ => ; }
-    publicKey match { case Some(publicKey2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey2, lastHeartbeat)), "publicKey"); case _ => ; }
-    arch match { case Some(arch2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.arch,d.lastHeartbeat)).update((id, arch2, lastHeartbeat)), "arch"); case _ => ; }
+    name match { case Some(name2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat, d.lastUpdated)).update((id, name2, lastHeartbeat, lastUpdated)), "name"); case _ => ; }
+    pattern match { case Some(pattern2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat, d.lastUpdated)).update((id, pattern2, lastHeartbeat, lastUpdated)), "pattern"); case _ => ; }
+    userInput match { case Some(input) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.userInput,d.lastHeartbeat, d.lastUpdated)).update((id, write(input), lastHeartbeat, lastUpdated)), "userInput"); case _ => ; }
+    msgEndPoint match { case Some(msgEndPoint2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat, d.lastUpdated)).update((id, msgEndPoint2, lastHeartbeat, lastUpdated)), "msgEndPoint"); case _ => ; }
+    publicKey match { case Some(publicKey2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat, d.lastUpdated)).update((id, publicKey2, lastHeartbeat, lastUpdated)), "publicKey"); case _ => ; }
+    arch match { case Some(arch2) => return ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.arch,d.lastHeartbeat, d.lastUpdated)).update((id, arch2, lastHeartbeat, lastUpdated)), "arch"); case _ => ; }
     return (null, null)
   }
 }
@@ -1422,8 +1423,14 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(_) => NodesTQ.setLastHeartbeat(id, ApiTime.nowUTC).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
       logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastHeartbeat result: "+xs.toString)
+      xs match {
+        case Success(_) => NodesTQ.setLastUpdated(id, ApiTime.nowUTC).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastUpdated result: "+xs.toString)
       xs match {
         case Success(n) => try {
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int
@@ -1599,8 +1606,14 @@ trait NodesRoutes extends ScalatraBase with FutureSupport with SwaggerSupport wi
         case Success(_) => NodesTQ.setLastHeartbeat(id, ApiTime.nowUTC).asTry
         case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
       }
-    })).map({ xs =>
+    }).flatMap({ xs =>
       logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastHeartbeat result: "+xs.toString)
+      xs match {
+        case Success(_) => NodesTQ.setLastUpdated(id, ApiTime.nowUTC).asTry
+        case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+      }
+    })).map({ xs =>
+      logger.debug("Update /orgs/"+orgid+"/nodes/"+bareId+" lastUpdated result: "+xs.toString)
       xs match {
         case Success(n) => try {
             val numUpdated = n.toString.toInt     // i think n is an AnyRef so we have to do this to get it to an int

@@ -224,7 +224,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
-## Changes in 2.13.0
+## Changes in 2.12.4
 
 - Issue 312: Using only node table's lastUpdated field to filter on (updating lastUpdated in node, policy, and agreement changes)
 

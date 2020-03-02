@@ -79,7 +79,7 @@ final case class PutNodesRequest(token: String, name: String, pattern: String, r
   def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), write(heartbeatIntervals)).upsert
+    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), write(heartbeatIntervals), ApiTime.nowUTC).upsert
   }
 
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
@@ -87,7 +87,7 @@ final case class PutNodesRequest(token: String, name: String, pattern: String, r
   def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), write(heartbeatIntervals)).update
+    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), write(heartbeatIntervals), ApiTime.nowUTC).update
   }
 }
 
@@ -101,34 +101,34 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
   }
     /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
   def getDbUpdate(id: String, hashedPw: String): (DBIO[_],String) = {
-    val lastHeartbeat = ApiTime.nowUTC
+    val currentTime = ApiTime.nowUTC
     //someday: support updating more than 1 attribute, but i think slick does not support dynamic db field names
     // find the 1st non-blank attribute and create a db action to update it for this node
     var dbAction: (DBIO[_], String) = (null, null)
     if(token.isEmpty && softwareVersions.isDefined && registeredServices.isDefined && name.isDefined && pattern.isDefined && userInput.isDefined && msgEndPoint.isDefined && publicKey.isDefined && arch.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions, d.regServices, d.name, d.pattern, d.userInput, d.msgEndPoint, d.publicKey, d.arch, d.lastHeartbeat)).update((id, write(softwareVersions), write(registeredServices), name.get, pattern.get, write(userInput), msgEndPoint.get, publicKey.get, arch.get, lastHeartbeat)), "update all but token")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions, d.regServices, d.name, d.pattern, d.userInput, d.msgEndPoint, d.publicKey, d.arch, d.lastHeartbeat, d.lastUpdated)).update((id, write(softwareVersions), write(registeredServices), name.get, pattern.get, write(userInput), msgEndPoint.get, publicKey.get, arch.get, currentTime, currentTime)), "update all but token")
     } else if (token.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, hashedPw, lastHeartbeat)), "token")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat, d.lastUpdated)).update((id, hashedPw, currentTime, currentTime)), "token")
     } else if (softwareVersions.isDefined){
       val swVersions = if (softwareVersions.nonEmpty) write(softwareVersions) else ""
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat)).update((id, swVersions, lastHeartbeat)), "softwareVersions")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat, d.lastUpdated)).update((id, swVersions, currentTime, currentTime)), "softwareVersions")
     } else if (registeredServices.isDefined){
       val regSvc = if (registeredServices.nonEmpty) write(registeredServices) else ""
-      dbAction =  ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat)).update((id, regSvc, lastHeartbeat)), "registeredServices")
+      dbAction =  ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat, d.lastUpdated)).update((id, regSvc, currentTime, currentTime)), "registeredServices")
     } else if (name.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name.get, lastHeartbeat)), "name")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat, d.lastUpdated)).update((id, name.get, currentTime, currentTime)), "name")
     } else if (pattern.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat)).update((id, pattern.get, lastHeartbeat)), "pattern")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat, d.lastUpdated)).update((id, pattern.get, currentTime, currentTime)), "pattern")
     } else if (userInput.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.userInput,d.lastHeartbeat)).update((id, write(userInput), lastHeartbeat)), "userInput")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.userInput,d.lastHeartbeat, d.lastUpdated)).update((id, write(userInput), currentTime, currentTime)), "userInput")
     } else if (msgEndPoint.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint.get, lastHeartbeat)), "msgEndPoint")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat, d.lastUpdated)).update((id, msgEndPoint.get, currentTime, currentTime)), "msgEndPoint")
     } else if (publicKey.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey.get, lastHeartbeat)), "publicKey")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat, d.lastUpdated)).update((id, publicKey.get, currentTime, currentTime)), "publicKey")
     } else if (arch.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.arch,d.lastHeartbeat)).update((id, arch.get, lastHeartbeat)), "arch")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.arch,d.lastHeartbeat, d.lastUpdated)).update((id, arch.get, currentTime, currentTime)), "arch")
     } else if (heartbeatIntervals.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.heartbeatIntervals,d.lastHeartbeat)).update((id, write(heartbeatIntervals), lastHeartbeat)), "heartbeatIntervals")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.heartbeatIntervals,d.lastHeartbeat, d.lastUpdated)).update((id, write(heartbeatIntervals), currentTime, currentTime)), "heartbeatIntervals")
     }
     return dbAction
   }
@@ -1034,6 +1034,11 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           db.run(reqBody.toNodePolicyRow(compositeId).upsert.asTry.flatMap({
             case Success(v) =>
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/policy result: " + v)
+              NodesTQ.setLastUpdated(compositeId, ApiTime.nowUTC).asTry
+            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+          }).flatMap({
+            case Success(v) =>
+              logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastUpdated result: " + v)
               NodesTQ.setLastHeartbeat(compositeId, ApiTime.nowUTC).asTry
             case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
           }).flatMap({
@@ -1208,18 +1213,23 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           }).flatMap({
             case Success(v) =>
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/agreements/" + agrId + " result: " + v)
+              NodesTQ.setLastUpdated(compositeId, ApiTime.nowUTC).asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          }).flatMap({
+            case Success(v) =>
+              logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastUpdated result: " + v)
               NodesTQ.setLastHeartbeat(compositeId, ApiTime.nowUTC).asTry
             case Failure(t) => DBIO.failed(t).asTry
           }).flatMap({
             case Success(v) =>
               // Add the resource to the resourcechanges table
-              logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/policy result: " + v)
+              logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastHeartbeat result: " + v)
               val nodeChange = ResourceChangeRow(0, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
               nodeChange.insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(n) =>
-              logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastHeartbeat result: " + n)
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/agreements/" + agrId + " updated in changes table: " + n)
               try {
                 val numUpdated = n.toString.toInt // i think n is an AnyRef so we have to do this to get it to an int
                 if (numUpdated > 0) {

@@ -31,7 +31,8 @@
 			"type": "guava"    // currently guava is the only option
 		},
 		"resourceChanges": {
-			"ttl": 604800    // number of seconds to keep the history records of resource changes - 604800 is 1 week
+			"ttl": 604800,    // number of seconds to keep the history records of resource changes - 604800 is 1 week
+			"maxRecordsCap": 10000 // maximum number of records the notification framework route will return
 		},
 		"db": {
 			"driverClass": "org.postgresql.Driver",

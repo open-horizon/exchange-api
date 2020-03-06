@@ -100,7 +100,7 @@ class NodeHealthHashElement(var lastHeartbeat: String, var agreements: Map[Strin
 final case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
 
 /** Case class for request body for ResourceChanges route */
-final case class ResourceChangesRequest(changeId: Int, lastUpdated: Option[String], maxRecords: Int, ibmAgbot: Option[Boolean]) {
+final case class ResourceChangesRequest(changeId: Int, lastUpdated: Option[String], maxRecords: Int, orgList: Option[List[String]]) {
   def getAnyProblem: Option[String] = None // None means no problems with input
 }
 
@@ -564,27 +564,31 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TOrg(orgId), Access.READ) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
+          // make sure callers obey maxRecords cap set in config, defaults is 10,000
+          val maxRecordsCap = ExchConfig.getInt("api.resourceChanges.maxRecordsCap")
+          val maxRecords = if (reqBody.maxRecords > maxRecordsCap) maxRecordsCap else reqBody.maxRecords
           // Create a query to get the last changeid currently in the table
           val qMaxChangeId = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
           var maxChangeId = 0
-
+          ident.isMultiTenantAgbot
+          val orgSet : Set[String] = reqBody.orgList.getOrElse(List("")).toSet
           // Create query to get the rows relevant to this client. We only support either changeId or lastUpdated being specified, but not both
           var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBody.lastUpdated.get) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)
 
-          qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
-          //val lastTime = reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)
-          // filter by lastUpdated and changeId then filter by either it's in the org OR it's not in the same org but is public
-          //var qFilter = ResourceChangesTQ.rows.filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
           ident match {
             case _: INode =>
               // if its a node calling then it doesn't want information about any other nodes
-              qFilter = qFilter.filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
-            case _ => ;
-              // Note: repeating some of the filters in both cases to make the final query less nested for the db
-              //ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId).filter(_.lastUpdated >= lastTime).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
+              qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
+            case _: IAgbot =>
+              val wildcard = orgSet.contains("*") || orgSet.contains("")
+              if (ident.getOrg == "IBM" && !wildcard) { // its an IBM Agbot, get all changes from orgs the agbot covers
+                qFilter = qFilter.filter(_.orgId inSet orgSet)
+                // if the caller agbot sends in the wildcard case then we don't want to filter on orgID at all, so don't add any more filters
+              } else if (ident.getOrg != "IBM") qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")) // if its not an IBM agbot use the general case
+            case _ => qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
           }
           // sort by changeId and take only maxRecords from the query
-          qFilter = qFilter.sortBy(_.changeId).take(reqBody.maxRecords)
+          qFilter = qFilter.sortBy(_.changeId).take(maxRecords)
 
           logger.debug(s"POST /orgs/$orgId/changes db query: ${qFilter.result.statements}")
           var qResp : scala.Seq[ResourceChangeRow] = null

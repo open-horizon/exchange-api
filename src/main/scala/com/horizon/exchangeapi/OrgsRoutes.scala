@@ -570,7 +570,6 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           // Create a query to get the last changeid currently in the table
           val qMaxChangeId = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
           var maxChangeId = 0
-          ident.isMultiTenantAgbot
           val orgSet : Set[String] = reqBody.orgList.getOrElse(List("")).toSet
           // Create query to get the rows relevant to this client. We only support either changeId or lastUpdated being specified, but not both
           var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBody.lastUpdated.get) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)
@@ -581,10 +580,10 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
             case _: IAgbot =>
               val wildcard = orgSet.contains("*") || orgSet.contains("")
-              if (ident.getOrg == "IBM" && !wildcard) { // its an IBM Agbot, get all changes from orgs the agbot covers
+              if (ident.isMultiTenantAgbot && !wildcard) { // its an IBM Agbot, get all changes from orgs the agbot covers
                 qFilter = qFilter.filter(_.orgId inSet orgSet)
-                // if the caller agbot sends in the wildcard case then we don't want to filter on orgID at all, so don't add any more filters
-              } else if (ident.getOrg != "IBM") qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")) // if its not an IBM agbot use the general case
+                // if the caller agbot sends in the wildcard case then we don't want to filter on orgId at all, so don't add any more filters. that's why there's just no code written for that case
+              } else if (!ident.isMultiTenantAgbot) qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")) // if its not an IBM agbot use the general case
             case _ => qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
           }
           // sort by changeId and take only maxRecords from the query
@@ -593,13 +592,6 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           logger.debug(s"POST /orgs/$orgId/changes db query: ${qFilter.result.statements}")
           var qResp : scala.Seq[ResourceChangeRow] = null
 
-          /* to put back the table trimming: restore this commented section and remove the 1 line of db.run beneath it
-          // Get the time for trimming rows from the table
-          val timeExpires = ApiTime.pastUTC(ExchConfig.getInt("api.resourceChanges.ttl"))
-          db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.flatMap({ xs =>
-            logger.debug("POST /orgs/" + orgId + "/changes number of rows deleted: " + xs.toString)
-            qMaxChangeId.result.asTry
-          }).flatMap({ */
           db.run(qMaxChangeId.result.asTry.flatMap({
             case Success(qMaxChangeIdResp) =>
               maxChangeId = if (qMaxChangeIdResp.nonEmpty) qMaxChangeIdResp.head else 0

@@ -174,6 +174,17 @@ class AgbotsSuite extends AnyFunSuite {
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED)}))
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " can call notification framework") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List(orgid)))
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED)}))
+  }
+
   /** Update normal agbot as user */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - normal - as user") {
     val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-normal-user", None, "ABC")
@@ -980,6 +991,52 @@ class AgbotsSuite extends AnyFunSuite {
     assert(parsedBody.maxChangeId > 0)
   }
 
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " does not get wildcard case") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List("*")))
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(!parsedBody.changes.exists(y => {y.orgId == "IBM"}))
+  }
+
+  test("PUT /orgs/"+orgid+"/changes - with low maxRecords") {
+    if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
+      // Get the current config value so we can restore it afterward
+      ExchConfig.load()
+      val origMaxRecords = ExchConfig.getInt("api.resourceChanges.maxRecordsCap")
+      val newMaxRecords = 1
+      // Change the maxNodes config value in the svr
+      var configInput = AdminConfigRequest("api.resourceChanges.maxRecordsCap", newMaxRecords.toString)
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK.intValue)
+
+      // Now post to /changes and make sure the size is respected even though maxRecords sent in is much higher
+      // NOTE maxRecords the variable must be larger than newMaxRecords
+      val time = ApiTime.pastUTC(secondsAgo)
+      val input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List(orgid)))
+      response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+      info("code: "+response.code)
+      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(!response.body.isEmpty)
+      val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+      info("parsedBody.changes.size: " + parsedBody.changes.size + " maxRecords: " + newMaxRecords)
+      assert(parsedBody.changes.size <= newMaxRecords)
+      assert(parsedBody.hitMaxRecords)
+
+      // Restore the maxNodes config value in the svr
+      configInput = AdminConfigRequest("api.resourceChanges.maxRecordsCap", origMaxRecords.toString)
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.PUT_OK.intValue)
+      val origMaxRecords2 = ExchConfig.getInt("api.resourceChanges.maxRecordsCap")
+      assert(origMaxRecords == origMaxRecords2)
+    }
+  }
+
   /** Explicit delete of agbot */
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+" - as user") {
     var response = Http(URL+"/agbots/"+agbotId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
@@ -1000,6 +1057,58 @@ class AgbotsSuite extends AnyFunSuite {
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbot")}))
+  }
+
+  test("POST /orgs/IBM/changes - as IBM agbot (if it exists)") {
+    val ibmAgbotAuth = sys.env.getOrElse("EXCHANGE_AGBOTAUTH", "")
+    val ibmAgbotId = """^[^:]+""".r.findFirstIn(ibmAgbotAuth).getOrElse("")     // get the id before the :
+    info("ibmAgbotAuth="+ibmAgbotAuth+", ibmAgbotId="+ibmAgbotId+".")
+    if (ibmAgbotAuth != "") {
+      val IBMAGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode("IBM/" + ibmAgbotAuth))
+
+      // Notification Framework Tests
+      val time = ApiTime.pastUTC(secondsAgo)
+      var input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List("*")))
+      var response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
+      info(urlRoot+"/v1/orgs/IBM/changes -- wildcard splat")
+      info("code: "+response.code)
+      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(!response.body.isEmpty)
+      var parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+      assert(parsedBody.changes.exists(y => {y.orgId == orgid}))
+      assert(parsedBody.changes.exists(y => {y.orgId == "IBM"}))
+
+      input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List("")))
+      response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
+      info(urlRoot+"/v1/orgs/IBM/changes -- wildcard empty string")
+      info("code: "+response.code)
+      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(!response.body.isEmpty)
+      parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+      assert(parsedBody.changes.exists(y => {y.orgId == orgid}))
+      assert(parsedBody.changes.exists(y => {y.orgId == "IBM"}))
+
+      input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List(orgid)))
+      response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
+      info(urlRoot+"/v1/orgs/IBM/changes -- orgList: ["+orgid+"]")
+      info("code: "+response.code)
+      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(!response.body.isEmpty)
+      parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+      assert(parsedBody.changes.exists(y => {y.orgId == orgid}))
+      assert(!parsedBody.changes.exists(y => {y.orgId == "IBM"}))
+
+      input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List("IBM")))
+      response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
+      info(urlRoot+"/v1/orgs/IBM/changes -- orgList: [\"IBM\"]")
+      info("code: "+response.code)
+      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(!response.body.isEmpty)
+      parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+      assert(!parsedBody.changes.exists(y => {y.orgId == orgid}))
+      assert(parsedBody.changes.exists(y => {y.orgId == "IBM"}))
+
+    }
   }
 
   // Note: testing of msgs is in NodesSuite.scala

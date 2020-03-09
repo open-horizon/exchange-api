@@ -550,6 +550,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   "changeId": <number-here>,
   "lastUpdated": "<time-here>", --> optional field, only use if the caller doesn't know what changeId to use
   "maxRecords": <number-here>, --> the maximum number of records the caller wants returned to them, NOT optional
+  "orgList": ["", "", ""] --> just for agbots, this should be the list of orgs the agbot is responsible for
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[ResourceChangesRequest])))),
     responses = Array(

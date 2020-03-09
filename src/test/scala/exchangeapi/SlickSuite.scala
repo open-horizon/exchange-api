@@ -1,8 +1,8 @@
 package exchangeapi
 
 import org.junit.runner.RunWith
-import org.scalatest.FunSuite
-import org.scalatest.junit.JUnitRunner
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatestplus.junit.JUnitRunner
 
 //someday: use : http://blog.abhinav.ca/blog/2014/09/08/unit-testing-futures-with-scalatest/ to add slick unit tests
 
@@ -12,7 +12,7 @@ import org.scalatest.junit.JUnitRunner
  * clear and detailed tutorial of FunSuite: http://doc.scalatest.org/1.9.1/index.html#org.scalatest.FunSuite
  */
 @RunWith(classOf[JUnitRunner])
-class SlickSuite extends FunSuite {
+class SlickSuite extends AnyFunSuite {
 
   ignore("listUsers") {
     // val cpds = new ComboPooledDataSource

@@ -1,16 +1,16 @@
 package exchangeapi
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
+import org.scalatestplus.junit.JUnitRunner
 import com.horizon.exchangeapi._
 
 /**
  * Tests for the Version and VersionRange case classes
  */
 @RunWith(classOf[JUnitRunner])
-class ExchConfigSuite extends FunSuite {
+class ExchConfigSuite extends AnyFunSuite {
   test("ExchConfig tests") {
     ExchConfig.load()
     // Note: this test needs to work with the default version of config.json that is in src/main/resources (so that 'make test' in travis works)

@@ -2,8 +2,8 @@ package exchangeapi
 
 import org.json4s._
 import org.junit.runner.RunWith
-import org.scalatest.FunSuite
-import org.scalatest.junit.JUnitRunner
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatestplus.junit.JUnitRunner
 
 import scalaj.http._
 import com.horizon.exchangeapi._
@@ -13,7 +13,7 @@ import org.json4s.native.Serialization.write
 
 /** Run some performance tests on the exchange. */
 @RunWith(classOf[JUnitRunner])
-class PerfSuite extends FunSuite {
+class PerfSuite extends AnyFunSuite {
 
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080")
   val URL = urlRoot+"/v1"

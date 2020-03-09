@@ -1,16 +1,16 @@
 package exchangeapi
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
+import org.scalatestplus.junit.JUnitRunner
 import com.horizon.exchangeapi._
 
 /**
  * Tests for the Version and VersionRange case classes
  */
 @RunWith(classOf[JUnitRunner])
-class VersionSuite extends FunSuite {
+class VersionSuite extends AnyFunSuite {
   test("Version tests") {
     assert(Version("1.2.3").isValid)
     assert(Version("infinity").isValid)

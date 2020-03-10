@@ -34,6 +34,15 @@ import scala.util.control.Breaks._
 final case class GetServicesResponse(services: Map[String,Service], lastIndex: Int)
 final case class GetServiceAttributeResponse(attribute: String, value: String)
 
+object GetServicesUtils {
+  def getServicesProblem(public: Option[String], version: Option[String], nodetype: Option[String]): Option[String] = {
+    if (public.isDefined && !(public.get.toLowerCase == "true" || public.get.toLowerCase == "false")) return Some(ExchMsg.translate("bad.public.param"))
+    if (version.isDefined && !Version(version.get).isValid) return Some(ExchMsg.translate("version.not.valid.format", version.get))
+    if (nodetype.isDefined && !NodeType.containsString(nodetype.get.toLowerCase)) return Some(ExchMsg.translate("invalid.node.type2", NodeType.valuesAsString))
+    return None
+  }
+}
+
 object SharableVals extends Enumeration {
   type SharableVals = Value
   val EXCLUSIVE = Value("exclusive")
@@ -43,10 +52,11 @@ object SharableVals extends Enumeration {
 }
 
 /** Input format for POST /orgs/{orgid}/services or PUT /orgs/{orgid}/services/<service-id> */
-final case class PostPutServiceRequest(label: String, description: Option[String], public: Boolean, documentation: Option[String], url: String, version: String, arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: String, deploymentSignature: String, imageStore: Option[Map[String,Any]]) {
-  require(label!=null && url!=null && version!=null && arch!=null && sharable!=null && deployment!=null && deploymentSignature!=null)
+final case class PostPutServiceRequest(label: String, description: Option[String], public: Boolean, documentation: Option[String], url: String, version: String, arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], clusterDeployment: Option[String], clusterDeploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
+  require(label!=null && url!=null && version!=null && arch!=null && sharable!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem(orgid: String, serviceId: String): Option[String] = {
+
     // Ensure that the documentation field is a valid URL
     if (documentation.getOrElse("") != "") {
       try { new URL(documentation.getOrElse("")) }
@@ -69,7 +79,9 @@ final case class PostPutServiceRequest(label: String, description: Option[String
     }
 
     // Check that it is signed
-    if (deployment != "" && deploymentSignature == "") return Some(ExchMsg.translate("service.def.not.signed"))
+    //if (deployment.getOrElse("") == "" && clusterDeployment.getOrElse("") == "") return Some(ExchMsg.translate("service.no.deployment"))  // <- not forcing this
+    if (deployment.getOrElse("") != "" && deploymentSignature.getOrElse("") == "") return Some(ExchMsg.translate("service.def.not.signed"))
+    if (clusterDeployment.getOrElse("") != "" && clusterDeploymentSignature.getOrElse("") == "") return Some(ExchMsg.translate("service.def.not.signed"))
     return None
   }
 
@@ -87,10 +99,10 @@ final case class PostPutServiceRequest(label: String, description: Option[String
 
   def formId(orgid: String) = ServicesTQ.formId(orgid, url, version, arch)
 
-  def toServiceRow(service: String, orgid: String, owner: String) = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, documentation.getOrElse(""), url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment, deploymentSignature, write(imageStore), ApiTime.nowUTC)
+  def toServiceRow(service: String, orgid: String, owner: String) = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, documentation.getOrElse(""), url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment.getOrElse(""), deploymentSignature.getOrElse(""), clusterDeployment.getOrElse(""), clusterDeploymentSignature.getOrElse(""), write(imageStore), ApiTime.nowUTC)
 }
 
-final case class PatchServiceRequest(label: Option[String], description: Option[String], public: Option[Boolean], documentation: Option[String], url: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
+final case class PatchServiceRequest(label: Option[String], description: Option[String], public: Option[Boolean], documentation: Option[String], url: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], clusterDeployment: Option[String], clusterDeploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -186,6 +198,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "url", in = ParameterIn.QUERY, required = false, description = "Filter results to only include services with this url (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "version", in = ParameterIn.QUERY, required = false, description = "Filter results to only include services with this version (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "arch", in = ParameterIn.QUERY, required = false, description = "Filter results to only include services with this arch (can include % for wildcard - the URL encoding for % is %25)"),
+      new Parameter(name = "nodetype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include services that are deployable on this nodeType. Valid values: devices or clusters"),
       new Parameter(name = "requiredurl", in = ParameterIn.QUERY, required = false, description = "Filter results to only include services that use this service with this url (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
@@ -193,9 +206,9 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def servicesGetRoute: Route = (path("orgs" / Segment / "services") & get & parameter(('owner.?, 'public.?, 'url.?, 'version.?, 'arch.?, 'requiredurl.?))) { (orgid, owner, public, url, version, arch, requiredurl) =>
+  def servicesGetRoute: Route = (path("orgs" / Segment / "services") & get & parameter(('owner.?, 'public.?, 'url.?, 'version.?, 'arch.?, 'nodetype.?, 'requiredurl.?))) { (orgid, owner, public, url, version, arch, nodetype, requiredurl) =>
     exchAuth(TService(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
-      validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
+      validateWithMsg(GetServicesUtils.getServicesProblem(public, version, nodetype)) {
         complete({
           //var q = ServicesTQ.rows.subquery
           var q = ServicesTQ.getAllServices(orgid)
@@ -205,6 +218,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           url.foreach(url => { if (url.contains("%")) q = q.filter(_.url like url) else q = q.filter(_.url === url) })
           version.foreach(version => { if (version.contains("%")) q = q.filter(_.version like version) else q = q.filter(_.version === version) })
           arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
+          nodetype.foreach(nt => { if (nt == "device") q = q.filter(_.deployment =!= "") else if (nt == "cluster") q = q.filter(_.clusterDeployment =!= "") })
 
           // We are cheating a little on this one because the whole requiredServices structure is serialized into a json string when put in the db, so it has a string value like
           // [{"url":"mydomain.com.rtlsdr","version":"1.0.0","arch":"amd64"}]. But we can still match on the url.
@@ -303,8 +317,10 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
     }
   ],
   // Information about how to deploy the docker images for this service
-  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\",\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",   // container deployment info on edge devices. Can be omitted if does not apply
   "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
+  "clusterDeployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",   // container deployment info on edge clusters. Can be omitted if does not apply
+  "clusterDeploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
   "imageStore": {      // can be omitted
     "storeType": "dockerRegistry" // dockerRegistry is the only supported value right now, and is the default
   }

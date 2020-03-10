@@ -11,11 +11,11 @@ final case class ServiceRef(url: String, org: String, version: Option[String], v
 final case class ServiceRef2(url: String, org: String, versionRange: String, arch: String)
 
 // This is the service table minus the key - used as the data structure to return to the REST clients
-class Service(var owner: String, var label: String, var description: String, var public: Boolean, var documentation: String, var url: String, var version: String, var arch: String, var sharable: String, var matchHardware: Map[String,Any], var requiredServices: List[ServiceRef], var userInput: List[Map[String,String]], var deployment: String, var deploymentSignature: String, var imageStore: Map[String,Any], var lastUpdated: String) {
-  def copy = new Service(owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, imageStore, lastUpdated)
+class Service(var owner: String, var label: String, var description: String, var public: Boolean, var documentation: String, var url: String, var version: String, var arch: String, var sharable: String, var matchHardware: Map[String,Any], var requiredServices: List[ServiceRef], var userInput: List[Map[String,String]], var deployment: String, var deploymentSignature: String, var clusterDeployment: String, var clusterDeploymentSignature: String, var imageStore: Map[String,Any], var lastUpdated: String) {
+  def copy = new Service(owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, clusterDeployment, clusterDeploymentSignature, imageStore, lastUpdated)
 }
 
-final case class ServiceRow(service: String, orgid: String, owner: String, label: String, description: String, public: Boolean, documentation: String, url: String, version: String, arch: String, sharable: String, matchHardware: String, requiredServices: String, userInput: String, deployment: String, deploymentSignature: String, imageStore: String, lastUpdated: String) {
+final case class ServiceRow(service: String, orgid: String, owner: String, label: String, description: String, public: Boolean, documentation: String, url: String, version: String, arch: String, sharable: String, matchHardware: String, requiredServices: String, userInput: String, deployment: String, deploymentSignature: String, clusterDeployment: String, clusterDeploymentSignature: String, imageStore: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toService: Service = {
@@ -29,7 +29,7 @@ final case class ServiceRow(service: String, orgid: String, owner: String, label
 
     val input = if (userInput != "") read[List[Map[String,String]]](userInput) else List[Map[String,String]]()
     val p = if (imageStore != "") read[Map[String,Any]](imageStore) else Map[String,Any]()
-    new Service(owner, label, description, public, documentation, url, version, arch, sharable, mh, rs2, input, deployment, deploymentSignature, p, lastUpdated)
+    new Service(owner, label, description, public, documentation, url, version, arch, sharable, mh, rs2, input, deployment, deploymentSignature, clusterDeployment, clusterDeploymentSignature, p, lastUpdated)
   }
 
   // update returns a DB action to update this row
@@ -57,10 +57,12 @@ class Services(tag: Tag) extends Table[ServiceRow](tag, "services") {
   def userInput = column[String]("userinput")
   def deployment = column[String]("deployment")
   def deploymentSignature = column[String]("deploymentsignature")
+  def clusterDeployment = column[String]("clusterdeployment")
+  def clusterDeploymentSignature = column[String]("clusterdeploymentsignature")
   def imageStore = column[String]("imagestore")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (service, orgid, owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, imageStore, lastUpdated) <> (ServiceRow.tupled, ServiceRow.unapply)
+  def * = (service, orgid, owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, clusterDeployment, clusterDeploymentSignature, imageStore, lastUpdated) <> (ServiceRow.tupled, ServiceRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -77,6 +79,8 @@ object ServicesTQ {
   }
 
   def getAllServices(orgid: String) = rows.filter(_.orgid === orgid)
+  def getDevicServices(orgid: String) = rows.filter(r => {r.orgid === orgid && r.deployment =!= ""})
+  def getClusterServices(orgid: String) = rows.filter(r => {r.orgid === orgid && r.clusterDeployment =!= ""})
   def getService(service: String) = if (service.contains("%")) rows.filter(_.service like service) else rows.filter(_.service === service)
   def getOwner(service: String) = rows.filter(_.service === service).map(_.owner)
   def getNumOwned(owner: String) = rows.filter(_.owner === owner).length
@@ -93,6 +97,8 @@ object ServicesTQ {
   def getUserInput(service: String) = rows.filter(_.service === service).map(_.userInput)
   def getDeployment(service: String) = rows.filter(_.service === service).map(_.deployment)
   def getDeploymentSignature(service: String) = rows.filter(_.service === service).map(_.deploymentSignature)
+  def getClusterDeployment(service: String) = rows.filter(_.service === service).map(_.clusterDeployment)
+  def getClusterDeploymentSignature(service: String) = rows.filter(_.service === service).map(_.clusterDeploymentSignature)
   def getImageStore(service: String) = rows.filter(_.service === service).map(_.imageStore)
   def getLastUpdated(service: String) = rows.filter(_.service === service).map(_.lastUpdated)
 
@@ -115,6 +121,8 @@ object ServicesTQ {
       case "userInput" => filter.map(_.userInput)
       case "deployment" => filter.map(_.deployment)
       case "deploymentSignature" => filter.map(_.deploymentSignature)
+      case "clusterDeployment" => filter.map(_.clusterDeployment)
+      case "clusterDeploymentSignature" => filter.map(_.clusterDeploymentSignature)
       case "imageStore" => filter.map(_.imageStore)
       case "lastUpdated" => filter.map(_.lastUpdated)
       case _ => null

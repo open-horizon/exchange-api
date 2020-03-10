@@ -146,12 +146,17 @@ object SchemaTQ {
       case 32 => DBIO.seq(   // v2.13.0
         sqlu"alter table nodes add column lastupdated character varying not null default ''"
       )
+      case 33 => DBIO.seq(   // v2.14.0
+        sqlu"alter table nodes add column nodetype character varying not null default ''",
+        sqlu"alter table services add column clusterdeployment character varying not null default ''",
+        sqlu"alter table services add column clusterdeploymentsignature character varying not null default ''"
+      )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 32    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "added lastupdated column to nodes table"
+  val latestSchemaVersion = 33    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "added nodetype column to nodes table and clusterdeployment, clusterdeploymentsignature to services table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

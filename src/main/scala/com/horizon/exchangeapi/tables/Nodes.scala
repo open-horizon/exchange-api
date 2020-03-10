@@ -48,42 +48,55 @@ final case class RegService(url: String, numAgreements: Int, configState: Option
 
 final case class NodeHeartbeatIntervals(minInterval: Int, maxInterval: Int, intervalAdjustment: Int)
 
-// This is the node table minus the key - used as the data structure to return to the REST clients
-class Node(var token: String, var name: String, var owner: String, var pattern: String, var registeredServices: List[RegService], var userInput: List[OneUserInputService], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String, var arch: String, var heartbeatIntervals: NodeHeartbeatIntervals, var lastUpdated: String) {
-  def copy = new Node(token, name, owner, pattern, registeredServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated)
+object NodeType extends Enumeration {
+  type NodeType = Value
+  val DEVICE = Value("device")
+  val CLUSTER = Value("cluster")
+  def isDevice(str: String) = str == DEVICE.toString
+  def isCluster(str: String) = str == CLUSTER.toString
+  def containsString(str: String) = values.find(_.toString == str).orNull != null
+  def valuesAsString = values.map(_.toString).mkString(", ")
 }
 
-final case class NodeRow(id: String, orgid: String, token: String, name: String, owner: String, pattern: String, regServices: String, userInput: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String, arch: String, heartbeatIntervals: String, lastUpdated: String) {
+// This is the node table minus the key - used as the data structure to return to the REST clients
+class Node(var token: String, var name: String, var owner: String, var nodeType: String, var pattern: String, var registeredServices: List[RegService], var userInput: List[OneUserInputService], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String, var arch: String, var heartbeatIntervals: NodeHeartbeatIntervals, var lastUpdated: String) {
+  def copy = new Node(token, name, owner, nodeType, pattern, registeredServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated)
+}
+
+final case class NodeRow(id: String, orgid: String, token: String, name: String, owner: String, nodeType: String, pattern: String, regServices: String, userInput: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String, arch: String, heartbeatIntervals: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNode(superUser: Boolean): Node = {
     val tok = if (superUser) token else StrConstants.hiddenPw
+    val nt = if (nodeType == "") NodeType.DEVICE.toString else nodeType
     val swv = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
     val rsvc = if (regServices != "") read[List[RegService]](regServices) else List[RegService]()
     // Default new configState attr if it doesnt exist. This ends up being called by GET nodes, GET nodes/id, and POST search/nodes
     val rsvc2 = rsvc.map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
     val input = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
     val hbInterval = if (heartbeatIntervals != "") read[NodeHeartbeatIntervals](heartbeatIntervals) else NodeHeartbeatIntervals(0, 0, 0)
-    new Node(tok, name, owner, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat, publicKey, arch, hbInterval, lastUpdated)
+    new Node(tok, name, owner, nt, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat, publicKey, arch, hbInterval, lastUpdated)
   }
 
+  /* Not needed anymore, because node properties are no longer in a separate table that needs to be joined...
   def putInHashMap(isSuperUser: Boolean, nodes: MutableHashMap[String,Node]): Unit = {
     nodes.get(id) match {
       case Some(_) => ; // do not need to add the node entry, because it is already there
       case None => nodes.put(id, toNode(isSuperUser))
     }
   }
+  */
 
   def upsert: DBIO[_] = {
     //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
-    if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated)).insertOrUpdate((id, orgid, token, name, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
-    else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, token, name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
+    if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.nodeType, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated)).insertOrUpdate((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
+    else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
   }
 
   def update: DBIO[_] = {
     //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
-    if (owner == "") (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.orgid,d.token,d.name,d.pattern,d.regServices,d.userInput,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated)).update((id, orgid, token, name, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
-    else (for { d <- NodesTQ.rows if d.id === id } yield d).update(NodeRow(id, orgid, token, name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
+    if (owner == "") (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.orgid,d.token,d.name,d.nodeType,d.pattern,d.regServices,d.userInput,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated)).update((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
+    else (for { d <- NodesTQ.rows if d.id === id } yield d).update(NodeRow(id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
   }
 }
 
@@ -95,6 +108,7 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def token = column[String]("token")
   def name = column[String]("name")
   def owner = column[String]("owner", O.Default(Role.superUser))  // root is the default because during upserts by root, we do not want root to take over the node if it already exists
+  def nodeType = column[String]("nodetype")
   def pattern = column[String]("pattern")       // this is orgid/patternname
   def regServices = column[String]("regservices")
   def userInput = column[String]("userinput")
@@ -107,7 +121,7 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def lastUpdated = column[String]("lastupdated")
 
   // this describes what you get back when you return rows from a query
-  def * = (id, orgid, token, name, owner, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated) <> (NodeRow.tupled, NodeRow.unapply)
+  def * = (id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated) <> (NodeRow.tupled, NodeRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   //def patKey = foreignKey("pattern_fk", pattern, PatternsTQ.rows)(_.pattern, onUpdate=ForeignKeyAction.Cascade)     // <- we can't make this a foreign key because it is optional
@@ -143,12 +157,14 @@ object NodesTQ {
   }
 
   def getAllNodes(orgid: String) = rows.filter(_.orgid === orgid)
+  def getNodeTypeNodes(orgid: String, nodeType: String) = rows.filter(r => {r.orgid === orgid && r.nodeType === nodeType})
   def getNonPatternNodes(orgid: String) = rows.filter(r => {r.orgid === orgid && r.pattern === ""})
   def getNode(id: String) = rows.filter(_.id === id)
   def getToken(id: String) = rows.filter(_.id === id).map(_.token)
   def getOwner(id: String) = rows.filter(_.id === id).map(_.owner)
   def getRegisteredServices(id: String) = rows.filter(_.id === id).map(_.regServices)
   def getUserInput(id: String) = rows.filter(_.id === id).map(_.userInput)
+  def getNodeType(id: String) = rows.filter(_.id === id).map(_.nodeType)
   def getPattern(id: String) = rows.filter(_.id === id).map(_.pattern)
   def getNumOwned(owner: String) = rows.filter(_.owner === owner).length
   def getLastHeartbeat(id: String) = rows.filter(_.id === id).map(_.lastHeartbeat)
@@ -170,6 +186,7 @@ object NodesTQ {
       case "token" => filter.map(_.token)
       case "name" => filter.map(_.name)
       case "owner" => filter.map(_.owner)
+      case "nodeType" => filter.map(_.nodeType)
       case "pattern" => filter.map(_.pattern)
       case "regServices" => filter.map(_.regServices)
       case "userInput" => filter.map(_.userInput)
@@ -184,17 +201,18 @@ object NodesTQ {
     }
   }
 
-  /** Separate the join of the nodes and properties tables into their respective scala classes (collapsing duplicates) and return a hash containing it all.
-    * Note: this can also be used when querying node rows that have services, because the services are faithfully preserved in the Node object. */
+  /* Not needed anymore, because node properties are no longer in a separate table that needs to be joined...
+  Separate the join of the nodes and properties tables into their respective scala classes (collapsing duplicates) and return a hash containing it all.
+    * Note: this can also be used when querying node rows that have services, because the services are faithfully preserved in the Node object.
   def parseJoin(isSuperUser: Boolean, list: Seq[NodeRow] ): Map[String,Node] = {
     // Separate the partially duplicate join rows into maps that only keep unique values
     val nodes = new MutableHashMap[String,Node]    // the key is node id
     for (d <- list) {
       d.putInHashMap(isSuperUser, nodes)
     }
-
     nodes.toMap
   }
+  */
 }
 
 

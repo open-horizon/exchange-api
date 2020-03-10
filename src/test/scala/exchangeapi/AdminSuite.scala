@@ -1,9 +1,9 @@
 package exchangeapi
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
+import org.scalatestplus.junit.JUnitRunner
 import scalaj.http._
 import org.json4s._
 //import org.json4s.JsonDSL._
@@ -22,7 +22,7 @@ import com.horizon.exchangeapi._
  * clear and detailed tutorial of FunSuite: http://doc.scalatest.org/1.9.1/index.html#org.scalatest.FunSuite
  */
 @RunWith(classOf[JUnitRunner])
-class AdminSuite extends FunSuite {
+class AdminSuite extends AnyFunSuite {
 
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080")
   val URL = urlRoot+"/v1"

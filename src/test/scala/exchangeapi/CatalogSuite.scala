@@ -6,8 +6,8 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
-import org.scalatest.FunSuite
-import org.scalatest.junit.JUnitRunner
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatestplus.junit.JUnitRunner
 
 import scala.collection.immutable._
 import scalaj.http._
@@ -15,7 +15,7 @@ import scalaj.http._
 // Tests the catalog APIs
 
 @RunWith(classOf[JUnitRunner])
-class CatalogSuite extends FunSuite {
+class CatalogSuite extends AnyFunSuite {
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 

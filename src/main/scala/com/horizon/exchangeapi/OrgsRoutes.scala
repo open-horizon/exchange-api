@@ -100,7 +100,7 @@ class NodeHealthHashElement(var lastHeartbeat: String, var agreements: Map[Strin
 final case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
 
 /** Case class for request body for ResourceChanges route */
-final case class ResourceChangesRequest(changeId: Int, lastUpdated: Option[String], maxRecords: Int, ibmAgbot: Option[Boolean]) {
+final case class ResourceChangesRequest(changeId: Int, lastUpdated: Option[String], maxRecords: Int, orgList: Option[List[String]]) {
   def getAnyProblem: Option[String] = None // None means no problems with input
 }
 
@@ -550,6 +550,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   "changeId": <number-here>,
   "lastUpdated": "<time-here>", --> optional field, only use if the caller doesn't know what changeId to use
   "maxRecords": <number-here>, --> the maximum number of records the caller wants returned to them, NOT optional
+  "orgList": ["", "", ""] --> just for agbots, this should be the list of orgs the agbot is responsible for
 }
 ```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[ResourceChangesRequest])))),
     responses = Array(
@@ -564,38 +565,34 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TOrg(orgId), Access.READ) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
+          // make sure callers obey maxRecords cap set in config, defaults is 10,000
+          val maxRecordsCap = ExchConfig.getInt("api.resourceChanges.maxRecordsCap")
+          val maxRecords = if (reqBody.maxRecords > maxRecordsCap) maxRecordsCap else reqBody.maxRecords
           // Create a query to get the last changeid currently in the table
           val qMaxChangeId = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
           var maxChangeId = 0
-
+          val orgSet : Set[String] = reqBody.orgList.getOrElse(List("")).toSet
           // Create query to get the rows relevant to this client. We only support either changeId or lastUpdated being specified, but not both
           var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBody.lastUpdated.get) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)
 
-          qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
-          //val lastTime = reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)
-          // filter by lastUpdated and changeId then filter by either it's in the org OR it's not in the same org but is public
-          //var qFilter = ResourceChangesTQ.rows.filter(_.lastUpdated >= lastTime).filter(_.changeId >= reqBody.changeId).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
           ident match {
             case _: INode =>
               // if its a node calling then it doesn't want information about any other nodes
-              qFilter = qFilter.filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
-            case _ => ;
-              // Note: repeating some of the filters in both cases to make the final query less nested for the db
-              //ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId).filter(_.lastUpdated >= lastTime).filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
+              qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
+            case _: IAgbot =>
+              val wildcard = orgSet.contains("*") || orgSet.contains("")
+              if (ident.isMultiTenantAgbot && !wildcard) { // its an IBM Agbot, get all changes from orgs the agbot covers
+                qFilter = qFilter.filter(_.orgId inSet orgSet)
+                // if the caller agbot sends in the wildcard case then we don't want to filter on orgId at all, so don't add any more filters. that's why there's just no code written for that case
+              } else if (!ident.isMultiTenantAgbot) qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")) // if its not an IBM agbot use the general case
+            case _ => qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
           }
           // sort by changeId and take only maxRecords from the query
-          qFilter = qFilter.sortBy(_.changeId).take(reqBody.maxRecords)
+          qFilter = qFilter.sortBy(_.changeId).take(maxRecords)
 
           logger.debug(s"POST /orgs/$orgId/changes db query: ${qFilter.result.statements}")
           var qResp : scala.Seq[ResourceChangeRow] = null
 
-          /* to put back the table trimming: restore this commented section and remove the 1 line of db.run beneath it
-          // Get the time for trimming rows from the table
-          val timeExpires = ApiTime.pastUTC(ExchConfig.getInt("api.resourceChanges.ttl"))
-          db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.flatMap({ xs =>
-            logger.debug("POST /orgs/" + orgId + "/changes number of rows deleted: " + xs.toString)
-            qMaxChangeId.result.asTry
-          }).flatMap({ */
           db.run(qMaxChangeId.result.asTry.flatMap({
             case Success(qMaxChangeIdResp) =>
               maxChangeId = if (qMaxChangeIdResp.nonEmpty) qMaxChangeIdResp.head else 0
@@ -622,7 +619,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(n) =>
               logger.debug(s"POST /orgs/$orgId/changes node/agbot heartbeat result: $n")
               if (n > 0) {
-                val hitMaxRecords = (qResp.size == reqBody.maxRecords) // if they are equal then we hit maxRecords
+                val hitMaxRecords = (qResp.size == maxRecords) // if they are equal then we hit maxRecords
                 if(qResp.nonEmpty) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, hitMaxRecords, reqBody.changeId, maxChangeId))
                 else (HttpCode.POST_OK, ResourceChangesRespObject(List[ChangeEntry](), maxChangeId, hitMaxRecords = false, ExchangeApi.adminVersion()))
               }

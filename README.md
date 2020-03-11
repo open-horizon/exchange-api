@@ -229,6 +229,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 - Fixed issue 301: listing all business policies in another org returns 404 instead of 403
 - Added field `nodeType` to node resource
 - Added fields `clusterDeployment`, and `clusterDeploymentSignature` to service resource
+- Return `nodeType` instead of `msgEndPoint` in the pattern and business `/search` routes
 
 ## Changes in 2.14.0
 

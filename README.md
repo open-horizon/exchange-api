@@ -224,6 +224,13 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.15.0
+
+- Fixed issue 301: listing all business policies in another org returns 404 instead of 403
+- Added field `nodeType` to node resource
+- Added fields `clusterDeployment`, and `clusterDeploymentSignature` to service resource
+- Return `nodeType` instead of `msgEndPoint` in the pattern and business `/search` routes
+
 ## Changes in 2.14.0
 
 - Issue 311: Notification Framework Agbot Case

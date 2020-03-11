@@ -357,7 +357,7 @@ class AgbotsSuite extends AnyFunSuite {
 
 
   test("POST /orgs/"+orgid+"/services - add "+svcid+" and check that agbot can read it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, Some(""), Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -420,7 +420,7 @@ class AgbotsSuite extends AnyFunSuite {
 
       if (ibmAgbotId != "") {
         // Also create a node to make sure they can msg each other
-        val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", orgid + "/" + pattern, None, None, None, None, "NODEABC", None, None)
+        val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", None, orgid + "/" + pattern, None, None, None, None, "NODEABC", None, None)
         var response2 = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
         info("code: " + response2.code)
         assert(response2.code === HttpCode.PUT_OK.intValue)

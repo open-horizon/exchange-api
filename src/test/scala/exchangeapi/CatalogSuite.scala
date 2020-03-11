@@ -117,7 +117,7 @@ class CatalogSuite extends AnyFunSuite {
       assert(userResponse.code === HttpCode.POST_OK.intValue)
     }
 
-    val devInput = PutNodesRequest(nodeToken, "", "", None, None, None, None, "", None, None)
+    val devInput = PutNodesRequest(nodeToken, "", None, "", None, None, None, None, "", None, None)
     val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK.intValue)
@@ -130,22 +130,22 @@ class CatalogSuite extends AnyFunSuite {
 
   // Create a service in each org and an extra private service
   test("POST /orgs/"+orgid+"/services - add services in each org") {
-    var input = PostPutServiceRequest("", None, public = true, None, svcUrl, svcVersion, svcArch, "multiple", None, None, None, "{\"services\":{}}","a",None)
+    var input = PostPutServiceRequest("", None, public = true, None, svcUrl, svcVersion, svcArch, "multiple", None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
     var response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    input = PostPutServiceRequest("", None, public = false, None, svcUrlPriv, svcVersionPriv, svcArchPriv, "multiple", None, None, None, "{\"services\":{}}","a",None)
+    input = PostPutServiceRequest("", None, public = false, None, svcUrlPriv, svcVersionPriv, svcArchPriv, "multiple", None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
     response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    input = PostPutServiceRequest("", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, None, None, "{\"services\":{}}","a",None)
+    input = PostPutServiceRequest("", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
     response = Http(URL2+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    input = PostPutServiceRequest("", None, public = true, None, svcUrl3, svcVersion3, svcArch3, "multiple", None, None, None, "{\"services\":{}}","a",None)
+    input = PostPutServiceRequest("", None, public = true, None, svcUrl3, svcVersion3, svcArch3, "multiple", None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
     response = Http(URL3+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH3).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)

@@ -709,7 +709,7 @@ trait AuthorizationSupport {
         case None => return true    // if we did not find it, we consider that as owning it because we will create it
       }
     }
-    override def isPublic: Boolean = if (all) return true else return AuthCache.getBusinessIsPublic(id).getOrElse(false)
+    // business policies can never be public, so no need to override isPublic
     override def isThere: Boolean = all || mine || AuthCache.getBusinessOwner(id).nonEmpty
     override def label = "business policy"
   }

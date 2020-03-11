@@ -31,10 +31,17 @@ import scala.util.control.Breaks._
 final case class GetNodesResponse(nodes: Map[String,Node], lastIndex: Int)
 final case class GetNodeAttributeResponse(attribute: String, value: String)
 
-// Tried this to have names on the tuple returned from the db, but didn't work...
-final case class PatternSearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
+object GetNodesUtils {
+  def getNodesProblem(nodetype: Option[String]): Option[String] = {
+    if (nodetype.isDefined && !NodeType.containsString(nodetype.get.toLowerCase)) return Some(ExchMsg.translate("invalid.node.type2", NodeType.valuesAsString))
+    return None
+  }
+}
 
-final case class PatternNodeResponse(id: String, msgEndPoint: String, publicKey: String)
+// Tried this to have names on the tuple returned from the db, but didn't work...
+final case class PatternSearchHashElement(nodeType: String, publicKey: String, noAgreementYet: Boolean)
+
+final case class PatternNodeResponse(id: String, nodeType: String, publicKey: String)
 final case class PostPatternSearchResponse(nodes: List[PatternNodeResponse], lastIndex: Int)
 
 // Leaving this here for the UI wanting to implement filtering later
@@ -53,13 +60,14 @@ final case class NodeResponse(id: String, name: String, services: List[RegServic
 final case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
-final case class PutNodesRequest(token: String, name: String, pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
+final case class PutNodesRequest(token: String, name: String, nodeType: Option[String], pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
   require(token!=null && name!=null && pattern!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
   def getAnyProblem: Option[String] = {
     if (token == "") return Some(ExchMsg.translate("token.must.not.be.blank"))
     // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
+    if (nodeType.isDefined && !NodeType.containsString(nodeType.get)) return Some(ExchMsg.translate("invalid.node.type", NodeType.valuesAsString))
     if (pattern != "" && """.*/.*""".r.findFirstIn(pattern).isEmpty) return Some(ExchMsg.translate("pattern.must.have.orgid.prepended"))
     for (m <- registeredServices.getOrElse(List())) {
       // now we support more than 1 agreement for a MS
@@ -79,7 +87,7 @@ final case class PutNodesRequest(token: String, name: String, pattern: String, r
   def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), write(heartbeatIntervals), ApiTime.nowUTC).upsert
+    NodeRow(id, orgid, hashedTok, name, owner, nodeType.getOrElse(NodeType.DEVICE.toString), pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), write(heartbeatIntervals), ApiTime.nowUTC).upsert
   }
 
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
@@ -87,11 +95,11 @@ final case class PutNodesRequest(token: String, name: String, pattern: String, r
   def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, hashedTok, name, owner, pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), write(heartbeatIntervals), ApiTime.nowUTC).update
+    NodeRow(id, orgid, hashedTok, name, owner, nodeType.getOrElse(NodeType.DEVICE.toString), pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), write(heartbeatIntervals), ApiTime.nowUTC).update
   }
 }
 
-final case class PatchNodesRequest(token: Option[String], name: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
+final case class PatchNodesRequest(token: Option[String], name: Option[String], nodeType: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -105,8 +113,9 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
     //someday: support updating more than 1 attribute, but i think slick does not support dynamic db field names
     // find the 1st non-blank attribute and create a db action to update it for this node
     var dbAction: (DBIO[_], String) = (null, null)
+    // nodeType intentionally missing from this 1st list of attributes, because we will default it if it is the only 1 not specified
     if(token.isEmpty && softwareVersions.isDefined && registeredServices.isDefined && name.isDefined && pattern.isDefined && userInput.isDefined && msgEndPoint.isDefined && publicKey.isDefined && arch.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions, d.regServices, d.name, d.pattern, d.userInput, d.msgEndPoint, d.publicKey, d.arch, d.lastHeartbeat, d.lastUpdated)).update((id, write(softwareVersions), write(registeredServices), name.get, pattern.get, write(userInput), msgEndPoint.get, publicKey.get, arch.get, currentTime, currentTime)), "update all but token")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions, d.regServices, d.name, d.nodeType, d.pattern, d.userInput, d.msgEndPoint, d.publicKey, d.arch, d.lastHeartbeat, d.lastUpdated)).update((id, write(softwareVersions), write(registeredServices), name.get, nodeType.getOrElse(NodeType.DEVICE.toString), pattern.get, write(userInput), msgEndPoint.get, publicKey.get, arch.get, currentTime, currentTime)), "update all but token")
     } else if (token.isDefined){
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat, d.lastUpdated)).update((id, hashedPw, currentTime, currentTime)), "token")
     } else if (softwareVersions.isDefined){
@@ -117,6 +126,8 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
       dbAction =  ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat, d.lastUpdated)).update((id, regSvc, currentTime, currentTime)), "registeredServices")
     } else if (name.isDefined){
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat, d.lastUpdated)).update((id, name.get, currentTime, currentTime)), "name")
+    } else if (nodeType.isDefined){
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.nodeType,d.lastHeartbeat, d.lastUpdated)).update((id, nodeType.get, currentTime, currentTime)), "nodeType")
     } else if (pattern.isDefined){
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat, d.lastUpdated)).update((id, pattern.get, currentTime, currentTime)), "pattern")
     } else if (userInput.isDefined){
@@ -275,31 +286,41 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this id (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "name", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this name (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this owner (can include % for wildcard - the URL encoding for % is %25)"),
-    new Parameter(name = "arch", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this arch (can include % for wildcard - the URL encoding for % is %25)")),
+      new Parameter(name = "nodetype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this nodeType ('device' or 'cluster')"),
+      new Parameter(name = "arch", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this arch (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[GetNodesResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def nodesGetRoute: Route = (path("orgs" / Segment / "nodes") & get & parameter(('idfilter.?, 'name.?, 'owner.?, 'arch.?))) { (orgid, idfilter, name, owner, arch) =>
+  def nodesGetRoute: Route = (path("orgs" / Segment / "nodes") & get & parameter(('idfilter.?, 'name.?, 'owner.?, 'arch.?, 'nodetype.?))) { (orgid, idfilter, name, owner, arch, nodetype) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes")
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { ident =>
-      complete({
-        logger.debug(s"GET /orgs/$orgid/nodes identity: $ident")
-        var q = NodesTQ.getAllNodes(orgid)
-        idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
-        name.foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
-        owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
-        arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
+      validateWithMsg(GetNodesUtils.getNodesProblem(nodetype)) {
+        complete({
+          logger.debug(s"GET /orgs/$orgid/nodes identity: $ident")
+          var q = NodesTQ.getAllNodes(orgid)
+          idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
+          name.foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
+          owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
+          arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
 
-        db.run(q.result).map({ list =>
-          logger.debug(s"GET /orgs/$orgid/nodes result size: ${list.size}")
-          val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
-          val code = if (nodes.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-          (code, GetNodesResponse(nodes, 0))
-        })
-      }) // end of complete
+          if (nodetype.isDefined) {
+            val nt = nodetype.get.toLowerCase
+            if (NodeType.isDevice(nt)) q = q.filter(r => {r.nodeType === nt || r.nodeType === ""})
+            else if (NodeType.isCluster(nt)) q = q.filter(_.nodeType === nt)
+          }
+
+          db.run(q.result).map({ list =>
+            logger.debug(s"GET /orgs/$orgid/nodes result size: ${list.size}")
+            //val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
+            val nodes = list.map(e => e.id -> e.toNode(ident.isSuperUser)).toMap
+            val code = if (nodes.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            (code, GetNodesResponse(nodes, 0))
+          })
+        }) // end of complete
+      }
     } // end of exchAuth
   }
 
@@ -340,7 +361,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               db.run(q.result).map({ list =>
                 logger.debug("GET /orgs/"+orgid+"/nodes/"+id+" result: "+list.size)
                 if (list.nonEmpty) {
-                  val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
+                  //val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
+                  val nodes = list.map(e => e.id -> e.toNode(ident.isSuperUser)).toMap
                   (HttpCode.OK, GetNodesResponse(nodes, 0))
                 } else {
                   (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))     // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
@@ -364,6 +386,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
 {
   "token": "abc",       // node token, set by user when adding this node.
   "name": "rpi3",         // node name that you pick
+  "nodeType": "device",    // the type of edge node: device, or cluster
   "pattern": "myorg/mypattern",      // (optional) points to a pattern resource that defines what services should be deployed to this type of node
   "arch": "arm",      // specifies the architecture of the node
   "registeredServices": [    // list of data services you want to make available

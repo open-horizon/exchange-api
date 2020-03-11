@@ -725,30 +725,29 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
               archList += "*"
               val archSet = archList.toSet
               if (found) {
-                /*
+                /* Build the node query
                 1 - if the caller specified a non-wildcard arch in the body, that trumps everything, so filter on that arch
                 2 - else if the caller or any service specified a blank/wildcard arch, then don't filter on arch at all
                 3 - else filter on the arches in the services
                  */
-                //if(selectedServiceArch.isDefined && !(selectedServiceArch.equals(Some("*")) || selectedServiceArch.equals(Some("")))){
                 if(selectedServiceArch.isDefined && !(selectedServiceArch.contains("*") || selectedServiceArch.contains(""))){
                   val nodeQuery =
                     for {
                       (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositeId).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(_.arch like selectedServiceArch) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-                    } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+                    } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
                   nodeQuery.result.asTry
                 //} else if (((archSet("") || archSet("*")) && selectedServiceArch.isEmpty) || selectedServiceArch.equals(Some("*")) || selectedServiceArch.equals(Some(""))){
                 } else if (((archSet("") || archSet("*")) && selectedServiceArch.isEmpty) || selectedServiceArch.contains("*") || selectedServiceArch.contains("")){
                   val nodeQuery =
                     for {
                       (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositeId).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-                    } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+                    } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
                   nodeQuery.result.asTry
                 } else {
                   val nodeQuery =
                     for {
                       (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositeId).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(_.arch inSet(archSet)) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-                    } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+                    } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
                   nodeQuery.result.asTry
                 }
               }
@@ -763,20 +762,21 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
               if (list.nonEmpty) {
                 // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
                 val nodeHash = new MutableHashMap[String, PatternSearchHashElement] // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
-                for ((nodeid, msgEndPoint, publicKey, agrSvcUrlOpt, stateOpt) <- list) {
+                for ((nodeid, nodeType, publicKey, agrSvcUrlOpt, stateOpt) <- list) {
                   //logger.debug("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
+                  val nt = if (nodeType == "") NodeType.DEVICE.toString else nodeType
                   nodeHash.get(nodeid) match {
                     case Some(_) => if (isEqualUrl(agrSvcUrlOpt.getOrElse(""), searchSvcUrl) && stateOpt.getOrElse("") != "") {
-                      /*logger.debug("setting to false");*/ nodeHash.put(nodeid, PatternSearchHashElement(msgEndPoint, publicKey, noAgreementYet = false))
+                      /*logger.debug("setting to false");*/ nodeHash.put(nodeid, PatternSearchHashElement(nt, publicKey, noAgreementYet = false))
                     } // this is no longer a candidate
                     case None => val noAgr = if (isEqualUrl(agrSvcUrlOpt.getOrElse(""), searchSvcUrl) && stateOpt.getOrElse("") != "") false else true
-                      nodeHash.put(nodeid, PatternSearchHashElement(msgEndPoint, publicKey, noAgr)) // this node nodeid not in the hash yet, add it
+                      nodeHash.put(nodeid, PatternSearchHashElement(nt, publicKey, noAgr)) // this node nodeid not in the hash yet, add it
                   }
                 }
                 // Convert our hash to the list response of the rest api
                 //val respList = list.map( x => PatternNodeResponse(x._1, x._2, x._3)).toList
                 val respList = new ListBuffer[PatternNodeResponse]
-                for ((k, v) <- nodeHash) if (v.noAgreementYet) respList += PatternNodeResponse(k, v.msgEndPoint, v.publicKey)
+                for ((k, v) <- nodeHash) if (v.noAgreementYet) respList += PatternNodeResponse(k, v.nodeType, v.publicKey)
                 val code = if (respList.nonEmpty) HttpCode.POST_OK else HttpCode.NOT_FOUND
                 (code, PostPatternSearchResponse(respList.toList, 0))
               } else {

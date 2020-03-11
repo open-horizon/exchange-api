@@ -668,7 +668,7 @@ class UsersSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" as not public in 1st org") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, "", "", None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, Some(""), Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -825,13 +825,13 @@ class UsersSuite extends AnyFunSuite {
       // Can only add resources to an ibm public cloud org that we created (the icp org is the one in the cluster)
       if (iamAccountId.nonEmpty) {
         // ensure we can add a service to check acls to other objects
-        val inputSvc = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, "s1", "1.2.3", "amd64", "single", None, None, None, "a", "b", None)
+        val inputSvc = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, "s1", "1.2.3", "amd64", "single", None, None, None, Some("a"), Some("b"), None, None, None)
         response = Http(CLOUDURL + "/services").postData(write(inputSvc)).method("post").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
         info("code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.POST_OK.intValue)
 
         // Only for ibm public cloud: ensure we can add a node to check acls to other objects
-        val inputNode = PutNodesRequest("abc", "my node", "", None, None, None, None, "ABC", None, None)
+        val inputNode = PutNodesRequest("abc", "my node", None, "", None, None, None, None, "ABC", None, None)
         response = Http(CLOUDURL + "/nodes/n1").postData(write(inputNode)).method("put").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
         info("code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.PUT_OK.intValue)

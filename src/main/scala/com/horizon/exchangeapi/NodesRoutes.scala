@@ -39,9 +39,9 @@ object GetNodesUtils {
 }
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
-final case class PatternSearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
+final case class PatternSearchHashElement(nodeType: String, publicKey: String, noAgreementYet: Boolean)
 
-final case class PatternNodeResponse(id: String, msgEndPoint: String, publicKey: String)
+final case class PatternNodeResponse(id: String, nodeType: String, publicKey: String)
 final case class PostPatternSearchResponse(nodes: List[PatternNodeResponse], lastIndex: Int)
 
 // Leaving this here for the UI wanting to implement filtering later

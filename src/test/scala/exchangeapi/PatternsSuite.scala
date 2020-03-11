@@ -214,7 +214,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)
 
-    val devInput = PutNodesRequest(nodeToken, "bc dev test", "", Some(List(RegService("foo", 1, None, "{}", List(
+    val devInput = PutNodesRequest(nodeToken, "bc dev test", None, "", Some(List(RegService("foo", 1, None, "{}", List(
       Prop("arch", "arm", "string", "in"),
       Prop("version", "2.0.0", "version", "in"),
       Prop("blockchainProtocols", "agProto", "list", "in"))))), None, None, None, "NODEABC", None, None)
@@ -263,21 +263,21 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   test("Add service for future tests") {
-    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None, None)
     val svcResponse = Http(URL+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
     assert(svcResponse.code === HttpCode.POST_OK.intValue)
   }
 
   test("Add service for future tests -- non IBM org") {
-    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None, None)
     val svcResponse = Http(URL2+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
     assert(svcResponse.code === HttpCode.POST_OK.intValue)
   }
 
   test("Add service for future tests -- second IBM org") {
-    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), "{\"services\":{}}","a",None)
+    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None, None)
     val svcResponse = Http(URL3+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
     assert(svcResponse.code === HttpCode.POST_OK.intValue)
@@ -923,7 +923,7 @@ class PatternsSuite extends AnyFunSuite {
   // IBM pattern tests ==============================================
 
   test("POST /orgs/IBM/services - add IBM service so patterns can reference it") {
-    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, "{\"services\":{}}", "a", None)
+    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, Some("{\"services\":{}}"),Some("a"), None, None, None)
     val response = Http(IBMURL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -970,28 +970,28 @@ class PatternsSuite extends AnyFunSuite {
   // the test to try to get an IBM pattern that doesn't exist is at the end when we are cleaning up
 
   test("POST /orgs/"+orgid+"/services - add "+svcid2+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid3+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, NETSPEEDSPEC_URL, svcversion3, svcarch3, "multiple", None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, NETSPEEDSPEC_URL, svcversion3, svcarch3, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid4+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, PWSSPEC_URL, svcversion4, svcarch4, "multiple", None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, PWSSPEC_URL, svcversion4, svcarch4, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid5+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion5, svcarch5, "multiple", None, None, None, "", "", None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion5, svcarch5, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1042,7 +1042,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeIdSearchTest1+" - add normal node as user") {
-    val input = PutNodesRequest(nodeTokenSearchTest1, "rpi"+nodeIdSearchTest1+"-norm", compositePatid,
+    val input = PutNodesRequest(nodeTokenSearchTest1, "rpi"+nodeIdSearchTest1+"-norm", None, compositePatid,
       Some(List(
         RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeIdSearchTest1+" pws}",List(
           Prop("arch","arm","string","in"),
@@ -1062,7 +1062,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2SearchTest2+" - node with higher memory 400, and version 2.0.0") {
-    val input = PutNodesRequest(nodeToken2SearchTest2, "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
+    val input = PutNodesRequest(nodeToken2SearchTest2, "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", None, compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
@@ -1074,7 +1074,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2SearchTest2+" - node with no arch") {
-    val input = PutNodesRequest(nodeToken2SearchTest2, "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
+    val input = PutNodesRequest(nodeToken2SearchTest2, "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", None, compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
@@ -1102,7 +1102,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId3SearchTest3+" - node with no arch") {
-    val input = PutNodesRequest(nodeToken3SearchTest3, "rpi"+nodeId3SearchTest3+"-mem-400-vers-2", compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId3SearchTest3+" sdr}",List(
+    val input = PutNodesRequest(nodeToken3SearchTest3, "rpi"+nodeId3SearchTest3+"-mem-400-vers-2", None, compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId3SearchTest3+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
@@ -1132,7 +1132,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId4SearchTest4+" - node with "+PWSSPEC+" Service") {
-    val input = PutNodesRequest(nodeToken4SearchTest4, "rpi"+nodeId4SearchTest4+"-mem-400-vers-2", compositePatid2, Some(List(RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId4SearchTest4+" sdr}",List(
+    val input = PutNodesRequest(nodeToken4SearchTest4, "rpi"+nodeId4SearchTest4+"-mem-400-vers-2", None, compositePatid2, Some(List(RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId4SearchTest4+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
@@ -1169,7 +1169,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId5SearchTest5+" - node with "+SDRSPEC+" Service arm32") {
-    val input = PutNodesRequest(nodeToken5SearchTest5, "rpi"+nodeId5SearchTest5+"-mem-400-vers-2", compositePatid3, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId5SearchTest5+" sdr}",List(
+    val input = PutNodesRequest(nodeToken5SearchTest5, "rpi"+nodeId5SearchTest5+"-mem-400-vers-2", None, compositePatid3, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId5SearchTest5+" sdr}",List(
       Prop("arch","arm32","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
@@ -1181,7 +1181,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId6SearchTest6+" - node with "+SDRSPEC+" Service the first one arm32") {
-    val input = PutNodesRequest(nodeToken6SearchTest6, "rpi"+nodeId6SearchTest6+"-mem-400-vers-2", compositePatid3, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId6SearchTest6+" sdr}",List(
+    val input = PutNodesRequest(nodeToken6SearchTest6, "rpi"+nodeId6SearchTest6+"-mem-400-vers-2", None, compositePatid3, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId6SearchTest6+" sdr}",List(
       Prop("arch","amd64","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),

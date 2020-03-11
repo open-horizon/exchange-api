@@ -103,9 +103,9 @@ final case class PostBusinessPolicySearchRequest(nodeOrgids: Option[List[String]
 }
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
-final case class BusinessPolicySearchHashElement(msgEndPoint: String, publicKey: String, noAgreementYet: Boolean)
+final case class BusinessPolicySearchHashElement(nodeType: String, publicKey: String, noAgreementYet: Boolean)
 
-final case class BusinessPolicyNodeResponse(id: String, msgEndPoint: String, publicKey: String)
+final case class BusinessPolicyNodeResponse(id: String, nodeType: String, publicKey: String)
 final case class PostBusinessPolicySearchResponse(nodes: List[BusinessPolicyNodeResponse], lastIndex: Int)
 
 
@@ -558,7 +558,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               searchSvcUrl = OrgAndId(service.org, service.name).toString
               /*
                 Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
-                In english, the join gets: n.id, n.msgEndPoint, n.publicKey, a.serviceUrl, a.state
+                In english, the join gets: n.id, n.nodeType, n.publicKey, a.serviceUrl, a.state
                 The filters are: n is in the given list of node orgs, n.pattern is not set, the node is not stale, the node arch matches the service arch (the filter a.state=="" is applied later in our code below)
                 After this we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
                 Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
@@ -567,7 +567,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               val nodeQuery =
                 for {
                   (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastUpdated >= oldestTime).filter(n => {n.arch === service.arch || service.arch == "" || service.arch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-                } yield (n.id, n.msgEndPoint, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+                } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
               nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
             }
             else DBIO.failed(new Throwable(ExchMsg.translate("business.policy.not.found", compositeId))).asTry
@@ -579,22 +579,23 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                 // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
                 //todo: factor in num agreements??
                 val nodeHash = new MutableHashMap[String, BusinessPolicySearchHashElement] // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
-                for ((nodeid, msgEndPoint, publicKey, agrSvcUrlOpt, stateOpt) <- list) {
+                for ((nodeid, nodeType, publicKey, agrSvcUrlOpt, stateOpt) <- list) {
                   //logger.debug("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
+                  val nt = if (nodeType == "") NodeType.DEVICE.toString else nodeType
                   nodeHash.get(nodeid) match {
                     // This node is already in the hash. Only replace it if this is an agreement for the service, because the absence of an agr for this svc isn't useful info
                     case Some(_) => if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") {
-                      /*logger.debug("setting to false");*/ nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgreementYet = false))
+                      /*logger.debug("setting to false");*/ nodeHash.put(nodeid, BusinessPolicySearchHashElement(nt, publicKey, noAgreementYet = false))
                     } // this is no longer a candidate
                     // This node is not yet in the hash. Add it with whatever value it has for agreement - this may be overridden later
                     case None => val noAgr = if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") false else true
-                      nodeHash.put(nodeid, BusinessPolicySearchHashElement(msgEndPoint, publicKey, noAgr)) // this node not in the hash yet, add it
+                      nodeHash.put(nodeid, BusinessPolicySearchHashElement(nt, publicKey, noAgr)) // this node not in the hash yet, add it
                   }
                 }
                 // Convert our hash to the list response of the rest api
                 //val respList = list.map( x => BusinessPolicyNodeResponse(x._1, x._2, x._3)).toList
                 val respList = new ListBuffer[BusinessPolicyNodeResponse]
-                for ((k, v) <- nodeHash) if (v.noAgreementYet) respList += BusinessPolicyNodeResponse(k, v.msgEndPoint, v.publicKey)
+                for ((k, v) <- nodeHash) if (v.noAgreementYet) respList += BusinessPolicyNodeResponse(k, v.nodeType, v.publicKey)
                 val code = if (respList.nonEmpty) HttpCode.POST_OK else HttpCode.NOT_FOUND
                 (code, PostBusinessPolicySearchResponse(respList.toList, 0))
               } else {

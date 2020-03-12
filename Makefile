@@ -157,7 +157,8 @@ gen-key:
 	@echo ""
 	@echo "Keystore created. Mount $(EXCHANGE_HOST_KEYSTORE_DIR) into the exchange container. Copy $(EXCHANGE_HOST_KEYSTORE_DIR)/exchangecert.pem to exchange clients using https."
 
-# Get the latest version of the swagger ui from github and copy the dist dir into our repo
+# Get the latest version of the swagger ui from github and copy the dist dir into our repo in src/main/resources/swagger. That dir
+# is loaded by SwaggerDocService.scala:SwaggerUiService
 sync-swagger-ui:
 	rm -rf /tmp/swagger-ui.backup
 	mkdir -p /tmp/swagger-ui.backup

@@ -229,7 +229,7 @@ class BusinessSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was created and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -287,7 +287,7 @@ class BusinessSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy3 + " was deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -325,7 +325,7 @@ class BusinessSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was updated and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -506,7 +506,7 @@ class BusinessSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was updated and stored via PATCH") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)

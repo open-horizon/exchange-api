@@ -151,12 +151,15 @@ object SchemaTQ {
         sqlu"alter table services add column clusterdeployment character varying not null default ''",
         sqlu"alter table services add column clusterdeploymentsignature character varying not null default ''"
       )
+      case 34 => DBIO.seq(   // v2.14.0
+        sqlu"alter table resourcechanges alter column changeid type bigint"
+      )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 33    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "added nodetype column to nodes table and clusterdeployment, clusterdeploymentsignature to services table"
+  val latestSchemaVersion = 34    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "changeid in resourcechanges table now biging/scala long"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

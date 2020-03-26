@@ -357,7 +357,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + orgid + "/patterns/" + pattern + " result: " + v)
               val publicField = reqBody.public.getOrElse(false)
-              val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", publicField.toString, "pattern", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+              val patternChange = ResourceChangeRow(0L, orgid, pattern, "pattern", publicField.toString, "pattern", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
               patternChange.insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
@@ -462,7 +462,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                 else {
                   publicField = storedPatternPublic
                 }
-                val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", publicField.toString, "pattern", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+                val patternChange = ResourceChangeRow(0L, orgid, pattern, "pattern", publicField.toString, "pattern", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
                 patternChange.insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
@@ -571,7 +571,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                   else {
                     publicField = storedPatternPublic
                   }
-                  val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", publicField.toString, "pattern", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                  val patternChange = ResourceChangeRow(0L, orgid, pattern, "pattern", publicField.toString, "pattern", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
                   patternChange.insert.asTry
                 } else {
                   DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.attribute.not.update", attrName, compositeId))).asTry
@@ -629,7 +629,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               AuthCache.removePatternOwner(compositeId)
               AuthCache.removePatternIsPublic(compositeId)
-              val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", storedPublicField.toString, "pattern", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              val patternChange = ResourceChangeRow(0L, orgid, pattern, "pattern", storedPublicField.toString, "pattern", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
               patternChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
@@ -934,7 +934,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                 logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " public field: " + public)
                 if (public.nonEmpty) {
                   val publicField = public.head
-                  val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", publicField.toString, "patternkeys", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+                  val patternChange = ResourceChangeRow(0L, orgid, pattern, "pattern", publicField.toString, "patternkeys", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
                   patternChange.insert.asTry
                 } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
               case Failure(t) => DBIO.failed(t).asTry
@@ -983,7 +983,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /patterns/" + pattern + "/keys result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", storedPublicField.toString, "patternkeys", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              val patternChange = ResourceChangeRow(0L, orgid, pattern, "pattern", storedPublicField.toString, "patternkeys", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
               patternChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.pattern.keys.found", compositeId))).asTry
@@ -1034,7 +1034,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /patterns/" + pattern + "/keys/" + keyId + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              val patternChange = ResourceChangeRow(0, orgid, pattern, "pattern", storedPublicField.toString, "patternkeys", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              val patternChange = ResourceChangeRow(0L, orgid, pattern, "pattern", storedPublicField.toString, "patternkeys", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
               patternChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.key.not.found", keyId, compositeId))).asTry

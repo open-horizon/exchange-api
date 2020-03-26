@@ -100,20 +100,20 @@ class NodeHealthHashElement(var lastHeartbeat: String, var agreements: Map[Strin
 final case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
 
 /** Case class for request body for ResourceChanges route */
-final case class ResourceChangesRequest(changeId: Int, lastUpdated: Option[String], maxRecords: Int, orgList: Option[List[String]]) {
+final case class ResourceChangesRequest(changeId: Long, lastUpdated: Option[String], maxRecords: Int, orgList: Option[List[String]]) {
   def getAnyProblem: Option[String] = None // None means no problems with input
 }
 
 /** The following classes are to build the response object for the ResourceChanges route */
-final case class ResourceChangesInnerObject(changeId: Int, lastUpdated: String)
+final case class ResourceChangesInnerObject(changeId: Long, lastUpdated: String)
 final case class ChangeEntry(orgId: String, var resource: String, id: String, var operation: String, resourceChanges: ListBuffer[ResourceChangesInnerObject]){
   def addToResourceChanges(innerObject: ResourceChangesInnerObject): ListBuffer[ResourceChangesInnerObject] = { this.resourceChanges += innerObject}
   def setOperation(newOp: String) {this.operation = newOp}
   def setResource(newResource: String) {this.resource = newResource}
 }
-final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, hitMaxRecords: Boolean, exchangeVersion: String)
+final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Long, hitMaxRecords: Boolean, exchangeVersion: String)
 
-final case class MaxChangeIdResponse(maxChangeId: Int)
+final case class MaxChangeIdResponse(maxChangeId: Long)
 
 /** Routes for /orgs */
 @Path("/v1")
@@ -506,7 +506,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  def buildResourceChangesResponse(inputList: scala.Seq[ResourceChangeRow], hitMaxRecords: Boolean, inputChangeId: Int, maxChangeIdOfTable: Int): ResourceChangesRespObject ={
+  def buildResourceChangesResponse(inputList: scala.Seq[ResourceChangeRow], hitMaxRecords: Boolean, inputChangeId: Long, maxChangeIdOfTable: Long): ResourceChangesRespObject ={
     // Sort the rows based on the changeId. Default order is ascending, which is what we want
     logger.info(s"POST /orgs/{orgid}/changes sorting ${inputList.size} rows")
     // val inputList = inputListUnsorted.sortBy(_.changeId)  // Note: we are doing the sorting here instead of in the db via sql, because the latter seems to use a lot of db cpu
@@ -531,7 +531,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of for loop
     // now we have changesMap which is Map[String, ChangeEntry] we need to convert that to a List[ChangeEntry]
     val changesList = changesMap.values.toList
-    var maxChangeId = 0
+    var maxChangeId = 0L
     if (hitMaxRecords) maxChangeId = maxChangeIdInResponse   // we hit the max records, so there are possibly value entries we are not returning, so the client needs to start here next time
     else if (maxChangeIdOfTable > 0) maxChangeId = maxChangeIdOfTable   // we got a valid max change id in the table, and we returned all relevant entries, so the client can start at the end of the table next time
     else maxChangeId = inputChangeId    // we didn't get a valid maxChangeIdInResponse or maxChangeIdOfTable, so just give the client back what they gave us
@@ -570,7 +570,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           val maxRecords = if (reqBody.maxRecords > maxRecordsCap) maxRecordsCap else reqBody.maxRecords
           // Create a query to get the last changeid currently in the table
           val qMaxChangeId = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
-          var maxChangeId = 0
+          var maxChangeId = 0L
           val orgSet : Set[String] = reqBody.orgList.getOrElse(List("")).toSet
           // Create query to get the rows relevant to this client. We only support either changeId or lastUpdated being specified, but not both
           var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBody.lastUpdated.get) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)

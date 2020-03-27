@@ -9,6 +9,7 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import com.horizon.exchangeapi.auth.DBProcessingError
 
 import scala.concurrent.ExecutionContext
 
@@ -280,9 +281,16 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TOrg(""), Access.CREATE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          db.run(reqBody.toOrgRow(orgId).insert.asTry).map({
+          db.run(reqBody.toOrgRow(orgId).insert.asTry.flatMap({
             case Success(n) =>
+              // Add the resource to the resourcechanges table
               logger.debug(s"POST /orgs/$orgId result: $n")
+              val orgChange = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
+              orgChange.insert.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(n) =>
+              logger.debug(s"POST /orgs/$orgId put in changes table: $n")
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.created", orgId)))
             case Failure(t) =>
               if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", orgId, t.getMessage)))
@@ -314,11 +322,23 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TOrg(orgId), access) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          db.run(reqBody.toOrgRow(orgId).update.asTry).map({
+          db.run(reqBody.toOrgRow(orgId).update.asTry.flatMap({
             case Success(n) =>
+              // Add the resource to the resourcechanges table
               logger.debug(s"PUT /orgs/$orgId result: $n")
-              if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.updated")))
-              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+              if (n.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
+                val orgChange = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
+                orgChange.insert.asTry
+              } else {
+                DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId))).asTry
+              }
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(n) =>
+              logger.debug(s"PUT /orgs/$orgId updated in changes table: $n")
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.updated")))
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
           })
@@ -349,11 +369,23 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         complete({
           val (action, attrName) = reqBody.getDbUpdate(orgId)
           if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.org.attr.specified")))
-          else db.run(action.transactionally.asTry).map({
+          else db.run(action.transactionally.asTry.flatMap({
             case Success(n) =>
+              // Add the resource to the resourcechanges table
               logger.debug(s"PATCH /orgs/$orgId result: $n")
-              if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", attrName, orgId)))
-              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+              if (n.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
+                val orgChange = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
+                orgChange.insert.asTry
+              } else {
+                DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId))).asTry
+              }
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(n) =>
+              logger.debug(s"PATCH /orgs/$orgId updated in changes table: $n")
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", attrName, orgId)))
+            case Failure(t: DBProcessingError) =>
+              t.toComplete
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
           })
@@ -573,8 +605,9 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           val maxRecords = if (reqBody.maxRecords > maxRecordsCap) maxRecordsCap else reqBody.maxRecords
           // Create a query to get the last changeid currently in the table
           val qMaxChangeId = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
+          val orgList : List[String] = if (reqBody.orgList.isDefined && reqBody.orgList.contains(orgId)) reqBody.orgList.getOrElse(List("")) else reqBody.orgList.getOrElse(List("")) ++ List(orgId)
+          val orgSet : Set[String] = orgList.toSet
           var maxChangeId = 0L
-          val orgSet : Set[String] = reqBody.orgList.getOrElse(List("")).toSet
           val reqBodyTime : java.sql.Timestamp = java.sql.Timestamp.from(ZonedDateTime.parse(reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)).toInstant)
           // Create query to get the rows relevant to this client. We only support either changeId or lastUpdated being specified, but not both
           var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBodyTime) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)

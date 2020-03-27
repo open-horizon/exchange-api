@@ -1087,6 +1087,7 @@ class AgbotsSuite extends AnyFunSuite {
       parsedBody = parse(response.body).extract[ResourceChangesRespObject]
       assert(parsedBody.changes.exists(y => {y.orgId == orgid}))
       assert(parsedBody.changes.exists(y => {y.orgId == "IBM"}))
+      assert(parsedBody.changes.exists(y => {y.orgId == orgid && y.id == orgid && y.operation == ResourceChangeConfig.CREATED}))
 
       input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List(orgid)))
       response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
@@ -1096,7 +1097,7 @@ class AgbotsSuite extends AnyFunSuite {
       assert(!response.body.isEmpty)
       parsedBody = parse(response.body).extract[ResourceChangesRespObject]
       assert(parsedBody.changes.exists(y => {y.orgId == orgid}))
-      assert(!parsedBody.changes.exists(y => {y.orgId == "IBM"}))
+      assert(parsedBody.changes.exists(y => {y.orgId == "IBM"}))
 
       input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List("IBM")))
       response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString

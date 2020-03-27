@@ -86,7 +86,7 @@ object OrgsTQ {
 final case class Org(orgType: String, label: String, description: String, lastUpdated: String, tags: Option[Map[String, String]], heartbeatIntervals: NodeHeartbeatIntervals)
 
 /** Contains the object representations of the DB tables related to resource changes. */
-final case class ResourceChangeRow(changeId: Long, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String) {
+final case class ResourceChangeRow(changeId: Long, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: java.sql.Timestamp) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toResourceChange: ResourceChange = ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)
@@ -110,13 +110,14 @@ class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcec
   def public = column[String]("public")
   def resource = column[String]("resource")
   def operation = column[String]("operation")
-  def lastUpdated = column[String]("lastupdated")
+  def lastUpdated = column[java.sql.Timestamp]("lastupdated")
   // this describes what you get back when you return rows from a query
   def * = (changeId, orgId, id, category, public, resource, operation, lastUpdated) <> (ResourceChangeRow.tupled, ResourceChangeRow.unapply)
   def orgIndex = index("org_index", orgId)
   def idIndex = index("id_index", id)
   def catIndex = index("cat_index", category)
   def pubIndex = index("pub_index", public)
+  def luIndex = index("lu_index", lastUpdated)
   def orgidKey = foreignKey("orgid_fk", orgId, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 
 }
@@ -133,7 +134,7 @@ object ResourceChangesTQ {
   def getResource(changeid: Long) = rows.filter(_.changeId === changeid).map(_.resource)
   def getOperation(changeid: Long) = rows.filter(_.changeId === changeid).map(_.operation)
   def getLastUpdated(changeid: Long) = rows.filter(_.changeId === changeid).map(_.lastUpdated)
-  def getRowsExpired(timeExpired: String) = rows.filter(_.lastUpdated < timeExpired)
+  def getRowsExpired(timeExpired: java.sql.Timestamp) = rows.filter(_.lastUpdated < timeExpired)
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(changeid: Long, attrName: String): Query[_,_,Seq] = {
@@ -153,4 +154,4 @@ object ResourceChangesTQ {
   }
 }
 
-final case class ResourceChange(changeId: Long, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String)
+final case class ResourceChange(changeId: Long, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: java.sql.Timestamp)

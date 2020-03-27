@@ -1,12 +1,15 @@
 /** Services routes for all of the /orgs api methods. */
 package com.horizon.exchangeapi
 
+import java.time.ZonedDateTime
+
 import javax.ws.rs._
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+
 import scala.concurrent.ExecutionContext
 
 // Not using the built-in spray json
@@ -518,7 +521,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
     // fill in changesMap
     for (entry <- inputList) { // looping through every single ResourceChangeRow in inputList, given that we apply `.take(maxRecords)` in the query, this should never be over maxRecords, so no more need to break
-      val resChange = ResourceChangesInnerObject(entry.changeId, entry.lastUpdated)
+      val resChange = ResourceChangesInnerObject(entry.changeId, ApiTime.fixFormatting(entry.lastUpdated.toString))
       changesMap.get(entry.orgId+"_"+entry.id+"_"+entry.resource) match { // using the map allows for better searching and entry
         case Some(change) =>
           // inputList is already sorted by changeId from the query so we know this change happened later
@@ -572,8 +575,9 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           val qMaxChangeId = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
           var maxChangeId = 0L
           val orgSet : Set[String] = reqBody.orgList.getOrElse(List("")).toSet
+          val reqBodyTime : java.sql.Timestamp = java.sql.Timestamp.from(ZonedDateTime.parse(reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)).toInstant)
           // Create query to get the rows relevant to this client. We only support either changeId or lastUpdated being specified, but not both
-          var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBody.lastUpdated.get) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)
+          var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBodyTime) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)
 
           ident match {
             case _: INode =>
@@ -619,7 +623,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(n) =>
               logger.debug(s"POST /orgs/$orgId/changes node/agbot heartbeat result: $n")
               if (n > 0) {
-                val hitMaxRecords = (qResp.size == maxRecords) // if they are equal then we hit maxRecords
+                val hitMaxRecords = (qResp.size >= maxRecords) // if they are equal then we hit maxRecords
                 if(qResp.nonEmpty) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, hitMaxRecords, reqBody.changeId, maxChangeId))
                 else (HttpCode.POST_OK, ResourceChangesRespObject(List[ChangeEntry](), maxChangeId, hitMaxRecords = false, ExchangeApi.adminVersion()))
               }

@@ -32,7 +32,8 @@
 		},
 		"resourceChanges": {
 			"ttl": 604800,    // number of seconds to keep the history records of resource changes - 604800 is 1 week
-			"maxRecordsCap": 10000 // maximum number of records the notification framework route will return
+			"maxRecordsCap": 10000, // maximum number of records the notification framework route will return
+			"cleanupInterval": 86400	 // number of seconds between pruning the resourcechanges table in the db of expired changes - 86400 is 24 hours
 		},
 		"db": {
 			"driverClass": "org.postgresql.Driver",

@@ -315,7 +315,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + " result: " + v)
-              val policyChange = ResourceChangeRow(0, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+              val policyChange = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
               policyChange.insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
@@ -384,7 +384,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               if (numUpdated > 0) {
                 if (owner != "") AuthCache.putBusinessOwner(compositeId, owner) // currently only users are allowed to update business policy resources, so owner should never be blank
                 AuthCache.putBusinessIsPublic(compositeId, isPublic = false)
-                val policyChange = ResourceChangeRow(0, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+                val policyChange = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
                 policyChange.insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
@@ -457,7 +457,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                 logger.debug("PATCH /orgs/" + orgid + "/business/policies/" + policy + " result: " + n)
                 val numUpdated = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
                 if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-                  val policyChange = ResourceChangeRow(0, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                  val policyChange = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
                   policyChange.insert.asTry
                 } else {
                   DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
@@ -502,7 +502,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               AuthCache.removeBusinessOwner(compositeId)
               AuthCache.removeBusinessIsPublic(compositeId)
-              val policyChange = ResourceChangeRow(0, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.DELETED, ApiTime.nowUTC)
+              val policyChange = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               policyChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry

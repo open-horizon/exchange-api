@@ -7,26 +7,25 @@
 package com.horizon.exchangeapi
 
 import akka.Done
-import akka.actor.CoordinatedShutdown
+import akka.actor.{Actor, ActorSystem, Cancellable, CoordinatedShutdown, Props}
 import akka.event.{Logging, LoggingAdapter}
 
 import scala.util.matching.Regex
 import akka.http.scaladsl.server.RouteResult.Rejected
-import akka.http.scaladsl.server.directives.{ DebuggingDirectives, LogEntry }
+import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry}
 import com.mchange.v2.c3p0.ComboPooledDataSource
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.{ Await, ExecutionContext, Future }
-import scala.util.{ Failure, Success }
-
-import akka.actor.ActorSystem
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.util.{Failure, Success}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
-
+import com.horizon.exchangeapi.tables.ResourceChangesTQ
 import org.json4s._
+
 import scala.io.Source
 import scala.concurrent.duration._
 
@@ -228,6 +227,32 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   // Initialize authentication cache from objects in the db
   AuthCache.initAllCaches(db, includingIbmAuth = true)
 
+  /** Task for trimming `resourcechanges` table */
+  def trimResourceChanges(): Unit ={
+    // Get the time for trimming rows from the table
+    val timeExpires = ApiTime.pastUTCTimestamp(ExchConfig.getInt("api.resourceChanges.ttl"))
+    db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.asTry).map({
+      case Success(v) =>
+        if (v <= 0) logger.debug("nothing to delete")
+        else logger.info("resourcechanges table trimmed, number of rows deleted: " + v.toString)
+      case Failure(_) => logger.error("ERROR: could not trim resourcechanges table")
+    })
+  }
+
+  /** Variables and Akka Actor for trimming `resourcechanges` table */
+  val Cleanup = "cleanup"
+  class ChangesCleanupActor extends Actor {
+    def receive = {
+      case Cleanup => trimResourceChanges()
+      case _ => logger.debug("invalid case sent to ChangesCleanupActor")
+    }
+  }
+  val changesCleanupActor = system.actorOf(Props(classOf[ChangesCleanupActor]))
+  var changesCleanup : Cancellable = _
+  val cleanupInterval = ExchConfig.getInt("api.resourceChanges.cleanupInterval")
+  logger.info("Resource changes cleanup Interval: " + cleanupInterval.toString)
+
+
   // Start serving client requests
   val serverBinding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, ExchangeApi.serviceHost, ExchangeApi.servicePort)
 
@@ -238,6 +263,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "http_shutdown") { () =>
     serverBinding.flatMap({ s =>
       println(s"Exchange server unbound, waiting up to $secondsToWait seconds for in-flight requests to complete...")
+      changesCleanup.cancel()   // This cancels further Cleanups to be sent
       s.terminate(hardDeadline = secondsToWait.seconds)
     }).map { _ =>
       println("Exchange server exiting.")
@@ -249,6 +275,8 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   serverBinding.onComplete {
     case Success(bound) =>
       println(s"Server online at http://${bound.localAddress.getHostString}:${bound.localAddress.getPort}/")
+      //This will schedule to send the Cleanup-message
+      changesCleanup = system.scheduler.schedule(cleanupInterval.seconds, cleanupInterval.seconds, changesCleanupActor, Cleanup)
     case Failure(e) =>
       Console.err.println(s"Server could not start!")
       e.printStackTrace()

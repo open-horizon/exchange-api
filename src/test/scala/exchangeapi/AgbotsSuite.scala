@@ -165,7 +165,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " was created and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -176,7 +176,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " can call notification framework") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List(orgid)))
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List(orgid)))
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -294,7 +294,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " was updated and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -461,7 +461,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " patterns was added and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -533,7 +533,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " patterns was deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -566,7 +566,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " all patterns were deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -603,7 +603,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " businesspols was added and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -674,7 +674,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " businesspols was deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -701,7 +701,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " all businesspols were deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -770,7 +770,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " agreement was added and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -908,7 +908,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " agreement was deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -935,7 +935,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " all agreements were deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -993,7 +993,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " does not get wildcard case") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List("*")))
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List("*")))
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1017,7 +1017,7 @@ class AgbotsSuite extends AnyFunSuite {
       // Now post to /changes and make sure the size is respected even though maxRecords sent in is much higher
       // NOTE maxRecords the variable must be larger than newMaxRecords
       val time = ApiTime.pastUTC(secondsAgo)
-      val input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List(orgid)))
+      val input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List(orgid)))
       response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
       info("code: "+response.code)
       assert(response.code === HttpCode.POST_OK.intValue)
@@ -1050,7 +1050,7 @@ class AgbotsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " was deleted and stored") {
     val time = ApiTime.pastUTC(60)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1068,7 +1068,7 @@ class AgbotsSuite extends AnyFunSuite {
 
       // Notification Framework Tests
       val time = ApiTime.pastUTC(secondsAgo)
-      var input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List("*")))
+      var input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List("*")))
       var response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info(urlRoot+"/v1/orgs/IBM/changes -- wildcard splat")
       info("code: "+response.code)
@@ -1078,7 +1078,7 @@ class AgbotsSuite extends AnyFunSuite {
       assert(parsedBody.changes.exists(y => {y.orgId == orgid}))
       assert(parsedBody.changes.exists(y => {y.orgId == "IBM"}))
 
-      input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List("")))
+      input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List("")))
       response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info(urlRoot+"/v1/orgs/IBM/changes -- wildcard empty string")
       info("code: "+response.code)
@@ -1089,7 +1089,7 @@ class AgbotsSuite extends AnyFunSuite {
       assert(parsedBody.changes.exists(y => {y.orgId == "IBM"}))
       assert(parsedBody.changes.exists(y => {y.orgId == orgid && y.id == orgid && y.operation == ResourceChangeConfig.CREATED}))
 
-      input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List(orgid)))
+      input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List(orgid)))
       response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info(urlRoot+"/v1/orgs/IBM/changes -- orgList: ["+orgid+"]")
       info("code: "+response.code)
@@ -1099,7 +1099,7 @@ class AgbotsSuite extends AnyFunSuite {
       assert(parsedBody.changes.exists(y => {y.orgId == orgid}))
       assert(parsedBody.changes.exists(y => {y.orgId == "IBM"}))
 
-      input = ResourceChangesRequest(0, Some(time), maxRecords, Some(List("IBM")))
+      input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List("IBM")))
       response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info(urlRoot+"/v1/orgs/IBM/changes -- orgList: [\"IBM\"]")
       info("code: "+response.code)

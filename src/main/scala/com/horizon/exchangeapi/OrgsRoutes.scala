@@ -1,6 +1,8 @@
 /** Services routes for all of the /orgs api methods. */
 package com.horizon.exchangeapi
 
+import java.time.ZonedDateTime
+
 import javax.ws.rs._
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
@@ -102,20 +104,20 @@ class NodeHealthHashElement(var lastHeartbeat: String, var agreements: Map[Strin
 final case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
 
 /** Case class for request body for ResourceChanges route */
-final case class ResourceChangesRequest(changeId: Int, lastUpdated: Option[String], maxRecords: Int, orgList: Option[List[String]]) {
+final case class ResourceChangesRequest(changeId: Long, lastUpdated: Option[String], maxRecords: Int, orgList: Option[List[String]]) {
   def getAnyProblem: Option[String] = None // None means no problems with input
 }
 
 /** The following classes are to build the response object for the ResourceChanges route */
-final case class ResourceChangesInnerObject(changeId: Int, lastUpdated: String)
+final case class ResourceChangesInnerObject(changeId: Long, lastUpdated: String)
 final case class ChangeEntry(orgId: String, var resource: String, id: String, var operation: String, resourceChanges: ListBuffer[ResourceChangesInnerObject]){
   def addToResourceChanges(innerObject: ResourceChangesInnerObject): ListBuffer[ResourceChangesInnerObject] = { this.resourceChanges += innerObject}
   def setOperation(newOp: String) {this.operation = newOp}
   def setResource(newResource: String) {this.resource = newResource}
 }
-final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Int, hitMaxRecords: Boolean, exchangeVersion: String)
+final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Long, hitMaxRecords: Boolean, exchangeVersion: String)
 
-final case class MaxChangeIdResponse(maxChangeId: Int)
+final case class MaxChangeIdResponse(maxChangeId: Long)
 
 /** Routes for /orgs */
 @Path("/v1")
@@ -283,7 +285,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(n) =>
               // Add the resource to the resourcechanges table
               logger.debug(s"POST /orgs/$orgId result: $n")
-              val orgChange = ResourceChangeRow(0, orgId, orgId, "org", "false", "org", ResourceChangeConfig.CREATED, ApiTime.nowUTC)
+              val orgChange = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
               orgChange.insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
@@ -325,7 +327,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               // Add the resource to the resourcechanges table
               logger.debug(s"PUT /orgs/$orgId result: $n")
               if (n.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
-                val orgChange = ResourceChangeRow(0, orgId, orgId, "org", "false", "org", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTC)
+                val orgChange = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
                 orgChange.insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId))).asTry
@@ -372,7 +374,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               // Add the resource to the resourcechanges table
               logger.debug(s"PATCH /orgs/$orgId result: $n")
               if (n.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
-                val orgChange = ResourceChangeRow(0, orgId, orgId, "org", "false", "org", ResourceChangeConfig.MODIFIED, ApiTime.nowUTC)
+                val orgChange = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
                 orgChange.insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId))).asTry
@@ -539,7 +541,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  def buildResourceChangesResponse(inputList: scala.Seq[ResourceChangeRow], hitMaxRecords: Boolean, inputChangeId: Int, maxChangeIdOfTable: Int): ResourceChangesRespObject ={
+  def buildResourceChangesResponse(inputList: scala.Seq[ResourceChangeRow], hitMaxRecords: Boolean, inputChangeId: Long, maxChangeIdOfTable: Long): ResourceChangesRespObject ={
     // Sort the rows based on the changeId. Default order is ascending, which is what we want
     logger.info(s"POST /orgs/{orgid}/changes sorting ${inputList.size} rows")
     // val inputList = inputListUnsorted.sortBy(_.changeId)  // Note: we are doing the sorting here instead of in the db via sql, because the latter seems to use a lot of db cpu
@@ -551,7 +553,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     val changesMap = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
     // fill in changesMap
     for (entry <- inputList) { // looping through every single ResourceChangeRow in inputList, given that we apply `.take(maxRecords)` in the query, this should never be over maxRecords, so no more need to break
-      val resChange = ResourceChangesInnerObject(entry.changeId, entry.lastUpdated)
+      val resChange = ResourceChangesInnerObject(entry.changeId, ApiTime.fixFormatting(entry.lastUpdated.toString))
       changesMap.get(entry.orgId+"_"+entry.id+"_"+entry.resource) match { // using the map allows for better searching and entry
         case Some(change) =>
           // inputList is already sorted by changeId from the query so we know this change happened later
@@ -564,7 +566,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of for loop
     // now we have changesMap which is Map[String, ChangeEntry] we need to convert that to a List[ChangeEntry]
     val changesList = changesMap.values.toList
-    var maxChangeId = 0
+    var maxChangeId = 0L
     if (hitMaxRecords) maxChangeId = maxChangeIdInResponse   // we hit the max records, so there are possibly value entries we are not returning, so the client needs to start here next time
     else if (maxChangeIdOfTable > 0) maxChangeId = maxChangeIdOfTable   // we got a valid max change id in the table, and we returned all relevant entries, so the client can start at the end of the table next time
     else maxChangeId = inputChangeId    // we didn't get a valid maxChangeIdInResponse or maxChangeIdOfTable, so just give the client back what they gave us
@@ -603,11 +605,12 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           val maxRecords = if (reqBody.maxRecords > maxRecordsCap) maxRecordsCap else reqBody.maxRecords
           // Create a query to get the last changeid currently in the table
           val qMaxChangeId = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
-          var maxChangeId = 0
           val orgList : List[String] = if (reqBody.orgList.isDefined && reqBody.orgList.contains(orgId)) reqBody.orgList.getOrElse(List("")) else reqBody.orgList.getOrElse(List("")) ++ List(orgId)
           val orgSet : Set[String] = orgList.toSet
+          var maxChangeId = 0L
+          val reqBodyTime : java.sql.Timestamp = java.sql.Timestamp.from(ZonedDateTime.parse(reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)).toInstant)
           // Create query to get the rows relevant to this client. We only support either changeId or lastUpdated being specified, but not both
-          var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBody.lastUpdated.get) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)
+          var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBodyTime) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)
 
           ident match {
             case _: INode =>
@@ -653,7 +656,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(n) =>
               logger.debug(s"POST /orgs/$orgId/changes node/agbot heartbeat result: $n")
               if (n > 0) {
-                val hitMaxRecords = (qResp.size == maxRecords) // if they are equal then we hit maxRecords
+                val hitMaxRecords = (qResp.size >= maxRecords) // if they are equal then we hit maxRecords
                 if(qResp.nonEmpty) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, hitMaxRecords, reqBody.changeId, maxChangeId))
                 else (HttpCode.POST_OK, ResourceChangesRespObject(List[ChangeEntry](), maxChangeId, hitMaxRecords = false, ExchangeApi.adminVersion()))
               }

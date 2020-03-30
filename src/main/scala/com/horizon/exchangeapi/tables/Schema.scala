@@ -151,7 +151,7 @@ object SchemaTQ {
         sqlu"alter table services add column clusterdeployment character varying not null default ''",
         sqlu"alter table services add column clusterdeploymentsignature character varying not null default ''"
       )
-      case 34 => DBIO.seq(   // v2.14.0
+      case 34 => DBIO.seq(   // v2.17.0
         sqlu"alter table resourcechanges alter column changeid type bigint",
         sqlu"alter table resourcechanges add column temp timestamptz",
         sqlu"update resourcechanges set temp = to_timestamp(lastupdated, 'YYYY-MM-DD THH24:MI:SS.MS')::timestamp with time zone at time zone 'Etc/UTC'",
@@ -159,12 +159,15 @@ object SchemaTQ {
         sqlu"alter table resourcechanges rename column temp to lastupdated",
         sqlu"create index lu_index on resourcechanges (lastupdated)"
       )
+      case 35 => DBIO.seq(   // v2.18.0
+        sqlu"alter table agbotmsgs drop constraint node_fk"
+      )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 34    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "changeid in resourcechanges table now biging/scala long, changed lastupdated column to timestamptz, and added index"
+  val latestSchemaVersion = 35    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "remove node foreign key constraint in agbotmsgs table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

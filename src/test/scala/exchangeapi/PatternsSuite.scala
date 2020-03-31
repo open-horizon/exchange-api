@@ -357,7 +357,7 @@ class PatternsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + " was created and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -466,7 +466,7 @@ class PatternsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + " was updated and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -766,7 +766,7 @@ class PatternsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + " was updated via PATCH and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1272,7 +1272,7 @@ class PatternsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + "key was created and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1315,7 +1315,7 @@ class PatternsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + "key was deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1354,7 +1354,7 @@ class PatternsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + "all keys were deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1372,7 +1372,7 @@ class PatternsSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + "was deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
-    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)

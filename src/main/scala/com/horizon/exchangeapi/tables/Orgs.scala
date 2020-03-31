@@ -86,7 +86,7 @@ object OrgsTQ {
 final case class Org(orgType: String, label: String, description: String, lastUpdated: String, tags: Option[Map[String, String]], heartbeatIntervals: NodeHeartbeatIntervals)
 
 /** Contains the object representations of the DB tables related to resource changes. */
-final case class ResourceChangeRow(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String) {
+final case class ResourceChangeRow(changeId: Long, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: java.sql.Timestamp) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toResourceChange: ResourceChange = ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)
@@ -103,20 +103,21 @@ final case class ResourceChangeRow(changeId: Int, orgId: String, id: String, cat
 
 /** Mapping of the orgs db table to a scala class */
 class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcechanges") {
-  def changeId = column[Int]("changeid", O.PrimaryKey, O.AutoInc)
+  def changeId = column[Long]("changeid", O.PrimaryKey, O.AutoInc)
   def orgId = column[String]("orgid")
   def id = column[String]("id")
   def category = column[String]("category")
   def public = column[String]("public")
   def resource = column[String]("resource")
   def operation = column[String]("operation")
-  def lastUpdated = column[String]("lastupdated")
+  def lastUpdated = column[java.sql.Timestamp]("lastupdated")
   // this describes what you get back when you return rows from a query
   def * = (changeId, orgId, id, category, public, resource, operation, lastUpdated) <> (ResourceChangeRow.tupled, ResourceChangeRow.unapply)
   def orgIndex = index("org_index", orgId)
   def idIndex = index("id_index", id)
   def catIndex = index("cat_index", category)
   def pubIndex = index("pub_index", public)
+  def luIndex = index("lu_index", lastUpdated)
   def orgidKey = foreignKey("orgid_fk", orgId, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 
 }
@@ -125,18 +126,18 @@ class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcec
 object ResourceChangesTQ {
   val rows = TableQuery[ResourceChanges]
 
-  def getChangeId(changeid: Int) = rows.filter(_.changeId === changeid).map(_.changeId)
-  def getOrgid(changeid: Int) = rows.filter(_.changeId === changeid).map(_.orgId)
-  def getId(changeid: Int) = rows.filter(_.changeId === changeid).map(_.id)
-  def getCategory(changeid: Int) = rows.filter(_.changeId === changeid).map(_.category)
-  def getPublic(changeid: Int) = rows.filter(_.changeId === changeid).map(_.public)
-  def getResource(changeid: Int) = rows.filter(_.changeId === changeid).map(_.resource)
-  def getOperation(changeid: Int) = rows.filter(_.changeId === changeid).map(_.operation)
-  def getLastUpdated(changeid: Int) = rows.filter(_.changeId === changeid).map(_.lastUpdated)
-  def getRowsExpired(timeExpired: String) = rows.filter(_.lastUpdated < timeExpired)
+  def getChangeId(changeid: Long) = rows.filter(_.changeId === changeid).map(_.changeId)
+  def getOrgid(changeid: Long) = rows.filter(_.changeId === changeid).map(_.orgId)
+  def getId(changeid: Long) = rows.filter(_.changeId === changeid).map(_.id)
+  def getCategory(changeid: Long) = rows.filter(_.changeId === changeid).map(_.category)
+  def getPublic(changeid: Long) = rows.filter(_.changeId === changeid).map(_.public)
+  def getResource(changeid: Long) = rows.filter(_.changeId === changeid).map(_.resource)
+  def getOperation(changeid: Long) = rows.filter(_.changeId === changeid).map(_.operation)
+  def getLastUpdated(changeid: Long) = rows.filter(_.changeId === changeid).map(_.lastUpdated)
+  def getRowsExpired(timeExpired: java.sql.Timestamp) = rows.filter(_.lastUpdated < timeExpired)
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
-  def getAttribute(changeid: Int, attrName: String): Query[_,_,Seq] = {
+  def getAttribute(changeid: Long, attrName: String): Query[_,_,Seq] = {
     val filter = rows.filter(_.changeId === changeid)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
     return attrName match {
@@ -153,4 +154,4 @@ object ResourceChangesTQ {
   }
 }
 
-final case class ResourceChange(changeId: Int, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: String)
+final case class ResourceChange(changeId: Long, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: java.sql.Timestamp)

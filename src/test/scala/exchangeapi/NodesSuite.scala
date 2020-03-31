@@ -68,6 +68,7 @@ class NodesSuite extends AnyFunSuite {
   val NODE2AUTH = ("Authorization","Basic "+ApiUtils.encode(orgnodeId2+":"+nodeToken2))
   val nodeId3 = "n3"
   val orgnodeId3 = authpref+nodeId3
+  val NODE3AUTH = ("Authorization","Basic "+ApiUtils.encode(orgnodeId3+":"+nodeToken))
   val nodeId4 = "n4"
   val orgnodeId4 = authpref+nodeId4
   val nodeId5 = "n5"      // not ever successfully created
@@ -75,6 +76,8 @@ class NodesSuite extends AnyFunSuite {
   val nodeId6 = "n6"
   val orgnodeId6 = authpref+nodeId6
   val nodeId7 = "n7"
+  val orgnodeId7 = authpref+nodeId7
+  val NODE7AUTH = ("Authorization","Basic "+ApiUtils.encode(orgnodeId7+":"+nodeToken))
   val nodePubKey = "NODEABC"
   val patid = "p1"
   val businessPolicySdr = "mybuspolsdr"
@@ -2383,6 +2386,58 @@ class NodesSuite extends AnyFunSuite {
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
     }
+  }
+
+  // Test for agbot msgs not being deleted when node is
+  // add n7
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId7+" - normal - update as user") {
+    patchNodePublicKey(nodeId7, "")   // 1st blank the publicKey so we are allowed to set the pattern
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId7+"-normal-user", None, compositePatid,
+      Some(List(
+        RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId7+" pws}",List(
+          Prop("arch","arm","string","in"),
+          Prop("version","1.0.0","version","in"),
+          Prop("agreementProtocols",agProto,"list","in"),
+          Prop("dataVerification","true","boolean","="))),
+        RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId7+" netspeed}",List(
+          Prop("arch","arm","string","in"),
+          Prop("cpus","2","int",">="),
+          Prop("version","1.0.0","version","in")))
+      )),
+      Some(List( OneUserInputService(orgid, SDRSPEC_URL, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      None, Some(Map("horizon"->"3.2.3")), nodePubKey, None, None)
+    val response = Http(URL+"/nodes/"+nodeId7).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  // send a message from n7 to agbot1
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs from n7 to agbot1") {
+    val input = PostAgbotsMsgsRequest("{msg from n7 to agbot1}", 300)
+    val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODE7AUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    val resp = parse(response.body).extract[ApiResponse]
+    assert(resp.code === ApiRespType.OK)
+  }
+
+  // delete n7
+  test("DELETE /orgs/"+orgid+"/nodes/"+nodeId7) {
+    val response = Http(URL+"/nodes/"+nodeId7).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
+  }
+
+  // verify agbot1 can still grab that message
+  test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/msgs -- test "+agbotId+" can still grab messages from "+nodeId7+" after deletion") {
+    val response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val resp = parse(response.body).extract[GetAgbotMsgsResponse]
+    var msg = resp.messages.find(m => m.message=="{msg from n7 to agbot1}").orNull
+    assert(msg !== null)
+    assert(msg.nodeId === orgnodeId7)
+    assert(msg.nodePubKey === nodePubKey)
   }
 
   // ~~~~~ POST /orgs/{orgid}/search/nodes/service tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

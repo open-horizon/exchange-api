@@ -224,6 +224,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.18.0
+
+- Issue 333: AgbotMsgs should not be deleted when nodes are deleted, removed node foreign key in `AgbotMsgs`
+
 ## Changes in 2.17.0
 
 - Issue 295: Notification Framework performance updates

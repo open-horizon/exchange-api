@@ -1,4 +1,5 @@
 # Created/used by sbt
+/bin/
 project/project/
 target/
 .lib/

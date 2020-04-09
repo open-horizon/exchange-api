@@ -1,13 +1,17 @@
 package exchangeapi
 
+import scala.util.matching.Regex
+
 import org.json4s.DefaultFormats
 //import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.jvalue2extractable
 import org.json4s.native.Serialization.write
 import org.json4s.string2JsonInput
+import org.junit.runner.RunWith
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatestplus.junit.JUnitRunner
 
 import com.horizon.exchangeapi.AdminHashpwRequest
 import com.horizon.exchangeapi.AdminHashpwResponse
@@ -40,6 +44,7 @@ import scalaj.http.Http
  *
  * clear and detailed tutorial of FunSuite: http://doc.scalatest.org/1.9.1/index.html#org.scalatest.FunSuite
  */
+@RunWith(classOf[JUnitRunner])
 class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   private val ACCEPT              = ("Accept", "application/json")
@@ -80,7 +85,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
       Http(URL + "/orgs/" + org + "/agbots/" + AGBOT).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       Http(URL + "/orgs/" + org + "/nodes/" + NODE).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       Http(URL + "/orgs/" + org + "/patterns/" + PATTERN).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-      Http(URL + "/orgs/" + org + "/services/" + "localhost:8080-v1-orgs-" + org + "-services-" + SERVICE + "_0.0.1_test-arch").method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      Http(URL + "/orgs/" + org + "/services/" + ("/".r.replaceAllIn(("""(http[sS]{0,1}://(www.){0,1}){0,1}""".r.replaceFirstIn(URL, "")), "-")) + "-orgs-" + org + "-services-" + SERVICE + "_0.0.1_test-arch").method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     }
     
     Http(URL + "/orgs/" + ORGS(0)).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString

@@ -11,3 +11,5 @@ addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.5.1")
 
 // To see the current versions being used, uncomment this line, then run:  sbt dependencyTree
 //addSbtPlugin("net.virtual-void" % "sbt-dependencpwdy-graph" % "0.8.0")
+
+addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "5.2.4")

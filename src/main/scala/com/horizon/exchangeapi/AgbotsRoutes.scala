@@ -273,6 +273,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.added.updated")))
             case Failure(t: DBProcessingError) =>
               t.toComplete
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
           })
@@ -323,6 +325,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.attribute.updated", attrName, compositeId)))
             case Failure(t: DBProcessingError) =>
               t.toComplete
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", compositeId, t.toString)))
           })
@@ -366,6 +370,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("agbot.not.deleted", compositeId, t.toString)))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.deleted", compositeId, t.toString)))
         })
@@ -399,7 +405,10 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             } else {
               (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", compositeId)))
             }
-          case Failure(t) => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.updated", compositeId, t.toString)))
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("agbot.not.updated", compositeId, t.toString)))
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.updated", compositeId, t.toString)))
         })
       }) // end of complete
     } // end of exchAuth
@@ -496,7 +505,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
               logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/patterns pattern validation: " + num)
               if (num > 0 || reqBody.pattern == "*") reqBody.toAgbotPatternRow(compositeId, patId).insert.asTry
               else DBIO.failed(new Throwable(ExchMsg.translate("pattern.not.in.exchange"))).asTry
-            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+            case Failure(t) => DBIO.failed(t).asTry
           }).flatMap({
             case Success(v) =>
               // Add the resource to the resourcechanges table
@@ -508,9 +517,12 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/patterns updated in changes table: " + v)
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.added", patId)))
-            case Failure(t) =>
+            case Failure(t: org.postgresql.util.PSQLException) =>
               if (t.getMessage.contains("duplicate key")) (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("pattern.foragbot.already.exists", patId, compositeId)))
               else if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.not.inserted", patId, compositeId, t.getMessage)))
+              else (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("pattern.not.inserted", patId, compositeId, t.getMessage)))
+            case Failure(t) =>
+              if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.not.inserted", patId, compositeId, t.getMessage)))
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.inserted", patId, compositeId, t.getMessage)))
           })
         }) // end of complete
@@ -552,6 +564,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("patterns.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("patterns.not.deleted", compositeId, t.toString)))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("patterns.not.deleted", compositeId, t.toString)))
         })
@@ -593,6 +607,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.pattern.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("pattern.not.deleted", patId, compositeId, t.toString)))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.not.deleted", patId, compositeId, t.toString)))
         })
@@ -691,7 +707,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
               logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/businesspols business policy validation: " + num)
               if (num > 0 || reqBody.businessPol == "*") reqBody.toAgbotBusinessPolRow(compositeId, patId).insert.asTry
               else DBIO.failed(new Throwable(ExchMsg.translate("buspol.not.in.exchange"))).asTry
-            case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
+            case Failure(t) => DBIO.failed(t).asTry
           }).flatMap({
             case Success(v) =>
               // Add the resource to the resourcechanges table
@@ -703,9 +719,12 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/businesspols updated in changes table: " + v)
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.added", patId)))
-            case Failure(t) =>
+            case Failure(t: org.postgresql.util.PSQLException) =>
               if (t.getMessage.contains("duplicate key")) (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.foragbot.already.exists", patId, compositeId)))
               else if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.inserted", patId, compositeId, t.getMessage)))
+              else (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("buspol.not.inserted", patId, compositeId, t.getMessage)))
+            case Failure(t) =>
+              if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.inserted", patId, compositeId, t.getMessage)))
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.inserted", patId, compositeId, t.getMessage)))
           })
         }) // end of complete
@@ -747,6 +766,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspols.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("buspols.not.deleted", compositeId, t.toString)))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("buspols.not.deleted", compositeId, t.toString)))
         })
@@ -788,6 +809,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("buspol.not.deleted", busPolId, compositeId, t.toString)))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("buspol.not.deleted", busPolId, compositeId, t.toString)))
         })
@@ -905,6 +928,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.added.or.updated")))
             case Failure(t: DBProcessingError) =>
               t.toComplete
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("agreement.not.inserted.or.updated", agrId, compositeId, t.toString)))
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agreement.not.inserted.or.updated", agrId, compositeId, t.toString)))
           })
@@ -947,6 +972,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.agreements.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("agbot.agreements.not.deleted", compositeId, t.toString)))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.agreements.not.deleted", compositeId, t.toString)))
         })
@@ -988,6 +1015,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.agreement.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("agreement.for.agbot.not.deleted", agrId, compositeId, t.toString)))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agreement.for.agbot.not.deleted", agrId, compositeId, t.toString)))
         })
@@ -1095,7 +1124,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
           val mailboxSize = xs
           val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
           if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) NodesTQ.getPublicKey(nodeId).result.asTry
-          else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("agbot.mailbox.full", compositeId, maxMessagesInMailbox) )).asTry
+          else DBIO.failed(new DBProcessingError(HttpCode.SERVICE_UNAVAILABLE, ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("agbot.mailbox.full", compositeId, maxMessagesInMailbox) )).asTry
         }).flatMap({
           case Success(v) =>
             logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/msgs node publickey result: " + v)
@@ -1118,9 +1147,11 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, "agbot msg " + msgNum + " inserted"))
           case Failure(t: DBProcessingError) =>
             t.toComplete
-          case Failure(t) =>
+          case Failure(t: org.postgresql.util.PSQLException) =>
             if (t.getMessage.contains("is not present in table")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.message.agbotid.not.found", compositeId, t.getMessage)))
-            else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.inserted", compositeId, t.toString)))
+            else (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("agbot.message.not.inserted", compositeId, t.toString)))
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.inserted", compositeId, t.toString)))
         })
       }) // end of complete
     } // end of exchAuth
@@ -1196,6 +1227,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
               (HttpCode.DELETED,  ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.message.deleted")))
             case Failure(t: DBProcessingError) =>
               t.toComplete
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("agbot.message.not.deleted", msgId, compositeId, t.toString)))
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.deleted", msgId, compositeId, t.toString)))
           })

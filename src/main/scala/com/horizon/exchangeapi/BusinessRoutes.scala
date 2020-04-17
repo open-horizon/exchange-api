@@ -326,9 +326,11 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.created", compositeId)))
             case Failure(t: DBProcessingError) =>
               t.toComplete
-            case Failure(t) =>
+            case Failure(t: org.postgresql.util.PSQLException) =>
               if (t.getMessage.contains("duplicate key value violates unique constraint")) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.already.exists", compositeId, t.getMessage)))
-              else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.created", compositeId, t.getMessage)))
+              else (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("buspol.not.created", compositeId, t.getMessage)))
+            case Failure(t) =>
+              (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.created", compositeId, t.getMessage)))
           })
         }) // end of complete
       } // end of validateWithMsg
@@ -396,6 +398,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.updated", compositeId)))
             case Failure(t: DBProcessingError) =>
               t.toComplete
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("buspol.not.updated", compositeId, t.getMessage)))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", compositeId, t.getMessage)))
           })
@@ -469,6 +473,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                 (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.attribute.updated", attrName, compositeId)))
               case Failure(t: DBProcessingError) =>
                 t.toComplete
+              case Failure(t: org.postgresql.util.PSQLException) =>
+                (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("buspol.not.updated", compositeId, t.getMessage)))
               case Failure(t) =>
                 (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", compositeId, t.getMessage)))
             })
@@ -514,6 +520,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("business.policy.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("business.policy.not.deleted", compositeId, t.toString)))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("business.policy.not.deleted", compositeId, t.toString)))
         })
@@ -601,6 +609,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               } else {
                 (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), 0))
               }
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("invalid.input.message", t.getMessage)))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
           })

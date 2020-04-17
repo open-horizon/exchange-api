@@ -63,6 +63,7 @@ object HttpCode {
   val INTERNAL_ERROR = StatusCodes.InternalServerError
   val NOT_IMPLEMENTED = StatusCodes.NotImplemented
   val BAD_GW = StatusCodes.BadGateway // bad gateway, which for us means db connection error or IAM API problem
+  val SERVICE_UNAVAILABLE = StatusCodes.ServiceUnavailable
   val GW_TIMEOUT = StatusCodes.GatewayTimeout // gateway timeout, which for us means db timeout
 }
 
@@ -77,6 +78,7 @@ object ApiRespType {
   val INTERNAL_ERROR = ExchMsg.translate("api.internal.error")
   val NOT_IMPLEMENTED = ExchMsg.translate("api.not.implemented")
   val BAD_GW = ExchMsg.translate("api.db.connection.error")
+  val SERVICE_UNAVAILABLE = ExchMsg.translate("api.db.service.unavailable")
   val GW_TIMEOUT = ExchMsg.translate("api.db.timeout")
   val ERROR = ExchMsg.translate("error")
   val WARNING = ExchMsg.translate("warning")

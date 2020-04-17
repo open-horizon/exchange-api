@@ -935,7 +935,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           "created": 1506086099,
           "state": "running"
         }
-      ]
+      ],
+      "operatorStatus": {} // optional field
     }
   ]
 }

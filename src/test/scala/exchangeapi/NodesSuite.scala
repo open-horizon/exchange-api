@@ -1194,7 +1194,7 @@ class NodesSuite extends AnyFunSuite {
   //~~~~~ Node status ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
-    val oneService = OneService("agreementid", "testService", orgid, "0.0.1", "arm", List[ContainerStatus]())
+    val oneService = OneService("agreementid", "testService", orgid, "0.0.1", "arm", List[ContainerStatus](), None)
     val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService))
     val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -2461,8 +2461,8 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - update running services to search later") {
-    val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus]())
-    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus]())
+    val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus](), None)
+    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus](), None)
     val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
     val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -2470,8 +2470,8 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+"/status - update running services to search later") {
-    val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus]())
-    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus]())
+    val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus](), None)
+    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus](), None)
     val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
     val response = Http(URL+"/nodes/"+nodeId2+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -2510,8 +2510,8 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+"/status - add "+ibmService+" to search on later") {
-    val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus]())
-    val oneService2 = OneService("agreementid2", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus]())
+    val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus](), None)
+    val oneService2 = OneService("agreementid2", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), None)
     val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
     val response = Http(URL+"/nodes/"+nodeId2+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -2529,8 +2529,8 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - add \"+ibmService+\" to search on later") {
-    val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus]())
-    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus]())
+    val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), None)
+    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus](), None)
     val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
     val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -2578,8 +2578,8 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - change org of "+NETSPEEDSPEC_URL+" to test later") {
-    val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus]())
-    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, "FakeOrganization", svcversion2, svcarch2, List[ContainerStatus]())
+    val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), None)
+    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, "FakeOrganization", svcversion2, svcarch2, List[ContainerStatus](), None)
     val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
     val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -2593,6 +2593,17 @@ class NodesSuite extends AnyFunSuite {
     info("code: "+response.code)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
     //assert(response.body.isEmpty)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - add operatorStatus to services") {
+    val json1 = Map("test" -> 0, "test2" -> 1)
+    val json2 = Map("test" -> List("string1", "string2"), "test2" -> "hello")
+    val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), Some(json1))
+    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, "FakeOrganization", svcversion2, svcarch2, List[ContainerStatus](), Some(json2))
+    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   // Test PATCH Nodes all attributes but token

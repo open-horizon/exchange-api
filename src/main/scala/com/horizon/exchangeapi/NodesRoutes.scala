@@ -911,14 +911,15 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       "orgid":"ling.com",
       "version":"1.2",
       "arch":"amd64",
-      "containers": [
+      "containerStatus": [
         {
           "name": "/dc23c045eb64e1637d027c4b0236512e89b2fddd3f06290c7b2354421d9d8e0d-location",
           "image": "summit.hovitos.engineering/x86/location:v1.2",
           "created": 1506086099,
           "state": "running"
         }
-      ]
+      ],
+      "operatorStatus": {} // optional field
     }
   ]
 }

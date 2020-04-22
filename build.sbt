@@ -4,13 +4,15 @@
 //   Looking at https://github.com/sbt/sbt/releases , it's clear there are significant changes in 1.3.x, including with the class loader.
 
 // This plugin is for building the docker image of our exchange svr
+import scala.io.Source
+import com.typesafe.sbt.packager.docker._
+
 enablePlugins(JavaAppPackaging, DockerPlugin)
 
 // For latest versions, see https://mvnrepository.com/
 lazy val akkaHttpVersion = "10.1.10"  // as of 11/19/2019 this is the latest version
 lazy val akkaVersion    = "2.5.26"  // released 10/2019. Version 2.6.0 was released 11/2019
 
-import scala.io.Source
 val versionFunc = () => {
   val versFile = Source.fromFile("src/main/resources/version.txt")
   val versText = versFile.getLines.next()
@@ -18,71 +20,102 @@ val versionFunc = () => {
   versText
 }
 
-lazy val root = (project in file(".")).
-  settings(
-    //inThisBuild(List( // <- this is to have global settings across multiple sub-projects, but we only have 1 project
-    organization    := "com.horizon",
-    scalaVersion    := "2.12.10",  // tried updating to scala 2.13.1, but got many compile errors in intellij related to JavaConverters being deprecated
-    //)),
-    name := "Exchange API",
-    version := versionFunc(),
-    //version := "2.0.0",
-    resolvers += Classpaths.typesafeReleases,
+lazy val root = (project in file("."))
+    .settings(
+        //inThisBuild(List( // <- this is to have global settings across multiple sub-projects, but we only have 1 project
+        organization    := "com.horizon",
+        scalaVersion    := "2.12.10",  // tried updating to scala 2.13.1, but got many compile errors in intellij related to JavaConverters being deprecated
+        //)),
+        name := "Exchange API",
+        version := versionFunc(),
+        //version := "2.0.0",
+        resolvers += Classpaths.typesafeReleases,
 
-    // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
-    libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-http"            % akkaHttpVersion,
-      "com.typesafe.akka" %% "akka-http-xml"        % akkaHttpVersion,
-      "com.typesafe.akka" %% "akka-stream"          % akkaVersion,
-      //"com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion,
-      "de.heikoseeberger" %% "akka-http-jackson" % "1.29.1",  // version 1.30.0 pulls in akka 2.6.1 and akkahttp 10.1.11
-      //"com.typesafe.akka" %% "akka-http-jackson" % akkaHttpVersion, <- can not find any recent documentation on how to use this
+        // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
+        libraryDependencies ++= Seq(
+            "com.typesafe.akka" %% "akka-http"            % akkaHttpVersion,
+            "com.typesafe.akka" %% "akka-http-xml"        % akkaHttpVersion,
+            "com.typesafe.akka" %% "akka-stream"          % akkaVersion,
+            //"com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion,
+            "de.heikoseeberger" %% "akka-http-jackson" % "1.29.1",  // version 1.30.0 pulls in akka 2.6.1 and akkahttp 10.1.11
+            //"com.typesafe.akka" %% "akka-http-jackson" % akkaHttpVersion, <- can not find any recent documentation on how to use this
 
-      "org.json4s" %% "json4s-native" % "latest.release",
-      "org.json4s" %% "json4s-jackson" % "latest.release",
+            "org.json4s" %% "json4s-native" % "latest.release",
+            "org.json4s" %% "json4s-jackson" % "latest.release",
 
-      "javax.ws.rs" % "javax.ws.rs-api" % "2.0.1",  // this is from 8/2014. Version 2.1.1 from 9/2018 gets an error loading
-      "org.glassfish.jersey.core" % "jersey-common" % "latest.release",  // required at runtime by javax.ws.rs-api
-      "com.github.swagger-akka-http" %% "swagger-akka-http" % "latest.release", // the 9/2019 versions of these 2 cause incompatible warings,but the 6/2019 versions give exceptions
-      "com.github.swagger-akka-http" %% "swagger-scala-module" % "latest.release",
-      "io.swagger.core.v3" % "swagger-core" % "latest.release",
-      "io.swagger.core.v3" % "swagger-annotations" % "latest.release",
-      "io.swagger.core.v3" % "swagger-models" % "latest.release",
-      "io.swagger.core.v3" % "swagger-jaxrs2" % "latest.release",
+            "javax.ws.rs" % "javax.ws.rs-api" % "2.0.1",  // this is from 8/2014. Version 2.1.1 from 9/2018 gets an error loading
+            "org.glassfish.jersey.core" % "jersey-common" % "latest.release",  // required at runtime by javax.ws.rs-api
+            "com.github.swagger-akka-http" %% "swagger-akka-http" % "latest.release", // the 9/2019 versions of these 2 cause incompatible warings,but the 6/2019 versions give exceptions
+            "com.github.swagger-akka-http" %% "swagger-scala-module" % "latest.release",
+            "io.swagger.core.v3" % "swagger-core" % "latest.release",
+            "io.swagger.core.v3" % "swagger-annotations" % "latest.release",
+            "io.swagger.core.v3" % "swagger-models" % "latest.release",
+            "io.swagger.core.v3" % "swagger-jaxrs2" % "latest.release",
 
-      "com.typesafe.slick" %% "slick" % "latest.release",
-      "com.typesafe.slick" %% "slick-hikaricp" % "latest.release",
-      "com.github.tminglei" %% "slick-pg" % "latest.release",
-      "com.github.tminglei" %% "slick-pg_json4s" % "latest.release",
-      "org.postgresql" % "postgresql" % "latest.release",
-      "com.zaxxer" % "HikariCP" % "latest.release",
-      "org.slf4j" % "slf4j-api" % "1.7.26", // these 2 seem to be needed by slick
-      "ch.qos.logback" % "logback-classic" % "1.2.3",
-      "com.mchange" % "c3p0" % "latest.release",
-      "org.scalaj" %% "scalaj-http" % "latest.release",
-      "com.typesafe" % "config" % "latest.release",
-      "org.mindrot" % "jbcrypt" % "latest.release",
-      "com.pauldijou" %% "jwt-core" % "latest.release",
-      "com.github.cb372" %% "scalacache-guava" % "latest.release",
-      "com.osinka.i18n" %% "scala-i18n" % "latest.release",
+            "com.typesafe.slick" %% "slick" % "latest.release",
+            "com.typesafe.slick" %% "slick-hikaricp" % "latest.release",
+            "com.github.tminglei" %% "slick-pg" % "latest.release",
+            "com.github.tminglei" %% "slick-pg_json4s" % "latest.release",
+            "org.postgresql" % "postgresql" % "latest.release",
+            "com.zaxxer" % "HikariCP" % "latest.release",
+            "org.slf4j" % "slf4j-api" % "1.7.26", // these 2 seem to be needed by slick
+            "ch.qos.logback" % "logback-classic" % "1.2.3",
+            "com.mchange" % "c3p0" % "latest.release",
+            "org.scalaj" %% "scalaj-http" % "latest.release",
+            "com.typesafe" % "config" % "latest.release",
+            "org.mindrot" % "jbcrypt" % "latest.release",
+            "com.pauldijou" %% "jwt-core" % "latest.release",
+            "com.github.cb372" %% "scalacache-guava" % "latest.release",
+            "com.osinka.i18n" %% "scala-i18n" % "latest.release",
 
-      "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpVersion % Test,
-      "com.typesafe.akka" %% "akka-testkit"         % akkaVersion     % Test,
-      "com.typesafe.akka" %% "akka-stream-testkit"  % akkaVersion     % Test,
+            "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpVersion % Test,
+            "com.typesafe.akka" %% "akka-testkit"         % akkaVersion     % Test,
+            "com.typesafe.akka" %% "akka-stream-testkit"  % akkaVersion     % Test,
 
-      "org.scalatest" %% "scalatest" % "latest.release" % "test",
-      "org.scalatestplus" %% "junit-4-12" % "latest.release" % "test",
-      "org.scalacheck" %% "scalacheck" % "latest.release" % "test",
-      "junit" % "junit" % "latest.release" % "test"
-    ),
-    scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
-    //javaOptions ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config", "-Djava.security.policy=src/main/resources/auth.policy")
+            "org.scalatest" %% "scalatest" % "latest.release" % "test",
+            "org.scalatestplus" %% "junit-4-12" % "latest.release" % "test",
+            "org.scalacheck" %% "scalacheck" % "latest.release" % "test",
+            "junit" % "junit" % "latest.release" % "test"
+        ), 
+        scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
+        //javaOptions ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config", "-Djava.security.policy=src/main/resources/auth.policy")
 
-    // These settings are for the sbt-native-packager plugin building the docker image. See: https://sbt-native-packager.readthedocs.io/en/stable/formats/docker.html
-    packageName in Docker := "openhorizon/amd64_exchange-api",
-    daemonUser in Docker := "exchangeuser",
-    dockerExposedPorts ++= Seq(8080),
-    dockerBaseImage := "openjdk:8-jre",
-    dockerEnvVars := Map("JAVA_OPTS" -> "")   // this is here so JAVA_OPTS can be overridden on the docker run cmd with a value like: -Xmx1G
-    //dockerEntrypoint ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config")  // <- had trouble getting this to work
-  )
+        // These settings are for the sbt-native-packager plugin building the docker image. See: https://sbt-native-packager.readthedocs.io/en/stable/formats/docker.html
+        packageName in Docker := "openhorizon/amd64_exchange-api",
+        version in Docker := "2.21.0",
+        daemonUser in Docker := "exchangeuser",
+        dockerExposedPorts ++= Seq(8080),
+        dockerBaseImage := "registry.access.redhat.com/ubi8-minimal:latest",
+        dockerEnvVars := Map("JAVA_OPTS" -> ""),   // this is here so JAVA_OPTS can be overridden on the docker run cmd with a value like: -Xmx1G
+        //dockerEntrypoint ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config")  // <- had trouble getting this to work
+        dockerCommands := Seq(Cmd("FROM", dockerBaseImage.value ++ " as stage0"), 
+                              Cmd("LABEL", "snp-multi-stage='intermediate'"), 
+                              Cmd("LABEL", "snp-multi-stage-id='6466ecf3-c305-40bb-909a-47e60bded33d'"), 
+                              Cmd("WORKDIR", "/opt/docker"), 
+                              Cmd("COPY", "1/opt /1/opt"), 
+                              Cmd("COPY", "2/opt /2/opt"), 
+                              Cmd("USER", "root"), 
+                              Cmd("RUN", "chmod -R u=rX,g=rX /1/opt/docker /2/opt/docker && chmod u+x,g+x /1/opt/docker/bin/exchange-api"), 
+                              Cmd("FROM", dockerBaseImage.value), 
+                              //Cmd("LABEL", "description=''"), 
+                              //Cmd("LABEL", "io.k8s.description=''"), 
+                              //Cmd("LABEL", "io.k8s.display-name=''"), 
+                              //Cmd("LABEL", "io.openshift.tags=''"), 
+                              //Cmd("LABEL", "name='openhorizon/amd64_exchange-api'"), 
+                              //Cmd("LABEL", "release=''"), 
+                              //Cmd("LABEL", "summery=''"), 
+                              //Cmd("LABEL", "vendor=''"), 
+                              //Cmd("LABEL", "version=''"), 
+                              Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs && microdnf install -y --nodocs shadow-utils java-1.8.0-openjdk && microdnf clean all"), 
+                              Cmd("USER", "root"), 
+                              Cmd("RUN", "id -u exchangeuser 1>/dev/null 2>&1 || (( getent group 0 1>/dev/null 2>&1 || ( type groupadd 1>/dev/null 2>&1 && groupadd -g 0 root || addgroup -g 0 -S root )) && ( type useradd 1>/dev/null 2>&1 && useradd --system --create-home --uid 1001 --gid 0 exchangeuser || adduser -S -u 1001 -G root exchangeuser ))"), 
+                              Cmd("WORKDIR", "/opt/docker"), 
+                              Cmd("COPY --from=stage0 --chown=exchangeuser:root", "/1/opt/docker /opt/docker"), 
+                              Cmd("COPY --from=stage0 --chown=exchangeuser:root", "/2/opt/docker /opt/docker"), 
+                              Cmd("ENV", "JAVA_OPTS=''"), 
+                              Cmd("EXPOSE", "8080"), 
+                              Cmd("USER", "1001:0"), 
+                              Cmd("ENTRYPOINT", "/opt/docker/bin/exchange-api"), 
+                              Cmd("CMD", "[]")
+                             )
+       )

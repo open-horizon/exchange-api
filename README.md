@@ -224,6 +224,11 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.21.0
+
+- Exchange API now uses Red Hat's Universal Base Image (UBI) 8 Minimal instead of Debian.
+- SBT Native Packager updated to version 1.7.0 from 1.5.1.
+
 ## Changes in 2.20.0
 
 - Issue 321: Updates to NodeStatus resource to support edge clusters

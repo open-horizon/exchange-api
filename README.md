@@ -23,25 +23,41 @@ services in the exchange.
       - listen on all interfaces: `sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /usr/local/var/postgres/postgresql.conf`
       - `brew services start postgresql` or if it is already running `brew services restart postgresql`
     - Test: `psql "host=$MY_IP dbname=postgres user=<myuser> password=''"`
-- Add a config file on your development system at /etc/horizon/exchange/config.json with at least the following content (this is needed for the automated tests. Defaults and the full list of config variables are in `src/main/resources/config.json`):
+- Add a configuration file on your development system at `/etc/horizon/exchange/config.json` with at minimum the following content (this is needed for the automated tests. Defaults and the full list of configuration variables are in `src/main/resources/config.json`):
 
-```
-{
-	"api": {
-		"db": {
-			"jdbcUrl": "jdbc:postgresql://localhost/postgres",		// my local postgres db
-			"user": "myuser",
-			"password": ""
-		},
-		"logging": {
-			"level": "DEBUG"
-		},
-		"root": {
-			"password": "myrootpw"
-		}
-	}
-}
-```
+  ```
+  {
+    "api": {
+      "db": {
+        "jdbcUrl": "jdbc:postgresql://localhost/postgres",    // my local postgres db
+        "user": "myuser",
+        "password": ""
+      },
+      "logging": {
+        "level": "DEBUG"
+      },
+      "root": {
+        "password": "myrootpw"
+      }
+    }
+  }
+  ```
+- Add a plain-text `config/exchange-api.tmpl` configuration file template to your project's root directory. This template does not require any content if you do not wish to use it. Should you wish to use this template, minimal configuration is required (example below). The value for each key in the template corresponds to an environment variable passed to the container (i.e. Using a config-map in Kubernetes/Openshift). The Docker container will create a `/etc/horizon/exchange/config.json` configuration file based on the provided template and environment variables at container creation. To swap templates a new Docker image is required.
+
+  ```
+  {
+    "api": {
+      "db": { 
+        "jdbcUrl": "$EXCHANGE_DB_URL",
+        "user": "$EXCHANGE_DB_USER",
+        "password": "$EXCHANGE_DB_PW"
+      },
+      "root": { 
+        "password": "$EXCHANGE_ROOT_PW"
+      }
+    }
+  }
+  ```
 - If you want to run the `FrontEndSuite` test class `config.json` should also include `"frontEndHeader": "issuer"` directly after `email` under `root`.
 - Set the same exchange root password in your shell environment, for example:
 ```
@@ -223,6 +239,12 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 2.22.0
+
+- Additional Docker labels have been added to the amd64_exchange-api image in compliance with Red Hat certification.
+- An Apache version 2.0 license has been added to the amd64_exchange-api image in compliance with Red Hat certification.
+- The ability to specify the Exchange API's configuration at container creation has been added.
 
 ## Changes in 2.21.0
 

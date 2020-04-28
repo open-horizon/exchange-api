@@ -135,7 +135,7 @@ lazy val root = (project in file("."))
                                         Cmd("ENV", "JAVA_OPTS=''"), 
                                         Cmd("EXPOSE", "8080"), 
                                         Cmd("USER", "1001:1001"), 
-                                        Cmd("ENTRYPOINT", "/usr/bin/envsubst < /etc/horizon/exchange/exchange-api.tmpl > /etc/horizon/exchange/config.json && /opt/docker/bin/" ++ name.value), 
+                                        Cmd("ENTRYPOINT", "/usr/bin/envsubst < /etc/horizon/exchange/exchange-api.tmpl >> /etc/horizon/exchange/config.json && /opt/docker/bin/" ++ name.value), 
                                         Cmd("CMD", "[]")
                                        )
        )

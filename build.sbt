@@ -47,8 +47,8 @@ lazy val root = (project in file("."))
             "de.heikoseeberger" %% "akka-http-jackson" % "1.29.1",  // version 1.30.0 pulls in akka 2.6.1 and akkahttp 10.1.11
             //"com.typesafe.akka" %% "akka-http-jackson" % akkaHttpVersion, <- can not find any recent documentation on how to use this
 
-            "org.json4s" %% "json4s-native" % "latest.release", 
-            "org.json4s" %% "json4s-jackson" % "latest.release", 
+            "org.json4s" %% "json4s-native" % "3.7.0-M2",  // Version 3.7.0-M3 is incompatible.
+            "org.json4s" %% "json4s-jackson" % "3.7.0-M2",  // Version 3.7.0-M3 is incompatible.
 
             "javax.ws.rs" % "javax.ws.rs-api" % "2.0.1",  // this is from 8/2014. Version 2.1.1 from 9/2018 gets an error loading
             "org.glassfish.jersey.core" % "jersey-common" % "latest.release",  // required at runtime by javax.ws.rs-api

@@ -1,4 +1,3 @@
-sudo: true
 services: docker
 language: scala
 jdk: openjdk8
@@ -6,18 +5,28 @@ scala: 2.12.7
 notifications:
   slack:
     secure: nPoYZ8FqRziV5+rQAc9GXFWtNsThBbOdxYOY8HpPwNWsWHtC2ZyPJBnNE6XIkmzR7+D5U8yOYqlk2CiqYLlSwa1+bqKuAyOBBhz51pDi8z+YXsjvgTpkxVmKv8N6jntAqo5eBFbVUW+/FPhKBD6qZIkbfRyThZSNZTSTv9oZ02Ynfb4NKuXgZeuinSotOaICiCvzfY4kYoe7EKss/XY6ON8qHUOcIQBsckDHrFEYwF270qNEIccZIkrOr3PKg3mXz2n+65T5i/UDNw3Z8RKDc32Y+TCfyAc3kyuQQYhKhL6/TLwAW/IPNGaFkUfR+2FH+C1VlLJpm1/mBj6uDvHBVRHSEL3ZofYFd5TTzUqkQRINATRQNpFNfjlMT3ifJrSyopKXyMsiea2y3EvM4/D3I5pHRvX2/BqidjJV3b5UIllirq/jk4PrCKshkKEZtC0CBNj4T8ewa9Qr3IxlKTFVHwnW1RWQmAXgFDFpbDzJ4vuLbUDhAKDXukWqoiwxTC3egMPQVnEFvxHVDAqdQUztsUjtg3LVXagLLl6+tYTwY53124aUXSkQMbANL+2ISZuRmg4dheTtaK/bE8L4dCQyyy7HFh03IbZGnGz3bhpDGxTBFAhnEQ4XWzYNpz8rEr0unvQTfBt2dUq4AH5bh1QseFh77lpBYWj9jxndZMbP9Pw=
+
 branches:
   only:
   - master
+
+env:
+- DEBIAN_FRONTEND=noninteractive
+  DOCKER_NETWORK=exchange-api-network
+  DOCKER_REGISTRY=openhorizon
+  EXCHANGE_FE_HEADER=issuer
+  EXCHANGE_ROOTPW=ci-password
+  POSTGRES_DB=exchange
+  POSTGRES_PORT=5432
+  POSTGRES_USER=admin
+
 before_install:
 - sudo apt-get -y update
 - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce || true
-env:
-- DOCKER_REGISTRY=openhorizon POSTGRES_PORT=5432 EXCHANGE_ROOTPW=ci-password POSTGRES_DB=exchange
-  POSTGRES_USER=admin EXCHANGE_FE_HEADER=issuer DOCKER_NETWORK=exchange-api-network
+
 before_script:
 - make .docker-network
-- docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER --network
+- docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER --network 
   $DOCKER_NETWORK --name postgres postgres
 - export POSTGRES_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
   postgres)
@@ -30,8 +39,10 @@ before_script:
 - unset SBT_OPTS
 - make .docker-exec-run-no-https
 - docker logs exchange-api
+
 script:
 - make test
+
 after_success:
 - '{ test $TRAVIS_PULL_REQUEST = ''false'' && [[ ! "$TRAVIS_COMMIT_MESSAGE" =~ "--skip-push" ]]  &&
   echo "$DOCKER_HUB_PASS" | docker login -u="$DOCKER_HUB_USER" --password-stdin && make docker-push-only; } ||

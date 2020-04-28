@@ -25,8 +25,8 @@ before_script:
 - 'sudo bash -c "echo ''{ \"api\": { \"db\": { \"jdbcUrl\": \"jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB\",
   \"user\": \"$POSTGRES_USER\" }, \"root\": { \"password\": \"$EXCHANGE_ROOTPW\",
   \"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" } } }'' > /etc/horizon/exchange/config.json"'
-- cat ./config/exchange-api.tmpl
 - cat /etc/horizon/exchange/config.json
+- mkdir ./config && touch ./config/exchange-api.tmpl
 - unset SBT_OPTS
 - make .docker-exec-run-no-https
 - docker logs exchange-api

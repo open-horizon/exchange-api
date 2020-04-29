@@ -111,7 +111,7 @@ lazy val root = (project in file("."))
                                         Cmd("COPY", "1/opt /1/opt"), 
                                         Cmd("COPY", "2/opt /2/opt"), 
                                         Cmd("USER", "root"), 
-                                        Cmd("RUN", "chmod -R u=r,g=r /2/etc/horizon /licenses && chmod u+w,g+w /2/etc/horizon/exchange/config.json && chmod -R u=rX,g=rX /1/opt/docker /2/opt/docker && chmod u+x,g+x /1/opt/docker/bin/" ++ name.value), 
+                                        Cmd("RUN", "chmod -R u=r,g=r /2/etc/horizon /licenses && chmod -R u+w,g+w /2/etc/horizon/exchange && chmod -R u=rX,g=rX /1/opt/docker /2/opt/docker && chmod u+x,g+x /1/opt/docker/bin/" ++ name.value), 
                                         Cmd("FROM", dockerBaseImage.value), 
                                         Cmd("LABEL", "description=" ++ description.value), 
                                         //Cmd("LABEL", "io.k8s.description=''"), 
@@ -135,7 +135,7 @@ lazy val root = (project in file("."))
                                         Cmd("ENV", "JAVA_OPTS=''"), 
                                         Cmd("EXPOSE", "8080"), 
                                         Cmd("USER", "1001:1001"), 
-                                        Cmd("ENTRYPOINT", "/usr/bin/envsubst < /etc/horizon/exchange/exchange-api.tmpl >> /etc/horizon/exchange/config.json && /opt/docker/bin/" ++ name.value), 
+                                        Cmd("ENTRYPOINT", "/usr/bin/envsubst < /etc/horizon/exchange/exchange-api.tmpl > /etc/horizon/exchange/config.json && /opt/docker/bin/" ++ name.value), 
                                         Cmd("CMD", "[]")
                                        )
        )

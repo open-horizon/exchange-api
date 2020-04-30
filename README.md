@@ -23,25 +23,26 @@ services in the exchange.
       - listen on all interfaces: `sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /usr/local/var/postgres/postgresql.conf`
       - `brew services start postgresql` or if it is already running `brew services restart postgresql`
     - Test: `psql "host=$MY_IP dbname=postgres user=<myuser> password=''"`
-- Add a config file on your development system at /etc/horizon/exchange/config.json with at least the following content (this is needed for the automated tests. Defaults and the full list of config variables are in `src/main/resources/config.json`):
+- Add a configuration file on your development system at `/etc/horizon/exchange/config.json` with at minimum the following content (this is needed for the automated tests. Defaults and the full list of configuration variables are in `src/main/resources/config.json`):
 
-```
-{
-	"api": {
-		"db": {
-			"jdbcUrl": "jdbc:postgresql://localhost/postgres",		// my local postgres db
-			"user": "myuser",
-			"password": ""
-		},
-		"logging": {
-			"level": "DEBUG"
-		},
-		"root": {
-			"password": "myrootpw"
-		}
-	}
-}
-```
+  ```
+  {
+    "api": {
+      "db": {
+        "jdbcUrl": "jdbc:postgresql://localhost/postgres",    // my local postgres db
+        "user": "myuser",
+        "password": ""
+      },
+      "logging": {
+        "level": "DEBUG"
+      },
+      "root": {
+        "password": "myrootpw"
+      }
+    }
+  }
+  ```
+- The `config/exchange-api.tmpl` template does not require any content if you do not wish to use it. Should you wish to use this template, minimal configuration has been provided in the source code of this project. The value for each key in the template corresponds to an environment variable passed to the container (i.e. Using a config-map in Kubernetes/Openshift). The Docker container will create a `/etc/horizon/exchange/config.json` configuration file based on the provided template and environment variables at container creation. To swap templates a new Docker image is required. Optionally a bind/volume-mounted `/etc/horizon/exchange/exchange-api.tmpl` can achieve the same result.
 - If you want to run the `FrontEndSuite` test class `config.json` should also include `"frontEndHeader": "issuer"` directly after `email` under `root`.
 - Set the same exchange root password in your shell environment, for example:
 ```
@@ -224,13 +225,21 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
-<<<<<<< HEAD
-=======
+## Changes in 2.22.0
+
+- Additional Docker labels have been added to the amd64_exchange-api image in compliance with Red Hat certification.
+- An Apache version 2.0 license has been added to the amd64_exchange-api image in compliance with Red Hat certification.
+- The ability to specify the Exchange API's configuration at container creation has been added.
+
+## Changes in 2.21.0
+
+- Exchange API now uses Red Hat's Universal Base Image (UBI) 8 Minimal instead of Debian.
+- SBT Native Packager updated to version 1.7.0 from 1.5.1.
+
 ## Changes in 2.20.0
 
 - Issue 321: Updates to NodeStatus resource to support edge clusters
 
->>>>>>> b1ac9be31379e61b3261128d95ef5cd860b85544
 ## Changes in 2.19.0
 
 - Issue 320: Expand test suite for Admin routes to include API calls made by non-administer roles.

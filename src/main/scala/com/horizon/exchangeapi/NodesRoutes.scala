@@ -1128,7 +1128,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource policy table: " + v)
             NodesTQ.setLastUpdated(compositeId, ApiTime.nowUTC).asTry
           case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
-        }).map({
+        })).map({
           case Success(v) => // there were no db policy, but determine if it actually found it or not
             logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " lastUpdated field updated: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.policy.deleted")))
@@ -1312,7 +1312,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             logger.debug("DELETE /nodes/" + id + "/agreements updated in changes table: " + v)
             NodesTQ.setLastUpdated(compositeId, ApiTime.nowUTC).asTry
           case Failure(t) => DBIO.failed(t).asTry
-        }).map({
+        })).map({
           case Success(v) =>
             logger.debug("DELETE /nodes/" + id + "/agreements lastUpdated field updated: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreements.deleted")))
@@ -1358,7 +1358,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             logger.debug("DELETE /nodes/" + id + "/agreements/" + agrId + " updated in changes table: " + v)
             NodesTQ.setLastUpdated(compositeId, ApiTime.nowUTC).asTry
           case Failure(t) => DBIO.failed(t).asTry
-        }).map({
+        })).map({
           case Success(v) =>
             logger.debug("DELETE /nodes/" + id + "/agreements/" + agrId + " lastUpdated field updated: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.deleted")))

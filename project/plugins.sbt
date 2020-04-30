@@ -7,7 +7,7 @@
 addSbtPlugin("io.spray" % "sbt-revolver" % "0.9.1")
 
 // Builds docker image of our exchange svr
-addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.5.1")
+addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.7.0")
 
 // To see the current versions being used, uncomment this line, then run:  sbt dependencyTree
 //addSbtPlugin("net.virtual-void" % "sbt-dependencpwdy-graph" % "0.8.0")

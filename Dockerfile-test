@@ -4,6 +4,8 @@ MAINTAINER bruce potter <bp@us.ibm.com>
 
 ARG SCALA_VERSION
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 # install build tools: curl, java, sbt
 # https is needed to get the sbt deb from its apt repo
 RUN apt-get update && apt-get install -y apt-transport-https gnupg ca-certificates

@@ -42,22 +42,7 @@ services in the exchange.
     }
   }
   ```
-- Add a plain-text `config/exchange-api.tmpl` configuration file template to your project's root directory. This template does not require any content if you do not wish to use it. Should you wish to use this template, minimal configuration is required (example below). The value for each key in the template corresponds to an environment variable passed to the container (i.e. Using a config-map in Kubernetes/Openshift). The Docker container will create a `/etc/horizon/exchange/config.json` configuration file based on the provided template and environment variables at container creation. To swap templates a new Docker image is required.
-
-  ```
-  {
-    "api": {
-      "db": { 
-        "jdbcUrl": "$EXCHANGE_DB_URL",
-        "user": "$EXCHANGE_DB_USER",
-        "password": "$EXCHANGE_DB_PW"
-      },
-      "root": { 
-        "password": "$EXCHANGE_ROOT_PW"
-      }
-    }
-  }
-  ```
+- The `config/exchange-api.tmpl` template does not require any content if you do not wish to use it. Should you wish to use this template, minimal configuration has been provided in the source code of this project. The value for each key in the template corresponds to an environment variable passed to the container (i.e. Using a config-map in Kubernetes/Openshift). The Docker container will create a `/etc/horizon/exchange/config.json` configuration file based on the provided template and environment variables at container creation. To swap templates a new Docker image is required. Optionally a bind/volume-mounted `/etc/horizon/exchange/exchange-api.tmpl` can achieve the same result.
 - If you want to run the `FrontEndSuite` test class `config.json` should also include `"frontEndHeader": "issuer"` directly after `email` under `root`.
 - Set the same exchange root password in your shell environment, for example:
 ```

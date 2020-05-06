@@ -1219,7 +1219,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/" + orgid + "/business/policies/" + businessPolicySdr + "/search - all nodes (no agreements yet)") {
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
     val input = PostBusinessPolicySearchRequest(None, 0, None, None)
-    val response = Http(URL + "/business/policies/" + businessPolicySdr + "/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL + "/business/policies/" + businessPolicySdr + "/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]

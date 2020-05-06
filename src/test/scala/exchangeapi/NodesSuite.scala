@@ -189,7 +189,7 @@ class NodesSuite extends AnyFunSuite {
   def deleteAllOrgs() = {
     for (u <- List(URL, URL2)) {
       val response = Http(u).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-      info("DELETE "+u+", code: "+response.code+", response.body: "+response.body)
+      info("DELETE " + u +", code: " + response.code + ", response.body: " + response.body)
       assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
     }
   }
@@ -336,10 +336,10 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
-  test("POST /orgs/IBM/services - add "+ibmService+" to be used in search later") {
+  test("POST /orgs/IBM/services - add " + ibmService + " to be used in search later") {
     val input = PostPutServiceRequest("test-service", None, public = false, None, ibmService, svcversion2, svcarch2, "multiple", None, None, None, Some(""), Some(""), None, None, None)
-    val response = Http(urlRoot+"/v1/orgs/IBM/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
+    val response = Http(urlRoot + "/v1/orgs/IBM/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
@@ -677,8 +677,7 @@ class NodesSuite extends AnyFunSuite {
     val response: HttpResponse[String] = Http(URL+"/nodes").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(orgid + "/u2:u2pw"))).asString
     info("code: " + response.code)
     info("response.body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    assert(response.body.contains("does not have authorization: READ_ALL_NODES"))
+    assert(response.code === HttpCode.NOT_FOUND.intValue && parse(response.body).extract[GetNodesResponse].nodes.size === 0)
   }
 
   test("GET /orgs/"+orgid+"/nodes - filter for devices") {
@@ -849,7 +848,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/" + orgid + "/nodes - filter owner and name") {
-    val response: HttpResponse[String] = Http(URL + "/nodes").headers(ACCEPT).headers(USERAUTH).param("owner", orgid + "/" + user).asString //.param("name","rpi%netspeed%amd64").asString
+    val response: HttpResponse[String] = Http(URL + "/nodes").headers(ACCEPT).headers(USERAUTH).param("owner", orgid + "/" + user).param("name","rpi%netspeed%amd64").asString
     info("code: " + response.code)
     info("response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -1217,16 +1216,16 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - all nodes (no agreements yet)") {
+  test("POST /orgs/" + orgid + "/business/policies/" + businessPolicySdr + "/search - all nodes (no agreements yet)") {
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
     val input = PostBusinessPolicySearchRequest(None, 0, None, None)
-    val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
+    val response = Http(URL + "/business/policies/" + businessPolicySdr + "/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 4)     // we created 4 nodes in this org
-    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 4)
+    assert(nodes.count(d => d.id == orgnodeId || d.id == orgnodeId2 || d.id == orgnodeId3 || d.id == orgnodeId4) === 4)
     val dev = nodes.find(d => d.id == orgnodeId).get
     assert(dev.publicKey === nodePubKey)
     assert(dev.nodeType === NodeType.DEVICE.toString)   // this node defaulted to this value
@@ -1234,10 +1233,10 @@ class NodesSuite extends AnyFunSuite {
     assert(nodes.find(_.id == orgnodeId4).get.nodeType === NodeType.DEVICE.toString)
   }
 
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+"/search - as agbot") {
+  test("POST /orgs/" + orgid + "/business/policies/" + businessPolicyNS + "/search - as agbot") {
     val input = PostBusinessPolicySearchRequest(None, 0, None, None)
-    val response = Http(URL+"/business/policies/"+businessPolicyNS+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
+    val response = Http(URL + "/business/policies/" + businessPolicyNS + "/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: " + response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
     val nodes = postSearchDevResp.nodes
@@ -1334,11 +1333,11 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " nodeerrors added and stored") {
+  test("POST /orgs/" + orgid + "/changes - verify " + nodeId + " nodeerrors added and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
+    val response = Http(URL + "/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: " + response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
@@ -2798,7 +2797,7 @@ class NodesSuite extends AnyFunSuite {
 
   //~~~~~ Break down ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  /*test("Cleanup - DELETE everything") {
+  test("Cleanup - DELETE everything") {
     Http(urlRoot + "/v1/orgs/IBM/services/" + ibmService + "_" + svcversion2 + "_" + svcarch2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     
     Http(urlRoot + "/v1/orgs/IBM/changes/cleanup").postData(write(DeleteIBMChangesRequest(List(ibmService + "_" + svcversion2 + "_" + svcarch2)))).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -2806,5 +2805,5 @@ class NodesSuite extends AnyFunSuite {
     deleteAllOrgs()
     
     assert(true)
-  }*/
+  }
 }

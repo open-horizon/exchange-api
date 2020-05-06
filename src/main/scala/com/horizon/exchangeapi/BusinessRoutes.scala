@@ -260,7 +260,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     {
       "name": "mypurpose",
       "value": "myservice-testing"
-      "type": "string"   // optional, the type of the 'value': string, int, float, boolean, list of string, version
+      "type": "string"   // optional, the type of the 'value': string, int, float, boolean, list of strings, version
     }
   ],
   "constraints": [

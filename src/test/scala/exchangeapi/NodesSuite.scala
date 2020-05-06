@@ -1195,7 +1195,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
     val oneService = OneService("agreementid", "testService", orgid, "0.0.1", "arm", List[ContainerStatus](), None)
-    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService))
+    val input = PutNodeStatusRequest(Some(Map[String,Boolean]("images.bluehorizon.network" -> true)), List[OneService](oneService))
     val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1481,6 +1481,39 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - use type `list of strings`") {
+    val input = PutNodePolicyRequest(Some(List(OneProperty("purpose",Some("list of strings"),"testing"))), Some(List("a == b")))
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" delete policy and test lastUpdated field changed") {
+    var response = Http(URL+"/nodes/"+nodeId).method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    var getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    var dev = getDevResp.nodes(orgnodeId)
+    assert(!dev.lastUpdated.isEmpty)
+    val prevLastUpdated = dev.lastUpdated
+
+    // delete the node policy
+    response = Http(URL+"/nodes/"+nodeId+"/policy").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
+
+    // validate the lastUpdated field is updated
+    response = Http(URL+"/nodes/"+nodeId).method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    dev = getDevResp.nodes(orgnodeId)
+    assert(!dev.lastUpdated.isEmpty)
+    assert(dev.lastUpdated >  prevLastUpdated)
+  }
+
   //~~~~~ Node agreements, and more searches and nodehealth ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - create sdr agreement, as node") {
@@ -1748,6 +1781,39 @@ class NodesSuite extends AnyFunSuite {
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 2)
     assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3) === 2)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" delete agreement and test lastUpdated field changed") {
+    var response = Http(URL+"/nodes/"+nodeId).method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    var getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    var dev = getDevResp.nodes(orgnodeId)
+    assert(!dev.lastUpdated.isEmpty)
+    val prevLastUpdated = dev.lastUpdated
+
+    // delete the node policy
+    response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
+
+    // validate the lastUpdated field is updated
+    response = Http(URL+"/nodes/"+nodeId).method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    dev = getDevResp.nodes(orgnodeId)
+    assert(!dev.lastUpdated.isEmpty)
+    assert(dev.lastUpdated >  prevLastUpdated)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - netspeed put agreement back for later tests") {
+    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,NETSPEEDSPEC_URL))), Some(NAgrService(orgid,patid,NETSPEEDSPEC)), "signed")
+    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   //~~~~~ Staleness tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2463,7 +2529,7 @@ class NodesSuite extends AnyFunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - update running services to search later") {
     val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus](), None)
     val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus](), None)
-    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val input = PutNodeStatusRequest(Some(Map[String,Boolean]("images.bluehorizon.network" -> true)), List[OneService](oneService, oneService2))
     val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -2472,7 +2538,7 @@ class NodesSuite extends AnyFunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+"/status - update running services to search later") {
     val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus](), None)
     val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus](), None)
-    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val input = PutNodeStatusRequest(Some(Map[String,Boolean]("images.bluehorizon.network" -> true)), List[OneService](oneService, oneService2))
     val response = Http(URL+"/nodes/"+nodeId2+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -2512,7 +2578,7 @@ class NodesSuite extends AnyFunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+"/status - add "+ibmService+" to search on later") {
     val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus](), None)
     val oneService2 = OneService("agreementid2", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), None)
-    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val input = PutNodeStatusRequest(Some(Map[String,Boolean]("images.bluehorizon.network" -> true)), List[OneService](oneService, oneService2))
     val response = Http(URL+"/nodes/"+nodeId2+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -2531,7 +2597,7 @@ class NodesSuite extends AnyFunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - add \"+ibmService+\" to search on later") {
     val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), None)
     val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus](), None)
-    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val input = PutNodeStatusRequest(Some(Map[String,Boolean]("images.bluehorizon.network" -> true)), List[OneService](oneService, oneService2))
     val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -2580,7 +2646,7 @@ class NodesSuite extends AnyFunSuite {
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - change org of "+NETSPEEDSPEC_URL+" to test later") {
     val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), None)
     val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, "FakeOrganization", svcversion2, svcarch2, List[ContainerStatus](), None)
-    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val input = PutNodeStatusRequest(Some(Map[String,Boolean]("images.bluehorizon.network" -> true)), List[OneService](oneService, oneService2))
     val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -2600,7 +2666,18 @@ class NodesSuite extends AnyFunSuite {
     val json2 = Map("test" -> List("string1", "string2"), "test2" -> "hello")
     val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), Some(json1))
     val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, "FakeOrganization", svcversion2, svcarch2, List[ContainerStatus](), Some(json2))
-    val input = PutNodeStatusRequest(Map[String,Boolean]("images.bluehorizon.network" -> true), List[OneService](oneService, oneService2))
+    val input = PutNodeStatusRequest(Some(Map[String,Boolean]("images.bluehorizon.network" -> true)), List[OneService](oneService, oneService2))
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - no connectivity") {
+    val json1 = Map("test" -> 0, "test2" -> 1)
+    val json2 = Map("test" -> List("string1", "string2"), "test2" -> "hello")
+    val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), Some(json1))
+    val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, "FakeOrganization", svcversion2, svcarch2, List[ContainerStatus](), Some(json2))
+    val input = PutNodeStatusRequest(None, List[OneService](oneService, oneService2))
     val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)

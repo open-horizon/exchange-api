@@ -224,6 +224,13 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+
+## Changes in 2.24.0
+
+- Issue 350: Removed `read_all_nodes` from default permissions for `user` role, and removed `read my nodes` from default permissions for `node` role.
+- Issue 352: Removed test container. Testing is now done locally to the source code.
+
 ## Changes in 2.23.0
 
 - Issue 346: `connectivty` field in PUT `/nodes/<id>/status` now optional

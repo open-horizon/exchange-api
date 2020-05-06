@@ -201,7 +201,7 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
   }
 }
 
-final case class PutNodeStatusRequest(connectivity: Map[String,Boolean], services: List[OneService]) {
+final case class PutNodeStatusRequest(connectivity: Option[Map[String,Boolean]], services: List[OneService]) {
   require(connectivity!=null && services!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = None
@@ -223,7 +223,7 @@ final case class PutNodeErrorRequest(errors: List[Any]) {
 final case class PutNodePolicyRequest(properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = {
-    val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of string", "version")
+    val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of strings", "version")
     for (p <- properties.getOrElse(List())) {
       if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
         return Some(ExchMsg.translate("property.type.must.be", p.`type`.get, validTypes.mkString(", ")))
@@ -1041,7 +1041,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     {
       "name": "mypurpose",
       "value": "myservice-testing"
-      "type": "string"   // optional, the type of the 'value': string, int, float, boolean, list of string, version
+      "type": "string"   // optional, the type of the 'value': string, int, float, boolean, list of strings, version
     }
   ],
   "constraints": [
@@ -1128,9 +1128,14 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.policy.not.found", compositeId))).asTry
             }
           case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) =>
+            logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource policy table: " + v)
+            NodesTQ.setLastUpdated(compositeId, ApiTime.nowUTC).asTry
+          case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
         })).map({
           case Success(v) => // there were no db policy, but determine if it actually found it or not
-            logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource policy table: " + v)
+            logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " lastUpdated field updated: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.policy.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
@@ -1307,9 +1312,14 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.node.agreements.found", compositeId))).asTry
             }
           case Failure(t) => DBIO.failed(t).asTry
-        })).map({
+        }).flatMap({
           case Success(v) =>
             logger.debug("DELETE /nodes/" + id + "/agreements updated in changes table: " + v)
+            NodesTQ.setLastUpdated(compositeId, ApiTime.nowUTC).asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("DELETE /nodes/" + id + "/agreements lastUpdated field updated: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreements.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
@@ -1348,9 +1358,14 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.agreement.not.found", agrId, compositeId))).asTry
             }
           case Failure(t) => DBIO.failed(t).asTry
-        })).map({
+        }).flatMap({
           case Success(v) =>
             logger.debug("DELETE /nodes/" + id + "/agreements/" + agrId + " updated in changes table: " + v)
+            NodesTQ.setLastUpdated(compositeId, ApiTime.nowUTC).asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug("DELETE /nodes/" + id + "/agreements/" + agrId + " lastUpdated field updated: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete

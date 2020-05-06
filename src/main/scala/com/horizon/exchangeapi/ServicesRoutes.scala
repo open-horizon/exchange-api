@@ -136,7 +136,7 @@ final case class PatchServiceRequest(label: Option[String], description: Option[
 final case class PutServicePolicyRequest(properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = {
-    val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of string", "version")
+    val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of strings", "version")
     for (p <- properties.getOrElse(List())) {
       if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
         return Some(ExchMsg.translate("property.type.must.be", p.`type`.get, validTypes.mkString(", ")))
@@ -712,7 +712,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
     {
       "name": "mypurpose",
       "value": "myservice-testing"
-      "type": "string"   // optional, the type of the 'value': string, int, float, boolean, list of string, version
+      "type": "string"   // optional, the type of the 'value': string, int, float, boolean, list of strings, version
     }
   ],
   "constraints": [

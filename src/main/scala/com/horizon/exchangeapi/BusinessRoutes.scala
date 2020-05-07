@@ -545,7 +545,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def busPolPostSearchRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment / "search") & post & entity(as[PostBusinessPolicySearchRequest])) { (orgid, policy, reqBody) =>
     val compositeId = OrgAndId(orgid, policy).toString
-    exchAuth(TNode(OrgAndId(orgid,"#").toString), Access.READ) { ident =>
+    exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val nodeOrgids = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
@@ -564,25 +564,11 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                 Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
               */
               val oldestTime = if (reqBody.changedSince > 0) ApiTime.thenUTC(reqBody.changedSince) else ApiTime.beginningUTC
-              logger.debug("ident.isAdmin: " + ident.isAdmin)
-              logger.debug("ident.role.equals(AuthRoles.Agbot): " + ident.role.equals(AuthRoles.Agbot))
-              logger.debug("ident.role: " + ident.role)
-              logger.debug("(ident.isAdmin || ident.role.equals(AuthRoles.Agbot)): " + (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)))
-              logger.debug("ident.getIdentity: " + ident.getIdentity)
-              if (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)) {
-                val nodeQuery = for {
-                  (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastUpdated >= oldestTime).filter(n => {n.arch === service.arch || service.arch == "" || service.arch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-                } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
-                
-                nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
-              }
-              else {
-                val nodeQuery = for {
-                  (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastUpdated >= oldestTime).filter(n => {n.arch === service.arch || service.arch == "" || service.arch == "*"}).filter(n => {n.owner === ident.getIdentity}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-                } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
-                
-                nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
-              }
+              val nodeQuery = for {
+                (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastUpdated >= oldestTime).filter(n => {n.arch === service.arch || service.arch == "" || service.arch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+              } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+              
+              nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
             }
             else DBIO.failed(new Throwable(ExchMsg.translate("business.policy.not.found", compositeId))).asTry
           })).map({

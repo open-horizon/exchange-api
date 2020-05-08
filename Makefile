@@ -108,17 +108,9 @@ runexecutable:
 	docker build -t $(image-string):test $(DOCKER_OPTS) -f Dockerfile-test --build-arg SCALA_VERSION=$(SCALA_VERSION) .
 	@touch $@
 
-test: .docker-test
+test:
 	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
-	- docker rm -f $(DOCKER_NAME)_test 2> /dev/null || :
-	docker run --name $(DOCKER_NAME)_test --network $(DOCKER_NETWORK) -d -t -v $(CURDIR):$(EXCHANGE_API_DIR) $(image-string):test /bin/bash
-	docker exec -t \
-		-e EXCHANGE_URL_ROOT=http://$(DOCKER_NAME):8080 \
-		-e "EXCHANGE_ROOTPW=$$EXCHANGE_ROOTPW" \
-		-e "EXCHANGE_IAM_KEY=$$EXCHANGE_IAM_KEY" \
-		-e "EXCHANGE_IAM_EMAIL=$$EXCHANGE_IAM_EMAIL" \
-		-e "EXCHANGE_IAM_ACCOUNT_ID=$$EXCHANGE_IAM_ACCOUNT_ID" \
-		$(DOCKER_NAME)_test /bin/bash -c 'cd $(EXCHANGE_API_DIR) && sbt test'
+	- sbt test
 
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:

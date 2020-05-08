@@ -37,7 +37,6 @@ before_script:
 - cat /etc/horizon/exchange/config.json
 - unset SBT_OPTS
 - make .docker-exec-run-no-https
-- docker logs exchange-api
 
 script:
 - make test

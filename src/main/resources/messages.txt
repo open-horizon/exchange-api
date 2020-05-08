@@ -29,7 +29,6 @@ api.not.found=not-found
 api.internal.error=internal_error
 api.not.implemented=not-implemented
 api.db.connection.error=database-connection-error
-api.db.service.unavailable=database-service-unavailable
 api.db.timeout=database-timeout
 org.not.specified=No org was specified at the beginning of the request credentials
 org.not.found.user.facing.error=the iamapikey or iamtoken specified can not be used with org ''{0}'' prepended to it, because the exchange does not recognize that as a valid IBM cloud org for this iamapikey or iamtoken

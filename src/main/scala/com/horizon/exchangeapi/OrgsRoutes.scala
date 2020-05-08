@@ -295,7 +295,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Failure(t: org.postgresql.util.PSQLException) =>
               if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", orgId, t.getMessage)))
               else if (t.getMessage.contains("duplicate key value violates unique constraint")) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("org.already.exists", orgId, t.getMessage)))
-              else (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("org.not.created", orgId, t.toString)))
+              else (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("org.not.created", orgId, t.toString)))
             case Failure(t) =>
               if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", orgId, t.getMessage)))
               else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.created", orgId, t.toString)))
@@ -343,7 +343,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Failure(t: DBProcessingError) =>
               t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>
-              (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("org.not.updated", orgId, t.toString)))
+              (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("org.not.updated", orgId, t.toString)))
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
           })
@@ -392,7 +392,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Failure(t: DBProcessingError) =>
               t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>
-              (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("org.not.updated", orgId, t.toString)))
+              (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("org.not.updated", orgId, t.toString)))
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
           })
@@ -423,7 +423,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
             else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
           case Failure(t: org.postgresql.util.PSQLException) =>
-            (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("org.not.deleted", orgId, t.toString)))
+            (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("org.not.deleted", orgId, t.toString)))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.deleted", orgId, t.toString)))
         })
@@ -671,7 +671,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               }
             else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", ident.getIdentity)))
             case Failure(t: org.postgresql.util.PSQLException) =>
-              (HttpCode.SERVICE_UNAVAILABLE, ApiResponse(ApiRespType.SERVICE_UNAVAILABLE, ExchMsg.translate("invalid.input.message", t.getMessage)))
+              (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("invalid.input.message", t.getMessage)))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
           })

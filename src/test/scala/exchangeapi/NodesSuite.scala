@@ -2386,7 +2386,7 @@ class NodesSuite extends AnyFunSuite {
       var input = PostAgbotsMsgsRequest("{msg1 from node1 to agbot1}", 300)
       response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.SERVICE_UNAVAILABLE.intValue)
+      assert(response.code === HttpCode.BAD_GW.intValue)
       var apiResp = parse(response.body).extract[ApiResponse]
       assert(apiResp.msg.contains("Access Denied: the message mailbox of NodesSuiteTests/a1 is full (3 messages)"))
 
@@ -2428,7 +2428,7 @@ class NodesSuite extends AnyFunSuite {
       var input = PostNodesMsgsRequest("{msg1 from agbot1 to node1}", 300)
       response = Http(URL+"/nodes/"+nodeId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.SERVICE_UNAVAILABLE.intValue)
+      assert(response.code === HttpCode.BAD_GW.intValue)
       var apiResp = parse(response.body).extract[ApiResponse]
       assert(apiResp.msg.contains("Access Denied: the message mailbox of NodesSuiteTests/n1 is full"))
 

@@ -63,7 +63,6 @@ object HttpCode {
   val INTERNAL_ERROR = StatusCodes.InternalServerError
   val NOT_IMPLEMENTED = StatusCodes.NotImplemented
   val BAD_GW = StatusCodes.BadGateway // bad gateway, which for us means db connection error or IAM API problem
-  val SERVICE_UNAVAILABLE = StatusCodes.ServiceUnavailable
   val GW_TIMEOUT = StatusCodes.GatewayTimeout // gateway timeout, which for us means db timeout
 }
 
@@ -78,7 +77,6 @@ object ApiRespType {
   val INTERNAL_ERROR = ExchMsg.translate("api.internal.error")
   val NOT_IMPLEMENTED = ExchMsg.translate("api.not.implemented")
   val BAD_GW = ExchMsg.translate("api.db.connection.error")
-  val SERVICE_UNAVAILABLE = ExchMsg.translate("api.db.service.unavailable")
   val GW_TIMEOUT = ExchMsg.translate("api.db.timeout")
   val ERROR = ExchMsg.translate("error")
   val WARNING = ExchMsg.translate("warning")
@@ -168,6 +166,23 @@ final case class InternalErrorRejection(apiRespMsg: String) extends ExchangeReje
   def httpCode = HttpCode.INTERNAL_ERROR
   def apiRespCode = ApiRespType.INTERNAL_ERROR
 }
+
+object ExchangePosgtresErrorHandling {
+  def duplicateKeyError(serverErrorMessage: String, routine: String, response: String): Any = {
+    if (serverErrorMessage.contains("duplicate key") || routine.contains("_bt_check_unique")) (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, response))
+  }
+  def accessDeniedError(serverErrorMessage: String, routine: String, response: String): Any = {
+    if (serverErrorMessage.contains("Access Denied:") || routine.contains("_bt_check_unique")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, response))
+  }
+  def keyNotFoundError(serverErrorMessage: String, routine: String, response: String): Any = {
+    if (serverErrorMessage.contains("is not present in table") || routine.contains("_bt_check_unique")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, response))
+  }
+  def ioProblemError(serverErrorMessage: String, routine: String, response: String): (StatusCode, ApiResponse) = {
+    if (serverErrorMessage.contains("An I/O error occurred while sending to the backend") || routine.contains("_bt_check_unique")) (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, response))
+    else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, response))
+  }
+}
+
 
 // Returns a msg from the translated files, with the args substituted
 object ExchMsg {

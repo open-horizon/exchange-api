@@ -178,7 +178,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
             AuthCache.clearAllCaches(includingIbmAuth=true)
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("db.deleted")))
           case Failure(t: org.postgresql.util.PSQLException) =>
-            (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("db.not.deleted", t.toString)))
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("db.not.deleted", t.toString))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.not.deleted", t.toString)))
         })
@@ -206,7 +206,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
             ExchConfig.createRoot(db)         // initialize the users table with the root user from config.json
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("db.init")))
           case Failure(t: org.postgresql.util.PSQLException) =>
-            (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("db.not.init", t.toString)))
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("db.not.init", t.toString))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.not.init", t.toString)))
         })
@@ -276,7 +276,8 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
             statusResp.msg = "Exchange server operating normally"
             (HttpCode.OK, statusResp.toGetAdminStatusResponse)
           case Failure(t: org.postgresql.util.PSQLException) =>
-            (HttpCode.BAD_GW, statusResp.toGetAdminStatusResponse)
+            if (t.getMessage.contains("An I/O error occurred while sending to the backend")) (HttpCode.BAD_GW, statusResp.toGetAdminStatusResponse)
+            else (HttpCode.INTERNAL_ERROR, statusResp.toGetAdminStatusResponse)
           case Failure(t) => statusResp.msg = t.getMessage
             (HttpCode.INTERNAL_ERROR, statusResp.toGetAdminStatusResponse)
         })
@@ -326,7 +327,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
               if (v > 0) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, "IBM changes deleted"))
               else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", "IBM")))
             case Failure(t: org.postgresql.util.PSQLException) =>
-              (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, "IBM org changes not deleted: " + t.toString))
+              ExchangePosgtresErrorHandling.ioProblemError(t, "IBM org changes not deleted: " + t.toString)
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, "IBM org changes not deleted: " + t.toString))
           })

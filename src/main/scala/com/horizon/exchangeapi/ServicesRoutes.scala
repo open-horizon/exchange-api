@@ -403,11 +403,9 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.created", service)))
             case Failure(t: DBProcessingError) =>
               t.toComplete
-            case Failure(t: org.postgresql.util.PSQLException) => if (t.getMessage.contains("duplicate key value violates unique constraint")) {
-              (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("service.already.exists", service, t.getMessage)))
-            } else {
-              (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("service.not.created", service, t.getMessage)))
-            }
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("service.already.exists", service, t.getMessage)))
+              else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.not.created", service, t.getMessage))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.created", service, t.getMessage)))
           })
@@ -496,8 +494,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             case Failure(t: DBProcessingError) =>
               t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>
-              if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
-              else (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
+              if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
+              else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.not.updated", compositeId, t.getMessage))
             case Failure(t) =>
               if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
@@ -609,8 +607,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               case Failure(t: DBProcessingError) =>
                 t.toComplete
               case Failure(t: org.postgresql.util.PSQLException) =>
-                if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
-                else (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
+                if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
+                else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.not.updated", compositeId, t.getMessage))
               case Failure(t) =>
                 if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
                 else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", compositeId, t.getMessage)))
@@ -670,7 +668,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
-            (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("service.not.deleted", compositeId, t.toString)))
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.not.deleted", compositeId, t.toString))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", compositeId, t.toString)))
         })
@@ -761,8 +759,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/policy updated in changes table: " + v)
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("policy.added.or.updated")))
             case Failure(t: org.postgresql.util.PSQLException) =>
-              if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("policy.not.inserted.or.updated", compositeId, t.getMessage)))
-              else (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("policy.not.inserted.or.updated", compositeId, t.toString)))
+              if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("policy.not.inserted.or.updated", compositeId, t.getMessage)))
+              else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("policy.not.inserted.or.updated", compositeId, t.toString))
             case Failure(t) =>
               if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("policy.not.inserted.or.updated", compositeId, t.getMessage)))
               else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("policy.not.inserted.or.updated", compositeId, t.toString)))
@@ -817,7 +815,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
-            (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("service.policy.not.deleted", compositeId, t.toString)))
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.policy.not.deleted", compositeId, t.toString))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.policy.not.deleted", compositeId, t.toString)))
         })
@@ -926,8 +924,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                 logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/keys/" + keyId + " updated in changes table: " + v)
                 (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("key.added.or.updated")))
               case Failure(t: org.postgresql.util.PSQLException) =>
-                if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
-                else (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
+                if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
+                else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage))
               case Failure(t) =>
                 if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
                 else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
@@ -983,7 +981,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
-            (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("service.keys.not.deleted", compositeId, t.toString)))
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.keys.not.deleted", compositeId, t.toString))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.keys.not.deleted", compositeId, t.toString)))
         })
@@ -1037,7 +1035,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
-            (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("service.key.not.deleted", keyId, compositeId, t.toString)))
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.key.not.deleted", keyId, compositeId, t.toString))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.key.not.deleted", keyId, compositeId, t.toString)))
         })
@@ -1101,9 +1099,9 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               else (HttpCode.NOT_FOUND, list)
             })
           case Failure(t: org.postgresql.util.PSQLException) =>
-            (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, "dockauthid must be an integer: " + t.getMessage))
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("dockauth.must.be.int", t.getMessage))
           case Failure(t) =>
-            (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "dockauthid must be an integer: " + t.getMessage))
+            (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("dockauth.must.be.int", t.getMessage)))
         }
       }) // end of complete
     } // end of exchAuth
@@ -1170,8 +1168,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                 case _ => (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("dockauth.num.added", resultNum))) // we did not find a dup, so this is the dockauth id that was added
               }
             case Failure(t: org.postgresql.util.PSQLException) =>
-              if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.inserted", dockAuthId, compositeId, t.getMessage)))
-              else (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("service.dockauth.not.inserted", dockAuthId, compositeId, t.getMessage)))
+              if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.inserted", dockAuthId, compositeId, t.getMessage)))
+              else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.dockauth.not.inserted", dockAuthId, compositeId, t.getMessage))
             case Failure(t) =>
               if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.inserted", dockAuthId, compositeId, t.getMessage)))
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.dockauth.not.inserted", dockAuthId, compositeId, t.getMessage)))
@@ -1227,8 +1225,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             case Failure(t: DBProcessingError) =>
               t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>
-              if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage)))
-              else (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage)))
+              if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage)))
+              else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage))
             case Failure(t) =>
               if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage)))
               else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, compositeId, t.getMessage)))
@@ -1283,7 +1281,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
-            (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("service.dockauths.not.deleted", compositeId, t.toString)))
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.dockauths.not.deleted", compositeId, t.toString))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.dockauths.not.deleted", compositeId, t.toString)))
         })
@@ -1339,7 +1337,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               case Failure(t: DBProcessingError) =>
                 t.toComplete
               case Failure(t: org.postgresql.util.PSQLException) =>
-                (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("service.dockauths.not.deleted", dockauthId, compositeId, t.toString)))
+                ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.dockauths.not.deleted", dockauthId, compositeId, t.toString))
               case Failure(t) =>
                 (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.dockauths.not.deleted", dockauthId, compositeId, t.toString)))
             })

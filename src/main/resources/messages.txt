@@ -320,3 +320,4 @@ node.errors.not.found=errors for node ''{0}'' not found
 node.errors.not.deleted=errors for node ''{0}'' not deleted: {1}
 no.services.defined.in.pattern=No services were found in the pattern or the services field was left empty
 node.or.agbot.not.found = Node or agbot ''{0}'' not found
+dockauth.must.be.int = dockauthid must be an integer:  {1}

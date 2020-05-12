@@ -168,17 +168,11 @@ final case class InternalErrorRejection(apiRespMsg: String) extends ExchangeReje
 }
 
 object ExchangePosgtresErrorHandling {
-  def duplicateKeyError(serverErrorMessage: String, routine: String, response: String): Any = {
-    if (serverErrorMessage.contains("duplicate key") || routine.contains("_bt_check_unique")) (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, response))
-  }
-  def accessDeniedError(serverErrorMessage: String, routine: String, response: String): Any = {
-    if (serverErrorMessage.contains("Access Denied:") || routine.contains("_bt_check_unique")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, response))
-  }
-  def keyNotFoundError(serverErrorMessage: String, routine: String, response: String): Any = {
-    if (serverErrorMessage.contains("is not present in table") || routine.contains("_bt_check_unique")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, response))
-  }
-  def ioProblemError(serverErrorMessage: String, routine: String, response: String): (StatusCode, ApiResponse) = {
-    if (serverErrorMessage.contains("An I/O error occurred while sending to the backend") || routine.contains("_bt_check_unique")) (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, response))
+  def isDuplicateKeyError(serverError: org.postgresql.util.PSQLException): Boolean = {serverError.getServerErrorMessage.getMessage.contains("duplicate key") || serverError.getServerErrorMessage.getRoutine.contains("_bt_check_unique")}
+  def isAccessDeniedError(serverError: org.postgresql.util.PSQLException): Boolean = {serverError.getMessage.startsWith("Access Denied:")}
+  def isKeyNotFoundError(serverError: org.postgresql.util.PSQLException): Boolean = {serverError.getServerErrorMessage.getDetail.contains("is not present in table") || serverError.getServerErrorMessage.getRoutine.contains("ri_ReportViolation")}
+  def ioProblemError(serverError: org.postgresql.util.PSQLException, response: String): (StatusCode, ApiResponse) = {
+    if (serverError.getMessage.contains("An I/O error occurred")) (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, response))
     else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, response))
   }
 }

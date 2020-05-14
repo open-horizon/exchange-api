@@ -38,7 +38,7 @@ lazy val root = (project in file("."))
         vendor               := "IBM", 
         version              := versionFunc(), 
         scapegoatVersion in ThisBuild := "1.4.4", 
-        coverageEnabled      := true, 
+        coverageEnabled      := false, 
         
 
         // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision

@@ -97,6 +97,22 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 - Run the performance tests: `src/test/bash/scale/test.sh` or `src/test/bash/scale/wrapper.sh 8`
 - Make sure to run `primedb.sh` before running the  `AgbotsSuite` test class to run all of the tests.
 
+## Code Coverage Report
+
+  Code coverage is disabled in the project by default. The sbt command `sbt coverage` toggles coverage checking on/off. To create a report of coverage:
+  
+  - Execute `sbt coverage` to enable scoverage.
+  - Run all tests see section above (`Running the Automated Tests in Local Sandbox`).
+  - Create report running command `sbt coverageReport`.
+  - Terminal will display where the report was written and provide a high-level percent summary.
+
+## Linting
+
+  Project uses Scapegoat. To use:
+  
+  - Run `sbt scapegoat`
+  - Terminal will display where the report was written and provide a summary of found errors and warnings.
+
 ## Building and Running the Docker Container
 
 - Update the version in `src/main/resources.version.txt`
@@ -224,6 +240,14 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 2.27.0
+
+- Issue 313: Expanded unit testing structure to cover most of the Exchange.
+- Added code coverge tool scoverage to the project.
+- Added linter tool Scapegoat to the project.
+- Open Horizon domain prefix added to system testing package.
+- sbt will now pull-down a newer version of plugins if one is available. Defined versions are now the minimum accepted.
 
 ## Changes in 2.26.0
 

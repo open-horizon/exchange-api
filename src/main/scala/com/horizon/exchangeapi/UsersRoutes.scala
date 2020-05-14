@@ -62,6 +62,7 @@ final case class PatchUsersRequest(password: Option[String], admin: Option[Boole
   }
 }
 
+/** Input body for POST /orgs/{orgid}/users/{username}/changepw */
 final case class ChangePwRequest(newPassword: String) {
   require(newPassword!=null)
   def getAnyProblem: Option[String] = {
@@ -184,6 +185,8 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
               logger.debug("POST /orgs/" + orgid + "/users/" + username + " result: " + v)
               AuthCache.putUserAndIsAdmin(compositeId, hashedPw, reqBody.password, reqBody.admin)
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.added.successfully", v)))
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.added", t.toString))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.added", t.toString)))
           })
@@ -224,6 +227,8 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
               } else {
                 (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
               }
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.updated", t.toString))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
           })
@@ -267,6 +272,8 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
               } else {
                 (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
               }
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.updated", t.toString))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
           })
@@ -300,6 +307,8 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
               AuthCache.removeUserAndIsAdmin(compositeId)
               (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.deleted")))
             } else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.deleted", compositeId, t.toString))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.deleted", compositeId, t.toString)))
         })
@@ -367,6 +376,8 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
               } else {
                 (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
               }
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.password.not.updated", compositeId, t.toString))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.password.not.updated", compositeId, t.toString)))
           })

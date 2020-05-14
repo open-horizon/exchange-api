@@ -368,12 +368,11 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.created", compositeId)))
             case Failure(t: DBProcessingError) =>
               t.toComplete
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("pattern.already.exists", compositeId, t.getMessage)))
+              else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.not.created", compositeId, t.getMessage))
             case Failure(t) =>
-              if (t.getMessage.contains("duplicate key value violates unique constraint")) { // "duplicate key value violates unique constraint" comes from postgres
-                (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("pattern.already.exists", compositeId, t.getMessage)))
-              } else {
-                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.created", compositeId, t.getMessage)))
-              }
+              (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.created", compositeId, t.getMessage)))
           })
         }) // end of complete
       } // end of validateWithMsg
@@ -476,6 +475,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
               t.toComplete
             case Failure(t: auth.ResourceNotFoundException) =>
               t.toComplete
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.not.updated", compositeId, t.getMessage))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", compositeId, t.getMessage)))
           })
@@ -585,6 +586,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                 t.toComplete
               case Failure(_: auth.ResourceNotFoundException) =>
                 (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId)))
+              case Failure(t: org.postgresql.util.PSQLException) =>
+                ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.not.updated", compositeId, t.getMessage))
               case Failure(t) =>
                 (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", compositeId, t.getMessage)))
             })
@@ -641,6 +644,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.id.not.deleted", compositeId, t.toString))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.id.not.deleted", compositeId, t.toString)))
         })
@@ -782,6 +787,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
               } else {
                 (HttpCode.NOT_FOUND, PostPatternSearchResponse(List[PatternNodeResponse](), 0))
               }
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("invalid.input.message", t.getMessage))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
           })
@@ -942,6 +949,9 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
               case Success(v) =>
                 logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " updated in changes table: " + v)
                 (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("key.added.or.updated")))
+              case Failure(t: org.postgresql.util.PSQLException) =>
+                if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
+                else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage))
               case Failure(t) =>
                 if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
                 else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
@@ -995,6 +1005,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.keys.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.keys.not.deleted", compositeId, t.toString))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.keys.not.deleted", compositeId, t.toString)))
         })
@@ -1046,6 +1058,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.key.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.key.not.deleted", compositeId, t.toString))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.key.not.deleted", compositeId, t.toString)))
         })

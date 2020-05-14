@@ -94,6 +94,7 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
   }
 }
 
+/** Input body for POST /org/{orgid}/search/nodehealth */
 final case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List[String]]) {
   require(lastTime!=null)
   def getAnyProblem: Option[String] = None
@@ -292,9 +293,12 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(n) =>
               logger.debug(s"POST /orgs/$orgId put in changes table: $n")
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.created", orgId)))
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", orgId, t.getMessage)))
+              else if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("org.already.exists", orgId, t.getMessage)))
+              else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.created", orgId, t.toString))
             case Failure(t) =>
               if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", orgId, t.getMessage)))
-              else if (t.getMessage.contains("duplicate key value violates unique constraint")) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("org.already.exists", orgId, t.getMessage)))
               else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.created", orgId, t.toString)))
           })
         }) // end of complete
@@ -339,6 +343,8 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.updated")))
             case Failure(t: DBProcessingError) =>
               t.toComplete
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.updated", orgId, t.toString))
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
           })
@@ -386,6 +392,8 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", attrName, orgId)))
             case Failure(t: DBProcessingError) =>
               t.toComplete
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.updated", orgId, t.toString))
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
           })
@@ -415,6 +423,8 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             logger.debug(s"DELETE /orgs/$orgId result: $v")
             if (v > 0) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
             else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.deleted", orgId, t.toString))
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.deleted", orgId, t.toString)))
         })
@@ -661,6 +671,8 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
                 else (HttpCode.POST_OK, ResourceChangesRespObject(List[ChangeEntry](), maxChangeId, hitMaxRecords = false, ExchangeApi.adminVersion()))
               }
             else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", ident.getIdentity)))
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("invalid.input.message", t.getMessage))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
           })

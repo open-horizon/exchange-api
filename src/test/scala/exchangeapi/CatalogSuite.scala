@@ -224,6 +224,159 @@ class CatalogSuite extends AnyFunSuite {
     assert(!respObj.patterns.contains(orgpattern3))
   }
 
+  val IBMURL = urlRoot+"/v1/orgs/IBM"
+  val ibmSvcBase = "service-only-for-pattern-automated-tests"   // needs to be different from the IBM svc created in ServicesSuite
+  val ibmSvcUrl = "http://" + ibmSvcBase
+  val ibmSvcVersion = "9.7.5"
+  val ibmSvcArch = "arm"
+  val ibmService = ibmSvcBase + "_" + ibmSvcVersion + "_" + ibmSvcArch
+  val ibmOrgService = "IBM/"+ibmService
+  val ibmPattern = "pattern-only-for-automated-tests"
+  val ibmOrgPattern = "IBM/"+ibmPattern
+
+  test("POST /orgs/IBM/services - add IBM service so patterns can reference it") {
+    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, Some("{\"services\":{}}"),Some("a"), None, None, None)
+    val response = Http(IBMURL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+  }
+
+  test("POST /orgs/IBM/patterns/"+ibmPattern+" - add "+ibmPattern+" as root") {
+    val input = PostPutPatternRequest(ibmPattern, None, Some(true),
+      List( PServices(ibmSvcUrl, "IBM", ibmSvcArch, None, List(PServiceVersions(ibmSvcVersion, None, None, None, None)), None, None )),
+      None, None
+    )
+    val response = Http(IBMURL+"/patterns/"+ibmPattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    val respObj = parse(response.body).extract[ApiResponse]
+    assert(respObj.msg.contains("pattern '"+ibmOrgPattern+"' created"))
+  }
+
+  test("GET /catalog/"+orgid3+"/patterns") {
+    val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/"+orgid3+"/patterns").headers(ACCEPT).headers(USERAUTH3).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetPatternsResponse]
+
+    // Verify the patterns that should be there are
+    assert(respObj.patterns.contains(orgpattern))
+    var pat = respObj.patterns(orgpattern)
+    assert(pat.label === pattern)
+
+    assert(respObj.patterns.contains(orgpattern2))
+    pat = respObj.patterns(orgpattern2)
+    assert(pat.label === pattern2)
+
+    assert(respObj.patterns.contains(orgpattern3))
+    pat = respObj.patterns(orgpattern3)
+    assert(pat.label === pattern3)
+
+    assert(respObj.patterns.contains(ibmOrgPattern))
+
+    // shouldn't contain private pattern from non-caller org
+    assert(!respObj.patterns.contains(orgpatternPriv))
+  }
+
+  test("GET /catalog/"+orgid3+"/patterns by user who can't see " + orgid3) {
+    val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/"+orgid3+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetPatternsResponse]
+
+    // Verify the patterns that should be there are
+    assert(respObj.patterns.contains(orgpattern))
+    var pat = respObj.patterns(orgpattern)
+    assert(pat.label === pattern)
+
+    assert(respObj.patterns.contains(orgpattern2))
+    pat = respObj.patterns(orgpattern2)
+    assert(pat.label === pattern2)
+
+    assert(respObj.patterns.contains(ibmOrgPattern))
+
+    assert(!respObj.patterns.contains(orgpattern3))
+
+    //doesn't include their own private pattern because made the call to the wrong org
+    assert(!respObj.patterns.contains(orgpatternPriv))
+  }
+
+  test("GET /catalog/"+orgid+"/patterns") {
+    val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/"+orgid+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetPatternsResponse]
+
+    // Verify the patterns that should be there are
+    assert(respObj.patterns.contains(orgpattern))
+    var pat = respObj.patterns(orgpattern)
+    assert(pat.label === pattern)
+
+    assert(respObj.patterns.contains(orgpattern2))
+    pat = respObj.patterns(orgpattern2)
+    assert(pat.label === pattern2)
+
+    assert(respObj.patterns.contains(ibmOrgPattern))
+
+    // shouldn't include non-IBM and non-caller-org patterns, even if public
+    assert(!respObj.patterns.contains(orgpattern3))
+    // should include their own private pattern
+    assert(respObj.patterns.contains(orgpatternPriv))
+  }
+
+  test("GET /catalog/"+orgid3+"/services") {
+    val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/"+orgid3+"/services").headers(ACCEPT).headers(USERAUTH3).asString
+    info("code: "+response.code)
+    //info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetServicesResponse]
+    //assert(respObj.services.size === 2)  // can't check the size, because my IBM org might contain some
+
+    // Verify the services that should be there are
+    assert(respObj.services.contains(orgservice))
+    var svc = respObj.services(orgservice)
+    assert(svc.url === svcUrl)
+    assert(svc.version === svcVersion)
+    assert(svc.arch === svcArch)
+
+    assert(respObj.services.contains(orgservice2))
+    svc = respObj.services(orgservice2)
+    assert(svc.url === svcUrl2)
+    assert(svc.version === svcVersion2)
+    assert(svc.arch === svcArch2)
+
+    assert(respObj.services.contains(orgservice3))
+    svc = respObj.services(orgservice3)
+    assert(svc.url === svcUrl3)
+    assert(svc.version === svcVersion3)
+    assert(svc.arch === svcArch3)
+
+    assert(respObj.services.contains(ibmOrgService))
+
+    // shouldn't contain private service from non-caller org
+    assert(!respObj.services.contains(orgservicePriv))
+  }
+
+  test("DELETE /orgs/IBM/patterns/"+ibmPattern) {
+    val response = Http(IBMURL+"/patterns/"+ibmPattern).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
+  }
+
+  test("GET /orgs/IBM/patterns/"+ibmPattern+" - as user - verify gone") {
+    val response: HttpResponse[String] = Http(IBMURL+"/patterns/"+ibmPattern).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    //assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+  }
+
+  test("DELETE /orgs/IBM/services/"+ibmService) {
+    val response = Http(IBMURL+"/services/"+ibmService).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
+  }
+
   test("DELETE all orgs to clean up") {
     deleteAllOrgs()
   }

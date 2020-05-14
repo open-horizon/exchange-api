@@ -94,6 +94,7 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
   }
 }
 
+/** Input body for POST /org/{orgid}/search/nodehealth */
 final case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List[String]]) {
   require(lastTime!=null)
   def getAnyProblem: Option[String] = None

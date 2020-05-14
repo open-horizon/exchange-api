@@ -117,6 +117,7 @@ final case class PutAgbotAgreementRequest(service: AAService, state: String) {
 //final case class PostAgbotsIsRecentDataRequest(secondsStale: Int, agreementIds: List[String])     // the strings in the list are agreement ids
 //final case class PostAgbotsIsRecentDataElement(agreementId: String, recentData: Boolean)
 
+/** Input body for POST /orgs/{orgid}/agreements/confirm */
 final case class PostAgreementsConfirmRequest(agreementId: String) {
   require(agreementId!=null)
 }

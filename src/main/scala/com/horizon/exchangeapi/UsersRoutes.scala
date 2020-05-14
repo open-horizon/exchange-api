@@ -62,6 +62,7 @@ final case class PatchUsersRequest(password: Option[String], admin: Option[Boole
   }
 }
 
+/** Input body for POST /orgs/{orgid}/users/{username}/changepw */
 final case class ChangePwRequest(newPassword: String) {
   require(newPassword!=null)
   def getAnyProblem: Option[String] = {

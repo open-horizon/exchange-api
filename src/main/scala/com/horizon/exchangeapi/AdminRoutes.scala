@@ -23,6 +23,7 @@ import io.swagger.v3.oas.annotations._
 
 import scala.util._
 
+/** Input body for POST /admin/hashpw */
 final case class AdminHashpwRequest(password: String) {
   require(password!=null)
 }

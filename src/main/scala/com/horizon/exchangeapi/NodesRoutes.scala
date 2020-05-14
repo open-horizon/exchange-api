@@ -50,6 +50,7 @@ final case class PostNodeErrorRequest() {
 }
 final case class PostNodeErrorResponse(nodes: scala.Seq[String])
 
+/** Input body for POST /orgs/{orgid}/search/nodes/service -- now in OrgsRoutes */
 final case class PostServiceSearchRequest(orgid: String, serviceURL: String, serviceVersion: String, serviceArch: String) {
   require(orgid!=null && serviceURL!=null && serviceVersion!=null && serviceArch!=null)
   def getAnyProblem: Option[String] = None
@@ -145,6 +146,7 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
   }
 }
 
+/** Input body for POST /orgs/{orgid}/nodes/{id}/services_configstate */
 final case class PostNodeConfigStateRequest(org: String, url: String, configState: String) {
   require(org!=null && url!=null && configState!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
@@ -201,6 +203,7 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
   }
 }
 
+/** Input body for PUT /orgs/{orgid}/nodes/{id}/status */
 final case class PutNodeStatusRequest(connectivity: Option[Map[String,Boolean]], services: List[OneService]) {
   require(connectivity!=null && services!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
@@ -212,6 +215,7 @@ final case class PutNodeStatusRequest(connectivity: Option[Map[String,Boolean]],
   def toNodeStatusRow(nodeId: String) = NodeStatusRow(nodeId, write(connectivity), write(services), runningServices, ApiTime.nowUTC)
 }
 
+/** Input body for PUT /orgs/{orgid}/nodes/{id}/errors */
 final case class PutNodeErrorRequest(errors: List[Any]) {
   require(errors!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats

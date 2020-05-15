@@ -225,6 +225,12 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.27.0
+
+- Issue 251: Added `GET /<orgid>/search/nodes/error/all`
+- Updated translation files
+- Catching duplicate key error on `POST /orgs/{orgid}/users/{username}`
+
 ## Changes in 2.26.0
 
 - Issue 314: Added `GET /catalog/<orgid>/patterns` and `GET /catalog/<orgid>/services`

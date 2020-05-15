@@ -94,6 +94,13 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
   }
 }
 
+/** The following classes are to build the response object for the GET /orgs/{orgid}/searc/nodes/error/all route */
+final case class NodeErrorsWithTimestamp(error: String, lastUpdated: String)
+final case class NodeErrorsResp(nodeId: String, errors: ListBuffer[NodeErrorsWithTimestamp]){
+  def addToErrors(error: NodeErrorsWithTimestamp) : ListBuffer[NodeErrorsWithTimestamp] = {this.errors += error}
+}
+final case class AllNodeErrorsInOrgResp(nodeErrors: List[NodeErrorsResp])
+
 /** Input body for POST /org/{orgid}/search/nodehealth */
 final case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List[String]]) {
   require(lastTime!=null)
@@ -150,7 +157,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   */
 
   // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
-  def orgsRoutes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute ~ orgsGetMaxChangeIdRoute
+  def orgsRoutes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute ~ orgsGetMaxChangeIdRoute ~ nodeGetAllErrorsRoute
 
   // ====== GET /orgs ================================
 
@@ -447,7 +454,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def orgPostNodesErrorRoute: Route = (path("orgs" / Segment / "search" / "nodes" / "error") & post) { (orgid) =>
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/error")
-    exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
+    exchAuth(TNode(OrgAndId(orgid,"#").toString),Access.READ) { _ =>
       complete({
         val q = for {
           (n, _) <- NodesTQ.rows.filter(_.orgid === orgid) join NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]") on (_.id === _.nodeId)
@@ -458,6 +465,47 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           val code = if (list.nonEmpty) HttpCode.POST_OK else HttpCode.NOT_FOUND
           (code, PostNodeErrorResponse(list))
         })
+      }) // end of complete
+    } // end of exchAuth
+  }
+
+  /* ====== GET /orgs/{orgid}/search/nodes/error/all ================================ */
+  @GET
+  @Path("orgs/{orgid}/search/nodes/error/all")
+  @Operation(summary = "Returns all node errors", description = "Returns a list of all the node errors for an organization (that the caller has access to see) in an error state. Can be run by a user or agbot (a node will only get its own errors).",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[AllNodeErrorsInOrgResp])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def nodeGetAllErrorsRoute: Route = (path("orgs" / Segment / "search"  / "nodes" / "error" / "all") & get) { orgid =>
+    logger.debug(s"Doing GET /orgs/$orgid/search/nodes/error/all")
+    exchAuth(TNode(OrgAndId(orgid,"#").toString),Access.READ) { _ =>
+      complete({
+        val q = for {
+          (ne, _) <- NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]") join NodesTQ.rows.filter(_.orgid === orgid) on (_.nodeId === _.id)
+        } yield (ne.nodeId, ne.errors, ne.lastUpdated)
+
+        db.run(q.result).map({ list =>
+          logger.debug("GET /orgs/"+orgid+"/search/nodes/error/all result size: "+list.size)
+          if (list.nonEmpty) {
+            val errorsMap = scala.collection.mutable.Map[String, NodeErrorsResp]()
+            for ((nodeId, errorsString, lastUpdated) <- list) {
+              errorsMap.get(nodeId) match {
+                case Some(error) =>
+                  error.addToErrors(NodeErrorsWithTimestamp(errorsString, lastUpdated))
+                case None =>
+                  errorsMap.put(nodeId, NodeErrorsResp(nodeId, ListBuffer[NodeErrorsWithTimestamp](NodeErrorsWithTimestamp(errorsString, lastUpdated))))
+              }
+            }
+            (HttpCode.OK, AllNodeErrorsInOrgResp(errorsMap.values.toList))
+          }
+          else (HttpCode.OK, ApiResponse(ApiRespType.OK, ""))
+        }) // end of db.run()
       }) // end of complete
     } // end of exchAuth
   }
@@ -580,7 +628,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     if (hitMaxRecords) maxChangeId = maxChangeIdInResponse   // we hit the max records, so there are possibly value entries we are not returning, so the client needs to start here next time
     else if (maxChangeIdOfTable > 0) maxChangeId = maxChangeIdOfTable   // we got a valid max change id in the table, and we returned all relevant entries, so the client can start at the end of the table next time
     else maxChangeId = inputChangeId    // we didn't get a valid maxChangeIdInResponse or maxChangeIdOfTable, so just give the client back what they gave us
-    ResourceChangesRespObject(changesList, maxChangeId, hitMaxRecords, exchangeVersion)   //todo: probably remove the 2nd maxChangeId in the response
+    ResourceChangesRespObject(changesList, maxChangeId, hitMaxRecords, exchangeVersion)
   }
 
   /* ====== POST /orgs/{orgid}/changes ================================ */

@@ -1355,9 +1355,9 @@ class NodesSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
-    assert(postResp.allErrors.size == 1)
-    assert(postResp.allErrors.head.nodeId === orgnodeId)
-    assert(postResp.allErrors.head.errors.nonEmpty)
+    assert(postResp.nodeErrors.size == 1)
+    assert(postResp.nodeErrors.head.nodeId === orgnodeId)
+    assert(postResp.nodeErrors.head.errors.nonEmpty)
   }
 
   test("POST /orgs/"+orgid+"/search/nodes/error/ - as user to verify permissions work") {
@@ -1395,12 +1395,23 @@ class NodesSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
-    assert(postResp.allErrors.size == 2)
+    assert(postResp.nodeErrors.size == 2)
     assert(response.body.contains(orgnodeId))
     assert(response.body.contains(orgnodeId2))
-    assert(postResp.allErrors.head.errors.nonEmpty)
-    assert(postResp.allErrors(1).errors.nonEmpty)
+    assert(postResp.nodeErrors.head.errors.nonEmpty)
+    assert(postResp.nodeErrors(1).errors.nonEmpty)
+  }
 
+  test("GET /orgs/"+orgid+"/search/nodes/error/all - as agbot") {
+    val response = Http(URL+"/search/nodes/error/all").method("get").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
+    assert(postResp.nodeErrors.size == 2)
+    assert(response.body.contains(orgnodeId))
+    assert(response.body.contains(orgnodeId2))
+    assert(postResp.nodeErrors.head.errors.nonEmpty)
+    assert(postResp.nodeErrors(1).errors.nonEmpty)
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {

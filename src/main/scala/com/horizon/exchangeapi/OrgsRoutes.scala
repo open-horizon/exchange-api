@@ -472,7 +472,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   /* ====== GET /orgs/{orgid}/search/nodes/error/all ================================ */
   @GET
   @Path("orgs/{orgid}/search/nodes/error/all")
-  @Operation(summary = "Returns all node errors", description = "Returns a list of all the node errors for an organization (that the caller has access to see) in an error state. Can be run by a user or agbot (a node will only get its own errors).",
+  @Operation(summary = "Returns all node errors", description = "Returns a list of all the node errors for an organization (that the caller has access to see) in an error state. Can be run by a user or agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     responses = Array(
@@ -484,10 +484,16 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def nodeGetAllErrorsRoute: Route = (path("orgs" / Segment / "search"  / "nodes" / "error" / "all") & get) { orgid =>
     logger.debug(s"Doing GET /orgs/$orgid/search/nodes/error/all")
-    exchAuth(TNode(OrgAndId(orgid,"#").toString),Access.READ) { _ =>
+    exchAuth(TNode(OrgAndId(orgid,"#").toString),Access.READ) { ident =>
       complete({
+        var queryParam = NodesTQ.rows.filter(_.orgid === orgid)
+        val userId = orgid + "/" + ident.getIdentity
+        ident match {
+          case _: IUser => if(!(ident.isSuperUser || ident.isAdmin)) queryParam = queryParam.filter(_.owner === userId)
+          case _ => ;
+        }
         val q = for {
-          (ne, _) <- NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]") join NodesTQ.rows.filter(_.orgid === orgid) on (_.nodeId === _.id)
+          (ne, _) <- NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]") join queryParam on (_.nodeId === _.id)
         } yield (ne.nodeId, ne.errors, ne.lastUpdated)
 
         db.run(q.result).map({ list =>
@@ -504,7 +510,9 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             }
             (HttpCode.OK, AllNodeErrorsInOrgResp(errorsMap.values.toList))
           }
-          else (HttpCode.OK, ApiResponse(ApiRespType.OK, ""))
+          else {
+            (HttpCode.OK, AllNodeErrorsInOrgResp(List[NodeErrorsResp]()))
+          }
         }) // end of db.run()
       }) // end of complete
     } // end of exchAuth

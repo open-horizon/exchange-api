@@ -1477,6 +1477,14 @@ class NodesSuite extends AnyFunSuite {
     //assert(response.body.isEmpty)
   }
 
+  test("GET /orgs/"+orgid+"/search/nodes/error/all - as agbot should show no errors") {
+    val response = Http(URL+"/search/nodes/error/all").method("get").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
+    assert(postResp.nodeErrors.isEmpty)
+  }
+
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node, adding the error again") {
     val input = """{ "errors": [{ "record_id":"1", "message":"test error 1", "event_code":"500", "hidden":false, "workload":{"url":"myservice"}, "timestamp":"yesterday" }] }"""
     val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString

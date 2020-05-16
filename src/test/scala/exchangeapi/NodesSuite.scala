@@ -1357,7 +1357,7 @@ class NodesSuite extends AnyFunSuite {
     val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
     assert(postResp.nodeErrors.size == 1)
     assert(postResp.nodeErrors.head.nodeId === orgnodeId)
-    assert(postResp.nodeErrors.head.errors.nonEmpty)
+    assert(postResp.nodeErrors.head.error.nonEmpty)
   }
 
   test("POST /orgs/"+orgid+"/search/nodes/error/ - as user to verify permissions work") {
@@ -1398,8 +1398,8 @@ class NodesSuite extends AnyFunSuite {
     assert(postResp.nodeErrors.size == 2)
     assert(response.body.contains(orgnodeId))
     assert(response.body.contains(orgnodeId2))
-    assert(postResp.nodeErrors.head.errors.nonEmpty)
-    assert(postResp.nodeErrors(1).errors.nonEmpty)
+    assert(postResp.nodeErrors.head.error.nonEmpty)
+    assert(postResp.nodeErrors(1).error.nonEmpty)
   }
 
   test("GET /orgs/"+orgid+"/search/nodes/error/all - as agbot") {
@@ -1410,8 +1410,8 @@ class NodesSuite extends AnyFunSuite {
     assert(postResp.nodeErrors.size == 2)
     assert(response.body.contains(orgnodeId))
     assert(response.body.contains(orgnodeId2))
-    assert(postResp.nodeErrors.head.errors.nonEmpty)
-    assert(postResp.nodeErrors(1).errors.nonEmpty)
+    assert(postResp.nodeErrors.head.error.nonEmpty)
+    assert(postResp.nodeErrors(1).error.nonEmpty)
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {

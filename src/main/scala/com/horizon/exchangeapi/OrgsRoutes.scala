@@ -95,11 +95,8 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
 }
 
 /** The following classes are to build the response object for the GET /orgs/{orgid}/searc/nodes/error/all route */
-final case class NodeErrorsWithTimestamp(error: String, lastUpdated: String)
-final case class NodeErrorsResp(nodeId: String, errors: ListBuffer[NodeErrorsWithTimestamp]){
-  def addToErrors(error: NodeErrorsWithTimestamp) : ListBuffer[NodeErrorsWithTimestamp] = {this.errors += error}
-}
-final case class AllNodeErrorsInOrgResp(nodeErrors: List[NodeErrorsResp])
+final case class NodeErrorsResp(nodeId: String, error: String, lastUpdated: String){}
+final case class AllNodeErrorsInOrgResp(nodeErrors: ListBuffer[NodeErrorsResp])
 
 /** Input body for POST /org/{orgid}/search/nodehealth */
 final case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List[String]]) {
@@ -499,20 +496,11 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         db.run(q.result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/search/nodes/error/all result size: "+list.size)
           if (list.nonEmpty) {
-            val errorsMap = scala.collection.mutable.Map[String, NodeErrorsResp]()
-            for ((nodeId, errorsString, lastUpdated) <- list) {
-              errorsMap.get(nodeId) match {
-                case Some(error) =>
-                  error.addToErrors(NodeErrorsWithTimestamp(errorsString, lastUpdated))
-                case None =>
-                  errorsMap.put(nodeId, NodeErrorsResp(nodeId, ListBuffer[NodeErrorsWithTimestamp](NodeErrorsWithTimestamp(errorsString, lastUpdated))))
-              }
-            }
-            (HttpCode.OK, AllNodeErrorsInOrgResp(errorsMap.values.toList))
+            val errorsList = ListBuffer[NodeErrorsResp]()
+            for ((nodeId, errorsString, lastUpdated) <- list) { errorsList += NodeErrorsResp(nodeId, errorsString, lastUpdated)}
+            (HttpCode.OK, AllNodeErrorsInOrgResp(errorsList))
           }
-          else {
-            (HttpCode.OK, AllNodeErrorsInOrgResp(List[NodeErrorsResp]()))
-          }
+          else {(HttpCode.OK, AllNodeErrorsInOrgResp(ListBuffer[NodeErrorsResp]()))}
         }) // end of db.run()
       }) // end of complete
     } // end of exchAuth

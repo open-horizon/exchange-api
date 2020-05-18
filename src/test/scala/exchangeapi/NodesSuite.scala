@@ -4,7 +4,6 @@ import java.time.ZonedDateTime
 import java.util.Base64
 
 import scala.collection.immutable.Map
-
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.jvalue2extractable
@@ -13,49 +12,7 @@ import org.json4s.string2JsonInput
 import org.junit.runner.RunWith
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
-
-import com.horizon.exchangeapi.AdminConfigRequest
-import com.horizon.exchangeapi.ApiRespType
-import com.horizon.exchangeapi.ApiResponse
-import com.horizon.exchangeapi.ApiTime
-import com.horizon.exchangeapi.ApiUtils
-import com.horizon.exchangeapi.DeleteIBMChangesRequest
-import com.horizon.exchangeapi.ExchConfig
-import com.horizon.exchangeapi.ExchangeApi
-import com.horizon.exchangeapi.GetAgbotMsgsResponse
-import com.horizon.exchangeapi.GetNodeAgreementsResponse
-import com.horizon.exchangeapi.GetNodeAttributeResponse
-import com.horizon.exchangeapi.GetNodeMsgsResponse
-import com.horizon.exchangeapi.GetNodesResponse
-import com.horizon.exchangeapi.HttpCode
-import com.horizon.exchangeapi.MaxChangeIdResponse
-import com.horizon.exchangeapi.PatchNodesRequest
-import com.horizon.exchangeapi.PostAgbotsMsgsRequest
-import com.horizon.exchangeapi.PostBusinessPolicySearchRequest
-import com.horizon.exchangeapi.PostBusinessPolicySearchResponse
-import com.horizon.exchangeapi.PostNodeConfigStateRequest
-import com.horizon.exchangeapi.PostNodeErrorRequest
-import com.horizon.exchangeapi.PostNodeErrorResponse
-import com.horizon.exchangeapi.PostNodeHealthRequest
-import com.horizon.exchangeapi.PostNodeHealthResponse
-import com.horizon.exchangeapi.PostNodesMsgsRequest
-import com.horizon.exchangeapi.PostPatternSearchRequest
-import com.horizon.exchangeapi.PostPatternSearchResponse
-import com.horizon.exchangeapi.PostPutBusinessPolicyRequest
-import com.horizon.exchangeapi.PostPutOrgRequest
-import com.horizon.exchangeapi.PostPutPatternRequest
-import com.horizon.exchangeapi.PostPutServiceRequest
-import com.horizon.exchangeapi.PostPutUsersRequest
-import com.horizon.exchangeapi.PostServiceSearchRequest
-import com.horizon.exchangeapi.PutAgbotsRequest
-import com.horizon.exchangeapi.PutNodeAgreementRequest
-import com.horizon.exchangeapi.PutNodePolicyRequest
-import com.horizon.exchangeapi.PutNodeStatusRequest
-import com.horizon.exchangeapi.PutNodesRequest
-import com.horizon.exchangeapi.ResourceChangeConfig
-import com.horizon.exchangeapi.ResourceChangesRequest
-import com.horizon.exchangeapi.ResourceChangesRespObject
-import com.horizon.exchangeapi.Role
+import com.horizon.exchangeapi.{AdminConfigRequest, AllNodeErrorsInOrgResp, ApiRespType, ApiResponse, ApiTime, ApiUtils, DeleteIBMChangesRequest, ExchConfig, ExchangeApi, GetAgbotMsgsResponse, GetNodeAgreementsResponse, GetNodeAttributeResponse, GetNodeMsgsResponse, GetNodesResponse, HttpCode, MaxChangeIdResponse, PatchNodesRequest, PostAgbotsMsgsRequest, PostBusinessPolicySearchRequest, PostBusinessPolicySearchResponse, PostNodeConfigStateRequest, PostNodeErrorRequest, PostNodeErrorResponse, PostNodeHealthRequest, PostNodeHealthResponse, PostNodesMsgsRequest, PostPatternSearchRequest, PostPatternSearchResponse, PostPutBusinessPolicyRequest, PostPutOrgRequest, PostPutPatternRequest, PostPutServiceRequest, PostPutUsersRequest, PostServiceSearchRequest, PutAgbotsRequest, PutNodeAgreementRequest, PutNodePolicyRequest, PutNodeStatusRequest, PutNodesRequest, ResourceChangeConfig, ResourceChangesRequest, ResourceChangesRespObject, Role}
 import com.horizon.exchangeapi.tables.BService
 import com.horizon.exchangeapi.tables.BServiceVersions
 import com.horizon.exchangeapi.tables.ContainerStatus
@@ -74,7 +31,6 @@ import com.horizon.exchangeapi.tables.PServiceVersions
 import com.horizon.exchangeapi.tables.PServices
 import com.horizon.exchangeapi.tables.Prop
 import com.horizon.exchangeapi.tables.RegService
-
 import scalaj.http.Http
 import scalaj.http.HttpResponse
 
@@ -1379,6 +1335,42 @@ class NodesSuite extends AnyFunSuite {
     assert(response.body.contains(""""workload":{"url":"myservice2"}"""))
   }
 
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as user with 2 errors") {
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("get").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val getResp = parse(response.body).extract[NodeError]
+    info(getResp.errors.size.toString)
+    assert(getResp.errors.size === 2)
+    assert(response.body.contains(""""record_id":"1""""))
+    assert(response.body.contains(""""message":"test error 1""""))
+    assert(response.body.contains(""""workload":{"url":"myservice"}"""))
+    assert(response.body.contains(""""record_id":"2""""))
+    assert(response.body.contains(""""message":"test error 2""""))
+    assert(response.body.contains(""""workload":{"url":"myservice2"}"""))
+  }
+
+  test("GET /orgs/"+orgid+"/search/nodes/error/all - should show 1 node ") {
+    val response = Http(URL+"/search/nodes/error/all").method("get").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
+    assert(postResp.nodeErrors.size == 1)
+    assert(postResp.nodeErrors.head.nodeId === orgnodeId)
+    assert(postResp.nodeErrors.head.error.nonEmpty)
+  }
+
+  test("POST /orgs/"+orgid+"/search/nodes/error/ - as user to verify permissions work") {
+    val input = PostNodeErrorRequest()
+    val response = Http(URL+"/search/nodes/error").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    info("response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    val postResp = parse(response.body).extract[PostNodeErrorResponse]
+    assert(postResp.nodes.size === 1)
+    assert(postResp.nodes.head === "NodesSuiteTests/n1")
+  }
+
   test("POST /orgs/"+orgid+"/search/nodes/error/ - as agbot") {
     val input = PostNodeErrorRequest()
     val response = Http(URL+"/search/nodes/error").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -1390,8 +1382,46 @@ class NodesSuite extends AnyFunSuite {
     assert(postResp.nodes.head === "NodesSuiteTests/n1")
   }
 
+ test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+"/errors - as node with 2 errors") {
+    val input = """{ "errors": [{ "record_id":"1", "message":"test error 1", "event_code":"500", "hidden":false, "workload":{"url":"myservice"}, "timestamp":"yesterday" }, { "record_id":"2", "message":"test error 2", "event_code":"404", "hidden":true, "workload":{"url":"myservice2"}, "timestamp":"yesterday" }] }"""
+    val response = Http(URL+"/nodes/"+nodeId2+"/errors").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("POST DATA: " + write(input))
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid+"/search/nodes/error/all - should show 2 nodes") {
+    val response = Http(URL+"/search/nodes/error/all").method("get").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
+    assert(postResp.nodeErrors.size == 2)
+    assert(response.body.contains(orgnodeId))
+    assert(response.body.contains(orgnodeId2))
+    assert(postResp.nodeErrors.head.error.nonEmpty)
+    assert(postResp.nodeErrors(1).error.nonEmpty)
+  }
+
+  test("GET /orgs/"+orgid+"/search/nodes/error/all - as agbot") {
+    val response = Http(URL+"/search/nodes/error/all").method("get").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
+    assert(postResp.nodeErrors.size == 2)
+    assert(response.body.contains(orgnodeId))
+    assert(response.body.contains(orgnodeId2))
+    assert(postResp.nodeErrors.head.error.nonEmpty)
+    assert(postResp.nodeErrors(1).error.nonEmpty)
+  }
+
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
     val response = Http(URL+"/nodes/"+nodeId+"/errors").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
+  }
+
+  test("DELETE /orgs/"+orgid+"/nodes/"+nodeId2+"/errors - as node") {
+    val response = Http(URL+"/nodes/"+nodeId2+"/errors").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
@@ -1445,6 +1475,14 @@ class NodesSuite extends AnyFunSuite {
     info("response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
     //assert(response.body.isEmpty)
+  }
+
+  test("GET /orgs/"+orgid+"/search/nodes/error/all - as agbot should show no errors") {
+    val response = Http(URL+"/search/nodes/error/all").method("get").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
+    assert(postResp.nodeErrors.isEmpty)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node, adding the error again") {

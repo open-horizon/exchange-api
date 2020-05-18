@@ -307,11 +307,11 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           var q = NodesTQ.getAllNodes(orgid)
           idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
           name.foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
-          
+
           if (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)) {
               owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
           } else q = q.filter(_.owner === ident.identityString)
-          
+
           owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
           arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
 

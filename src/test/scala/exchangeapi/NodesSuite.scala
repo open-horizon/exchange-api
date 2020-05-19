@@ -1362,13 +1362,22 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/search/nodes/error/ - as user to verify permissions work") {
     val input = PostNodeErrorRequest()
-    val response = Http(URL+"/search/nodes/error").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    info("response.body: "+response.body)
+    val response = Http(URL + "/search/nodes/error").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: " + response.code)
+    info("response.body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val postResp = parse(response.body).extract[PostNodeErrorResponse]
     assert(postResp.nodes.size === 1)
     assert(postResp.nodes.head === "NodesSuiteTests/n1")
+  }
+
+  test("POST /orgs/" + orgid + "/search/nodes/error/ - as user2 to verify users can only acces the nodes they own") {
+    val input = PostNodeErrorRequest()
+    val response = Http(URL + "/search/nodes/error").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(orgid + "/u2:u2pw"))).asString
+    info("code: " + response.code)
+    info("response.body: " + response.body)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(parse(response.body).extract[PostNodeErrorResponse].nodes.size === 0)
   }
 
   test("POST /orgs/"+orgid+"/search/nodes/error/ - as agbot") {

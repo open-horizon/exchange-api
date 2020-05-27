@@ -1,4 +1,4 @@
-﻿# NLS_MESSAGEFORMAT_ALL
+# NLS_MESSAGEFORMAT_ALL
 # NLS_ENCODING=UTF-8
 post.ok=post ok
 invalid.credentials=credencial inválida
@@ -320,3 +320,4 @@ node.errors.not.found=erros para o nó ''{0}'' não localizados
 node.errors.not.deleted=erros para o nó ''{0}'' não excluídos: {1}
 no.services.defined.in.pattern=Nenhum serviço foi localizado no padrão ou o campo de serviços foi deixado vazio
 node.or.agbot.not.found = Nó ou robô de contrato ''{0}'' não localizado
+dockauth.must.be.int = dockauthid deve ser um número inteiro: {1}

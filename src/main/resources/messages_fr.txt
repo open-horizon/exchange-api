@@ -320,3 +320,4 @@ node.errors.not.found=Erreurs du noeud ''{0}'' introuvables
 node.errors.not.deleted=Erreurs du noeud ''{0}'' non supprimées : {1}
 no.services.defined.in.pattern=Aucun service n''a été trouvé dans le pattern ou la zone des services a été laissée vide
 node.or.agbot.not.found = Le noeud ou l''agbot ''{0}'' est introuvable
+dockauth.must.be.int = L''ID dockauthid doit être un entier :  {1}

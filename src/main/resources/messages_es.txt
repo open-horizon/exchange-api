@@ -320,3 +320,4 @@ node.errors.not.found=no se han encontrado errores para el nodo ''{0}''
 node.errors.not.deleted=no se han suprimido los errores para el nodo ''{0}'': {1}
 no.services.defined.in.pattern=No se han encontrado servicios en el patrón o el campo de servicios se ha dejado vacío
 node.or.agbot.not.found = Nodo o agbot ''{0}'' no encontrado
+dockauth.must.be.int = dockauthid debe ser un entero:  {1}

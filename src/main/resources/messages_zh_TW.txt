@@ -320,3 +320,4 @@ node.errors.not.found=找不到節點 ''{0}'' 的錯誤
 node.errors.not.deleted=未刪除節點 ''{0}'' 的錯誤：{1}
 no.services.defined.in.pattern=型樣中未發現任何服務，或者服務欄位保留空白
 node.or.agbot.not.found = 找不到節點或 agbot ''{0}''
+dockauth.must.be.int = dockauthid 必須為整數：{1}

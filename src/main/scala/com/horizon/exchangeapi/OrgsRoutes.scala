@@ -678,10 +678,14 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
             case _: IAgbot =>
               val wildcard = orgSet.contains("*") || orgSet.contains("")
-              if (ident.isMultiTenantAgbot && !wildcard) { // its an IBM Agbot, get all changes from orgs the agbot covers
-                qFilter = qFilter.filter(_.orgId inSet orgSet)
-                // if the caller agbot sends in the wildcard case then we don't want to filter on orgId at all, so don't add any more filters. that's why there's just no code written for that case
-              } else if (!ident.isMultiTenantAgbot) qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")) // if its not an IBM agbot use the general case
+              if (ident.isMultiTenantAgbot && !wildcard) { // its an IBM Agbot with no wildcard sent in, get all changes from orgs the agbot covers
+                qFilter = qFilter.filter(_.orgId inSet orgSet).filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED).filterNot(u => u.resource === "agbotagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED).filterNot(u => u.resource === "agbotmsgs" && u.operation === ResourceChangeConfig.DELETED)
+              } else if ( ident.isMultiTenantAgbot && wildcard) {
+                // if the IBM agbot sends in the wildcard case then we don't want to filter on orgId at all
+                qFilter = qFilter.filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED).filterNot(u => u.resource === "agbotagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED).filterNot(u => u.resource === "agbotmsgs" && u.operation === ResourceChangeConfig.DELETED)
+              } else {
+                qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED).filterNot(u => u.resource === "agbotagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED).filterNot(u => u.resource === "agbotmsgs" && u.operation === ResourceChangeConfig.DELETED) // if its not an IBM agbot only allow access to the agbot's own org and public changes from other orgs
+              }
             case _ => qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
           }
           // sort by changeId and take only maxRecords from the query

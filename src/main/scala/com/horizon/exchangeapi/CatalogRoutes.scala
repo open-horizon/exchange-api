@@ -92,7 +92,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ====== GET /catalog/{orgid}/services ================================
   @GET
-  @Path("")
+  @Path("{orgid}/services")
   @Operation(summary = "Returns all services", description = "Returns all service definitions in this organization and in the IBM organization. Can be run by any user, node, or agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -153,7 +153,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
 
   /* ====== GET /catalog/{orgid}/patterns ================================ */
   @GET
-  @Path("")
+  @Path("{orgid}/patterns")
   @Operation(summary = "Returns all patterns", description = "Returns all pattern definitions in this organization and in the IBM organization. Can be run by any user, node, or agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),

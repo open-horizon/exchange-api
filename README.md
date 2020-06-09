@@ -225,6 +225,18 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+
+## Changes in 2.31.0
+
+- Removed "Try it out" buttons from Swagger UI.
+- Replaced Swagger parsed examples with custom examples where provided.
+- Updated Swagger UI to version 3.26.0.
+- Corrected occurrences where Swagger UI parameter names differed from REST API parameter names.
+- Added API groupings to Swagger.
+- Alpha-numerically sorted API groups in swagger.
+- Alpha-numerically sorted REST API in Swagger.
+- Swagger groupings show collapsed by default.
+
 ## Changes in 2.30.0
 
 - Updated translations

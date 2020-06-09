@@ -13,7 +13,8 @@ import com.horizon.exchangeapi.auth._
 import de.heikoseeberger.akkahttpjackson._
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.{Content, Schema}
+import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
+import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import com.horizon.exchangeapi.tables._
@@ -148,6 +149,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
   def patternsGetRoute: Route = (path("orgs" / Segment / "patterns") & get & parameter(('idfilter.?, 'owner.?, 'public.?, 'label.?, 'description.?))) { (orgid, idfilter, owner, public, label, description) =>
     exchAuth(TPattern(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
@@ -186,6 +188,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
   def patternGetRoute: Route = (path("orgs" / Segment / "patterns" / Segment) & get & parameter(('attribute.?))) { (orgid, pattern, attribute) =>
     val compositeId = OrgAndId(orgid,pattern).toString
     exchAuth(TPattern(compositeId), Access.READ) { _ =>
@@ -218,45 +221,59 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{orgid}/patterns/{pattern} ===============================
   @POST
   @Path("{pattern}")
-  @Operation(summary = "Adds a pattern", description = "Creates a pattern resource. A pattern resource specifies all of the services that should be deployed for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. This can only be called by a user.",
+  @Operation(
+    summary = "Adds a pattern",
+    description = "Creates a pattern resource. A pattern resource specifies all of the services that should be deployed for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. This can only be called by a user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
-    requestBody = new RequestBody(description = """
-```
-{
-  "label": "name of the edge pattern",     // this will be displayed in the node registration UI
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "pattern",
+        in = ParameterIn.PATH,
+        description = "Pattern name."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
+  "label": "name of the edge pattern",  // this will be displayed in the node registration UI
   "description": "descriptive text",
-  "public": false,       // typically patterns are not appropriate to share across orgs because they contain policy choices
+  "public": false,                      // typically patterns are not appropriate to share across orgs because they contain policy choices
   // The services that should be deployed to the edge for this pattern. (The services must exist before creating this pattern.)
   "services": [
     {
       "serviceUrl": "mydomain.com.weather",
       "serviceOrgid": "myorg",
       "serviceArch": "amd64",
-      "agreementLess": false,  // only set to true if the same svc is both top level and required by another svc
+      "agreementLess": false,                // only set to true if the same svc is both top level and required by another svc
       // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
       "serviceVersions": [
         {
           "version": "1.0.1",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "",     // filled in by the Horizon signing process
-          "priority": {      // can be omitted
+          "deployment_overrides_signature": "",  // filled in by the Horizon signing process
+          "priority": {                          // can be omitted
             "priority_value": 50,
             "retries": 1,
             "retry_durations": 3600,
             "verified_durations": 52
           },
           // When Horizon should upgrade nodes to newer service versions. Can be set to {} to take the default of immediate.
-          "upgradePolicy": {      // can be omitted
+          "upgradePolicy": {           // can be omitted
             "lifecycle": "immediate",
-            "time": "01:00AM"     // reserved for future use
+            "time": "01:00AM"          // reserved for future use
           }
         }
       ],
       // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the service is sending data.
       // If not using this, the dataVerification field can be set to {} or omitted completely.
-      "dataVerification": {      // can be omitted
+      "dataVerification": {            // can be omitted
         "enabled": true,
         "URL": "",
         "user": "",
@@ -270,9 +287,9 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
         }
       },
       // If not using agbot node health check, this field can be set to {} or omitted completely.
-      "nodeHealth": {      // can be omitted
-        "missing_heartbeat_interval": 600,      // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
-        "check_agreement_status": 120        // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
+      "nodeHealth": {                       // can be omitted
+        "missing_heartbeat_interval": 600,  // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
+        "check_agreement_status": 120       // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
       }
     }
   ],
@@ -281,8 +298,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
-      "serviceArch": "",        // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",   // or omit to mean all versions
+      "serviceArch": "",                          // omit or leave blank to mean all architectures
+      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -292,20 +309,46 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     }
   ],
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
-  "agreementProtocols": [      // can be omitted
+  "agreementProtocols": [  // can be omitted
     {
       "name": "Basic"
     }
   ]
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutPatternRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostPutPatternRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "resource created - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "400",
+        description = "bad input"
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
   def patternPostRoute: Route = (path("orgs" / Segment / "patterns" / Segment) & post & entity(as[PostPutPatternRequest])) { (orgid, pattern, reqBody) =>
     val compositeId = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId), Access.CREATE) { ident =>
@@ -394,6 +437,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
   def patternPuttRoute: Route = (path("orgs" / Segment / "patterns" / Segment) & put & entity(as[PostPutPatternRequest])) { (orgid, pattern, reqBody) =>
     val compositeId = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId), Access.WRITE) { ident =>
@@ -500,6 +544,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
   def patternPatchRoute: Route = (path("orgs" / Segment / "patterns" / Segment) & patch & entity(as[PatchPatternRequest])) { (orgid, pattern, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/patterns/$pattern")
     val compositeId = OrgAndId(orgid, pattern).toString
@@ -609,6 +654,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
   def patternDeleteRoute: Route = (path("orgs" / Segment / "patterns" / Segment) & delete) { (orgid, pattern) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/patterns/$pattern")
     val compositeId = OrgAndId(orgid,pattern).toString
@@ -656,27 +702,64 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
   // ======== POST /org/{orgid}/patterns/{pattern}/search ========================
   @POST
   @Path("{pattern}/search")
-  @Operation(summary = "Returns matching nodes of a particular pattern", description = "Returns the matching nodes that are using this pattern and do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node).",
+  @Operation(
+    summary = "Returns matching nodes of a particular pattern",
+    description = "Returns the matching nodes that are using this pattern and do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node).",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
-    requestBody = new RequestBody(description = """
-```
-{
-  "serviceUrl": "myorg/mydomain.com.sdr",   // The service that the node does not have an agreement with yet. Composite svc url (org/svc)
-  "nodeOrgids": [ "org1", "org2", "..." ],   // if not specified, defaults to the same org the pattern is in
-  "secondsStale": 60,     // max number of seconds since the exchange has heard from the node, 0 if you do not care
-  "startIndex": 0,    // for pagination, ignored right now
-  "numEntries": 0,    // ignored right now
-  "arch": "arm"     // optional
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "pattern",
+        in = ParameterIn.PATH,
+        description = "Pattern name."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
+  "serviceUrl": "myorg/mydomain.com.sdr",   // The service that the node does not have an agreement with yet. Composite service url (organization/service)
+  "nodeOrgids": [ "org1", "org2", "..." ],  // if not specified, defaults to the same org the pattern is in
+  "secondsStale": 60,                       // max number of seconds since the exchange has heard from the node, 0 if you do not care
+  "startIndex": 0,                          // for pagination, ignored right now
+  "numEntries": 0,                          // ignored right now
+  "arch": "arm"                             // (optional)
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPatternSearchRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostPatternSearchRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[PostPatternSearchResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[PostPatternSearchResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
   def patternPostSearchRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "search") & post & entity(as[PostPatternSearchRequest])) { (orgid, pattern, reqBody) =>
     val compositeId = OrgAndId(orgid, pattern).toString
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { _ =>
@@ -800,23 +883,60 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
   // ======== POST /org/{orgid}/patterns/{pattern}/nodehealth ========================
   @POST
   @Path("{pattern}/nodehealth")
-  @Operation(summary = "Returns agreement health of nodes of a particular pattern", description = "Returns the lastHeartbeat and agreement times for all nodes that are this pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
+  @Operation(
+    summary = "Returns agreement health of nodes of a particular pattern",
+    description = "Returns the lastHeartbeat and agreement times for all nodes that are this pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "pattern",
+        in = ParameterIn.PATH,
+        description = "Pattern name."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "lastTime": "2017-09-28T13:51:36.629Z[UTC]",   // only return nodes that have changed since this time, empty string returns all
-  "nodeOrgids": [ "org1", "org2", "..." ]   // if not specified, defaults to the same org the pattern is in
+  "nodeOrgids": ["org1", "org2", "..."]          // if not specified, defaults to the same org the pattern is in
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeHealthRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostNodeHealthRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeHealthResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeHealthResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
   def patternNodeHealthRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "nodehealth") & post & entity(as[PostNodeHealthRequest])) { (orgid, pattern, reqBody) =>
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -849,7 +969,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
 
   /* ====== GET /orgs/{orgid}/patterns/{pattern}/keys ================================ */
   @GET
-  @Path("{pattern}}/keys")
+  @Path("{pattern}/keys")
   @Operation(summary = "Returns all keys/certs for this pattern", description = "Returns all the signing public keys/certs for this pattern. Can be run by any credentials able to view the pattern.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -861,6 +981,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern/key")
   def patternGetKeysRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "keys") & get) { (orgid, pattern) =>
     val compositeId = OrgAndId(orgid,pattern).toString
     exchAuth(TPattern(compositeId),Access.READ) { _ =>
@@ -876,11 +997,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
 
   /* ====== GET /orgs/{orgid}/patterns/{pattern}/keys/{keyid} ================================ */
   @GET
-  @Path("{pattern}}/keys/{keyid}")
+  @Path("{pattern}/keys/{keyid}")
   @Operation(summary = "Returns a key/cert for this pattern", description = "Returns the signing public key/cert with the specified keyid for this pattern. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the pattern.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
+      new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name."),
+      new Parameter(name = "keyid", in = ParameterIn.PATH, description = "Signing public key/certificate identifier.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[String])))),
@@ -888,6 +1010,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern/key")
   def patternGetKeyRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "keys" / Segment) & get) { (orgid, pattern, keyId) =>
     val compositeId = OrgAndId(orgid,pattern).toString
     exchAuth(TPattern(compositeId),Access.READ) { _ =>
@@ -913,7 +1036,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Adds/updates a key/cert for the pattern", description = "Adds a new signing public key/cert, or updates an existing key/cert, for this pattern. This can only be run by the pattern owning user.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the pattern to be updated."),
+      new Parameter(name = "pattern", in = ParameterIn.PATH, description = "ID of the pattern to be updated."),
       new Parameter(name = "keyid", in = ParameterIn.PATH, description = "ID of the key to be added/updated.")),
     requestBody = new RequestBody(description = "Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutPatternKeyRequest])))),
     responses = Array(
@@ -922,6 +1045,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern/key")
   def patternPutKeyRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "keys" / Segment) & put) { (orgid, pattern, keyId) =>
     val compositeId = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId),Access.WRITE) { _ =>
@@ -974,6 +1098,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern/key")
   def patternDeleteKeysRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "keys") & delete) { (orgid, pattern) =>
     val compositeId = OrgAndId(orgid,pattern).toString
     exchAuth(TPattern(compositeId), Access.WRITE) { _ =>
@@ -1021,12 +1146,13 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name."),
-    new Parameter(name = "keyid", in = ParameterIn.PATH, description = "ID of the key.")),
+      new Parameter(name = "keyid", in = ParameterIn.PATH, description = "ID of the key.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern/key")
   def patternDeleteKeyRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "keys" / Segment) & delete) { (orgid, pattern, keyId) =>
     val compositeId = OrgAndId(orgid,pattern).toString
     exchAuth(TPattern(compositeId), Access.WRITE) { _ =>

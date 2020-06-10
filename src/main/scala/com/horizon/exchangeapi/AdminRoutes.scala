@@ -18,7 +18,8 @@ import de.heikoseeberger.akkahttpjackson._
 import slick.jdbc.PostgresProfile.api._
 
 import io.swagger.v3.oas.annotations.parameters.RequestBody
-import io.swagger.v3.oas.annotations.media.{ Content, Schema }
+import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
+import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import scala.util._
@@ -61,6 +62,7 @@ final case class DeleteIBMChangesRequest(resources: List[String]) {
 
 /** Implementation for all of the /admin routes */
 @Path("/v1/admin")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "administration")
 trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -92,18 +94,42 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /admin/hashpw ===============================
   @POST
   @Path("hashpw")
-  @Operation(summary = "Returns a bcrypted hash of a password", description = """Takes the password specified in the request body, bcrypts it with a random salt, and returns the result. This can be useful if you want to specify root's hash pw in the config file instead of the clear pw.""",
-    requestBody = new RequestBody(description = """
-```
-{
+  @Operation(
+    summary = "Returns a bcrypted hash of a password",
+    description = "Takes the password specified in the request body, bcrypts it with a random salt, and returns the result. This can be useful if you want to specify root's hash pw in the config file instead of the clear pw.",
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "password": "pw to bcrypt"
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[AdminHashpwRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[AdminHashpwRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      )
+    )
+  )
   def adminHashPwRoute: Route = (path("admin" / "hashpw") & post & entity(as[AdminHashpwRequest])) { reqBody =>
     logger.debug("Doing POST /admin/hashpw")
     exchAuth(TAction(), Access.UTILITIES) { _ =>

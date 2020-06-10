@@ -11,7 +11,8 @@ import com.horizon.exchangeapi.auth._
 import de.heikoseeberger.akkahttpjackson._
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.{Content, Schema}
+import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
+import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
@@ -298,6 +299,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodesGetRoute: Route = (path("orgs" / Segment / "nodes") & get & parameter(('idfilter.?, 'name.?, 'owner.?, 'arch.?, 'nodetype.?))) { (orgid, idfilter, name, owner, arch, nodetype) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes")
     exchAuth(TNode(OrgAndId(orgid,"#").toString), Access.READ) { ident =>
@@ -348,6 +350,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodeGetRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & get & parameter(('attribute.?))) { (orgid, id, attribute) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid,id).toString
@@ -386,29 +389,43 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== PUT /orgs/{orgid}/nodes/{id} ===============================
   @PUT
   @Path("{id}")
-  @Operation(summary = "Add/updates a node", description = "Adds a new edge node, or updates an existing node. This must be called by the user to add a node, and then can be called by that user or node to update itself.",
+  @Operation(
+    summary = "Add/updates a node",
+    description = "Adds a new edge node, or updates an existing node. This must be called by the user to add a node, and then can be called by that user or node to update itself.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
-    requestBody = new RequestBody(description = """
-```
-{
-  "token": "abc",       // node token, set by user when adding this node.
-  "name": "rpi3",         // node name that you pick
-  "nodeType": "device",    // the type of edge node: device, or cluster
-  "pattern": "myorg/mypattern",      // (optional) points to a pattern resource that defines what services should be deployed to this type of node
-  "arch": "arm",      // specifies the architecture of the node
-  "registeredServices": [    // list of data services you want to make available
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "ID of the node."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
+  "token": "abc",                // node token, set by user when adding this node.
+  "name": "rpi3",                // node name that you pick
+  "nodeType": "device",          // the type of edge node: device, or cluster
+  "pattern": "myorg/mypattern",  // (optional) points to a pattern resource that defines what services should be deployed to this type of node
+  "arch": "arm",                 // specifies the architecture of the node
+  "registeredServices": [        // list of data services you want to make available
     {
-      "url": "IBM/github.com.open-horizon.examples.cpu",
-      "numAgreements": 1,       // for now always set this to 1
-      "policy": "{...}"     // the service policy file content as a json string blob
-      "properties": [    // list of properties to help agbots search for this, or requirements on the agbot
+      "url": "IBM/github.com.open-horizon.examples.cpu", 
+      "numAgreements": 1,                                 // for now always set this to 1
+      "policy": "{...}"                                   // the service policy file content as a json string blob
+      "properties": [                                     // list of properties to help agbots search for this, or requirements on the agbot
         {
-          "name": "arch",         // must at least include arch and version properties
-          "value": "arm",         // should always be a string (even for boolean and int). Use "*" for wildcard
-          "propType": "string",   // valid types: string, list, version, boolean, int, or wildcard
-          "op": "="               // =, greater-than-or-equal-symbols, less-than-or-equal-symbols, or in (must use the same op as the agbot search)
+          "name": "arch",        // must at least include arch and version properties
+          "value": "arm",        // [arm, x86, *, ...] should always be a string (even for boolean and int). Use "*" for wildcard
+          "propType": "string",  // [string, list, version, boolean, int, wildcard]
+          "op": "="              // [=, >=, <=, in] must use the same op as the agbot search
         }
       ]
     }
@@ -418,8 +435,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
-      "serviceArch": "",        // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",   // or omit to mean all versions
+      "serviceArch": "",                          // omit or leave blank to mean all architectures
+      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -428,23 +445,51 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-  "msgEndPoint": "",    // not currently used, but may be in the future. Leave empty or omit to use the built-in Exchange msg service
-  "softwareVersions": {"horizon": "1.2.3"},      // various software versions on the node, can omit
-  "publicKey": "ABCDEF",      // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
-  "heartbeatIntervals": {    // All values in seconds. This section can be omitted
-    "minInterval": 10,       // the initial heartbeat interval
-    "maxInterval": 120,      // the max the interval will ever become
-    "intervalAdjustment": 10     // how much to increase the interval if there has been no activity for a while
+  "msgEndPoint": "",                         // not currently used, but may be in the future. Leave empty or omit to use the built-in Exchange msg service
+  "softwareVersions": {"horizon": "1.2.3"},  // various software versions on the node, can omit
+  "publicKey": "ABCDEF",                     // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
+  "heartbeatIntervals": {                    // All values in seconds. This section can be omitted
+    "minInterval": 10,                       // the initial heartbeat interval
+    "maxInterval": 120,                      // the max the interval will ever become
+    "intervalAdjustment": 10                 // how much to increase the interval if there has been no activity for a while
   }
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutNodesRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json", 
+          schema = new Schema(implementation = classOf[PutNodesRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "resource add/updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201", 
+        description = "resource add/updated - response body:", 
+        content = Array(
+          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+        )
+      ),
+      new responses.ApiResponse(
+        responseCode = "400", 
+        description = "bad input"
+      ),
+      new responses.ApiResponse(
+        responseCode = "401", 
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403", 
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404", 
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodePutRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & put & entity(as[PutNodesRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid, id).toString
@@ -546,6 +591,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodePatchRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & patch & entity(as[PatchNodesRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid, id).toString
@@ -633,24 +679,63 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{orgid}/nodes/{id}/services_configstate ===============================
   @POST
   @Path("{id}/services_configstate")
-  @Operation(summary = "Changes config state of registered services", description = "Suspends (or resumes) 1 or more services on this edge node. Can be run by the node owner or the node.",
+  @Operation(
+    summary = "Changes config state of registered services",
+    description = "Suspends (or resumes) 1 or more services on this edge node. Can be run by the node owner or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated.")),
-    requestBody = new RequestBody(description = """
-```
-{
-  "org": "myorg",    // the org of services to be modified, or empty string for all orgs
-  "url": "myserviceurl"       // the url of services to be modified, or empty string for all urls
-  "configState": "suspended"   // or "active"
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "ID of the node to be updated."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
+  "org": "myorg",             // the org of services to be modified, or empty string for all orgs
+  "url": "myserviceurl",      // the url of services to be modified, or empty string for all urls
+  "configState": "suspended"  // [active, suspended]
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeConfigStateRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostNodeConfigStateRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(
+          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+        )
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodePostConfigStateRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "services_configstate") & post & entity(as[PostNodeConfigStateRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
@@ -697,6 +782,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodeDeleteRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & delete) { (orgid, id) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid,id).toString
@@ -744,6 +830,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodeHeartbeatRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "heartbeat") & post) { (orgid, id) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$id/heartbeat")
     val compositeId = OrgAndId(orgid, id).toString
@@ -779,6 +866,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/error")
   def nodeGetErrorsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "errors") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
@@ -795,30 +883,69 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== PUT /orgs/{orgid}/nodes/{id}/errors ===============================
   @PUT
   @Path("{id}/errors")
-  @Operation(summary = "Adds/updates node error list", description = "Adds or updates any error of a node. This is called by the node or owning user.",
+  @Operation(
+    summary = "Adds/updates node error list",
+    description = "Adds or updates any error of a node. This is called by the node or owning user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "ID of the node to be updated."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   errors: [
-    {
-      record_id: "string",
-      message: "string",
-      event_code: "string",
-      hidden: boolean
-    },
+   {
+     record_id: "string",
+     message: "string",
+     event_code: "string",
+     hidden: boolean
+   },
     ...
   ]
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutNodeErrorRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PutNodeErrorRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(
+          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+        )
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/error")
   def nodePutErrorsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "errors") & put & entity(as[PutNodeErrorRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
@@ -859,6 +986,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/error")
   def nodeDeleteErrorsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "errors") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
@@ -903,6 +1031,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/status")
   def nodeGetStatusRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "status") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
@@ -919,17 +1048,31 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== PUT /orgs/{orgid}/nodes/{id}/status ===============================
   @PUT
   @Path("{id}/status")
-  @Operation(summary = "Adds/updates the node status", description = "Adds or updates the run time status of a node. This is called by the node or owning user.",
+  @Operation(
+    summary = "Adds/updates the node status",
+    description = "Adds or updates the run time status of a node. This is called by the node or owning user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "ID of the node to be updated."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "connectivity": {
-     "firmware.bluehorizon.network": true,
-      "images.bluehorizon.network": true
-   },
+    "firmware.bluehorizon.network": true,
+    "images.bluehorizon.network": true
+  },
   "services": [
     {
       "agreementId": "78d7912aafb6c11b7a776f77d958519a6dc718b9bd3da36a1442ebb18fe9da30",
@@ -945,17 +1088,42 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           "state": "running"
         }
       ],
-      "operatorStatus": {} // optional field
+      "operatorStatus": {} // (optional)
     }
   ]
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutNodeStatusRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PutNodeStatusRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(
+          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+        )
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/status")
   def nodePutStatusRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "status") & put & entity(as[PutNodeStatusRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
@@ -996,6 +1164,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/status")
   def nodeDeleteStatusRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "status") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
@@ -1040,6 +1209,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/policy")
   def nodeGetPolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
@@ -1056,31 +1226,70 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== PUT /orgs/{orgid}/nodes/{id}/policy ===============================
   @PUT
   @Path("{id}/policy")
-  @Operation(summary = "Adds/updates the node policy", description = "Adds or updates the policy of a node. This is called by the node or owning user.",
+  @Operation(
+    summary = "Adds/updates the node policy",
+    description = "Adds or updates the policy of a node. This is called by the node or owning user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "ID of the node to be updated."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "properties": [
     {
       "name": "mypurpose",
       "value": "myservice-testing"
-      "type": "string"   // optional, the type of the 'value': string, int, float, boolean, list of strings, version
+      "type": "string"              // (optional) [boolean, float, int, list of strings, string, version]
     }
   ],
   "constraints": [
     "a == b"
   ]
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutNodePolicyRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PutNodePolicyRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(
+          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+        )
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/policy")
   def nodePutPolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & put & entity(as[PutNodePolicyRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
@@ -1142,6 +1351,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/policy")
   def nodeDeletePolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
@@ -1191,6 +1401,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/agreement")
   def nodeGetAgreementsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
@@ -1220,6 +1431,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/agreement")
   def nodeGetAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & get) { (orgid, id, agrId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
@@ -1237,31 +1449,78 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== PUT /orgs/{orgid}/nodes/{id}/agreements/{agid} ===============================
   @PUT
   @Path("{id}/agreements/{agid}")
-  @Operation(summary = "Adds/updates an agreement of a node", description = "Adds a new agreement of a node, or updates an existing agreement. This is called by the node or owning user to give their information about the agreement.",
+  @Operation(
+    summary = "Adds/updates an agreement of a node",
+    description = "Adds a new agreement of a node, or updates an existing agreement. This is called by the node or owning user to give their information about the agreement.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated."),
-      new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement to be added/updated.")),
-    requestBody = new RequestBody(description = """
-```
-{
-  "services": [          // specify this for CS-type agreements
-    {"orgid": "myorg", "url": "mydomain.com.rtlsdr"}
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "ID of the node to be updated."
+      ),
+      new Parameter(
+        name = "agid",
+        in = ParameterIn.PATH,
+        description = "ID of the agreement to be added/updated."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              //name = "SomeExample",
+              value = """{
+  "services": [                        // specify this for CS-type agreements
+    {
+     "orgid": "myorg", 
+     "url": "mydomain.com.rtlsdr"
+    }
   ],
-  "agreementService": {          // specify this for pattern-type agreements
-    "orgid": "myorg",     // currently set to the node id, but not used
-    "pattern": "myorg/mypattern",    // composite pattern (org/pat)
-    "url": "myorg/mydomain.com.sdr"   // composite service url (org/svc)
+  "agreementService": {                // specify this for pattern-type agreements
+    "orgid": "myorg",                  // currently set to the node id, but not used
+    "pattern": "myorg/mypattern",      // composite pattern (organization/pattern)
+    "url": "myorg/mydomain.com.sdr"    // composite service url (organization/service)
   },
-  "state": "negotiating"    // current agreement state: negotiating, signed, finalized, etc.
+  "state": "negotiating"               // current agreement state: [negotiating, signed, finalized, ...]
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutNodeAgreementRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PutNodeAgreementRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(
+          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+        )
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/agreement")
   def nodePutAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & put & entity(as[PutNodeAgreementRequest])) { (orgid, id, agrId, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
@@ -1329,6 +1588,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/agreement")
   def nodeDeleteAgreementsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
@@ -1378,6 +1638,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/agreement")
   def nodeDeleteAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & delete) { (orgid, id, agrId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
@@ -1416,23 +1677,62 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{orgid}/nodes/{id}/msgs ===============================
   @POST
   @Path("{id}/msgs")
-  @Operation(summary = "Sends a msg from an agbot to a node", description = "Sends a msg from an agbot to a node. The agbot must 1st sign the msg (with its private key) and then encrypt the msg (with the node's public key). Can be run by any agbot.",
+  @Operation(
+    summary = "Sends a msg from an agbot to a node",
+    description = "Sends a msg from an agbot to a node. The agbot must 1st sign the msg (with its private key) and then encrypt the msg (with the node's public key). Can be run by any agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to send a message to.")),
-    requestBody = new RequestBody(description = """
-```
-{
-  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs",    // msg to be sent to the node
-  "ttl": 86400       // time-to-live of this msg, in seconds
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "ID of the node to send a message to."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
+  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs",  // msg to be sent to the node
+  "ttl": 86400                                                       // time-to-live of this msg, in seconds
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostNodesMsgsRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostNodesMsgsRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(
+          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+        )
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/message")
   def nodePostMsgRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs") & post & entity(as[PostNodesMsgsRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.SEND_MSG_TO_NODE) { ident =>
@@ -1497,6 +1797,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/message")
   def nodeGetMsgsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
@@ -1530,6 +1831,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/message")
   def nodeDeleteMsgRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs" / Segment) & delete) { (orgid, id, msgIdStr) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>

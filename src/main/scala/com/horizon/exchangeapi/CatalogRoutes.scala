@@ -11,6 +11,7 @@ import de.heikoseeberger.akkahttpjackson._
 import scala.concurrent.ExecutionContext
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
+import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 import com.horizon.exchangeapi.tables._
 import slick.jdbc.PostgresProfile.api._
@@ -19,6 +20,7 @@ import scala.util.{Failure, Success}
 
 // Provides routes for browsing the services and patterns in the IBM catalog
 @Path("/v1/catalog")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "catalog")
 trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database

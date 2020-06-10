@@ -24,7 +24,8 @@ import org.json4s.jackson.Serialization.write
 
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.{ Content, Schema }
+import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
+import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import com.horizon.exchangeapi.tables._
@@ -95,7 +96,7 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
 }
 
 /** The following classes are to build the response object for the GET /orgs/{orgid}/searc/nodes/error/all route */
-final case class NodeErrorsResp(nodeId: String, error: String, lastUpdated: String){}
+final case class NodeErrorsResp(nodeId: String, error: String, lastUpdated: String)
 final case class AllNodeErrorsInOrgResp(nodeErrors: ListBuffer[NodeErrorsResp])
 
 /** Input body for POST /org/{orgid}/search/nodehealth */
@@ -126,6 +127,7 @@ final case class MaxChangeIdResponse(maxChangeId: Long)
 
 /** Routes for /orgs */
 @Path("/v1")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "organization")
 trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // Not using Spray, but left here for reference, in case we want to switch to it - Tell spray how to marshal our types (models) to/from the rest client
   //import DefaultJsonProtocol._
@@ -257,30 +259,67 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // ====== POST /orgs/{orgid} ================================
   @POST
   @Path("orgs/{orgid}")
-  @Operation(summary = "Adds an org", description = "Creates an org resource. This can only be called by the root user.",
+  @Operation(
+    summary = "Adds an org",
+    description = "Creates an org resource. This can only be called by the root user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "orgType": "my org type",
   "label": "My org",
   "description": "blah blah",
-  "tags": { "ibmcloud_id": "abc123def456" }
-  "heartbeatIntervals": {    // default values (in seconds) if not set in the node resource. This section can be omitted
-    "minInterval": 10,       // the initial heartbeat interval
-    "maxInterval": 120,      // the max the interval will ever become
-    "intervalAdjustment": 10     // how much to increase the interval if there has been no activity for a while
+  "tags": {
+    "ibmcloud_id": "abc123def456"
+  }
+  "heartbeatIntervals": {     // default values (in seconds) if not set in the node resource. This section can be omitted
+    "minInterval": 10,        // the initial heartbeat interval
+    "maxInterval": 120,       // the max the interval will ever become
+    "intervalAdjustment": 10  // how much to increase the interval if there has been no activity for a while
   }
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutOrgRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostPutOrgRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "resource created - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "400",
+        description = "bad input"
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
   def orgPostRoute: Route = (path("orgs" / Segment) & post & entity(as[PostPutOrgRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgId")
     exchAuth(TOrg(""), Access.CREATE) { _ =>
@@ -515,25 +554,59 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{orgid}/search/nodes/service  ===============================
   @POST
   @Path("{orgid}/search/nodes/service")
-  @Operation(summary = "Returns the nodes a service is running on", description = "Returns a list of all the nodes a service is running on. Can be run by a user or agbot (but not a node).",
+  @Operation(
+    summary = "Returns the nodes a service is running on",
+    description = "Returns a list of all the nodes a service is running on. Can be run by a user or agbot (but not a node).",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
-    requestBody = new RequestBody(description = """
-```
-{
-  "orgid": "string",   // orgid of the service to be searched on
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
+  "orgid": "string",          // orgid of the service to be searched on
   "serviceURL": "string",
   "serviceVersion": "string",
   "serviceArch": "string"
-}
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostServiceSearchRequest])))),
+}"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostServiceSearchRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[PostServiceSearchResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[PostServiceSearchResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "400",
+        description = "bad input"
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
   def orgPostNodesServiceRoute: Route = (path("orgs" / Segment / "search" / "nodes" / "service") & post & entity(as[PostServiceSearchRequest])) { (orgid, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/service")
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
@@ -559,22 +632,57 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // ======== POST /org/{orgid}/search/nodehealth ========================
   @POST
   @Path("orgs/{orgid}/search/nodehealth")
-  @Operation(summary = "Returns agreement health of nodes with no pattern", description = "Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
+  @Operation(
+    summary = "Returns agreement health of nodes with no pattern",
+    description = "Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
-    requestBody = new RequestBody(description = """
-```
-{
-  "lastTime": "2017-09-28T13:51:36.629Z[UTC]"   // only return nodes that have changed since this time, empty string returns all
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
+  "lastTime": "2017-09-28T13:51:36.629Z[UTC]"  // only return nodes that have changed since this time, empty string returns all
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeHealthRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostNodeHealthRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeHealthResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeHealthResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "400",
+        description = "bad input"
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
   def orgPostNodesHealthRoute: Route = (path("orgs" / Segment / "search" / "nodehealth") & post & entity(as[PostNodeHealthRequest])) { (orgid, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/service")
     exchAuth(TNode(OrgAndId(orgid,"*").toString),Access.READ) { _ =>
@@ -636,25 +744,59 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   /* ====== POST /orgs/{orgid}/changes ================================ */
   @POST
   @Path("orgs/{orgid}/changes")
-  @Operation(summary = "Returns recent changes in this org", description = "Returns all the recent resource changes within an org that the caller has permissions to view.",
+  @Operation(
+    summary = "Returns recent changes in this org",
+    description = "Returns all the recent resource changes within an org that the caller has permissions to view.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "changeId": <number-here>,
-  "lastUpdated": "<time-here>", --> optional field, only use if the caller doesn't know what changeId to use
-  "maxRecords": <number-here>, --> the maximum number of records the caller wants returned to them, NOT optional
-  "orgList": ["", "", ""] --> just for agbots, this should be the list of orgs the agbot is responsible for
-}
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[ResourceChangesRequest])))),
+  "lastUpdated": "<time-here>",  // (optional) only use if the caller doesn't know what changeId to use
+  "maxRecords": <number-here>,   // (required) the maximum number of records the caller wants returned to them
+  "orgList": ["", "", ""]        // just for agbots, this should be the list of orgs the agbot is responsible for
+}"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[ResourceChangesRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "changes returned - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ResourceChangesRespObject])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "changes returned - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ResourceChangesRespObject])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "400",
+        description = "bad input"
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
   def orgChangesRoute: Route = (path("orgs" / Segment / "changes") & post & entity(as[ResourceChangesRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgId/changes")
     exchAuth(TOrg(orgId), Access.READ) { ident =>

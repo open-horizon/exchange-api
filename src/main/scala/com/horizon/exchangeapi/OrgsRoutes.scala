@@ -553,7 +553,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // =========== POST /orgs/{orgid}/search/nodes/service  ===============================
   @POST
-  @Path("{orgid}/search/nodes/service")
+  @Path("orgs/{orgid}/search/nodes/service")
   @Operation(
     summary = "Returns the nodes a service is running on",
     description = "Returns a list of all the nodes a service is running on. Can be run by a user or agbot (but not a node).",

@@ -225,6 +225,11 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.32.0
+
+- Validated and updated as needed all request bodies and response bodies on the swagger page.
+- Some additional minor swagger bugfixes.
+- `swagger-scala-module` back to version `latest.release`
 
 ## Changes in 2.31.0
 

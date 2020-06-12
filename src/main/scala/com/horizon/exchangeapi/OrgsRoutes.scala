@@ -180,7 +180,27 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this label (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetOrgsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "orgs": {
+    "string" : {
+      "orgType": "string",
+      "label": "string"
+    }.
+      ...
+  },
+  "lastIndex": 0
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetOrgsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -224,7 +244,26 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire org resource will be returned.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetOrgsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "orgs": {
+    "string" : {
+      "orgType": "string",
+      "label": "string"
+    }
+  },
+  "lastIndex": 0
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetOrgsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -275,10 +314,10 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "orgType": "my org type",
+  "orgType": "my org type",   // (optional)
   "label": "My org",
   "description": "blah blah",
-  "tags": {
+  "tags": {   // (optional)
     "ibmcloud_id": "abc123def456"
   }
   "heartbeatIntervals": {     // default values (in seconds) if not set in the node resource. This section can be omitted
@@ -355,7 +394,29 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Updates an org", description = "Does a full replace of an existing org. This can only be called by root or a user in the org with the admin role.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
-    requestBody = new RequestBody(description = "See details in the POST route.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutOrgRequest])))),
+    requestBody = new RequestBody(description = "Does a full replace of an existing org.", required = true, content = Array(
+      new Content(
+      examples = Array(
+        new ExampleObject(
+          value = """{
+  "orgType": "my org type",   // (optional)
+  "label": "My org",
+  "description": "blah blah",
+  "tags": {   // (optional)
+    "ibmcloud_id": "abc123def456"
+  }
+  "heartbeatIntervals": {     // default values (in seconds) if not set in the node resource. This section can be omitted
+    "minInterval": 10,        // the initial heartbeat interval
+    "maxInterval": 120,       // the max the interval will ever become
+    "intervalAdjustment": 10  // how much to increase the interval if there has been no activity for a while
+  }
+}
+"""
+        )
+      ),
+      mediaType = "application/json",
+      schema = new Schema(implementation = classOf[PostPutOrgRequest])
+    ))),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
@@ -402,7 +463,30 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Updates 1 attribute of an org", description = "Updates one attribute of a org. This can only be called by root or a user in the org with the admin role.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
-    requestBody = new RequestBody(description = "Specify only **one** of the attributes:", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchOrgRequest])))),
+    requestBody = new RequestBody(description = "Specify only **one** of the attributes:", required = true, content = Array(
+      new Content(
+        examples = Array(
+          new ExampleObject(
+            value = """{
+  "orgType": "my org type",
+  "label": "My org",
+  "description": "blah blah",
+  "tags": {
+    "ibmcloud_id": "abc123def456"
+  }
+  "heartbeatIntervals": {     // default values (in seconds) if not set in the node resource. This section can be omitted
+    "minInterval": 10,        // the initial heartbeat interval
+    "maxInterval": 120,       // the max the interval will ever become
+    "intervalAdjustment": 10  // how much to increase the interval if there has been no activity for a while
+  }
+}
+"""
+          )
+        ),
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[PostPutOrgRequest])
+      )
+    )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
@@ -587,7 +671,24 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[PostServiceSearchResponse])))
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value = """{
+  "nodes": [
+    {
+      "string": "string",
+      "string": "string"
+    }
+  ]
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[PostServiceSearchResponse])
+          )
+        )
       ),
       new responses.ApiResponse(
         responseCode = "400",
@@ -663,7 +764,31 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeHealthResponse])))
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "nodes": {
+    "string": {
+      "lastHeartbeat": "string",
+      "agreements": {
+        "string": {
+          "lastUpdated": "string"
+        },
+          ...
+      }
+    },
+      ...
+  }
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[PostNodeHealthResponse])
+          )
+        )
       ),
       new responses.ApiResponse(
         responseCode = "400",
@@ -763,7 +888,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   "changeId": <number-here>,
   "lastUpdated": "<time-here>",  // (optional) only use if the caller doesn't know what changeId to use
   "maxRecords": <number-here>,   // (required) the maximum number of records the caller wants returned to them
-  "orgList": ["", "", ""]        // just for agbots, this should be the list of orgs the agbot is responsible for
+  "orgList": ["", "", ""]        // (optional) just for agbots, this should be the list of orgs the agbot is responsible for
 }"""
             )
           ),

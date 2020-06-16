@@ -11,7 +11,8 @@ import com.horizon.exchangeapi.auth._
 import de.heikoseeberger.akkahttpjackson._
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.{Content, Schema}
+import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
+import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
@@ -202,10 +203,101 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "requiredurl", in = ParameterIn.QUERY, required = false, description = "Filter results to only include services that use this service with this url (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetServicesResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "services": {
+    "orgid/servicename": {
+      "owner": "string",
+      "label": "string",
+      "description": "blah blah",
+      "public": true,
+      "documentation": "",
+      "url": "string",
+      "version": "1.2.3",
+      "arch": "string",
+      "sharable": "singleton",
+      "matchHardware": {},
+      "requiredServices": [],
+      "userInput": [],
+      "deployment": "string",
+      "deploymentSignature": "string",
+      "clusterDeployment": "",
+      "clusterDeploymentSignature": "",
+      "imageStore": {},
+      "lastUpdated": "2019-05-14T16:20:40.221Z[UTC]"
+    },
+    "orgid/servicename2": {
+      "owner": "string",
+      "label": "string",
+      "description": "string",
+      "public": true,
+      "documentation": "",
+      "url": "string",
+      "version": "4.5.6",
+      "arch": "string",
+      "sharable": "singleton",
+      "matchHardware": {},
+      "requiredServices": [
+        {
+          "url": "string",
+          "org": "string",
+          "version": "[1.0.0,INFINITY)",
+          "versionRange": "[1.0.0,INFINITY)",
+          "arch": "string"
+        }
+      ],
+      "userInput": [
+        {
+          "name": "foo",
+          "label": "The Foo Value",
+          "type": "string",
+          "defaultValue": "bar"
+        }
+      ],
+      "deployment": "string",
+      "deploymentSignature": "string",
+      "clusterDeployment": "",
+      "clusterDeploymentSignature": "",
+      "imageStore": {},
+      "lastUpdated": "2019-05-14T16:20:40.680Z[UTC]"
+    },
+    "orgid/servicename3": {
+      "owner": "string",
+      "label": "string",
+      "description": "fake",
+      "public": true,
+      "documentation": "",
+      "url": "string",
+      "version": "string",
+      "arch": "string",
+      "sharable": "singleton",
+      "matchHardware": {},
+      "requiredServices": [],
+      "userInput": [],
+      "deployment": "",
+      "deploymentSignature": "",
+      "clusterDeployment": "",
+      "clusterDeploymentSignature": "",
+      "imageStore": {},
+      "lastUpdated": "2019-12-13T15:38:57.679Z[UTC]"
+    },
+      ...
+  },
+  "lastIndex": 0
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetServicesResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
   def servicesGetRoute: Route = (path("orgs" / Segment / "services") & get & parameter(('owner.?, 'public.?, 'url.?, 'version.?, 'arch.?, 'nodetype.?, 'requiredurl.?))) { (orgid, owner, public, url, version, arch, nodetype, requiredurl) =>
     exchAuth(TService(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validateWithMsg(GetServicesUtils.getServicesProblem(public, version, nodetype)) {
@@ -248,10 +340,100 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire service resource will be returned")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetServicesResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "services": {
+    "orgid/servicename": {
+      "owner": "string",
+      "label": "string",
+      "description": "blah blah",
+      "public": true,
+      "documentation": "",
+      "url": "string",
+      "version": "1.2.3",
+      "arch": "string",
+      "sharable": "singleton",
+      "matchHardware": {},
+      "requiredServices": [],
+      "userInput": [],
+      "deployment": "string",
+      "deploymentSignature": "string",
+      "clusterDeployment": "",
+      "clusterDeploymentSignature": "",
+      "imageStore": {},
+      "lastUpdated": "2019-05-14T16:20:40.221Z[UTC]"
+    },
+    "orgid/servicename2": {
+      "owner": "string",
+      "label": "string",
+      "description": "string",
+      "public": true,
+      "documentation": "",
+      "url": "string",
+      "version": "4.5.6",
+      "arch": "string",
+      "sharable": "singleton",
+      "matchHardware": {},
+      "requiredServices": [
+        {
+          "url": "string",
+          "org": "string",
+          "version": "[1.0.0,INFINITY)",
+          "versionRange": "[1.0.0,INFINITY)",
+          "arch": "string"
+        }
+      ],
+      "userInput": [
+        {
+          "name": "foo",
+          "label": "The Foo Value",
+          "type": "string",
+          "defaultValue": "bar"
+        }
+      ],
+      "deployment": "string",
+      "deploymentSignature": "string",
+      "clusterDeployment": "",
+      "clusterDeploymentSignature": "",
+      "imageStore": {},
+      "lastUpdated": "2019-05-14T16:20:40.680Z[UTC]"
+    },
+    "orgid/servicename3": {
+      "owner": "string",
+      "label": "string",
+      "description": "fake",
+      "public": true,
+      "documentation": "",
+      "url": "string",
+      "version": "string",
+      "arch": "string",
+      "sharable": "singleton",
+      "matchHardware": {},
+      "requiredServices": [],
+      "userInput": [],
+      "deployment": "",
+      "deploymentSignature": "",
+      "clusterDeployment": "",
+      "clusterDeploymentSignature": "",
+      "imageStore": {},
+      "lastUpdated": "2019-12-13T15:38:57.679Z[UTC]"
+    }
+  },
+  "lastIndex": 0
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetServicesResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
   def serviceGetRoute: Route = (path("orgs" / Segment / "services" / Segment) & get & parameter(('attribute.?))) { (orgid, service, attribute) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId), Access.READ) { _ =>
@@ -284,26 +466,36 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{orgid}/services ===============================
   @POST
   @Path("")
-  @Operation(summary = "Adds a service", description = "A service resource contains the metadata that Horizon needs to deploy the docker images that implement this service. A service can either be an edge application, or a lower level edge service that provides access to sensors or reusable features. The service can require 1 or more other services that Horizon should also deploy when deploying this service. If public is set to true, the service can be shared across organizations. This can only be called by a user.",
+  @Operation(
+    summary = "Adds a service",
+    description = "A service resource contains the metadata that Horizon needs to deploy the docker images that implement this service. A service can either be an edge application, or a lower level edge service that provides access to sensors or reusable features. The service can require 1 or more other services that Horizon should also deploy when deploying this service. If public is set to true, the service can be shared across organizations. This can only be called by a user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
-    requestBody = new RequestBody(description = """
-```
-{
-  "label": "Location for amd64",     // this will be displayed in the node registration UI
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
+  "label": "Location for amd64",                                                            // this will be displayed in the node registration UI
   "description": "blah blah",
-  "public": true,       // whether or not it can be viewed by other organizations
-  "documentation": "https://console.cloud.ibm.com/docs/services/edge-fabric/poc/sdr.html",   // description of what this service does and how to use it
-  "url": "github.com.open-horizon.examples.sdr2msghub",   // the unique identifier of this service
+  "public": true,                                                                           // whether or not it can be viewed by other organizations
+  "documentation": "https://console.cloud.ibm.com/docs/services/edge-fabric/poc/sdr.html",  // description of what this service does and how to use it
+  "url": "github.com.open-horizon.examples.sdr2msghub",                                     // the unique identifier of this service
   "version": "1.0.0",
   "arch": "amd64",
-  "sharable": "singleton",   // if multiple services require this service, how many instances are deployed: "exclusive", "singleton", "multiple"
+  "sharable": "singleton",        // if multiple services require this service, how many instances are deployed: ["exclusive", "singleton", "multiple"]
   // The other services this service requires. (The other services must exist in the exchange before creating this service.)
   "requiredServices": [
     {
       "org": "myorg",
       "url": "mydomain.com.gps",
-      "version": "[1.0.0,INFINITY)",     // an OSGI-formatted version range
+      "version": "[1.0.0,INFINITY)",  // an OSGI-formatted version range
       "arch": "amd64"
     }
   ],
@@ -312,27 +504,53 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
     {
       "name": "foo",
       "label": "The Foo Value",
-      "type": "string",   // or: "int", "float", "boolean", or "list of strings"
-      "defaultValue": "bar"   // if empty then the node owner must provide a value at registration time
+      "type": "string",          // ["boolean", "float", "int", "list of strings", "string"]
+      "defaultValue": "bar"      // if empty then the node owner must provide a value at registration time
     }
   ],
   // Information about how to deploy the docker images for this service
-  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",   // container deployment info on edge devices. Can be omitted if does not apply
-  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
-  "clusterDeployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",   // container deployment info on edge clusters. Can be omitted if does not apply
-  "clusterDeploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",     // filled in by the Horizon signing process
-  "imageStore": {      // can be omitted
-    "storeType": "dockerRegistry" // dockerRegistry is the only supported value right now, and is the default
+  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",         // container deployment info on edge devices. Can be omitted if does not apply
+  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                                 // filled in by the Horizon signing process
+  "clusterDeployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",  // container deployment info on edge clusters. Can be omitted if does not apply
+  "clusterDeploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                          // filled in by the Horizon signing process
+  "imageStore": {                                                                                                      // can be omitted
+    "storeType": "dockerRegistry"                                                                                      // dockerRegistry is the only supported value right now, and is the default
   }
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutServiceRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostPutServiceRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "resource created - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "400",
+        description = "bad input"
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
   def servicePostRoute: Route = (path("orgs" / Segment / "services") & post & entity(as[PostPutServiceRequest])) { (orgid, reqBody) =>
     exchAuth(TService(OrgAndId(orgid,"").toString), Access.CREATE) { ident =>
       validateWithMsg(reqBody.getAnyProblem(orgid, null)) {
@@ -420,8 +638,54 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Updates a service", description = "Does a full replace of an existing service. See the description of the body fields in the POST method. This can only be called by the user that originally created it.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-    new Parameter(name = "service", in = ParameterIn.PATH, description = "Service id.")),
-    requestBody = new RequestBody(description = "See the POST route for more details.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutServiceRequest])))),
+      new Parameter(name = "service", in = ParameterIn.PATH, description = "Service id.")),
+    requestBody = new RequestBody(content = Array(
+      new Content(
+        examples = Array(
+          new ExampleObject(
+            value = """{
+  "label": "Location for amd64",                                                            // this will be displayed in the node registration UI
+  "description": "blah blah",
+  "public": true,                                                                           // whether or not it can be viewed by other organizations
+  "documentation": "https://console.cloud.ibm.com/docs/services/edge-fabric/poc/sdr.html",  // description of what this service does and how to use it
+  "url": "github.com.open-horizon.examples.sdr2msghub",                                     // the unique identifier of this service
+  "version": "1.0.0",
+  "arch": "amd64",
+  "sharable": "singleton",        // if multiple services require this service, how many instances are deployed: ["exclusive", "singleton", "multiple"]
+  // The other services this service requires. (The other services must exist in the exchange before creating this service.)
+  "requiredServices": [
+    {
+      "org": "myorg",
+      "url": "mydomain.com.gps",
+      "version": "[1.0.0,INFINITY)",  // an OSGI-formatted version range
+      "arch": "amd64"
+    }
+  ],
+  // Values the node owner will be prompted for and will be set as env vars to the container.
+  "userInput": [
+    {
+      "name": "foo",
+      "label": "The Foo Value",
+      "type": "string",          // ["boolean", "float", "int", "list of strings", "string"]
+      "defaultValue": "bar"      // if empty then the node owner must provide a value at registration time
+    }
+  ],
+  // Information about how to deploy the docker images for this service
+  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",         // container deployment info on edge devices. Can be omitted if does not apply
+  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                                 // filled in by the Horizon signing process
+  "clusterDeployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",  // container deployment info on edge clusters. Can be omitted if does not apply
+  "clusterDeploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                          // filled in by the Horizon signing process
+  "imageStore": {                                                                                                      // can be omitted
+    "storeType": "dockerRegistry"                                                                                      // dockerRegistry is the only supported value right now, and is the default
+  }
+}
+"""
+          )
+        ),
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[PostPutServiceRequest])
+      )
+    )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
@@ -429,6 +693,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
   def servicePutRoute: Route = (path("orgs" / Segment / "services" / Segment) & put & entity(as[PostPutServiceRequest])) { (orgid, service, reqBody) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId), Access.WRITE) { ident =>
@@ -512,7 +777,53 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "service", in = ParameterIn.PATH, description = "Service name.")),
-    requestBody = new RequestBody(description = "Specify only **one** of the attributes (see list of attributes in the POST route)", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchServiceRequest])))),
+    requestBody = new RequestBody(description = "Specify only **one** of the attributes", required = true, content = Array(
+      new Content(
+        examples = Array(
+          new ExampleObject(
+            value = """{
+  "label": "Location for amd64",                                                            // this will be displayed in the node registration UI
+  "description": "blah blah",
+  "public": true,                                                                           // whether or not it can be viewed by other organizations
+  "documentation": "https://console.cloud.ibm.com/docs/services/edge-fabric/poc/sdr.html",  // description of what this service does and how to use it
+  "url": "github.com.open-horizon.examples.sdr2msghub",                                     // the unique identifier of this service
+  "version": "1.0.0",
+  "arch": "amd64",
+  "sharable": "singleton",        // if multiple services require this service, how many instances are deployed: ["exclusive", "singleton", "multiple"]
+  // The other services this service requires. (The other services must exist in the exchange before creating this service.)
+  "requiredServices": [
+    {
+      "org": "myorg",
+      "url": "mydomain.com.gps",
+      "version": "[1.0.0,INFINITY)",  // an OSGI-formatted version range
+      "arch": "amd64"
+    }
+  ],
+  // Values the node owner will be prompted for and will be set as env vars to the container.
+  "userInput": [
+    {
+      "name": "foo",
+      "label": "The Foo Value",
+      "type": "string",          // ["boolean", "float", "int", "list of strings", "string"]
+      "defaultValue": "bar"      // if empty then the node owner must provide a value at registration time
+    }
+  ],
+  // Information about how to deploy the docker images for this service
+  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",         // container deployment info on edge devices. Can be omitted if does not apply
+  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                                 // filled in by the Horizon signing process
+  "clusterDeployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",  // container deployment info on edge clusters. Can be omitted if does not apply
+  "clusterDeploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                          // filled in by the Horizon signing process
+  "imageStore": {                                                                                                      // can be omitted
+    "storeType": "dockerRegistry"                                                                                      // dockerRegistry is the only supported value right now, and is the default
+  }
+}
+"""
+          )
+        ),
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[PatchServiceRequest])
+      )
+    )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
@@ -520,6 +831,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
   def servicePatchRoute: Route = (path("orgs" / Segment / "services" / Segment) & patch & entity(as[PatchServiceRequest])) { (orgid, service, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/services/$service")
     val compositeId = OrgAndId(orgid, service).toString
@@ -631,6 +943,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
   def serviceDeleteRoute: Route = (path("orgs" / Segment / "services" / Segment) & delete) { (orgid, service) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/services/$service")
     val compositeId = OrgAndId(orgid,service).toString
@@ -692,6 +1005,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/policy")
   def serviceGetPolicyRoute: Route = (path("orgs" / Segment / "services" / Segment / "policy") & get) { (orgid, service) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId),Access.READ) { _ =>
@@ -708,31 +1022,68 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== PUT /orgs/{orgid}/services/{service}/policy ===============================
   @PUT
   @Path("{service}/policy")
-  @Operation(summary = "Adds/updates the service policy", description = "Adds or updates the policy of a service. This can be called by the owning user.",
+  @Operation(
+    summary = "Adds/updates the service policy",
+    description = "Adds or updates the policy of a service. This can be called by the owning user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "service", in = ParameterIn.PATH, description = "ID of the service to be updated.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "service",
+        in = ParameterIn.PATH,
+        description = "ID of the service to be updated."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "properties": [
     {
       "name": "mypurpose",
       "value": "myservice-testing"
-      "type": "string"   // optional, the type of the 'value': string, int, float, boolean, list of strings, version
+      "type": "string"              // (optional) [boolean, float, int, list of strings, string, version]
     }
   ],
   "constraints": [
     "a == b"
   ]
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutServicePolicyRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PutServicePolicyRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/policy")
   def servicePutPolicyRoute: Route = (path("orgs" / Segment / "services" / Segment / "policy") & put & entity(as[PutServicePolicyRequest])) { (orgid, service, reqBody) =>
     val compositeId = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
@@ -782,6 +1133,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/policy")
   def serviceDeletePolicyRoute: Route = (path("orgs" / Segment / "services" / Segment / "policy") & delete) { (orgid, service) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
@@ -834,11 +1186,26 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "service", in = ParameterIn.PATH, description = "Service name.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[List[String]])))),
+        content = Array(
+            new Content(
+            examples = Array(
+              new ExampleObject(
+                value = """
+[
+  "mykey.pem"
+]
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[List[String]])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
   def serviceGetKeysRoute: Route = (path("orgs" / Segment / "services" / Segment / "keys") & get) { (orgid, service) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId),Access.READ) { _ =>
@@ -859,7 +1226,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "service", in = ParameterIn.PATH, description = "Service name."),
-    new Parameter(name = "keyid", in = ParameterIn.PATH, description = "Key Id.")),
+      new Parameter(name = "keyid", in = ParameterIn.PATH, description = "Key Id.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[String])))),
@@ -867,6 +1234,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
   def serviceGetKeyRoute: Route = (path("orgs" / Segment / "services" / Segment / "keys" / Segment) & get) { (orgid, service, keyId) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId),Access.READ) { _ =>
@@ -887,15 +1255,29 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Adds/updates a key/cert for the service", description = "Adds a new signing public key/cert, or updates an existing key/cert, for this service. This can only be run by the service owning user.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the service to be updated."),
+      new Parameter(name = "service", in = ParameterIn.PATH, description = "ID of the service to be updated."),
       new Parameter(name = "keyid", in = ParameterIn.PATH, description = "ID of the key to be added/updated.")),
-    requestBody = new RequestBody(description = "Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutServiceKeyRequest])))),
+    requestBody = new RequestBody(description = "Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'.", required = true, content = Array(
+      new Content(
+        examples = Array(
+          new ExampleObject(
+            value = """{
+  "key": "string",
+}
+"""
+          )
+        ),
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[PutServiceKeyRequest])
+      )
+    )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
   def servicePutKeyRoute: Route = (path("orgs" / Segment / "services" / Segment / "keys" / Segment) & put) { (orgid, service, keyId) =>
     val compositeId = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
@@ -948,6 +1330,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
   def serviceDeleteKeysRoute: Route = (path("orgs" / Segment / "services" / Segment / "keys") & delete) { (orgid, service) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
@@ -1002,6 +1385,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
   def serviceDeleteKeyRoute: Route = (path("orgs" / Segment / "services" / Segment / "keys" / Segment) & delete) { (orgid, service, keyId) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
@@ -1054,11 +1438,33 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "service", in = ParameterIn.PATH, description = "Service name.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[List[ServiceDockAuth]])))),
+        content = Array(
+            new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""
+  [
+    {
+      "dockAuthId": 0,
+      "registry": "string",
+      "username": "string",
+      "token": string,
+      "lastUpdated": string
+    },
+      ...
+  ]
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[List[ServiceDockAuth]])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
   def serviceGetDockauthsRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths") & get) { (orgid, service) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId),Access.READ) { _ =>
@@ -1079,7 +1485,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "service", in = ParameterIn.PATH, description = "Service name."),
-    new Parameter(name = "dockauthid", in = ParameterIn.PATH, description = "ID of the dockauth.")),
+      new Parameter(name = "dockauthid", in = ParameterIn.PATH, description = "ID of the dockauth.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[ServiceDockAuth])))),
@@ -1087,6 +1493,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
   def serviceGetDockauthRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths" / Segment) & get) { (orgid, service, dockauthIdAsStr) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId),Access.READ) { _ =>
@@ -1110,24 +1517,61 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{orgid}/services/{service}/dockauths ===============================
   @POST
   @Path("{service}/dockauths")
-  @Operation(summary = "Adds a docker image token for the service", description = "Adds a new docker image authentication token for this service. As an optimization, if a dockauth resource already exists with the same service, registry, username, and token, this method will just update that lastupdated field. This can only be run by the service owning user.",
+  @Operation(
+    summary = "Adds a docker image token for the service",
+    description = "Adds a new docker image authentication token for this service. As an optimization, if a dockauth resource already exists with the same service, registry, username, and token, this method will just update that lastupdated field. This can only be run by the service owning user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "service", in = ParameterIn.PATH, description = "ID of the service to be updated.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "service",
+        in = ParameterIn.PATH,
+        description = "ID of the service to be updated."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "registry": "myregistry.com",
-  "username": "mydockeruser",
+  "username": "mydockeruser",   // optional
   "token": "mydockertoken"
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutServiceDockAuthRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostPutServiceDockAuthRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
   def servicePostDockauthRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths") & post & entity(as[PostPutServiceDockAuthRequest])) { (orgid, service, reqBody) =>
     val compositeId = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
@@ -1186,7 +1630,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "service", in = ParameterIn.PATH, description = "ID of the service to be updated."),
-    new Parameter(name = "dockauthid", in = ParameterIn.PATH, description = "ID of the dockauth.")),
+      new Parameter(name = "dockauthid", in = ParameterIn.PATH, description = "ID of the dockauth.")),
     requestBody = new RequestBody(description = "See the POST route for details.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutServiceDockAuthRequest])))),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body",
@@ -1194,6 +1638,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
   def servicePutDockauthRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths" / Segment) & put & entity(as[PostPutServiceDockAuthRequest])) { (orgid, service, dockauthIdAsStr, reqBody) =>
     val compositeId = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
@@ -1248,6 +1693,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
   def serviceDeleteDockauthsRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths") & delete) { (orgid, service) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
@@ -1302,6 +1748,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
   def serviceDeleteDockauthRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths" / Segment) & delete) { (orgid, service, dockauthIdAsStr) =>
     val compositeId = OrgAndId(orgid,service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>

@@ -10,7 +10,8 @@ import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson._
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.{Content, Schema}
+import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
+import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import com.horizon.exchangeapi.tables._
@@ -79,6 +80,7 @@ final case class ChangePwRequest(newPassword: String) {
 
 /** Implementation for all of the /users routes */
 @Path("/v1/orgs/{orgid}/users")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "user")
 trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -96,7 +98,37 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetUsersResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "users": {
+    "orgid/username": {
+      "password": "string",
+      "admin": false,
+      "email": "string",
+      "lastUpdated": "string",
+      "updatedBy": "string"
+    },
+    "orgid/username": {
+      "password": "string",
+      "admin": false,
+      "email": "string",
+      "lastUpdated": "string",
+      "updatedBy": "string"
+    },
+      ...
+  },
+  "lastIndex": 0
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetUsersResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -124,7 +156,30 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetUsersResponse])))),
+        content = Array(
+
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "users": {
+    "orgid/username": {
+      "password": "string",
+      "admin": false,
+      "email": "string",
+      "lastUpdated": "string",
+      "updatedBy": "string"
+    }
+  },
+  "lastIndex": 0
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetUsersResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -153,25 +208,64 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{orgid}/users/{username} ===============================
   @POST
   @Path("{username}")
-  @Operation(summary = "Adds a user", description = "Creates a new user. This can be run root/root, or a user with admin privilege.",
+  @Operation(
+    summary = "Adds a user",
+    description = "Creates a new user. This can be run root/root, or a user with admin privilege.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "username",
+        in = ParameterIn.PATH,
+        description = "Username of the user."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "password": "abc",       // the user password this new user should have
-  "admin": false,         // if true, this user will have full privilege within the organization
-  "email": "me@gmail.com"         // contact email address for this user
+  "admin": false,          // if true, this user will have full privilege within the organization
+  "email": "me@gmail.com"  // contact email address for this user
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutUsersRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostPutUsersRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "resource created - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "400",
+        description = "bad input"
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
   def userPostRoute: Route = (path("orgs" / Segment / "users" / Segment) & post & entity(as[PostPutUsersRequest])) { (orgid, username, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
     val compositeId = OrgAndId(orgid, username).toString
@@ -186,7 +280,8 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
               AuthCache.putUserAndIsAdmin(compositeId, hashedPw, reqBody.password, reqBody.admin)
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.added.successfully", v)))
             case Failure(t: org.postgresql.util.PSQLException) =>
-              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.added", t.toString))
+              if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.added", t.toString)))
+              else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.added", t.toString))
             case Failure(t) =>
               (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.added", t.toString)))
           })
@@ -202,7 +297,22 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
-    requestBody = new RequestBody(description = "See details in the POST route.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutUsersRequest])))),
+    requestBody = new RequestBody(description = "See details in the POST route.", required = true, content = Array(
+      new Content(
+        examples = Array(
+          new ExampleObject(
+            value = """{
+  "password": "abc",       // the user password this new user should have
+  "admin": false,          // if true, this user will have full privilege within the organization
+  "email": "me@gmail.com"  // contact email address for this user
+}
+"""
+          )
+        ),
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[PostPutUsersRequest])
+      )
+    )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
@@ -244,7 +354,22 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
-    requestBody = new RequestBody(description = "Specify only **one** of the attributes:", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchUsersRequest])))),
+    requestBody = new RequestBody(description = "Specify only **one** of the attributes:", required = true, content = Array(
+      new Content(
+        examples = Array(
+          new ExampleObject(
+            value = """{
+  "password": "abc",       // the user password this new user should have
+  "admin": false,          // if true, this user will have full privilege within the organization
+  "email": "me@gmail.com"  // contact email address for this user
+}
+"""
+          )
+        ),
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[PatchUsersRequest])
+      )
+    )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
@@ -342,23 +467,61 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{orgid}/users/{username}/changepw ===============================
   @POST
   @Path("{username}/changepw")
-  @Operation(summary = "Changes the user's password", description = "Changes the user's password. Only the user itself, root, or a user with admin privilege can update an existing user's password.",
+  @Operation(
+    summary = "Changes the user's password",
+    description = "Changes the user's password. Only the user itself, root, or a user with admin privilege can update an existing user's password.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
-    requestBody = new RequestBody(description = """
-```
-{
-  "newPassword": "abc"       // the user password this user should have
-}
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[ChangePwRequest])))),
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "username",
+        in = ParameterIn.PATH,
+        description = "Username of the user."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
+  "newPassword": "abc"  // the user password this user should have
+}"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[ChangePwRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "password updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "password updated - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "400",
+        description = "bad input"
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
   def userChangePwRoute: Route = (path("orgs" / Segment / "users" / Segment / "changepw") & post & entity(as[ChangePwRequest])) { (orgid, username, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
     val compositeId = OrgAndId(orgid, username).toString

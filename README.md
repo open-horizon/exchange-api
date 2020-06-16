@@ -241,13 +241,48 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
-## Changes in 2.27.0
+## Changes in 2.33.0
 
-- Issue 313: Expanded unit testing structure to cover most of the Exchange.
+- Issue 313: Expanded unit testing structure to cover some of the Exchange.
 - Added code coverge tool scoverage to the project.
 - Added linter tool Scapegoat to the project.
 - Open Horizon domain prefix added to system testing package.
 - sbt will now pull-down a newer version of plugins if one is available. Defined versions are now the minimum accepted.
+
+## Changes in 2.32.0
+
+- Validated and updated as needed all request bodies and response bodies on the swagger page.
+- Some additional minor swagger bugfixes.
+- `swagger-scala-module` back to version `latest.release`
+
+## Changes in 2.31.0
+
+- Removed "Try it out" buttons from Swagger UI.
+- Replaced Swagger parsed examples with custom examples where provided.
+- Updated Swagger UI to version 3.26.0.
+- Corrected occurrences where Swagger UI parameter names differed from REST API parameter names.
+- Added API groupings to Swagger.
+- Alpha-numerically sorted API groups in swagger.
+- Alpha-numerically sorted REST API in Swagger.
+- Swagger groupings show collapsed by default.
+
+## Changes in 2.30.0
+
+- Updated translations
+
+## Changes in 2.29.0
+
+- Issue 342: Notification Framework Performance: Added agbot filters for nodemsgs, agbotmsgs, nodestatus, nodeagreements, and agbotagreements
+
+## Changes in 2.28.0
+
+- Issue 358: Limited user role on `POST /org/{orgid}/search/nodes/error` API to only retrieve nodes self owned.
+
+## Changes in 2.27.0
+
+- Issue 251: Added `GET /<orgid>/search/nodes/error/all`
+- Updated translation files
+- Catching duplicate key error on `POST /orgs/{orgid}/users/{username}`
 
 ## Changes in 2.26.0
 

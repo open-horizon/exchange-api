@@ -11,7 +11,8 @@ import com.horizon.exchangeapi.auth.DBProcessingError
 import de.heikoseeberger.akkahttpjackson._
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.{Content, Schema}
+import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
+import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
@@ -154,10 +155,35 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include agbots with this owner (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "agbots": {
+    "orgid/agbotname": {
+      "token": "string",
+      "name": "string",
+      "owner": "string",
+      "msgEndPoint": "",
+      "lastHeartbeat": "2020-05-27T19:01:10.713Z[UTC]",
+      "publicKey": "string"
+    },
+      ...
+  },
+  "lastIndex": 0
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetAgbotsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
   def agbotsGetRoute: Route = (path("orgs" / Segment / "agbots") & get & parameter(('idfilter.?, 'name.?, 'owner.?))) { (orgid, idfilter, name, owner) =>
     logger.debug(s"Doing GET /orgs/$orgid/agbots")
     exchAuth(TAgbot(OrgAndId(orgid,"*").toString), Access.READ) { ident =>
@@ -187,11 +213,35 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire node resource (including services) will be returned")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "agbots": {
+    "orgid/agbotname": {
+      "token": "string",
+      "name": "string",
+      "owner": "string",
+      "msgEndPoint": "",
+      "lastHeartbeat": "2020-05-27T19:01:10.713Z[UTC]",
+      "publicKey": "string"
+    }
+  },
+  "lastIndex": 0
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetAgbotsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
   def agbotGetRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & get & parameter(('attribute.?))) { (orgid, id, attribute) =>
     logger.debug(s"Doing GET /orgs/$orgid/agbots/$id")
     val compositeId = OrgAndId(orgid,id).toString
@@ -224,25 +274,65 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== PUT /orgs/{orgid}/agbots/{id} ===============================
   @PUT
   @Path("{id}")
-  @Operation(summary = "Add/updates an agbot", description = "Adds a new agbot (Agreement Bot) to the exchange DB, or updates an existing agbot. This must be called by the user to add an agbot, and then can be called by that user or agbot to update itself.",
+  @Operation(
+    summary = "Add/updates an agbot",
+    description = "Adds a new agbot (Agreement Bot) to the exchange DB, or updates an existing agbot. This must be called by the user to add an agbot, and then can be called by that user or agbot to update itself.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "ID of the agbot."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "token": "abc",
   "name": "myagbot",
   "publicKey": "ABCDEF"
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutAgbotsRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PutAgbotsRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "resource add/updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "200",
+        description = "resource add/updated - response body:",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "400",
+        description = "bad input"
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
   def agbotPutRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & put & entity(as[PutAgbotsRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgid/agbots/$id")
     val compositeId = OrgAndId(orgid, id).toString
@@ -291,7 +381,20 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
-    requestBody = new RequestBody(description = "Specify only **one** of the attributes (see list of attributes in the PUT route)", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchAgbotsRequest])))),
+    requestBody = new RequestBody(description = "Specify only **one** of the following attributes", required = true, content = Array(new Content(examples = Array(
+        new ExampleObject(
+          value = """{
+  "token": "abc",
+  "name": "myagbot",
+  "msgEndPoint": "string",
+  "publicKey": "ABCDEF"
+}
+"""
+        )
+      ),
+      mediaType = "application/json",
+      schema = new Schema(implementation = classOf[PatchAgbotsRequest])
+    ))),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
@@ -299,6 +402,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
   def agbotPatchRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & patch & entity(as[PatchAgbotsRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/agbots/$id")
     val compositeId = OrgAndId(orgid, id).toString
@@ -348,6 +452,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
   def agbotDeleteRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & delete) { (orgid, id) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/agbots/$id")
     val compositeId = OrgAndId(orgid,id).toString
@@ -393,6 +498,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
   def agbotHeartbeatRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "heartbeat") & post) { (orgid, id) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$id/heartbeat")
     val compositeId = OrgAndId(orgid, id).toString
@@ -426,11 +532,39 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotPatternsResponse])))),
+        content = Array(
+            new Content(
+              examples = Array(
+                new ExampleObject(
+                  value ="""{
+  "patterns": {
+    "pattern1": {
+      "patternOrgid": "string",
+      "pattern": "string",
+      "nodeOrgid": "string",
+      "lastUpdated": "2019-05-14T16:34:36.295Z[UTC]"
+    },
+    "pattern2": {
+      "patternOrgid": "string",
+      "pattern": "string",
+      "nodeOrgid": "string",
+      "lastUpdated": "2019-05-14T16:34:36.397Z[UTC]"
+    },
+      ...
+  }
+}
+"""
+                )
+              ),
+              mediaType = "application/json",
+              schema = new Schema(implementation = classOf[GetAgbotPatternsResponse])
+            )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
   def agbotGetPatternsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -455,11 +589,32 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     new Parameter(name = "patid", in = ParameterIn.PATH, description = "ID of the pattern.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotPatternsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "patterns": {
+    "patternname": {
+      "patternOrgid": "string",
+      "pattern": "string",
+      "nodeOrgid": "string",
+      "lastUpdated": "2019-05-14T16:34:36.397Z[UTC]"
+    }
+  }
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetAgbotPatternsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
   def agbotGetPatternRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns" / Segment) & get) { (orgid, id, patId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -477,24 +632,51 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{orgid}/agbots/{id}/patterns ===============================
   @POST
   @Path("{id}/patterns")
-  @Operation(summary = "Adds a pattern that the agbot should serve", description = "Adds a new pattern and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the pattern.",
+  @Operation(
+      summary = "Adds a pattern that the agbot should serve", 
+      description = "Adds a new pattern and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the pattern.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to be updated.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+          name = "orgid", 
+          in = ParameterIn.PATH, 
+          description = "Organization id."),
+      new Parameter(
+          name = "id", 
+          in = ParameterIn.PATH, 
+          description = "ID of the agbot to be updated.")),
+    requestBody = new RequestBody(
+        content = Array(
+            new Content(
+                examples = Array(
+                    new ExampleObject(
+                        value = """{
   "patternOrgid": "string",
   "pattern": "string",    // can be "*" to mean all patterns in the org
-  "nodeOrgid": "string"   // optional, if omitted it defaults to patternOrgid
-}
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostAgbotPatternRequest])))),
+  "nodeOrgid": "string"   // (optional) if omitted it defaults to patternOrgid
+}"""
+                    )
+                ), 
+                mediaType = "application/json", 
+                schema = new Schema(implementation = classOf[PostAgbotPatternRequest])
+                )
+            ), 
+        required = true
+        ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
+      new responses.ApiResponse(
+          responseCode = "201", 
+          description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+          responseCode = "401", 
+          description = "invalid credentials"),
+      new responses.ApiResponse(
+          responseCode = "403", 
+          description = "access denied"),
+      new responses.ApiResponse(
+          responseCode = "404", 
+          description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
   def agbotPostPatRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns") & post & entity(as[PostAgbotPatternRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
@@ -543,6 +725,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
   def agbotDeletePatsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -587,6 +770,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
   def agbotDeletePatRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns" / Segment) & delete) { (orgid, id, patId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -628,11 +812,32 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotBusinessPolsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+"businessPols" : {
+  "buspolid": {
+    "businessPolOrgid": "string",
+    "businessPol": "string",
+    "nodeOrgid" : "string",
+    "lastUpdated": "string"
+  },
+    ...
+}
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetAgbotBusinessPolsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/policy")
   def agbotGetBusPolsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "businesspols") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -654,14 +859,34 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
-      new Parameter(name = "patid", in = ParameterIn.PATH, description = "ID of the business policy.")),
+      new Parameter(name = "buspolid", in = ParameterIn.PATH, description = "ID of the business policy.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotBusinessPolsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+"businessPols" : {
+  "buspolid": {
+    "businessPolOrgid": "string",
+    "businessPol": "string",
+    "nodeOrgid" : "string",
+    "lastUpdated": "string"
+  }
+}
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetAgbotBusinessPolsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/policy")
   def agbotGetBusPolRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "businesspols" / Segment) & get) { (orgid, id, busPolId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -679,24 +904,61 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{orgid}/agbots/{id}/businesspols ===============================
   @POST
   @Path("{id}/businesspols")
-  @Operation(summary = "Adds a business policy that the agbot should serve", description = "Adds a new business policy and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the business policy.",
+  @Operation(
+    summary = "Adds a business policy that the agbot should serve",
+    description = "Adds a new business policy and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the business policy.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to be updated.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "ID of the agbot to be updated."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "businessPolOrgid": "string",
-  "businessPol": "string",    // can be "*" to mean all business policies in the org
-  "nodeOrgid": "string"   // optional, if omitted it defaults to businessPolOrgid (currently it can *not* be different from businessPolOrgid)
+  "businessPol": "string",       // can be "*" to mean all business policies in the org
+  "nodeOrgid": "string"          // (optional) if omitted it defaults to businessPolOrgid (currently it can *not* be different from businessPolOrgid)
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostAgbotBusinessPolRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostAgbotBusinessPolRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/policy")
   def agbotPostBusPolRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "businesspols") & post & entity(as[PostAgbotBusinessPolRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
@@ -745,6 +1007,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/policy")
   def agbotDeleteBusPolsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "businesspols") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -783,12 +1046,13 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
-      new Parameter(name = "patid", in = ParameterIn.PATH, description = "ID of the business policy to be deleted.")),
+      new Parameter(name = "buspolid", in = ParameterIn.PATH, description = "ID of the business policy to be deleted.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/policy")
   def agbotDeleteBusPolRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "businesspols" / Segment) & delete) { (orgid, id, busPolId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -830,11 +1094,38 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotAgreementsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "agreements": {
+    "agreementname": {
+      "service": {
+        "orgid": "string",
+        "pattern": "string",
+        "url": "string"
+      },
+      "state": "string",
+      "lastUpdated": "2019-05-14T16:34:37.173Z[UTC]",
+      "dataLastReceived": ""
+    },
+      ...
+  },
+  "lastIndex": 0
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetAgbotAgreementsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/agreement")
   def agbotGetAgreementsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "agreements") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -859,11 +1150,37 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotAgreementsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "agreements": {
+    "agreementname": {
+      "service": {
+        "orgid": "string",
+        "pattern": "string",
+        "url": "string"
+      },
+      "state": "string",
+      "lastUpdated": "2019-05-14T16:34:37.173Z[UTC]",
+      "dataLastReceived": ""
+    }
+  },
+  "lastIndex": 0
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetAgbotAgreementsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/agreement")
   def agbotGetAgreementRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "agreements" / Segment) & get) { (orgid, id, agrId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -881,14 +1198,32 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== PUT /orgs/{orgid}/agbots/{id}/agreements/{agid} ===============================
   @PUT
   @Path("{id}/agreements/{agid}")
-  @Operation(summary = "Adds/updates an agreement of an agbot", description = "Adds a new agreement of an agbot to the exchange DB, or updates an existing agreement. This is called by the owning user or the agbot to give their information about the agreement.",
+  @Operation(
+    summary = "Adds/updates an agreement of an agbot",
+    description = "Adds a new agreement of an agbot to the exchange DB, or updates an existing agreement. This is called by the owning user or the agbot to give their information about the agreement.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to be updated."),
-    new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement to be added/updated.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "ID of the agbot to be updated."
+      ),
+      new Parameter(
+        name = "agid",
+        in = ParameterIn.PATH,
+        description = "ID of the agreement to be added/updated."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "service": {
     "orgid": "string",
     "pattern": "string",
@@ -896,13 +1231,36 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   },
   "state": "string"
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutAgbotAgreementRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PutAgbotAgreementRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/agreement")
   def agbotPutAgreementRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "agreements" / Segment) & put & entity(as[PutAgbotAgreementRequest])) { (orgid, id, agrId, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
@@ -951,6 +1309,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/agreement")
   def agbotDeleteAgreementsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "agreements") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -995,6 +1354,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/agreement")
   def agbotDeleteAgreementRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "agreements" / Segment) & delete) { (orgid, id, agrId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -1028,22 +1388,59 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{orgid}/agreements/confirm ===============================
   @POST
   @Path("{id}/agreements/confirm")
-  @Operation(summary = "Confirms if this agbot agreement is active", description = "Confirms whether or not this agreement id is valid, is owned by an agbot owned by this same username, and is a currently active agreement. Can only be run by an agbot or user.",
+  @Operation(
+    summary = "Confirms if this agbot agreement is active",
+    description = "Confirms whether or not this agreement id is valid, is owned by an agbot owned by this same username, and is a currently active agreement. Can only be run by an agbot or user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to be updated.")),
-    requestBody = new RequestBody(description = """
-```
-{
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "ID of the agbot to be updated."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
   "agreementId": "ABCDEF"
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostAgreementsConfirmRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostAgreementsConfirmRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/agreement")
   def agbotAgreementConfirmRoute: Route = (path("orgs" / Segment / "agreements" / "confirm") & post & entity(as[PostAgreementsConfirmRequest])) { (orgid, reqBody) =>
     exchAuth(TAgbot(OrgAndId(orgid,"#").toString), Access.READ) { ident =>
       complete({
@@ -1093,23 +1490,60 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{orgid}/agbots/{id}/msgs ===============================
   @POST
   @Path("{id}/msgs")
-  @Operation(summary = "Sends a msg from a node to an agbot", description = "Sends a msg from a node to an agbot. The node must 1st sign the msg (with its private key) and then encrypt the msg (with the agbots's public key). Can be run by any node.",
+  @Operation(
+    summary = "Sends a msg from a node to an agbot",
+    description = "Sends a msg from a node to an agbot. The node must 1st sign the msg (with its private key) and then encrypt the msg (with the agbots's public key). Can be run by any node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to send a message to.")),
-    requestBody = new RequestBody(description = """
-```
-{
-  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs",    // msg to be sent to the agbot
-  "ttl": 86400       // time-to-live of this msg, in seconds
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization id."
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "ID of the agbot to send a message to."
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
+  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs",  // msg to be sent to the agbot
+  "ttl": 86400                                                       // time-to-live of this msg, in seconds
 }
-```""", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostAgbotsMsgsRequest])))),
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PostAgbotsMsgsRequest])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/message")
   def agbotPostMsgRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "msgs") & post & entity(as[PostAgbotsMsgsRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.SEND_MSG_TO_AGBOT) { ident =>
@@ -1172,6 +1606,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/message")
   def agbotGetMsgsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "msgs") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -1205,6 +1640,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/message")
   def agbotDeleteMsgRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "msgs" / Segment) & delete) { (orgid, id, msgIdStr) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>

@@ -15,12 +15,22 @@ import io.swagger.v3.oas.models.ExternalDocumentation
 object SwaggerDocService extends SwaggerHttpService {
   //override implicit val actorSystem: ActorSystem = system
   //override implicit val materializer: ActorMaterializer = ActorMaterializer()
-  override def apiClasses = Set(classOf[AdminRoutes], classOf[OrgsRoutes], classOf[AgbotsRoutes], classOf[BusinessRoutes], classOf[CatalogRoutes], classOf[NodesRoutes], classOf[PatternsRoutes], classOf[ServicesRoutes], classOf[UsersRoutes])
+  override def apiClasses = Set(
+      classOf[AdminRoutes], 
+      classOf[AgbotsRoutes], 
+      classOf[BusinessRoutes], 
+      classOf[CatalogRoutes], 
+      classOf[NodesRoutes], 
+      classOf[OrgsRoutes], 
+      classOf[PatternsRoutes], 
+      classOf[ServicesRoutes], 
+      classOf[UsersRoutes]
+      )
   override def host = s"${ExchangeApi.serviceHost}:${ExchangeApi.servicePort}" //the url of your api, not swagger's json endpoint
   override def apiDocsPath = "api-docs" //where you want the swagger-json endpoint exposed
 
   override def info = Info(
-    description = "<b>Note:</b> the <b>Try it out</b> button is not supported. Instead, test the API with curl:<br><br><code>curl -sS -u &lt;org&gt;/iamapikey:&lt;key&gt; https://&lt;host&gt;:&lt;port&gt;/ec-exchange/v1/orgs/... | jq</code>",
+    description = "<b>Note:</b> Test the API with curl:<br><br><code>curl -sS -u &lt;org&gt;/iamapikey:&lt;key&gt; https://&lt;host&gt;:&lt;port&gt;/ec-exchange/v1/orgs/... | jq</code>",
     version = "1.0",
     title = "Exchange API",
     license = Some(License("Apache License Version 2.0", "https://www.apache.org/licenses/LICENSE-2.0")))

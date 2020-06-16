@@ -40,8 +40,12 @@
       // Begin Swagger UI call region
       const ui = SwaggerUIBundle({
         url: "/v1/api-docs/swagger.json",
+        docExpansion: "none",
         dom_id: '#swagger-ui',
         deepLinking: true,
+        operationsSorter: "alpha", 
+        supportedSubmitMethods: [], 
+        tagsSorter: "alpha", 
         presets: [
           SwaggerUIBundle.presets.apis,
           SwaggerUIStandalonePreset

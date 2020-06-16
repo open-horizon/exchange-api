@@ -1,4 +1,4 @@
-package com.horizon.exchangeapi
+package exchangeapi
 
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -771,12 +771,24 @@ class AgbotsSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " agreement was added and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "agbotagreements")}))
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " agreement creation not seen by agbots") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
+    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(!parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "agbotagreements")}))
+    assert(!parsedBody.changes.exists(y => {(y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "agbotagreements")}))
   }
 
   /** Update an agreement for agbot 9930 - as the agbot */

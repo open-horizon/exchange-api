@@ -53,7 +53,7 @@ lazy val root = (project in file("."))
             "javax.ws.rs" % "javax.ws.rs-api" % "2.0.1",  // this is from 8/2014. Version 2.1.1 from 9/2018 gets an error loading
             "org.glassfish.jersey.core" % "jersey-common" % "latest.release",  // required at runtime by javax.ws.rs-api
             "com.github.swagger-akka-http" %% "swagger-akka-http" % "2.0.4",  // Version 2.0.5 now requires v10.1.11 Akka modules.
-            "com.github.swagger-akka-http" %% "swagger-scala-module" % "latest.release", 
+            "com.github.swagger-akka-http" %% "swagger-scala-module" % "latest.release",
             "io.swagger.core.v3" % "swagger-core" % "latest.release", 
             "io.swagger.core.v3" % "swagger-annotations" % "latest.release", 
             "io.swagger.core.v3" % "swagger-models" % "latest.release", 

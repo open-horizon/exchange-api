@@ -134,7 +134,57 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include business policies with this description (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetBusinessPoliciesResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "businessPolicy": {
+    "orgid/mybuspol": {
+      "owner": "string",
+      "label": "string",
+      "description": "string",
+      "service": {
+        "name": "string",
+        "org": "string",
+        "arch": "string",
+        "serviceVersions": [
+          {
+            "version": "1.2.3",
+            "priority": null,
+            "upgradePolicy": null
+          }
+        ],
+        "nodeHealth": {
+          "missing_heartbeat_interval": 600,
+          "check_agreement_status": 120
+        }
+      },
+      "userInput": [],
+      "properties": [
+        {
+          "name": "string",
+          "type": "string",
+          "value": "string"
+        }
+      ],
+      "constraints": [
+        "a == b"
+      ],
+      "lastUpdated": "string",
+      "created": "string"
+    },
+      ...
+  },
+  "lastIndex": 0
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetBusinessPoliciesResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -169,7 +219,56 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire business policy resource will be returned.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetBusinessPoliciesResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "businessPolicy": {
+    "orgid/mybuspol": {
+      "owner": "string",
+      "label": "string",
+      "description": "string",
+      "service": {
+        "name": "string",
+        "org": "string",
+        "arch": "string",
+        "serviceVersions": [
+          {
+            "version": "1.2.3",
+            "priority": null,
+            "upgradePolicy": null
+          }
+        ],
+        "nodeHealth": {
+          "missing_heartbeat_interval": 600,
+          "check_agreement_status": 120
+        }
+      },
+      "userInput": [],
+      "properties": [
+        {
+          "name": "string",
+          "type": "string",
+          "value": "string"
+        }
+      ],
+      "constraints": [
+        "a == b"
+      ],
+      "lastUpdated": "string",
+      "created": "string"
+    }
+  },
+  "lastIndex": 0
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetBusinessPoliciesResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -387,7 +486,75 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name.")),
-    requestBody = new RequestBody(description = "Business Policy object that needs to be updated. See details in the POST route above.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutBusinessPolicyRequest])))),
+    requestBody = new RequestBody(description = "Business Policy object that needs to be updated. See details in the POST route above.", required = true, content = Array(
+      new Content(
+        examples = Array(
+          new ExampleObject(
+            value = """// (remove all of the comments like this before using)
+{
+  "label": "name of the business policy",  // this will be displayed in the UI
+  "description": "descriptive text",
+  // The services that this business policy applies to. (The services must exist before creating this business policy.)
+  "service": {
+    "name": "mydomain.com.weather",
+    "org": "myorg",
+    "arch": "amd64",                 // can be set to "*" or "" to mean all architectures
+    // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
+    "serviceVersions": [
+      {
+        "version": "1.0.1",
+        "priority": {               // can be omitted
+          "priority_value": 50,
+          "retries": 1,
+          "retry_durations": 3600,
+          "verified_durations": 52
+        },
+        // When Horizon should upgrade nodes to newer service versions. Can be set to {} to take the default of immediate.
+        "upgradePolicy": {           // can be omitted
+          "lifecycle": "immediate",
+          "time": "01:00AM"          // reserved for future use
+        }
+      }
+    ],
+    // If not using agbot node health check, this field can be set to {} or omitted completely.
+    "nodeHealth": {                       // can be omitted
+      "missing_heartbeat_interval": 600,  // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
+      "check_agreement_status": 120       // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
+    }
+  },
+  // Override or set user input variables that are defined in the services used by this business policy.
+  "userInput": [
+    {
+      "serviceOrgid": "IBM",
+      "serviceUrl": "ibm.cpu2msghub",
+      "serviceArch": "",                          // omit or leave blank to mean all architectures
+      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "inputs": [
+        {
+          "name": "foo",
+          "value": "bar"
+        }
+      ]
+    }
+  ],
+  "properties": [
+    {
+      "name": "mypurpose",
+      "value": "myservice-testing",
+      "type": "string"               // (optional) [boolean, float, int, list of strings, string, version]
+    }
+  ],
+  "constraints": [
+    "a == b"
+  ]
+}
+"""
+          )
+        ),
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[PostPutBusinessPolicyRequest])
+      )
+    )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
@@ -459,7 +626,75 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name.")),
-    requestBody = new RequestBody(description = "Specify only **one** of the attributes (see list of attributes in the POST route)", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchBusinessPolicyRequest])))),
+    requestBody = new RequestBody(description = "Specify only **one** of the attributes", required = true, content = Array(
+      new Content(
+        examples = Array(
+          new ExampleObject(
+            value = """// (remove all of the comments like this before using)
+{
+  "label": "name of the business policy",  // this will be displayed in the UI
+  "description": "descriptive text",
+  // The services that this business policy applies to. (The services must exist before creating this business policy.)
+  "service": {
+    "name": "mydomain.com.weather",
+    "org": "myorg",
+    "arch": "amd64",                 // can be set to "*" or "" to mean all architectures
+    // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
+    "serviceVersions": [
+      {
+        "version": "1.0.1",
+        "priority": {               // can be omitted
+          "priority_value": 50,
+          "retries": 1,
+          "retry_durations": 3600,
+          "verified_durations": 52
+        },
+        // When Horizon should upgrade nodes to newer service versions. Can be set to {} to take the default of immediate.
+        "upgradePolicy": {           // can be omitted
+          "lifecycle": "immediate",
+          "time": "01:00AM"          // reserved for future use
+        }
+      }
+    ],
+    // If not using agbot node health check, this field can be set to {} or omitted completely.
+    "nodeHealth": {                       // can be omitted
+      "missing_heartbeat_interval": 600,  // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
+      "check_agreement_status": 120       // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
+    }
+  },
+  // Override or set user input variables that are defined in the services used by this business policy.
+  "userInput": [
+    {
+      "serviceOrgid": "IBM",
+      "serviceUrl": "ibm.cpu2msghub",
+      "serviceArch": "",                          // omit or leave blank to mean all architectures
+      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "inputs": [
+        {
+          "name": "foo",
+          "value": "bar"
+        }
+      ]
+    }
+  ],
+  "properties": [
+    {
+      "name": "mypurpose",
+      "value": "myservice-testing",
+      "type": "string"               // (optional) [boolean, float, int, list of strings, string, version]
+    }
+  ],
+  "constraints": [
+    "a == b"
+  ]
+}
+"""
+          )
+        ),
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[PostPutBusinessPolicyRequest])
+      )
+    )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),

@@ -10,7 +10,7 @@ import de.heikoseeberger.akkahttpjackson._
 
 import scala.concurrent.ExecutionContext
 import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.{Content, Schema}
+import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 import com.horizon.exchangeapi.tables._
@@ -39,7 +39,96 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
         content = Array(new Content(schema = new Schema(implementation = classOf[String], allowableValues = Array("IBM")))))),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetServicesResponse])))),
+        content = Array(
+          new Content(
+          examples = Array(
+            new ExampleObject(
+              value ="""{
+  "services": {
+    "orgid/servicename": {
+      "owner": "string",
+      "label": "string",
+      "description": "blah blah",
+      "public": true,
+      "documentation": "",
+      "url": "string",
+      "version": "1.2.3",
+      "arch": "string",
+      "sharable": "singleton",
+      "matchHardware": {},
+      "requiredServices": [],
+      "userInput": [],
+      "deployment": "string",
+      "deploymentSignature": "string",
+      "clusterDeployment": "",
+      "clusterDeploymentSignature": "",
+      "imageStore": {},
+      "lastUpdated": "2019-05-14T16:20:40.221Z[UTC]"
+    },
+    "orgid/servicename2": {
+      "owner": "string",
+      "label": "string",
+      "description": "string",
+      "public": true,
+      "documentation": "",
+      "url": "string",
+      "version": "4.5.6",
+      "arch": "string",
+      "sharable": "singleton",
+      "matchHardware": {},
+      "requiredServices": [
+        {
+          "url": "string",
+          "org": "string",
+          "version": "[1.0.0,INFINITY)",
+          "versionRange": "[1.0.0,INFINITY)",
+          "arch": "string"
+        }
+      ],
+      "userInput": [
+        {
+          "name": "foo",
+          "label": "The Foo Value",
+          "type": "string",
+          "defaultValue": "bar"
+        }
+      ],
+      "deployment": "string",
+      "deploymentSignature": "string",
+      "clusterDeployment": "",
+      "clusterDeploymentSignature": "",
+      "imageStore": {},
+      "lastUpdated": "2019-05-14T16:20:40.680Z[UTC]"
+    },
+    "orgid/servicename3": {
+      "owner": "string",
+      "label": "string",
+      "description": "fake",
+      "public": true,
+      "documentation": "",
+      "url": "string",
+      "version": "string",
+      "arch": "string",
+      "sharable": "singleton",
+      "matchHardware": {},
+      "requiredServices": [],
+      "userInput": [],
+      "deployment": "",
+      "deploymentSignature": "",
+      "clusterDeployment": "",
+      "clusterDeploymentSignature": "",
+      "imageStore": {},
+      "lastUpdated": "2019-12-13T15:38:57.679Z[UTC]"
+    },
+      ...
+  },
+  "lastIndex": 0
+}"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[GetServicesResponse])
+        ))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -70,7 +159,77 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
         content = Array(new Content(schema = new Schema(implementation = classOf[String], allowableValues = Array("IBM")))))),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetPatternsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "patterns": {
+    "orgid/patternname": {
+      "owner": "string",
+      "label": "My Pattern",
+      "description": "blah blah",
+      "public": true,
+      "services": [
+        {
+          "serviceUrl": "string",
+          "serviceOrgid": "string",
+          "serviceArch": "string",
+          "agreementLess": false,
+          "serviceVersions": [
+            {
+              "version": "4.5.6",
+              "deployment_overrides": "string",
+              "deployment_overrides_signature": "a",
+              "priority": {
+                "priority_value": 50,
+                "retries": 1,
+                "retry_durations": 3600,
+                "verified_durations": 52
+              },
+              "upgradePolicy": {
+                "lifecycle": "immediate",
+                "time": "01:00AM"
+              }
+            }
+          ],
+          "dataVerification": {
+            "metering": {
+              "tokens": 1,
+              "per_time_unit": "min",
+              "notification_interval": 30
+            },
+            "URL": "",
+            "enabled": true,
+            "interval": 240,
+            "check_rate": 15,
+            "user": "",
+            "password": ""
+          },
+          "nodeHealth": {
+            "missing_heartbeat_interval": 600,
+            "check_agreement_status": 120
+          }
+        }
+      ],
+      "userInput": [],
+      "agreementProtocols": [
+        {
+          "name": "Basic"
+        }
+      ],
+      "lastUpdated": "2019-05-14T16:34:34.194Z[UTC]"
+    },
+      ...
+  },
+  "lastIndex": 0
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetPatternsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -94,7 +253,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ====== GET /catalog/{orgid}/services ================================
   @GET
-  @Path("")
+  @Path("{orgid}/services")
   @Operation(summary = "Returns all services", description = "Returns all service definitions in this organization and in the IBM organization. Can be run by any user, node, or agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -107,7 +266,97 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "requiredurl", in = ParameterIn.QUERY, required = false, description = "Filter results to only include services that use this service with this url (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetServicesResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "services": {
+    "orgid/servicename": {
+      "owner": "string",
+      "label": "string",
+      "description": "blah blah",
+      "public": true,
+      "documentation": "",
+      "url": "string",
+      "version": "1.2.3",
+      "arch": "string",
+      "sharable": "singleton",
+      "matchHardware": {},
+      "requiredServices": [],
+      "userInput": [],
+      "deployment": "string",
+      "deploymentSignature": "string",
+      "clusterDeployment": "",
+      "clusterDeploymentSignature": "",
+      "imageStore": {},
+      "lastUpdated": "2019-05-14T16:20:40.221Z[UTC]"
+    },
+    "orgid/servicename2": {
+      "owner": "string",
+      "label": "string",
+      "description": "string",
+      "public": true,
+      "documentation": "",
+      "url": "string",
+      "version": "4.5.6",
+      "arch": "string",
+      "sharable": "singleton",
+      "matchHardware": {},
+      "requiredServices": [
+        {
+          "url": "string",
+          "org": "string",
+          "version": "[1.0.0,INFINITY)",
+          "versionRange": "[1.0.0,INFINITY)",
+          "arch": "string"
+        }
+      ],
+      "userInput": [
+        {
+          "name": "foo",
+          "label": "The Foo Value",
+          "type": "string",
+          "defaultValue": "bar"
+        }
+      ],
+      "deployment": "string",
+      "deploymentSignature": "string",
+      "clusterDeployment": "",
+      "clusterDeploymentSignature": "",
+      "imageStore": {},
+      "lastUpdated": "2019-05-14T16:20:40.680Z[UTC]"
+    },
+    "orgid/servicename3": {
+      "owner": "string",
+      "label": "string",
+      "description": "fake",
+      "public": true,
+      "documentation": "",
+      "url": "string",
+      "version": "string",
+      "arch": "string",
+      "sharable": "singleton",
+      "matchHardware": {},
+      "requiredServices": [],
+      "userInput": [],
+      "deployment": "",
+      "deploymentSignature": "",
+      "clusterDeployment": "",
+      "clusterDeploymentSignature": "",
+      "imageStore": {},
+      "lastUpdated": "2019-12-13T15:38:57.679Z[UTC]"
+    },
+      ...
+  },
+  "lastIndex": 0
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetServicesResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -155,7 +404,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
 
   /* ====== GET /catalog/{orgid}/patterns ================================ */
   @GET
-  @Path("")
+  @Path("{orgid}/patterns")
   @Operation(summary = "Returns all patterns", description = "Returns all pattern definitions in this organization and in the IBM organization. Can be run by any user, node, or agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -166,7 +415,77 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include patterns with this description (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetPatternsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "patterns": {
+    "orgid/patternname": {
+      "owner": "string",
+      "label": "My Pattern",
+      "description": "blah blah",
+      "public": true,
+      "services": [
+        {
+          "serviceUrl": "string",
+          "serviceOrgid": "string",
+          "serviceArch": "string",
+          "agreementLess": false,
+          "serviceVersions": [
+            {
+              "version": "4.5.6",
+              "deployment_overrides": "string",
+              "deployment_overrides_signature": "a",
+              "priority": {
+                "priority_value": 50,
+                "retries": 1,
+                "retry_durations": 3600,
+                "verified_durations": 52
+              },
+              "upgradePolicy": {
+                "lifecycle": "immediate",
+                "time": "01:00AM"
+              }
+            }
+          ],
+          "dataVerification": {
+            "metering": {
+              "tokens": 1,
+              "per_time_unit": "min",
+              "notification_interval": 30
+            },
+            "URL": "",
+            "enabled": true,
+            "interval": 240,
+            "check_rate": 15,
+            "user": "",
+            "password": ""
+          },
+          "nodeHealth": {
+            "missing_heartbeat_interval": 600,
+            "check_agreement_status": 120
+          }
+        }
+      ],
+      "userInput": [],
+      "agreementProtocols": [
+        {
+          "name": "Basic"
+        }
+      ],
+      "lastUpdated": "2019-05-14T16:34:34.194Z[UTC]"
+    },
+      ...
+  },
+  "lastIndex": 0
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetPatternsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))

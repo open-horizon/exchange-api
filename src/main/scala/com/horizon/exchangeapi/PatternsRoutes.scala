@@ -145,7 +145,77 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include patterns with this description (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetPatternsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "patterns": {
+    "orgid/patternname": {
+      "owner": "string",
+      "label": "My Pattern",
+      "description": "blah blah",
+      "public": true,
+      "services": [
+        {
+          "serviceUrl": "string",
+          "serviceOrgid": "string",
+          "serviceArch": "string",
+          "agreementLess": false,
+          "serviceVersions": [
+            {
+              "version": "4.5.6",
+              "deployment_overrides": "string",
+              "deployment_overrides_signature": "a",
+              "priority": {
+                "priority_value": 50,
+                "retries": 1,
+                "retry_durations": 3600,
+                "verified_durations": 52
+              },
+              "upgradePolicy": {
+                "lifecycle": "immediate",
+                "time": "01:00AM"
+              }
+            }
+          ],
+          "dataVerification": {
+            "metering": {
+              "tokens": 1,
+              "per_time_unit": "min",
+              "notification_interval": 30
+            },
+            "URL": "",
+            "enabled": true,
+            "interval": 240,
+            "check_rate": 15,
+            "user": "",
+            "password": ""
+          },
+          "nodeHealth": {
+            "missing_heartbeat_interval": 600,
+            "check_agreement_status": 120
+          }
+        }
+      ],
+      "userInput": [],
+      "agreementProtocols": [
+        {
+          "name": "Basic"
+        }
+      ],
+      "lastUpdated": "2019-05-14T16:34:34.194Z[UTC]"
+    },
+      ...
+  },
+  "lastIndex": 0
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetPatternsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -184,7 +254,76 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire pattern resource will be returned")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetPatternsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "patterns": {
+    "orgid/patternname": {
+      "owner": "string",
+      "label": "My Pattern",
+      "description": "blah blah",
+      "public": true,
+      "services": [
+        {
+          "serviceUrl": "string",
+          "serviceOrgid": "string",
+          "serviceArch": "string",
+          "agreementLess": false,
+          "serviceVersions": [
+            {
+              "version": "4.5.6",
+              "deployment_overrides": "string",
+              "deployment_overrides_signature": "a",
+              "priority": {
+                "priority_value": 50,
+                "retries": 1,
+                "retry_durations": 3600,
+                "verified_durations": 52
+              },
+              "upgradePolicy": {
+                "lifecycle": "immediate",
+                "time": "01:00AM"
+              }
+            }
+          ],
+          "dataVerification": {
+            "metering": {
+              "tokens": 1,
+              "per_time_unit": "min",
+              "notification_interval": 30
+            },
+            "URL": "",
+            "enabled": true,
+            "interval": 240,
+            "check_rate": 15,
+            "user": "",
+            "password": ""
+          },
+          "nodeHealth": {
+            "missing_heartbeat_interval": 600,
+            "check_agreement_status": 120
+          }
+        }
+      ],
+      "userInput": [],
+      "agreementProtocols": [
+        {
+          "name": "Basic"
+        }
+      ],
+      "lastUpdated": "2019-05-14T16:34:34.194Z[UTC]"
+    }
+  },
+  "lastIndex": 0
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetPatternsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -243,7 +382,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             new ExampleObject(
               value = """{
   "label": "name of the edge pattern",  // this will be displayed in the node registration UI
-  "description": "descriptive text",
+  "description": "descriptive text",    // optional
   "public": false,                      // typically patterns are not appropriate to share across orgs because they contain policy choices
   // The services that should be deployed to the edge for this pattern. (The services must exist before creating this pattern.)
   "services": [
@@ -251,7 +390,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceUrl": "mydomain.com.weather",
       "serviceOrgid": "myorg",
       "serviceArch": "amd64",
-      "agreementLess": false,                // only set to true if the same svc is both top level and required by another svc
+      "agreementLess": false,                // only set to true if the same svc is both top level and required by another svc (optional)
       // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
       "serviceVersions": [
         {
@@ -294,7 +433,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     }
   ],
   // Override or set user input variables that are defined in the services used by this pattern.
-  "userInput": [
+  "userInput": [                            // optional section
     {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
@@ -429,7 +568,91 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
-    requestBody = new RequestBody(description = "See details in the POST route.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PostPutPatternRequest])))),
+    requestBody = new RequestBody(description = "See details in the POST route.", required = true, content = Array(
+      new Content(
+        examples = Array(
+          new ExampleObject(
+            value = """{
+  "label": "name of the edge pattern",  // this will be displayed in the node registration UI
+  "description": "descriptive text",    // optional
+  "public": false,                      // typically patterns are not appropriate to share across orgs because they contain policy choices
+  // The services that should be deployed to the edge for this pattern. (The services must exist before creating this pattern.)
+  "services": [
+    {
+      "serviceUrl": "mydomain.com.weather",
+      "serviceOrgid": "myorg",
+      "serviceArch": "amd64",
+      "agreementLess": false,                // only set to true if the same svc is both top level and required by another svc (optional)
+      // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
+      "serviceVersions": [
+        {
+          "version": "1.0.1",
+          "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+          "deployment_overrides_signature": "",  // filled in by the Horizon signing process
+          "priority": {                          // can be omitted
+            "priority_value": 50,
+            "retries": 1,
+            "retry_durations": 3600,
+            "verified_durations": 52
+          },
+          // When Horizon should upgrade nodes to newer service versions. Can be set to {} to take the default of immediate.
+          "upgradePolicy": {           // can be omitted
+            "lifecycle": "immediate",
+            "time": "01:00AM"          // reserved for future use
+          }
+        }
+      ],
+      // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the service is sending data.
+      // If not using this, the dataVerification field can be set to {} or omitted completely.
+      "dataVerification": {            // can be omitted
+        "enabled": true,
+        "URL": "",
+        "user": "",
+        "password": "",
+        "interval": 480,
+        "check_rate": 15,
+        "metering": {
+          "tokens": 1,
+          "per_time_unit": "min",
+          "notification_interval": 30
+        }
+      },
+      // If not using agbot node health check, this field can be set to {} or omitted completely.
+      "nodeHealth": {                       // can be omitted
+        "missing_heartbeat_interval": 600,  // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
+        "check_agreement_status": 120       // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
+      }
+    }
+  ],
+  // Override or set user input variables that are defined in the services used by this pattern.
+  "userInput": [                                  // optional section
+    {
+      "serviceOrgid": "IBM",
+      "serviceUrl": "ibm.cpu2msghub",
+      "serviceArch": "",                          // omit or leave blank to mean all architectures
+      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "inputs": [
+        {
+          "name": "foo",
+          "value": "bar"
+        }
+      ]
+    }
+  ],
+  // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
+  "agreementProtocols": [  // can be omitted
+    {
+      "name": "Basic"
+    }
+  ]
+}
+"""
+          )
+        ),
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[PostPutPatternRequest])
+      )
+    )),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "resource created - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
@@ -536,7 +759,91 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
-    requestBody = new RequestBody(description = "Specify only **one** of the attributes (see list of attributes in the POST route)", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchPatternRequest])))),
+    requestBody = new RequestBody(description = "Specify only **one** of the attributes", required = true, content = Array(
+      new Content(
+        examples = Array(
+          new ExampleObject(
+            value = """{
+  "label": "name of the edge pattern",  // this will be displayed in the node registration UI
+  "description": "descriptive text",
+  "public": false,                      // typically patterns are not appropriate to share across orgs because they contain policy choices
+  // The services that should be deployed to the edge for this pattern. (The services must exist before creating this pattern.)
+  "services": [
+    {
+      "serviceUrl": "mydomain.com.weather",
+      "serviceOrgid": "myorg",
+      "serviceArch": "amd64",
+      "agreementLess": false,                // only set to true if the same svc is both top level and required by another svc
+      // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
+      "serviceVersions": [
+        {
+          "version": "1.0.1",
+          "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+          "deployment_overrides_signature": "",  // filled in by the Horizon signing process
+          "priority": {                          // can be omitted
+            "priority_value": 50,
+            "retries": 1,
+            "retry_durations": 3600,
+            "verified_durations": 52
+          },
+          // When Horizon should upgrade nodes to newer service versions. Can be set to {} to take the default of immediate.
+          "upgradePolicy": {           // can be omitted
+            "lifecycle": "immediate",
+            "time": "01:00AM"          // reserved for future use
+          }
+        }
+      ],
+      // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the service is sending data.
+      // If not using this, the dataVerification field can be set to {} or omitted completely.
+      "dataVerification": {            // can be omitted
+        "enabled": true,
+        "URL": "",
+        "user": "",
+        "password": "",
+        "interval": 480,
+        "check_rate": 15,
+        "metering": {
+          "tokens": 1,
+          "per_time_unit": "min",
+          "notification_interval": 30
+        }
+      },
+      // If not using agbot node health check, this field can be set to {} or omitted completely.
+      "nodeHealth": {                       // can be omitted
+        "missing_heartbeat_interval": 600,  // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
+        "check_agreement_status": 120       // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
+      }
+    }
+  ],
+  // Override or set user input variables that are defined in the services used by this pattern.
+  "userInput": [
+    {
+      "serviceOrgid": "IBM",
+      "serviceUrl": "ibm.cpu2msghub",
+      "serviceArch": "",                          // omit or leave blank to mean all architectures
+      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "inputs": [
+        {
+          "name": "foo",
+          "value": "bar"
+        }
+      ]
+    }
+  ],
+  // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
+  "agreementProtocols": [  // can be omitted
+    {
+      "name": "Basic"
+    }
+  ]
+}
+"""
+          )
+        ),
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[PatchPatternRequest])
+      )
+    )),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
@@ -920,7 +1227,31 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeHealthResponse])))
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value = """{
+  "nodes": {
+    "string": {
+      "lastHeartbeat": "string",
+      "agreements": {
+        "string": {
+          "lastUpdated": "string"
+        },
+          ...
+      }
+    },
+      ...
+  }
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[PostNodeHealthResponse])
+          )
+        )
       ),
       new responses.ApiResponse(
         responseCode = "401",
@@ -1038,7 +1369,20 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "ID of the pattern to be updated."),
       new Parameter(name = "keyid", in = ParameterIn.PATH, description = "ID of the key to be added/updated.")),
-    requestBody = new RequestBody(description = "Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'.", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PutPatternKeyRequest])))),
+    requestBody = new RequestBody(description = "Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'.", required = true, content = Array(
+      new Content(
+        examples = Array(
+          new ExampleObject(
+            value = """{
+  "key": "string",
+}
+"""
+          )
+        ),
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[PutPatternKeyRequest])
+      )
+    )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),

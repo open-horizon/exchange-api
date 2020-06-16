@@ -295,7 +295,85 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "arch", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this arch (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetNodesResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "nodes": {
+    "orgid/nodeid": {
+      "token": "string",
+      "name": "string",
+      "owner": "string",
+      "nodeType": "device",
+      "pattern": "",
+      "registeredServices": [
+        {
+          "url": "string",
+          "numAgreements": 0,
+          "configState": "active",
+          "policy": "",
+          "properties": []
+        },
+        {
+          "url": "string",
+          "numAgreements": 0,
+          "configState": "active",
+          "policy": "",
+          "properties": []
+        },
+        {
+          "url": "string",
+          "numAgreements": 0,
+          "configState": "active",
+          "policy": "",
+          "properties": []
+        }
+      ],
+      "userInput": [
+        {
+          "serviceOrgid": "string",
+          "serviceUrl": "string",
+          "serviceArch": "string",
+          "serviceVersionRange": "string",
+          "inputs": [
+            {
+              "name": "var1",
+              "value": "someString"
+            },
+            {
+              "name": "var2",
+              "value": 5
+            },
+            {
+              "name": "var3",
+              "value": 22.2
+            }
+          ]
+        }
+      ],
+      "msgEndPoint": "",
+      "softwareVersions": {},
+      "lastHeartbeat": "string",
+      "publicKey": "string",
+      "arch": "string",
+      "heartbeatIntervals": {
+        "minInterval": 0,
+        "maxInterval": 0,
+        "intervalAdjustment": 0
+      },
+      "lastUpdated": "string"
+    },
+      ...
+  },
+  "lastIndex": 0
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetNodesResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -345,7 +423,84 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified, and it must be 1 of the direct attributes of the node resource (not of the services). If not specified, the entire node resource (including services) will be returned")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetNodesResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "nodes": {
+    "orgid/nodeid": {
+      "token": "string",
+      "name": "string",
+      "owner": "string",
+      "nodeType": "device",
+      "pattern": "",
+      "registeredServices": [
+        {
+          "url": "string",
+          "numAgreements": 0,
+          "configState": "active",
+          "policy": "",
+          "properties": []
+        },
+        {
+          "url": "string",
+          "numAgreements": 0,
+          "configState": "active",
+          "policy": "",
+          "properties": []
+        },
+        {
+          "url": "string",
+          "numAgreements": 0,
+          "configState": "active",
+          "policy": "",
+          "properties": []
+        }
+      ],
+      "userInput": [
+        {
+          "serviceOrgid": "string",
+          "serviceUrl": "string",
+          "serviceArch": "string",
+          "serviceVersionRange": "string",
+          "inputs": [
+            {
+              "name": "var1",
+              "value": "someString"
+            },
+            {
+              "name": "var2",
+              "value": 5
+            },
+            {
+              "name": "var3",
+              "value": 22.2
+            }
+          ]
+        }
+      ],
+      "msgEndPoint": "",
+      "softwareVersions": {},
+      "lastHeartbeat": "string",
+      "publicKey": "string",
+      "arch": "string",
+      "heartbeatIntervals": {
+        "minInterval": 0,
+        "maxInterval": 0,
+        "intervalAdjustment": 0
+      },
+      "lastUpdated": "string"
+    }
+  },
+  "lastIndex": 0
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetNodesResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -415,7 +570,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   "nodeType": "device",          // the type of edge node: device, or cluster
   "pattern": "myorg/mypattern",  // (optional) points to a pattern resource that defines what services should be deployed to this type of node
   "arch": "arm",                 // specifies the architecture of the node
-  "registeredServices": [        // list of data services you want to make available
+  "registeredServices": [        // list of data services you want to make available (optional section)
     {
       "url": "IBM/github.com.open-horizon.examples.cpu", 
       "numAgreements": 1,                                 // for now always set this to 1
@@ -430,7 +585,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-  // Override or set user input variables that are defined in the services used by this node.
+  // Override or set user input variables that are defined in the services used by this node. (optional section)
   "userInput": [
     {
       "serviceOrgid": "IBM",
@@ -445,10 +600,10 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-  "msgEndPoint": "",                         // not currently used, but may be in the future. Leave empty or omit to use the built-in Exchange msg service
-  "softwareVersions": {"horizon": "1.2.3"},  // various software versions on the node, can omit
+  "msgEndPoint": "",                         // not currently used, but may be in the future. Leave empty or omit to use the built-in Exchange msg service (optional field)
+  "softwareVersions": {"horizon": "1.2.3"},  // various software versions on the node, can omit (optional field)
   "publicKey": "ABCDEF",                     // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
-  "heartbeatIntervals": {                    // All values in seconds. This section can be omitted
+  "heartbeatIntervals": {                    // All values in seconds. This section can be omitted (optional section)
     "minInterval": 10,                       // the initial heartbeat interval
     "maxInterval": 120,                      // the max the interval will ever become
     "intervalAdjustment": 10                 // how much to increase the interval if there has been no activity for a while
@@ -583,7 +738,62 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
-    requestBody = new RequestBody(description = "Specify only **one** of the attributes (see list of attributes in the PUT route)", required = true, content = Array(new Content(schema = new Schema(implementation = classOf[PatchNodesRequest])))),
+    requestBody = new RequestBody(description = "Specify only **one** of the following attributes", required = true, content = Array(
+      new Content(
+        examples = Array(
+          new ExampleObject(
+            value = """{
+  "token": "abc",                // node token, set by user when adding this node.
+  "name": "rpi3",                // node name that you pick
+  "nodeType": "device",          // the type of edge node: device, or cluster
+  "pattern": "myorg/mypattern",  // points to a pattern resource that defines what services should be deployed to this type of node
+  "arch": "arm",                 // specifies the architecture of the node
+  "registeredServices": [        // list of data services you want to make available
+    {
+      "url": "IBM/github.com.open-horizon.examples.cpu",
+      "numAgreements": 1,                                 // for now always set this to 1
+      "policy": "{...}"                                   // the service policy file content as a json string blob
+      "properties": [                                     // list of properties to help agbots search for this, or requirements on the agbot
+        {
+          "name": "arch",        // must at least include arch and version properties
+          "value": "arm",        // [arm, x86, *, ...] should always be a string (even for boolean and int). Use "*" for wildcard
+          "propType": "string",  // [string, list, version, boolean, int, wildcard]
+          "op": "="              // [=, >=, <=, in] must use the same op as the agbot search
+        }
+      ]
+    }
+  ],
+  // Override or set user input variables that are defined in the services used by this node.
+  "userInput": [
+    {
+      "serviceOrgid": "IBM",
+      "serviceUrl": "ibm.cpu2msghub",
+      "serviceArch": "",                          // omit or leave blank to mean all architectures
+      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "inputs": [
+        {
+          "name": "foo",
+          "value": "bar"
+        }
+      ]
+    }
+  ],
+  "msgEndPoint": "",                         // not currently used, but may be in the future. Leave empty or omit to use the built-in Exchange msg service
+  "softwareVersions": {"horizon": "1.2.3"},  // various software versions on the node, can omit
+  "publicKey": "ABCDEF",                     // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
+  "heartbeatIntervals": {                    // All values in seconds. This section can be omitted
+    "minInterval": 10,                       // the initial heartbeat interval
+    "maxInterval": 120,                      // the max the interval will ever become
+    "intervalAdjustment": 10                 // how much to increase the interval if there has been no activity for a while
+  }
+}
+"""
+          )
+        ),
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[PatchNodesRequest])
+      )
+    )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
         content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
@@ -1026,7 +1236,36 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[NodeStatus])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "connectivity": {
+    "string": true,
+    "string": true
+  },
+  "services": [
+    {
+      "agreementId": "string",
+      "serviceUrl": "string",
+      "orgid": "string",
+      "version": "string",
+      "arch": "string",
+      "containerStatus": [],
+      "operatorStatus": {}
+    }
+  ],
+  "runningServices": "|orgid/serviceid|",
+  "lastUpdated": "string"
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[NodeStatus])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -1069,7 +1308,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "connectivity": {
+  "connectivity": {   // (optional)
     "firmware.bluehorizon.network": true,
     "images.bluehorizon.network": true
   },
@@ -1396,7 +1635,36 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetNodeAgreementsResponse])))),
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value ="""{
+  "agreements": {
+    "agreementname": {
+      "services": [
+        { "orgid": "string", "url": "string"},
+          ...
+      ],
+      "agrService": {
+        "orgid": "string",
+        "pattern": "string",
+        "url": "string"
+      },
+      "state": "string",
+      "lastUpdated": "string"
+    },
+      ...
+  },
+  "lastIndex": 0
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetNodeAgreementsResponse])
+          )
+        )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -1426,7 +1694,34 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetNodeAgreementsResponse])))),
+        content = Array(
+          new Content(
+          examples = Array(
+            new ExampleObject(
+              value ="""{
+  "agreements": {
+    "agreementname": {
+      "services": [
+        { "orgid": "string", "url": "string"},
+          ...
+      ],
+      "agrService": {
+        "orgid": "string",
+        "pattern": "string",
+        "url": "string"
+      },
+      "state": "string",
+      "lastUpdated": "string"
+    }
+  },
+  "lastIndex": 0
+}
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[GetNodeAgreementsResponse])
+        ))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -1476,13 +1771,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             new ExampleObject(
               //name = "SomeExample",
               value = """{
-  "services": [                        // specify this for CS-type agreements
+  "services": [                        // specify this for CS-type agreements (optional section)
     {
      "orgid": "myorg", 
      "url": "mydomain.com.rtlsdr"
     }
   ],
-  "agreementService": {                // specify this for pattern-type agreements
+  "agreementService": {                // specify this for pattern-type agreements (optional section)
     "orgid": "myorg",                  // currently set to the node id, but not used
     "pattern": "myorg/mypattern",      // composite pattern (organization/pattern)
     "url": "myorg/mydomain.com.sdr"    // composite service url (organization/service)

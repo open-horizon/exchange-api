@@ -1,4 +1,4 @@
-package exchangeapi
+package com.horizon.exchangeapi
 
 import org.junit.runner.RunWith
 import org.scalatest.funsuite.AnyFunSuite

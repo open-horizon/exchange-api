@@ -1,4 +1,4 @@
-package exchangeapi
+package com.horizon.exchangeapi
 
 import scala.util.matching.Regex
 

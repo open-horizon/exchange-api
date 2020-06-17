@@ -1,4 +1,4 @@
-package exchangeapi
+package com.horizon.exchangeapi
 
 import com.horizon.exchangeapi.tables.NodeHeartbeatIntervals
 import org.scalatest.funsuite.AnyFunSuite

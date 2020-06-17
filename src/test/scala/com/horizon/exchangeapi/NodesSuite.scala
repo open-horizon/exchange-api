@@ -1,4 +1,4 @@
-package exchangeapi
+package com.horizon.exchangeapi
 
 import java.time.ZonedDateTime
 import java.util.Base64

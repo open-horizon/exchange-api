@@ -37,6 +37,9 @@ lazy val root = (project in file("."))
         summary              := "'Open Horizon exchange-api image'", 
         vendor               := "IBM", 
         version              := versionFunc(), 
+        scapegoatVersion in ThisBuild := "1.4.4", 
+        coverageEnabled      := false, 
+        
 
         // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
         libraryDependencies ++= Seq(

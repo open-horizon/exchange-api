@@ -1,4 +1,4 @@
-package exchangeapi
+package com.horizon.exchangeapi
 
 import org.json4s._
 import org.junit.runner.RunWith

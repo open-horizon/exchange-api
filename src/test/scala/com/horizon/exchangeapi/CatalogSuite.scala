@@ -1,4 +1,4 @@
-package exchangeapi
+package com.horizon.exchangeapi
 
 import com.horizon.exchangeapi._
 import com.horizon.exchangeapi.tables.{PServiceVersions, PServices}

@@ -2410,15 +2410,15 @@ class NodesSuite extends AnyFunSuite {
     info("DELETE "+msgId+", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
 
-    info("POST /orgs/"+orgid+"/changes - verify " + nodeId2 + " msg deleted and stored")
-    val time = ApiTime.pastUTC(secondsAgo)
-    val resInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    response = Http(URL+"/changes").postData(write(resInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    assert(!response.body.isEmpty)
-    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId2) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "nodemsgs")}))
+//    info("POST /orgs/"+orgid+"/changes - verify " + nodeId2 + " msg deleted and stored")
+//    val time = ApiTime.pastUTC(secondsAgo)
+//    val resInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
+//    response = Http(URL+"/changes").postData(write(resInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+//    info("code: "+response.code)
+//    assert(response.code === HttpCode.POST_OK.intValue)
+//    assert(!response.body.isEmpty)
+//    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+//    assert(parsedBody.changes.exists(y => {(y.id == nodeId2) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "nodemsgs")}))
 
     response = Http(URL+"/nodes/"+nodeId2+"/msgs").method("get").headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -2530,26 +2530,26 @@ class NodesSuite extends AnyFunSuite {
     info("DELETE "+msgId+", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
 
-    info("POST /orgs/"+orgid+"/changes - verify " + agbotId2 + " msg deleted and stored")
-    var time = ApiTime.pastUTC(secondsAgo)
-    var resInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    response = Http(URL+"/changes").postData(write(resInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    assert(!response.body.isEmpty)
-    var parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId2) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotmsgs")}))
+//    info("POST /orgs/"+orgid+"/changes - verify " + agbotId2 + " msg deleted and stored")
+//    var time = ApiTime.pastUTC(secondsAgo)
+//    var resInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
+//    response = Http(URL+"/changes").postData(write(resInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+//    info("code: "+response.code)
+//    assert(response.code === HttpCode.POST_OK.intValue)
+//    assert(!response.body.isEmpty)
+//    var parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+//    assert(parsedBody.changes.exists(y => {(y.id == agbotId2) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotmsgs")}))
 
-    info("POST /orgs/"+orgid+"/changes - verify " + agbotId2 + " msg deletion not seen by agbots in changes table")
-    time = ApiTime.pastUTC(secondsAgo)
-    resInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    response = Http(URL+"/changes").postData(write(resInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    assert(!response.body.isEmpty)
-    parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(!parsedBody.changes.exists(y => {(y.id == agbotId2) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotmsgs")}))
-    assert(!parsedBody.changes.exists(y => {(y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotmsgs")}))
+//    info("POST /orgs/"+orgid+"/changes - verify " + agbotId2 + " msg deletion not seen by agbots in changes table")
+//    time = ApiTime.pastUTC(secondsAgo)
+//    resInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
+//    response = Http(URL+"/changes").postData(write(resInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+//    info("code: "+response.code)
+//    assert(response.code === HttpCode.POST_OK.intValue)
+//    assert(!response.body.isEmpty)
+//    parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+//    assert(!parsedBody.changes.exists(y => {(y.id == agbotId2) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotmsgs")}))
+//    assert(!parsedBody.changes.exists(y => {(y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotmsgs")}))
 
     response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("get").headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

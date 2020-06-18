@@ -241,6 +241,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.33.1
+
+- Issue 363: Deletion of nodemsgs and agbotmsgs no longer writes to the `resourcechanges` table
+
 ## Changes in 2.33.0
 
 - Issue 313: Expanded unit testing structure to cover some of the Exchange.

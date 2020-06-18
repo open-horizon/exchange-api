@@ -250,6 +250,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 - Issue 365: The PUT /orgs/{orgid}/nodes/{nodeId} route will no longer set/update a node's last heartbeat.
 
+## Changes in 2.33.1
+
+- Issue 363: Deletion of nodemsgs and agbotmsgs no longer writes to the `resourcechanges` table
+
 ## Changes in 2.33.0
 
 - Issue 313: Expanded unit testing structure to cover some of the Exchange.

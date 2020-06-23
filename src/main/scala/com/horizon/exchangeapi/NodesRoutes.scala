@@ -56,13 +56,23 @@ final case class PostServiceSearchRequest(orgid: String, serviceURL: String, ser
   require(orgid!=null && serviceURL!=null && serviceVersion!=null && serviceArch!=null)
   def getAnyProblem: Option[String] = None
 }
-final case class PostServiceSearchResponse(nodes: scala.collection.Seq[(String, String)])
+final case class PostServiceSearchResponse(nodes: scala.collection.Seq[(String, Option[String])])
 
 final case class NodeResponse(id: String, name: String, services: List[RegService], userInput: List[OneUserInputService], msgEndPoint: String, publicKey: String, arch: String)
 final case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
-final case class PutNodesRequest(token: String, name: String, nodeType: Option[String], pattern: String, registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: String, arch: Option[String], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
+final case class PutNodesRequest(token: String, 
+                                 name: String, 
+                                 nodeType: Option[String], 
+                                 pattern: String, 
+                                 registeredServices: Option[List[RegService]], 
+                                 userInput: Option[List[OneUserInputService]], 
+                                 msgEndPoint: Option[String], 
+                                 softwareVersions: Option[Map[String,String]], 
+                                 publicKey: String, 
+                                 arch: Option[String], 
+                                 heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
   require(token!=null && name!=null && pattern!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
@@ -86,18 +96,48 @@ final case class PutNodesRequest(token: String, name: String, nodeType: Option[S
   def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { NodesTQ.validateServiceIds(userInput.getOrElse(List())) }
 
   /** Get the db actions to insert or update all parts of the node */
-  def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
+  def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String, lastHeartbeat: Option[String] = Some(ApiTime.nowUTC)): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, hashedTok, name, owner, nodeType.getOrElse(NodeType.DEVICE.toString), pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), write(heartbeatIntervals), ApiTime.nowUTC).upsert
+    NodeRow(id, 
+            orgid, 
+            hashedTok, 
+            name, 
+            owner, 
+            nodeType.getOrElse(NodeType.DEVICE.toString), 
+            pattern, 
+            write(rsvc2), 
+            write(userInput), 
+            msgEndPoint.getOrElse(""), 
+            write(softwareVersions), 
+            lastHeartbeat, 
+            publicKey, 
+            arch.getOrElse(""), 
+            write(heartbeatIntervals), 
+            ApiTime.nowUTC).upsert
   }
 
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
    * because we can't let a node create new nodes. */
-  def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = {
+  def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String, lastHeartbeat: Option[String] = Some(ApiTime.nowUTC)): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
-    NodeRow(id, orgid, hashedTok, name, owner, nodeType.getOrElse(NodeType.DEVICE.toString), pattern, write(rsvc2), write(userInput), msgEndPoint.getOrElse(""), write(softwareVersions), ApiTime.nowUTC, publicKey, arch.getOrElse(""), write(heartbeatIntervals), ApiTime.nowUTC).update
+    NodeRow(id, 
+            orgid, 
+            hashedTok, 
+            name, 
+            owner, 
+            nodeType.getOrElse(NodeType.DEVICE.toString), 
+            pattern, 
+            write(rsvc2), 
+            write(userInput), 
+            msgEndPoint.getOrElse(""), 
+            write(softwareVersions), 
+            lastHeartbeat, 
+            publicKey, 
+            arch.getOrElse(""), 
+            write(heartbeatIntervals), 
+            ApiTime.nowUTC).update
   }
 }
 
@@ -117,31 +157,31 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
     var dbAction: (DBIO[_], String) = (null, null)
     // nodeType intentionally missing from this 1st list of attributes, because we will default it if it is the only 1 not specified
     if(token.isEmpty && softwareVersions.isDefined && registeredServices.isDefined && name.isDefined && pattern.isDefined && userInput.isDefined && msgEndPoint.isDefined && publicKey.isDefined && arch.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions, d.regServices, d.name, d.nodeType, d.pattern, d.userInput, d.msgEndPoint, d.publicKey, d.arch, d.lastHeartbeat, d.lastUpdated)).update((id, write(softwareVersions), write(registeredServices), name.get, nodeType.getOrElse(NodeType.DEVICE.toString), pattern.get, write(userInput), msgEndPoint.get, publicKey.get, arch.get, currentTime, currentTime)), "update all but token")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions, d.regServices, d.name, d.nodeType, d.pattern, d.userInput, d.msgEndPoint, d.publicKey, d.arch, d.lastHeartbeat, d.lastUpdated)).update((id, write(softwareVersions), write(registeredServices), name.get, nodeType.getOrElse(NodeType.DEVICE.toString), pattern.get, write(userInput), msgEndPoint.get, publicKey.get, arch.get, Some(currentTime), currentTime)), "update all but token")
     } else if (token.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat, d.lastUpdated)).update((id, hashedPw, currentTime, currentTime)), "token")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat, d.lastUpdated)).update((id, hashedPw, Some(currentTime), currentTime)), "token")
     } else if (softwareVersions.isDefined){
       val swVersions = if (softwareVersions.nonEmpty) write(softwareVersions) else ""
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat, d.lastUpdated)).update((id, swVersions, currentTime, currentTime)), "softwareVersions")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat, d.lastUpdated)).update((id, swVersions, Some(currentTime), currentTime)), "softwareVersions")
     } else if (registeredServices.isDefined){
       val regSvc = if (registeredServices.nonEmpty) write(registeredServices) else ""
-      dbAction =  ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat, d.lastUpdated)).update((id, regSvc, currentTime, currentTime)), "registeredServices")
+      dbAction =  ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat, d.lastUpdated)).update((id, regSvc, Some(currentTime), currentTime)), "registeredServices")
     } else if (name.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat, d.lastUpdated)).update((id, name.get, currentTime, currentTime)), "name")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat, d.lastUpdated)).update((id, name.get, Some(currentTime), currentTime)), "name")
     } else if (nodeType.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.nodeType,d.lastHeartbeat, d.lastUpdated)).update((id, nodeType.get, currentTime, currentTime)), "nodeType")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.nodeType,d.lastHeartbeat, d.lastUpdated)).update((id, nodeType.get, Some(currentTime), currentTime)), "nodeType")
     } else if (pattern.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat, d.lastUpdated)).update((id, pattern.get, currentTime, currentTime)), "pattern")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat, d.lastUpdated)).update((id, pattern.get, Some(currentTime), currentTime)), "pattern")
     } else if (userInput.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.userInput,d.lastHeartbeat, d.lastUpdated)).update((id, write(userInput), currentTime, currentTime)), "userInput")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.userInput,d.lastHeartbeat, d.lastUpdated)).update((id, write(userInput), Some(currentTime), currentTime)), "userInput")
     } else if (msgEndPoint.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat, d.lastUpdated)).update((id, msgEndPoint.get, currentTime, currentTime)), "msgEndPoint")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat, d.lastUpdated)).update((id, msgEndPoint.get, Some(currentTime), currentTime)), "msgEndPoint")
     } else if (publicKey.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat, d.lastUpdated)).update((id, publicKey.get, currentTime, currentTime)), "publicKey")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat, d.lastUpdated)).update((id, publicKey.get, Some(currentTime), currentTime)), "publicKey")
     } else if (arch.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.arch,d.lastHeartbeat, d.lastUpdated)).update((id, arch.get, currentTime, currentTime)), "arch")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.arch,d.lastHeartbeat, d.lastUpdated)).update((id, arch.get, Some(currentTime), currentTime)), "arch")
     } else if (heartbeatIntervals.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.heartbeatIntervals,d.lastHeartbeat, d.lastUpdated)).update((id, write(heartbeatIntervals), currentTime, currentTime)), "heartbeatIntervals")
+      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.heartbeatIntervals,d.lastHeartbeat, d.lastUpdated)).update((id, write(heartbeatIntervals), Some(currentTime), currentTime)), "heartbeatIntervals")
     }
     return dbAction
   }
@@ -200,7 +240,7 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
 
     // Convert from struct back to string and return db action to update that
     val newRegSvcsString = write(newRegSvcs)
-    return (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat)).update((id, newRegSvcsString, ApiTime.nowUTC))
+    return (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat)).update((id, newRegSvcsString, Some(ApiTime.nowUTC)))
   }
 }
 
@@ -654,7 +694,6 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
           val patValidateAction = if (reqBody.pattern != "") PatternsTQ.getPattern(reqBody.pattern).length.result else DBIO.successful(1)
           val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced in userInput exist
-          val hashedTok = Password.hash(reqBody.token)
           db.run(patValidateAction.asTry.flatMap({
             case Success(num) =>
               // Check if pattern exists, then get services referenced
@@ -662,7 +701,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               if (num > 0) valServiceIdActions.asTry
               else DBIO.failed(new Throwable(ExchMsg.translate("pattern.not.in.exchange"))).asTry
             case Failure(t) => DBIO.failed(t).asTry
-          }).flatMap({
+          })
+          .flatMap({
             case Success(v) =>
               // Check if referenced services exist, then get whether node is using policy
               logger.debug("PUT /orgs/" + orgid + "/nodes" + id + " service validation: " + v)
@@ -682,7 +722,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                 DBIO.failed(new Throwable(errStr)).asTry
               }
             case Failure(t) => DBIO.failed(t).asTry
-          }).flatMap({
+          })
+          .flatMap({
             case Success(v) =>
               // Check if node is using policy, then get num nodes already owned
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " policy related attrs: " + v)
@@ -693,18 +734,36 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               }
               else NodesTQ.getNumOwned(owner).result.asTry // node doesn't exit yet, we can continue
             case Failure(t) => DBIO.failed(t).asTry
-          }).flatMap({
+          })
+          .flatMap({
             case Success(numOwned) =>
               // Check if num nodes owned is below limit, then create/update node
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " num owned: " + numOwned)
               val maxNodes = ExchConfig.getInt("api.limits.maxNodes")
-              if (maxNodes == 0 || numOwned <= maxNodes || owner == "") { // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
-                val action = if (owner == "") reqBody.getDbUpdate(compositeId, orgid, owner, hashedTok) else reqBody.getDbUpsert(compositeId, orgid, owner, hashedTok)
-                action.transactionally.asTry
-              }
-              else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.nodes", maxNodes))).asTry
+              if (maxNodes == 0 
+                  || numOwned <= maxNodes 
+                  || owner == "")  // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
+                NodesTQ.getLastHeartbeat(compositeId).result.asTry
+              else 
+                DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.nodes", maxNodes))).asTry
             case Failure(t) => DBIO.failed(t).asTry
-          }).flatMap({
+          })
+          .flatMap({
+            case Success(lastHeartbeat) => 
+              lastHeartbeat.size match {
+                  case 0 => (if (owner == "") 
+                               reqBody.getDbUpdate(compositeId, orgid, owner, Password.hash(reqBody.token), None)
+                             else 
+                               reqBody.getDbUpsert(compositeId, orgid, owner, Password.hash(reqBody.token), None)).transactionally.asTry
+                  case 1 => (if (owner == "") 
+                               reqBody.getDbUpdate(compositeId, orgid, owner, Password.hash(reqBody.token), lastHeartbeat.head)
+                             else 
+                               reqBody.getDbUpsert(compositeId, orgid, owner, Password.hash(reqBody.token), lastHeartbeat.head)).transactionally.asTry
+                  case _ => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", compositeId, "Unexpected result"))).asTry
+                }
+            case Failure(t) => DBIO.failed(t).asTry
+          })
+          .flatMap({
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " result: " + v)
@@ -715,7 +774,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Check creation/update of node, and other errors
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
-              AuthCache.putNodeAndOwner(compositeId, hashedTok, reqBody.token, owner)
+              AuthCache.putNodeAndOwner(compositeId, Password.hash(reqBody.token), reqBody.token, owner)
               //AuthCache.ids.putNode(id, hashedTok, node.token)
               //AuthCache.nodesOwner.putOne(id, owner)
               (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))
@@ -1046,7 +1105,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       complete({
-        db.run(NodesTQ.getLastHeartbeat(compositeId).update(ApiTime.nowUTC).asTry).map({
+        db.run(NodesTQ.getLastHeartbeat(compositeId).update(Some(ApiTime.nowUTC)).asTry).map({
           case Success(v) =>
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               logger.debug(s"POST /orgs/$orgid/users/$id/heartbeat result: $v")

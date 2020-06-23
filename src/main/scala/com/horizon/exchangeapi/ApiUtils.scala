@@ -568,7 +568,7 @@ object RouteUtils {
   /** From the given db joined node/agreement rows, build the output node health hash and return it.
      This is shared between POST /org/{orgid}/patterns/{pat-id}/nodehealth and POST /org/{orgid}/search/nodehealth
     */
-  def buildNodeHealthHash(list: scala.Seq[(String, String, Option[String], Option[String])]): Map[String,NodeHealthHashElement] = {
+  def buildNodeHealthHash(list: scala.Seq[(String, Option[String], Option[String], Option[String])]): Map[String,NodeHealthHashElement] = {
     // Go thru the rows and build a hash of the nodes, adding the agreement to its value as we encounter them
     val nodeHash = new MutableHashMap[String,NodeHealthHashElement]     // key is node id, value has lastHeartbeat and the agreements map
     for ( (nodeId, lastHeartbeat, agrId, agrLastUpdated) <- list ) {

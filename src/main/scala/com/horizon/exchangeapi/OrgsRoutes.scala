@@ -106,8 +106,8 @@ final case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List
 }
 
 final case class NodeHealthAgreementElement(lastUpdated: String)
-class NodeHealthHashElement(var lastHeartbeat: String, var agreements: Map[String,NodeHealthAgreementElement])
-final case class PostNodeHealthResponse(nodes: Map[String,NodeHealthHashElement])
+class NodeHealthHashElement(var lastHeartbeat: Option[String], var agreements: Map[String, NodeHealthAgreementElement])
+final case class PostNodeHealthResponse(nodes: Map[String, NodeHealthHashElement])
 
 /** Case class for request body for ResourceChanges route */
 final case class ResourceChangesRequest(changeId: Long, lastUpdated: Option[String], maxRecords: Int, orgList: Option[List[String]]) {
@@ -974,7 +974,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               val id = orgId + "/" + ident.getIdentity
               ident match {
                 case _: INode =>
-                  NodesTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry
+                  NodesTQ.getLastHeartbeat(id).update(Some(ApiTime.nowUTC)).asTry
                 case _: IAgbot =>
                   AgbotsTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry
                 case _ =>

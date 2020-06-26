@@ -28,6 +28,7 @@ import scala.util.control.Breaks._
 import org.json4s.jackson.Serialization.write
 import slick.jdbc.PostgresProfile.api._
 
+
 //====== These are the input and output structures for /orgs/{orgid}/patterns routes. Swagger and/or json seem to require they be outside the trait.
 
 /** Output format for GET /orgs/{orgid}/patterns */
@@ -1031,11 +1032,11 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             new ExampleObject(
               value = """{
   "serviceUrl": "myorg/mydomain.com.sdr",   // The service that the node does not have an agreement with yet. Composite service url (organization/service)
-  "nodeOrgids": [ "org1", "org2", "..." ],  // if not specified, defaults to the same org the pattern is in
-  "secondsStale": 60,                       // max number of seconds since the exchange has heard from the node, 0 if you do not care
-  "startIndex": 0,                          // for pagination, ignored right now
-  "numEntries": 0,                          // ignored right now
-  "arch": "arm"                             // (optional)
+  "nodeOrgids": [ "org1", "org2", "..." ],  // If not specified, defaults to the same org the pattern is in
+  "secondsStale": 60,                       // Max number of seconds since the exchange has heard from the node, 0 if you do not care
+  "startIndex": 0,                          // For pagination, ignored right now
+  "numEntries": 0,                          // Number of nodes returned
+  "arch": "arm"                             // (optional), Defaults to all architectures
 }
 """
             )
@@ -1076,6 +1077,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
           logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+reqBody.toString)
           val searchSvcUrl = reqBody.serviceUrl   // this now is a composite value (org/url), but plain url is supported for backward compat
           val selectedServiceArch = reqBody.arch
+          val numNodes = reqBody.numEntries
           /*
             Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
             In english, the join gets: n.id, n.msgEndPoint, n.publicKey, a.serviceUrl, a.state
@@ -1084,16 +1086,6 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
           */
           val oldestTime = if (reqBody.secondsStale > 0) ApiTime.pastUTC(reqBody.secondsStale) else ApiTime.beginningUTC
-
-          def isEqualUrl(agrSvcUrl: String, searchSvcUrl: String): Boolean = {
-            if (agrSvcUrl == searchSvcUrl) return true    // this is the relevant check when both agbot and agent are recent enough to use composite urls (org/org)
-            // Assume searchSvcUrl is the new composite format (because the agbot is at least as high version as the agent) and strip off the org
-            val reg = """^\S+?/(\S+)$""".r
-            searchSvcUrl match {
-              case reg(url) => return agrSvcUrl == url
-              case _ => return false    // searchSvcUrl was not composite, so the urls are not equal
-            }
-          }
 
           db.run(PatternsTQ.getServices(compositeId).result.flatMap({ list =>
             logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search getServices size: "+list.size)
@@ -1125,56 +1117,67 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                 2 - else if the caller or any service specified a blank/wildcard arch, then don't filter on arch at all
                 3 - else filter on the arches in the services
                  */
-                if(selectedServiceArch.isDefined && !(selectedServiceArch.contains("*") || selectedServiceArch.contains(""))){
-                  val nodeQuery =
-                    for {
-                      (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositeId).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(_.arch like selectedServiceArch) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-                    } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
-                  nodeQuery.result.asTry
-                //} else if (((archSet("") || archSet("*")) && selectedServiceArch.isEmpty) || selectedServiceArch.equals(Some("*")) || selectedServiceArch.equals(Some(""))){
-                } else if (((archSet("") || archSet("*")) && selectedServiceArch.isEmpty) || selectedServiceArch.contains("*") || selectedServiceArch.contains("")){
-                  val nodeQuery =
-                    for {
-                      (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositeId).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-                    } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
-                  nodeQuery.result.asTry
-                } else {
-                  val nodeQuery =
-                    for {
-                      (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositeId).filter(_.publicKey =!= "").filter(_.lastHeartbeat >= oldestTime).filter(_.arch inSet(archSet)) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-                    } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
-                  nodeQuery.result.asTry
-                }
+                val optArchSet: Option[Set[String]] = 
+                  if(selectedServiceArch.isDefined && 
+                     !(selectedServiceArch.contains("*") || 
+                       selectedServiceArch.contains(""))) 
+                    Some(Set(selectedServiceArch.get))
+                  else if (((archSet("") || 
+                             archSet("*")) && 
+                            selectedServiceArch.isEmpty) || 
+                           selectedServiceArch.contains("*") || 
+                           selectedServiceArch.contains(""))
+                    None
+                  else
+                    Some(archSet)
+                
+                val nodeQuery = 
+                  for {
+                    (n, a) <- NodesTQ.rows
+                                .filter(_.orgid inSet(nodeOrgids))
+                                .filter(_.pattern === compositeId)
+                                .filter(_.publicKey =!= "")
+                                .filter(_.lastHeartbeat >= oldestTime)
+                                .filterOpt(optArchSet)((node, archs) => node.arch inSet(archs))
+                              .joinLeft(NodeAgreementsTQ.rows
+                                          .filter(_.agrSvcUrl === searchSvcUrl))
+                                .on(_.id === _.nodeId)
+                              .filter {
+                                case (node, agreement) => 
+                                  (agreement.map(_.nodeId).isEmpty ||
+                                   agreement.map(_.state).getOrElse("") === "" || 
+                                   agreement.map(_.agrSvcUrl).getOrElse("") === "")
+                               }
+                  } yield (n.id, n.nodeType, n.publicKey)
+                
+                (if(numNodes > 0) 
+                   nodeQuery.drop(0).take(numNodes)
+                 else 
+                   nodeQuery).result.asTry
               }
               //        else DBIO.failed(new Throwable("the serviceUrl '"+searchSvcUrl+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
               else DBIO.failed(new Throwable(ExchMsg.translate("service.not.in.pattern", searchSvcUrl, compositeId))).asTry
-
             }
             else DBIO.failed(new Throwable(ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
           })).map({
             case Success(list) =>
-              logger.debug("POST /orgs/" + orgid + "/patterns/" + pattern + "/search result size: " + list.size)
+//              logger.debug("POST /orgs/" + orgid + "/patterns/" + pattern + "/search result size: " + list.size)
+              
               if (list.nonEmpty) {
-                // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
-                val nodeHash = new MutableHashMap[String, PatternSearchHashElement] // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
-                for ((nodeid, nodeType, publicKey, agrSvcUrlOpt, stateOpt) <- list) {
-                  //logger.debug("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
-                  val nt = if (nodeType == "") NodeType.DEVICE.toString else nodeType
-                  nodeHash.get(nodeid) match {
-                    case Some(_) => if (isEqualUrl(agrSvcUrlOpt.getOrElse(""), searchSvcUrl) && stateOpt.getOrElse("") != "") {
-                      /*logger.debug("setting to false");*/ nodeHash.put(nodeid, PatternSearchHashElement(nt, publicKey, noAgreementYet = false))
-                    } // this is no longer a candidate
-                    case None => val noAgr = if (isEqualUrl(agrSvcUrlOpt.getOrElse(""), searchSvcUrl) && stateOpt.getOrElse("") != "") false else true
-                      nodeHash.put(nodeid, PatternSearchHashElement(nt, publicKey, noAgr)) // this node nodeid not in the hash yet, add it
-                  }
-                }
-                // Convert our hash to the list response of the rest api
-                //val respList = list.map( x => PatternNodeResponse(x._1, x._2, x._3)).toList
-                val respList = new ListBuffer[PatternNodeResponse]
-                for ((k, v) <- nodeHash) if (v.noAgreementYet) respList += PatternNodeResponse(k, v.nodeType, v.publicKey)
-                val code = if (respList.nonEmpty) HttpCode.POST_OK else HttpCode.NOT_FOUND
-                (code, PostPatternSearchResponse(respList.toList, 0))
-              } else {
+                (HttpCode.POST_OK, 
+                 PostPatternSearchResponse(list
+                                             .map(
+                                               node => 
+                                                 PatternNodeResponse(node._1, 
+                                                                     node._2 match {
+                                                                       case "" => NodeType.DEVICE.toString
+                                                                       case _ => node._2
+                                                                     }, 
+                                                                     node._3))
+                                             .toList, 
+                                           0))
+              } 
+              else {
                 (HttpCode.NOT_FOUND, PostPatternSearchResponse(List[PatternNodeResponse](), 0))
               }
             case Failure(t: org.postgresql.util.PSQLException) =>

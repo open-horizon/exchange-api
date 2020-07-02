@@ -162,12 +162,15 @@ object SchemaTQ {
       case 35 => DBIO.seq(   // v2.18.0
         sqlu"alter table agbotmsgs drop constraint node_fk"
       )
+      case 36 => DBIO.seq(   // v2.35.0
+        sqlu"alter table nodes alter column lastheartbeat drop not null"
+      )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 35    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "remove node foreign key constraint in agbotmsgs table"
+  val latestSchemaVersion = 36    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "remove not null constraint on nodes table column lastheartbeat"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

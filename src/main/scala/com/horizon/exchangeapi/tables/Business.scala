@@ -121,3 +121,35 @@ object BusinessPoliciesTQ {
   /** Returns the actions to delete the businessPolicy and the blockchains that reference it */
   def getDeleteActions(businessPolicy: String): DBIO[_] = getBusinessPolicy(businessPolicy).delete   // with the foreign keys set up correctly and onDelete=cascade, the db will automatically delete these associated blockchain rows
 }
+
+final case class SearchOffsetPolicyAttributes(agbot: String,
+                                              offset: String, 
+                                              policy: String)
+
+class SearchOffsetPolicy(tag: Tag) extends Table[SearchOffsetPolicyAttributes](tag, "SEARCH_OFFSET_POLICY") {
+  def agbot = column[String]("AGBOT")
+  def offset = column[String]("OFFSET", O.Default(""))
+  def policy = column[String]("POLICY")
+  
+  def pkSearchOffsetsPolicy = primaryKey("PK_SEARCHOFFSETPOLICY", (agbot, policy))
+  def fkAgbot = foreignKey("FK_AGBOT", agbot, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkPolicy = foreignKey("FK_POLICY", policy, BusinessPoliciesTQ.rows)(_.businessPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  
+  def * = (agbot, offset, policy).mapTo[SearchOffsetPolicyAttributes]
+}
+
+object SearchOffsetPolicyTQ {
+  val query = TableQuery[SearchOffsetPolicy]
+  
+  def getOffset(agbot: String, policy: String) = 
+    query
+      .filter(_.agbot === agbot)
+      .filter(_.policy === policy)
+      .map(_.offset)
+      
+  def setOffset(agbot: String, offset: String, policy: String) = 
+    query
+      .filter(_.agbot === agbot)
+      .filter(_.policy === policy)
+      .insertOrUpdate(SearchOffsetPolicyAttributes(agbot, offset, policy))
+}

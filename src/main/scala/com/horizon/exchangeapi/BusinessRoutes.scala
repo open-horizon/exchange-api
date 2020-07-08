@@ -893,6 +893,30 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                 (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastUpdated >= oldestTime).filter(n => {n.arch === service.arch || service.arch == "" || service.arch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
               } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
               
+              
+              /*val nodeQuery = 
+                  NodesTQ.rows
+                    .filterOpt(optArchSet)((node, archs) => node.arch inSet(archs))
+                    .filter(_.lastHeartbeat.isDefined)
+                    .filterOpt(reqBody.changedSince)((node, changedSince) => !(node.lastUpdated < ApiTime.thenUTC(changedSince)))
+                    .filter(_.orgid inSet(nodeOrgids))
+                    .filter(_.pattern === compositeId)
+                    .filter(_.publicKey =!= "")
+                    .map(node => (node.id, node.lastUpdated, node.nodeType, node.publicKey))
+                  .joinLeft(NodeAgreementsTQ.rows
+                              .filter(_.agrSvcUrl === searchSvcUrl)
+                               .map(agreement => (agreement.agrSvcUrl, agreement.nodeId, agreement.state)))
+                    .on((node, agreement) => node._1 === agreement._2)
+                  .filter ({
+                    case (node, agreement) => 
+                     (agreement.map(_._2).isEmpty ||
+                      agreement.map(_._1).getOrElse("") === "" || 
+                      agreement.map(_._3).getOrElse("") === "")
+                  })
+                  .sortBy(r => (r._1._2.asc, r._1._1.asc, r._2.getOrElse(("", "", ""))._1.asc.nullsFirst))
+                  .map(r => (r._1._1, r._1._2, r._1._3, r._1._4))*/
+              
+              
               nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
             }
             else DBIO.failed(new Throwable(ExchMsg.translate("business.policy.not.found", compositeId))).asTry

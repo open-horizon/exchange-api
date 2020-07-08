@@ -35,9 +35,21 @@ import slick.jdbc.PostgresProfile.api._
 final case class GetPatternsResponse(patterns: Map[String,Pattern], lastIndex: Int)
 final case class GetPatternAttributeResponse(attribute: String, value: String)
 
-/** Input for pattern-based search for nodes to make agreements with. */
-final case class PostPatternSearchRequest(serviceUrl: String, nodeOrgids: Option[List[String]], secondsStale: Int, startIndex: Int, numEntries: Int, arch: Option[String]) {
-  require(serviceUrl!=null)
+/** 
+  * Input for pattern-based search for nodes to make agreements with. 
+  * 
+  * Pattern does not use changedSince like policy search because pattern agreements either exist 
+  * or they do not. Pattern agreements are not time-boxed.
+  **/
+final case class PostPatternSearchRequest(arch: Option[String], 
+                                          nodeOrgids: Option[List[String]], 
+                                          // numEntries: Option[Int], 
+                                          secondsStale: Option[Int], 
+                                          serviceUrl: String = "") {
+  // require(numEntries.get > 0 || numEntries.isEmpty)
+  require(secondsStale.get > 0 || secondsStale.isEmpty)
+  require(!serviceUrl.isEmpty())
+  
   def getAnyProblem: Option[String] = None
 }
 
@@ -1031,12 +1043,10 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "serviceUrl": "myorg/mydomain.com.sdr",   // The service that the node does not have an agreement with yet. Composite service url (organization/service)
-  "nodeOrgids": [ "org1", "org2", "..." ],  // If not specified, defaults to the same org the pattern is in
-  "secondsStale": 60,                       // Max number of seconds since the exchange has heard from the node, 0 if you do not care
-  "startIndex": 0,                          // For pagination, ignored right now
-  "numEntries": 0,                          // Number of nodes returned
-  "arch": "arm"                             // (optional), Defaults to all architectures
+  "arch": "arm",                            // (optional), Defaults to all architectures
+  "nodeOrgids": [ "org1", "org2", "..." ],  // (optional), Defaults to the same org the pattern is in
+  "secondsStale": 60,                       // (optional), Maximum number of seconds since the last heartbeat from a node
+  "serviceUrl": "myorg/mydomain.com.sdr"    // The service that the node does not have an agreement with yet. Composite service url (organization/service)
 }
 """
             )
@@ -1070,14 +1080,13 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
   def patternPostSearchRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "search") & post & entity(as[PostPatternSearchRequest])) { (orgid, pattern, reqBody) =>
     val compositeId = OrgAndId(orgid, pattern).toString
-    exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { _ =>
+    exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) {agbot =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val nodeOrgids = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
-          logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+reqBody.toString)
+//          logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+reqBody.toString)
           val searchSvcUrl = reqBody.serviceUrl   // this now is a composite value (org/url), but plain url is supported for backward compat
           val selectedServiceArch = reqBody.arch
-          val numNodes = reqBody.numEntries
           /*
             Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
             In english, the join gets: n.id, n.msgEndPoint, n.publicKey, a.serviceUrl, a.state
@@ -1085,11 +1094,11 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             Then we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
             Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
           */
-          val oldestTime = if (reqBody.secondsStale > 0) ApiTime.pastUTC(reqBody.secondsStale) else ApiTime.beginningUTC
+          //val oldestTime = if (reqBody.secondsStale > 0) ApiTime.pastUTC(reqBody.secondsStale) else ApiTime.beginningUTC
 
           db.run(PatternsTQ.getServices(compositeId).result.flatMap({ list =>
-            logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search getServices size: "+list.size)
-            logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search: looking for '"+searchSvcUrl+"', searching getServices: "+list.toString())
+//            logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search getServices size: "+list.size)
+//            logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search: looking for '"+searchSvcUrl+"', searching getServices: "+list.toString())
             if (list.nonEmpty) {
               val services = PatternsTQ.getServicesFromString(list.head)    // we should have found only 1 pattern services string, now parse it to get service list
               var found = false
@@ -1112,10 +1121,10 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
               archList += "*"
               val archSet = archList.toSet
               if (found) {
-                /* Build the node query
-                1 - if the caller specified a non-wildcard arch in the body, that trumps everything, so filter on that arch
-                2 - else if the caller or any service specified a blank/wildcard arch, then don't filter on arch at all
-                3 - else filter on the arches in the services
+                /*     Build the node query
+                 * 1 - if the caller specified a non-wildcard arch in the body, that trumps everything, so filter on that arch
+                 * 2 - else if the caller or any service specified a blank/wildcard arch, then don't filter on arch at all
+                 * 3 - else filter on the arches in the services
                  */
                 val optArchSet: Option[Set[String]] = 
                   if(selectedServiceArch.isDefined && 
@@ -1131,29 +1140,26 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                   else
                     Some(archSet)
                 
-                val nodeQuery = 
-                  for {
-                    (n, a) <- NodesTQ.rows
-                                .filter(_.orgid inSet(nodeOrgids))
-                                .filter(_.pattern === compositeId)
-                                .filter(_.publicKey =!= "")
-                                .filter(_.lastHeartbeat >= oldestTime)
-                                .filterOpt(optArchSet)((node, archs) => node.arch inSet(archs))
-                              .joinLeft(NodeAgreementsTQ.rows
-                                          .filter(_.agrSvcUrl === searchSvcUrl))
-                                .on(_.id === _.nodeId)
-                              .filter {
-                                case (node, agreement) => 
-                                  (agreement.map(_.nodeId).isEmpty ||
-                                   agreement.map(_.state).getOrElse("") === "" || 
-                                   agreement.map(_.agrSvcUrl).getOrElse("") === "")
-                               }
-                  } yield (n.id, n.nodeType, n.publicKey)
-                
-                (if(numNodes > 0) 
-                   nodeQuery.drop(0).take(numNodes)
-                 else 
-                   nodeQuery).result.asTry
+                NodesTQ.rows
+                  .filterOpt(optArchSet)((node, archs) => node.arch inSet(archs))
+                  .filterOpt(reqBody.secondsStale)((node, secondsStale) => !(node.lastHeartbeat < ApiTime.pastUTC(secondsStale)))
+                  .filter(_.lastHeartbeat.isDefined)
+                  .filter(_.orgid inSet(nodeOrgids))
+                  .filter(_.pattern === compositeId)
+                  .filter(_.publicKey =!= "")
+                  .map(node => (node.id, node.nodeType, node.publicKey))
+                .joinLeft(NodeAgreementsTQ.rows
+                            .filter(_.agrSvcUrl === searchSvcUrl)
+                             .map(agreement => (agreement.agrSvcUrl, agreement.nodeId, agreement.state)))
+                  .on((node, agreement) => node._1 === agreement._2)
+                .filter ({
+                  case (node, agreement) => 
+                   (agreement.map(_._2).isEmpty ||
+                    agreement.map(_._1).getOrElse("") === "" || 
+                    agreement.map(_._3).getOrElse("") === "")
+                })
+                // .sortBy(r => (r._1._1.asc, r._2.getOrElse(("", "", ""))._1.asc.nullsFirst))
+                .map(r => (r._1._1, r._1._2, r._1._3)).result.map(List[(String, String, String)]).asTry
               }
               //        else DBIO.failed(new Throwable("the serviceUrl '"+searchSvcUrl+"' specified in search body does not exist in pattern '"+compositePat+"'")).asTry
               else DBIO.failed(new Throwable(ExchMsg.translate("service.not.in.pattern", searchSvcUrl, compositeId))).asTry
@@ -1162,7 +1168,6 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
           })).map({
             case Success(list) =>
 //              logger.debug("POST /orgs/" + orgid + "/patterns/" + pattern + "/search result size: " + list.size)
-              
               if (list.nonEmpty) {
                 (HttpCode.POST_OK, 
                  PostPatternSearchResponse(list
@@ -1173,8 +1178,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                                                                        case "" => NodeType.DEVICE.toString
                                                                        case _ => node._2
                                                                      }, 
-                                                                     node._3))
-                                             .toList, 
+                                                                     node._3)), 
                                            0))
               } 
               else {

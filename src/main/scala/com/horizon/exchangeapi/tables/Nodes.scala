@@ -1,11 +1,37 @@
 package com.horizon.exchangeapi.tables
 
-import com.horizon.exchangeapi._
-import org.json4s._
-import org.json4s.jackson.Serialization.read
-import slick.jdbc.PostgresProfile.api._
+import scala.collection.mutable.{HashMap => MutableHashMap,    // Renaming this to not have to qualify every use of a immutable collection
+                                 ListBuffer}
 
-import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}   //renaming this so i do not have to qualify every use of a immutable collection
+import org.json4s.{DefaultFormats, 
+                   Formats}
+import org.json4s.jackson.Serialization.read
+
+import com.horizon.exchangeapi.{ApiTime, 
+                                ExchMsg, 
+                                Role, 
+                                StrConstants, 
+                                Version, 
+                                VersionRange}
+
+import slick.jdbc.PostgresProfile.api.{DBIO, 
+                                       ForeignKeyAction, 
+                                       Query, 
+                                       Table, 
+                                       TableQuery, 
+                                       Tag, 
+                                       anyToShapedValue, 
+                                       booleanColumnExtensionMethods, 
+                                       booleanColumnType, 
+                                       columnExtensionMethods, 
+                                       intColumnType, 
+                                       queryInsertActionExtensionMethods, 
+                                       queryUpdateActionExtensionMethods, 
+                                       recordQueryActionExtensionMethods, 
+                                       stringColumnExtensionMethods, 
+                                       stringColumnType, 
+                                       valueToConstColumn}
+
 
 /** We define this trait because services in the DB and in the search criteria need the same methods, but have slightly different constructor args */
 trait RegServiceTrait {
@@ -63,7 +89,22 @@ class Node(var token: String, var name: String, var owner: String, var nodeType:
   def copy = new Node(token, name, owner, nodeType, pattern, registeredServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated)
 }
 
-final case class NodeRow(id: String, orgid: String, token: String, name: String, owner: String, nodeType: String, pattern: String, regServices: String, userInput: String, msgEndPoint: String, softwareVersions: String, lastHeartbeat: String, publicKey: String, arch: String, heartbeatIntervals: String, lastUpdated: String) {
+final case class NodeRow(id: String, 
+                         orgid: String, 
+                         token: String, 
+                         name: String, 
+                         owner: String, 
+                         nodeType: String, 
+                         pattern: String, 
+                         regServices: String, 
+                         userInput: String, 
+                         msgEndPoint: String, 
+                         softwareVersions: String, 
+                         lastHeartbeat: Option[String], 
+                         publicKey: String, 
+                         arch: String, 
+                         heartbeatIntervals: String, 
+                         lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNode(superUser: Boolean): Node = {
@@ -75,7 +116,7 @@ final case class NodeRow(id: String, orgid: String, token: String, name: String,
     val rsvc2 = rsvc.map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
     val input = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
     val hbInterval = if (heartbeatIntervals != "") read[NodeHeartbeatIntervals](heartbeatIntervals) else NodeHeartbeatIntervals(0, 0, 0)
-    new Node(tok, name, owner, nt, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat, publicKey, arch, hbInterval, lastUpdated)
+    new Node(tok, name, owner, nt, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat.orNull, publicKey, arch, hbInterval, lastUpdated)
   }
 
   /* Not needed anymore, because node properties are no longer in a separate table that needs to be joined...
@@ -89,13 +130,19 @@ final case class NodeRow(id: String, orgid: String, token: String, name: String,
 
   def upsert: DBIO[_] = {
     //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
-    if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.nodeType, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated)).insertOrUpdate((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
+    if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.nodeType, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated)).insertOrUpdate((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat.orElse(None), publicKey, arch, heartbeatIntervals, lastUpdated))
     else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
   }
 
   def update: DBIO[_] = {
     //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
-    if (owner == "") (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.orgid,d.token,d.name,d.nodeType,d.pattern,d.regServices,d.userInput,d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated)).update((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
+    if (owner == "") (
+        for { 
+          d <- NodesTQ.rows if d.id === id 
+        } yield (d.id,d.orgid,d.token,d.name,d.nodeType,d.pattern,d.regServices,d.userInput,
+            d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated))
+            .update((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, 
+                lastHeartbeat.orElse(None), publicKey, arch, heartbeatIntervals, lastUpdated))
     else (for { d <- NodesTQ.rows if d.id === id } yield d).update(NodeRow(id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
   }
 }
@@ -115,7 +162,7 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def msgEndPoint = column[String]("msgendpoint")
   def softwareVersions = column[String]("swversions")
   def publicKey = column[String]("publickey")     // this is last because that is where alter table in upgradedb puts it
-  def lastHeartbeat = column[String]("lastheartbeat")
+  def lastHeartbeat = column[Option[String]]("lastheartbeat")
   def arch = column[String]("arch")
   def heartbeatIntervals = column[String]("heartbeatintervals")
   def lastUpdated = column[String]("lastupdated")
@@ -174,7 +221,7 @@ object NodesTQ {
   def getLastUpdated(id: String) = rows.filter(_.id === id).map(_.lastUpdated)
   def getNodeUsingPolicy(id: String) = rows.filter(_.id === id).map(x => (x.pattern, x.publicKey))
 
-  def setLastHeartbeat(id: String, lastHeartbeat: String) = rows.filter(_.id === id).map(_.lastHeartbeat).update(lastHeartbeat)
+  def setLastHeartbeat(id: String, lastHeartbeat: String) = rows.filter(_.id === id).map(_.lastHeartbeat).update(Some(lastHeartbeat))
   def setLastUpdated(id: String, lastUpdated: String) = rows.filter(_.id === id).map(_.lastUpdated).update(lastUpdated)
 
 

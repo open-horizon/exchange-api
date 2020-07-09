@@ -1041,7 +1041,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeIdSearchTest1+" - add normal node as user") {
+  test("PUT /orgs/" + orgid + "/nodes/" + nodeIdSearchTest1 + " - add normal node as user") {
     val input = PutNodesRequest(nodeTokenSearchTest1, "rpi"+nodeIdSearchTest1+"-norm", None, compositePatid,
       Some(List(
         RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeIdSearchTest1+" pws}",List(
@@ -1056,32 +1056,38 @@ class PatternsSuite extends AnyFunSuite {
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       None, Some(Map("horizon"->"3.2.3")), "NODEABC", None, None)
-    val response = Http(URL+"/nodes/"+nodeIdSearchTest1).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
+    val response = Http(URL + "/nodes/" + nodeIdSearchTest1).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("Heartbeat: " + Http(URL + "/nodes/" + nodeIdSearchTest1 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId2SearchTest2+" - node with higher memory 400, and version 2.0.0") {
+  test("PUT /orgs/" + orgid + "/nodes/" + nodeId2SearchTest2 + " - node with higher memory 400, and version 2.0.0") {
     val input = PutNodesRequest(nodeToken2SearchTest2, "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", None, compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
       Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", Some("amd64"), None)
-    val response = Http(URL+"/nodes/"+nodeId2SearchTest2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
+    val response = Http(URL + "/nodes/" + nodeId2SearchTest2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    //info("Heartbeat: " + Http(URL + "/nodes/" + nodeId2SearchTest2 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId2SearchTest2+" - node with no arch") {
+  test("PUT /orgs/" + orgid + "/nodes/" + nodeId2SearchTest2 + " - node with no arch") {
     val input = PutNodesRequest(nodeToken2SearchTest2, "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", None, compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
       Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", Some("amd64"), None)
-    val response = Http(URL+"/nodes/"+nodeId2SearchTest2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
+    val response = Http(URL + "/nodes/" + nodeId2SearchTest2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("Heartbeat: " + Http(URL + "/nodes/" + nodeId2SearchTest2 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
@@ -1101,15 +1107,17 @@ class PatternsSuite extends AnyFunSuite {
     assert(dev2.publicKey === "NODE2ABC")
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId3SearchTest3+" - node with no arch") {
+  test("PUT /orgs/" + orgid + "/nodes/" + nodeId3SearchTest3 + " - node with no arch") {
     val input = PutNodesRequest(nodeToken3SearchTest3, "rpi"+nodeId3SearchTest3+"-mem-400-vers-2", None, compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId3SearchTest3+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
       Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE3ABC", None, None)
-    val response = Http(URL+"/nodes/"+nodeId3SearchTest3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
+    val response = Http(URL + "/nodes/" + nodeId3SearchTest3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("Heartbeat: " + Http(URL + "/nodes/" + nodeId3SearchTest3 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
@@ -1131,15 +1139,17 @@ class PatternsSuite extends AnyFunSuite {
     assert(dev3.publicKey === "NODE3ABC")
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId4SearchTest4+" - node with "+PWSSPEC+" Service") {
+  test("PUT /orgs/" + orgid + "/nodes/" + nodeId4SearchTest4 + " - node with " + PWSSPEC + " Service") {
     val input = PutNodesRequest(nodeToken4SearchTest4, "rpi"+nodeId4SearchTest4+"-mem-400-vers-2", None, compositePatid2, Some(List(RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId4SearchTest4+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
       Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE4ABC", None, None)
-    val response = Http(URL+"/nodes/"+nodeId4SearchTest4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
+    val response = Http(URL + "/nodes/" + nodeId4SearchTest4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("Heartbeat: " + Http(URL + "/nodes/" + nodeId4SearchTest4 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
@@ -1168,27 +1178,31 @@ class PatternsSuite extends AnyFunSuite {
     assert(dev.publicKey === "NODE4ABC")
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId5SearchTest5+" - node with "+SDRSPEC+" Service arm32") {
+  test("PUT /orgs/" + orgid + "/nodes/" + nodeId5SearchTest5 + " - node with " + SDRSPEC + " Service arm32") {
     val input = PutNodesRequest(nodeToken5SearchTest5, "rpi"+nodeId5SearchTest5+"-mem-400-vers-2", None, compositePatid3, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId5SearchTest5+" sdr}",List(
       Prop("arch","arm32","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
       Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE5ABC", Some("arm32"), None)
-    val response = Http(URL+"/nodes/"+nodeId5SearchTest5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
+    val response = Http(URL + "/nodes/" + nodeId5SearchTest5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("Hearbeat: " + Http(URL + "/nodes/" + nodeId5SearchTest5 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  test("PUT /orgs/"+orgid+"/nodes/"+nodeId6SearchTest6+" - node with "+SDRSPEC+" Service the first one arm32") {
+  test("PUT /orgs/" + orgid + "/nodes/" + nodeId6SearchTest6 + " - node with " + SDRSPEC + " Service the first one arm32") {
     val input = PutNodesRequest(nodeToken6SearchTest6, "rpi"+nodeId6SearchTest6+"-mem-400-vers-2", None, compositePatid3, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId6SearchTest6+" sdr}",List(
       Prop("arch","amd64","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
       Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE6ABC", Some("amd64"), None)
-    val response = Http(URL+"/nodes/"+nodeId6SearchTest6).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
+    val response = Http(URL + "/nodes/" + nodeId6SearchTest6).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("Heartbeat: " + Http(URL + "/nodes/" + nodeId6SearchTest6 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 

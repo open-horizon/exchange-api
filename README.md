@@ -241,9 +241,15 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
-## Changes in 2.33.1
+## Changes in 2.35.0
 
-- Issue 363: Deletion of nodemsgs and agbotmsgs no longer writes to the `resourcechanges` table
+- Issue 373: Removed not null constraint on lastheartbeat column in nodes table
+- Updated `io.swagger.core.v3` versions specified to remove Jackson Databind incompatability
+
+## Changes in 2.34.0
+
+- Issue 365: The PUT /orgs/{orgid}/nodes/{nodeId} route will no longer set/update a node's last heartbeat.
+>>>>>>> 004503a6f5f2a96367cecd8af0ca8c4dfe0f5685
 
 ## Changes in 2.33.0
 

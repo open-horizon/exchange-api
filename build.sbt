@@ -57,10 +57,10 @@ lazy val root = (project in file("."))
             "org.glassfish.jersey.core" % "jersey-common" % "latest.release",  // required at runtime by javax.ws.rs-api
             "com.github.swagger-akka-http" %% "swagger-akka-http" % "2.0.4",  // Version 2.0.5 now requires v10.1.11 Akka modules.
             "com.github.swagger-akka-http" %% "swagger-scala-module" % "latest.release",
-            "io.swagger.core.v3" % "swagger-core" % "latest.release", 
-            "io.swagger.core.v3" % "swagger-annotations" % "latest.release", 
-            "io.swagger.core.v3" % "swagger-models" % "latest.release", 
-            "io.swagger.core.v3" % "swagger-jaxrs2" % "latest.release", 
+            "io.swagger.core.v3" % "swagger-core" % "2.1.2", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-core
+            "io.swagger.core.v3" % "swagger-annotations" % "2.1.2", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
+            "io.swagger.core.v3" % "swagger-models" % "2.1.2", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-models
+            "io.swagger.core.v3" % "swagger-jaxrs2" % "2.1.2", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-jaxrs2
 
             "com.typesafe.slick" %% "slick" % "latest.release", 
             "com.typesafe.slick" %% "slick-hikaricp" % "latest.release", 

@@ -2191,7 +2191,7 @@ class NodesSuite extends AnyFunSuite {
     assert(nodes.length === 2)
     assert(nodes.count(d => d.id == orgnodeId || d.id == orgnodeId2) === 2)
   }
-  
+
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId3+" - explicit delete of "+nodeId3) {
     var response = Http(URL+"/nodes/"+nodeId3).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

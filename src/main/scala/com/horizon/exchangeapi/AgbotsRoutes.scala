@@ -1647,18 +1647,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       complete({
         try {
           val msgId =  msgIdStr.toInt   // this can throw an exception, that's why this whole section is in a try/catch
-          db.run(AgbotMsgsTQ.getMsg(compositeId,msgId).delete.asTry.flatMap({
-            case Success(v) =>
-              // Add the resource to the resourcechanges table
-              logger.debug("DELETE /agbots/" + id + "/msgs/" + msgId + " result: " + v)
-              if (v > 0) { // there were no db errors, but determine if it actually found it or not
-                val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbotmsgs", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-                agbotChange.insert.asTry
-              } else {
-                DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.message.not.found", msgId, compositeId))).asTry
-              }
-            case Failure(t) => DBIO.failed(t).asTry
-          })).map({
+          db.run(AgbotMsgsTQ.getMsg(compositeId,msgId).delete.asTry).map({
             case Success(v) =>
               logger.debug("DELETE /agbots/" + id + "/msgs/" + msgId + " updated in changes table: " + v)
               (HttpCode.DELETED,  ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.message.deleted")))

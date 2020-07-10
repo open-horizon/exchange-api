@@ -2192,18 +2192,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       complete({
         try {
           val msgId =  msgIdStr.toInt   // this can throw an exception, that's why this whole section is in a try/catch
-          db.run(NodeMsgsTQ.getMsg(compositeId,msgId).delete.asTry.flatMap({
-            case Success(v) =>
-              // Add the resource to the resourcechanges table
-              logger.debug("DELETE /nodes/" + id + "/msgs/" + msgId + " result: " + v)
-              if (v > 0) { // there were no db errors, but determine if it actually found it or not
-                val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "nodemsgs", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-                nodeChange.insert.asTry
-              } else {
-                DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.not.found", msgId, compositeId))).asTry
-              }
-            case Failure(t) => DBIO.failed(t).asTry
-          })).map({
+          db.run(NodeMsgsTQ.getMsg(compositeId,msgId).delete.asTry).map({
             case Success(v) =>
               logger.debug("DELETE /nodes/" + id + "/msgs/" + msgId + " updated in changes table: " + v)
               (HttpCode.DELETED,  ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.deleted")))

@@ -16,9 +16,9 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
-
 import com.horizon.exchangeapi.tables._
-import org.json4s._
+import org.json4s.{DefaultFormats, Formats}
+//import org.json4s._
 import org.json4s.jackson.Serialization.write
 import slick.jdbc.PostgresProfile.api._
 
@@ -99,15 +99,16 @@ final case class PatchBusinessPolicyRequest(label: Option[String], description: 
 
 
 /** Input for business policy-based search for nodes to make agreements with. */
-final case class PostBusinessPolicySearchRequest(nodeOrgids: Option[List[String]], changedSince: Long, startIndex: Option[Int], numEntries: Option[Int]) {
-  def getAnyProblem: Option[String] = None
-}
+final case class PostBusinessPolicySearchRequest(changedSince: Long = 0L,
+                                                 ignoreOffset: Option[Boolean] = None,
+                                                 nodeOrgids: Option[List[String]] = None,
+                                                 numEntries: Option[Int] = None)
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
 final case class BusinessPolicySearchHashElement(nodeType: String, publicKey: String, noAgreementYet: Boolean)
 
 final case class BusinessPolicyNodeResponse(id: String, nodeType: String, publicKey: String)
-final case class PostBusinessPolicySearchResponse(nodes: List[BusinessPolicyNodeResponse], lastIndex: Int)
+final case class PostBusinessPolicySearchResponse(nodes: List[BusinessPolicyNodeResponse], offsetUpdated: Boolean = false)
 
 
 
@@ -834,10 +835,10 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "nodeOrgids": ["org1", "org2", "..."],  // if not specified, defaults to the same org the business policy is in
-  "changedSince": 123456,                 // only return nodes that have changed since this unix epoch time, 0 if you want all relevant nodes
-  "startIndex": 0,                        // for pagination, ignored right now
-  "numEntries": 0                         // ignored right now
+  "changedSince": 123456L,                 // [Long > 0L, 0L], Only return nodes that have changed since this Unix epoch time. Value 0L disables filter. Must be > 0L if ignoreOffset is true.
+  "ignoreOffset": true,                   // (optional) [true], Ignore the set pagination offset for this organization and policy
+  "nodeOrgids": ["org1", "org2", "..."],  // (optional), Defaults to the same organization the business policy is in
+  "numEntries": 100                       // (optional) [Int > 0], Maximum number of nodes returned
 }"""
             )
           ),
@@ -852,6 +853,10 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         responseCode = "201",
         description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[PostBusinessPolicySearchResponse])))
+      ),
+      new responses.ApiResponse(
+        responseCode = "400",
+        description = "bad request"
       ),
       new responses.ApiResponse(
         responseCode = "401",
@@ -869,18 +874,24 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "policy")
   def busPolPostSearchRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment / "search") & post & entity(as[PostBusinessPolicySearchRequest])) { (orgid, policy, reqBody) =>
-    val compositeId = OrgAndId(orgid, policy).toString
-    exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { ident =>
-      validateWithMsg(reqBody.getAnyProblem) {
+    val compositeId: String = OrgAndId(orgid, policy).toString
+    exchAuth(TNode(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
+      validateWithMsg(if(!((!(reqBody.changedSince < 0L)) && (reqBody.ignoreOffset.isEmpty || (reqBody.ignoreOffset.get && 0L < reqBody.changedSince)) && (reqBody.numEntries.isEmpty || !(reqBody.numEntries.get < 0)))) Some(ExchMsg.translate("bad.input")) else None) {
         complete({
-          val nodeOrgids = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
+          val nodeOrgids: Set[String] = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
           var searchSvcUrl = ""    // a composite value (org/url), will be set later in the db.run()
           db.run(BusinessPoliciesTQ.getService(compositeId).result.flatMap({ list =>
-            logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + "/search getService size: " + list.size)
             if (list.nonEmpty) {
               // Finding the service was successful, form the query for the nodes for the next step
-              val service = BusinessPoliciesTQ.getServiceFromString(list.head)    // we should have found only 1 business pol service string, now parse it to get service list
+              val service: BService = BusinessPoliciesTQ.getServiceFromString(list.head)    // we should have found only 1 business pol service string, now parse it to get service list
+              val optArch: Option[String] =
+                if(service.arch.equals("") || service.arch.equals("*"))
+                  None
+                else
+                  Some(service.arch)
+              
               searchSvcUrl = OrgAndId(service.org, service.name).toString
+              
               /*
                 Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
                 In english, the join gets: n.id, n.nodeType, n.publicKey, a.serviceUrl, a.state
@@ -888,68 +899,79 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                 After this we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
                 Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
               */
-              val oldestTime = if (reqBody.changedSince > 0) ApiTime.thenUTC(reqBody.changedSince) else ApiTime.beginningUTC
-              val nodeQuery = for {
-                (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastUpdated >= oldestTime).filter(n => {n.arch === service.arch || service.arch == "" || service.arch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-              } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+              val pagination =
+                for {
+                  currentOffset <- SearchOffsetPolicyTQ.getOffset(ident.getIdentity, compositeId).result.headOption
+                  
+                  offset: Option[String] =
+                    if(reqBody.ignoreOffset.isEmpty && currentOffset.isDefined && currentOffset.get.isDefined)
+                      currentOffset.get
+                    else if(reqBody.changedSince > 0L)
+                        Some(ApiTime.thenUTC(reqBody.changedSince))
+                    else
+                      None
+                  
+                  nodes = NodesTQ.rows
+                                 .filterOpt(optArch)((node, arch) ⇒ node.arch === arch)
+                                 .filter(_.lastHeartbeat.isDefined)
+                                 .filterOpt(offset)((node, changedSince) ⇒ !(node.lastUpdated < changedSince))
+                                 .filter(_.orgid inSet nodeOrgids)
+                                 .filter(_.pattern === "")
+                                 .filter(_.publicKey =!= "")
+                                 .map(node ⇒ (node.id, node.lastUpdated, node.nodeType, node.publicKey))
+                                 .joinLeft(NodeAgreementsTQ.rows
+                                                           .filter(_.agrSvcUrl === searchSvcUrl)
+                                                           .map(agreement => (agreement.agrSvcUrl, agreement.nodeId, agreement.state)))
+                                 .on((node, agreement) ⇒ node._1 === agreement._2)
+                                 .filter ({
+                                   case (_, agreement) ⇒
+                                     agreement.map(_._2).isEmpty ||
+                                     agreement.map(_._1).getOrElse("") === "" ||
+                                     agreement.map(_._3).getOrElse("") === ""
+                                 })
+                                 .sortBy(r ⇒ (r._1._2.asc, r._1._1.asc, r._2.getOrElse(("", "", ""))._1.asc.nullsFirst))
+                                 .map(r ⇒ (r._1._1, r._1._2, r._1._3, r._1._4))
+                  
+                  nodesWoAgreements ← {
+                    if(reqBody.numEntries.isDefined)
+                      nodes.take(reqBody.numEntries.get)
+                    else
+                      nodes}.result.map(List[(String, String, String, String)])
+                  
+                  updateOffset: (Option[String], Boolean) =
+                    if (nodesWoAgreements.nonEmpty &&
+                        (currentOffset.isEmpty || (currentOffset.get.isDefined &&
+                                                   currentOffset.get.get < nodesWoAgreements.lastOption.get._2)))
+                      (Some(nodesWoAgreements.lastOption.get._2), true)
+                    else if(currentOffset.isDefined)
+                      (currentOffset.get, false)
+                    else
+                      (None, false)
+                  
+                  _ ← SearchOffsetPolicyTQ.setOffset(ident.identityString, updateOffset._1, compositeId)
+                } yield (nodesWoAgreements, updateOffset._2)
               
-              
-              /*val nodeQuery = 
-                  NodesTQ.rows
-                    .filterOpt(optArchSet)((node, archs) => node.arch inSet(archs))
-                    .filter(_.lastHeartbeat.isDefined)
-                    .filterOpt(reqBody.changedSince)((node, changedSince) => !(node.lastUpdated < ApiTime.thenUTC(changedSince)))
-                    .filter(_.orgid inSet(nodeOrgids))
-                    .filter(_.pattern === compositeId)
-                    .filter(_.publicKey =!= "")
-                    .map(node => (node.id, node.lastUpdated, node.nodeType, node.publicKey))
-                  .joinLeft(NodeAgreementsTQ.rows
-                              .filter(_.agrSvcUrl === searchSvcUrl)
-                               .map(agreement => (agreement.agrSvcUrl, agreement.nodeId, agreement.state)))
-                    .on((node, agreement) => node._1 === agreement._2)
-                  .filter ({
-                    case (node, agreement) => 
-                     (agreement.map(_._2).isEmpty ||
-                      agreement.map(_._1).getOrElse("") === "" || 
-                      agreement.map(_._3).getOrElse("") === "")
-                  })
-                  .sortBy(r => (r._1._2.asc, r._1._1.asc, r._2.getOrElse(("", "", ""))._1.asc.nullsFirst))
-                  .map(r => (r._1._1, r._1._2, r._1._3, r._1._4))*/
-              
-              
-              nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
+              pagination.transactionally.asTry
             }
             else DBIO.failed(new Throwable(ExchMsg.translate("business.policy.not.found", compositeId))).asTry
           })).map({
-            case Success(list) =>
-              logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + "/search result size: " + list.size)
-              logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + "/search: looking for nodes w/o agreement for '" + searchSvcUrl)
-              if (list.nonEmpty) {
-                // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
-                //todo: factor in num agreements??
-                val nodeHash = new MutableHashMap[String, BusinessPolicySearchHashElement] // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
-                for ((nodeid, nodeType, publicKey, agrSvcUrlOpt, stateOpt) <- list) {
-                  //logger.debug("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
-                  val nt = if (nodeType == "") NodeType.DEVICE.toString else nodeType
-                  nodeHash.get(nodeid) match {
-                    // This node is already in the hash. Only replace it if this is an agreement for the service, because the absence of an agr for this svc isn't useful info
-                    case Some(_) => if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") {
-                      /*logger.debug("setting to false");*/ nodeHash.put(nodeid, BusinessPolicySearchHashElement(nt, publicKey, noAgreementYet = false))
-                    } // this is no longer a candidate
-                    // This node is not yet in the hash. Add it with whatever value it has for agreement - this may be overridden later
-                    case None => val noAgr = if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") false else true
-                      nodeHash.put(nodeid, BusinessPolicySearchHashElement(nt, publicKey, noAgr)) // this node not in the hash yet, add it
-                  }
-                }
-                // Convert our hash to the list response of the rest api
-                //val respList = list.map( x => BusinessPolicyNodeResponse(x._1, x._2, x._3)).toList
-                val respList = new ListBuffer[BusinessPolicyNodeResponse]
-                for ((k, v) <- nodeHash) if (v.noAgreementYet) respList += BusinessPolicyNodeResponse(k, v.nodeType, v.publicKey)
-                val code = if (respList.nonEmpty) HttpCode.POST_OK else HttpCode.NOT_FOUND
-                (code, PostBusinessPolicySearchResponse(respList.toList, 0))
-              } else {
-                (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), 0))
+            case Success(results) =>
+              if(results._1.nonEmpty) {
+                (HttpCode.POST_OK,
+                  PostBusinessPolicySearchResponse(
+                    results._1.map(
+                      node =>
+                        BusinessPolicyNodeResponse(
+                          node._1,
+                          node._3 match {
+                            case "" => NodeType.DEVICE.toString
+                            case _ => node._3
+                          },
+                          node._4)),
+                    results._2))
               }
+              else
+                (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._2))
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("invalid.input.message", t.getMessage))
             case Failure(t) =>
@@ -959,5 +981,4 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       } // end of validateWithMsg
     } // end of exchAuth
   }
-
 }

@@ -123,12 +123,12 @@ object BusinessPoliciesTQ {
 }
 
 final case class SearchOffsetPolicyAttributes(agbot: String,
-                                              offset: String, 
+                                              offset: Option[String] = None,
                                               policy: String)
 
 class SearchOffsetPolicy(tag: Tag) extends Table[SearchOffsetPolicyAttributes](tag, "SEARCH_OFFSET_POLICY") {
   def agbot = column[String]("AGBOT")
-  def offset = column[String]("OFFSET", O.Default(""))
+  def offset = column[Option[String]]("OFFSET", O.Default(None))
   def policy = column[String]("POLICY")
   
   def pkSearchOffsetsPolicy = primaryKey("PK_SEARCHOFFSETPOLICY", (agbot, policy))
@@ -139,17 +139,17 @@ class SearchOffsetPolicy(tag: Tag) extends Table[SearchOffsetPolicyAttributes](t
 }
 
 object SearchOffsetPolicyTQ {
-  val query = TableQuery[SearchOffsetPolicy]
+  val offsets = TableQuery[SearchOffsetPolicy]
   
-  def getOffset(agbot: String, policy: String) = 
-    query
+  def dropAllOffsets() =
+    offsets.delete
+  
+  def getOffset(agbot: String, policy: String) =
+    offsets
       .filter(_.agbot === agbot)
       .filter(_.policy === policy)
       .map(_.offset)
       
-  def setOffset(agbot: String, offset: String, policy: String) = 
-    query
-      .filter(_.agbot === agbot)
-      .filter(_.policy === policy)
-      .insertOrUpdate(SearchOffsetPolicyAttributes(agbot, offset, policy))
+  def setOffset(agbot: String, offset: Option[String], policy: String) =
+    offsets.insertOrUpdate(SearchOffsetPolicyAttributes(agbot, offset, policy))
 }

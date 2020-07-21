@@ -907,7 +907,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               */
               val pagination =
                 for {
-                  currentOffsetSession <- SearchOffsetPolicyTQ.getOffsetSession(ident.getIdentity, compositeId).result.headOption
+                  currentOffsetSession <- SearchOffsetPolicyTQ.getOffsetSession(ident.identityString, compositeId).result.headOption
                   
                   currentOffset: Option[String] =
                     if (currentOffsetSession.isDefined)
@@ -967,7 +967,6 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                       currentOffset
                     else
                       None
-                      
                   
                   isOffsetUpdated: Boolean =
                     if (desynchronization.getOrElse(false) ||
@@ -978,12 +977,12 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                       true
                   
                   updateSession: Long =
-                    if(currentOffsetSession.isEmpty || (currentOffsetSession.isDefined && currentSession < reqBody.session))
+                    if (currentOffsetSession.isEmpty || (currentOffsetSession.isDefined && currentSession < reqBody.session))
                       reqBody.session
                     else
                       currentSession
-                  
-                  _ ← SearchOffsetPolicyTQ.setOffsetSession(ident.identityString, updateOffset, compositeId, updateSession)
+  
+                    _ ← SearchOffsetPolicyTQ.setOffsetSession(ident.identityString, updateOffset, compositeId, updateSession)
                 } yield (desynchronization, nodesWoAgreements, isOffsetUpdated)
               
               pagination.transactionally.asTry

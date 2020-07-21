@@ -36,7 +36,7 @@ lazy val root = (project in file("."))
         scalaVersion         := "2.12.10",     // tried updating to scala 2.13.1, but got many compile errors in intellij related to JavaConverters being deprecated
         summary              := "'Open Horizon exchange-api image'", 
         vendor               := "IBM", 
-        version              := versionFunc(), 
+        version              := "2.36.0-testbuild-pagination", 
         scapegoatVersion in ThisBuild := "1.4.4", 
         coverageEnabled      := false, 
         

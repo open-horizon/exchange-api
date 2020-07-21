@@ -13,7 +13,7 @@ ifneq ($(TARGET_BRANCH),)
 else
   BRANCH =
 endif
-DOCKER_TAG ?= $(VERSION)$(BRANCH)
+DOCKER_TAG ?=2.36.0-testbuild-pagination$(BRANCH) #$(VERSION)$(BRANCH)
 DOCKER_LATEST ?= latest$(BRANCH)
 DOCKER_OPTS ?= --no-cache
 COMPILE_CLEAN ?= clean

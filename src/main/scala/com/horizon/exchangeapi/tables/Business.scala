@@ -124,18 +124,20 @@ object BusinessPoliciesTQ {
 
 final case class SearchOffsetPolicyAttributes(agbot: String,
                                               offset: Option[String] = None,
-                                              policy: String)
+                                              policy: String,
+                                              session: Long = -1L)
 
-class SearchOffsetPolicy(tag: Tag) extends Table[SearchOffsetPolicyAttributes](tag, "SEARCH_OFFSET_POLICY") {
-  def agbot = column[String]("AGBOT")
-  def offset = column[Option[String]]("OFFSET", O.Default(None))
-  def policy = column[String]("POLICY")
+class SearchOffsetPolicy(tag: Tag) extends Table[SearchOffsetPolicyAttributes](tag, "search_offset_policy") {
+  def agbot = column[String]("agbot")
+  def offset = column[Option[String]]("offset", O.Default(None))
+  def policy = column[String]("policy")
+  def session = column[Long]("session", O.Default(-1L))
   
-  def pkSearchOffsetsPolicy = primaryKey("PK_SEARCHOFFSETPOLICY", (agbot, policy))
-  def fkAgbot = foreignKey("FK_AGBOT", agbot, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def fkPolicy = foreignKey("FK_POLICY", policy, BusinessPoliciesTQ.rows)(_.businessPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def pkSearchOffsetsPolicy = primaryKey("pk_searchoffsetpolicy", (agbot, policy))
+  def fkAgbot = foreignKey("fk_agbot", agbot, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkPolicy = foreignKey("fk_policy", policy, BusinessPoliciesTQ.rows)(_.businessPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   
-  def * = (agbot, offset, policy).mapTo[SearchOffsetPolicyAttributes]
+  def * = (agbot, offset, policy, session).mapTo[SearchOffsetPolicyAttributes]
 }
 
 object SearchOffsetPolicyTQ {
@@ -144,12 +146,12 @@ object SearchOffsetPolicyTQ {
   def dropAllOffsets() =
     offsets.delete
   
-  def getOffset(agbot: String, policy: String) =
+  def getOffsetSession(agbot: String, policy: String) =
     offsets
       .filter(_.agbot === agbot)
       .filter(_.policy === policy)
-      .map(_.offset)
+      .map(offset ⇒ (offset.offset, offset.session))
       
-  def setOffset(agbot: String, offset: Option[String], policy: String) =
-    offsets.insertOrUpdate(SearchOffsetPolicyAttributes(agbot, offset, policy))
+  def setOffsetSession(agbot: String, offset: Option[String], policy: String, session: Long) =
+    offsets.insertOrUpdate(SearchOffsetPolicyAttributes(agbot, offset, policy, session))
 }

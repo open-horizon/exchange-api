@@ -1223,7 +1223,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/" + orgid + "/business/policies/" + businessPolicySdr + "/search - all nodes (no agreements yet)") {
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    val input = PostBusinessPolicySearchRequest(0L, None, None, None)
+    val input = PostBusinessPolicySearchRequest(0L, None, None, 0L)
     val response = Http(URL + "/business/policies/" + businessPolicySdr + "/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1239,7 +1239,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/" + orgid + "/business/policies/" + businessPolicyNS + "/search - as agbot") {
-    val input = PostBusinessPolicySearchRequest(0, None, None, None)
+    val input = PostBusinessPolicySearchRequest(0L, None, None, 1L)
     val response = Http(URL + "/business/policies/" + businessPolicyNS + "/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
     info("Body: " + response.body)
@@ -1813,7 +1813,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - 1 node in sdr agreement") {
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    val input = PostBusinessPolicySearchRequest(0, None, None, None)
+    val input = PostBusinessPolicySearchRequest(0L, None, None, 2L)
     val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1824,7 +1824,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+"/search - 1 node in sdr agreement, but that shouldn't affect this") {
-    val input = PostBusinessPolicySearchRequest(0, None, None, None)
+    val input = PostBusinessPolicySearchRequest(0L, None, None, 3L)
     val response = Http(URL+"/business/policies/"+businessPolicyNS+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1926,7 +1926,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - the pws agreement shouldn't affect this") {
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    val input = PostBusinessPolicySearchRequest(0, None, None, None)
+    val input = PostBusinessPolicySearchRequest(0L, None, None, 4L)
     val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1989,7 +1989,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+"/search - the netspeed agreement means we should return 1 less node") {
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    val input = PostBusinessPolicySearchRequest(0, None, None, None)
+    val input = PostBusinessPolicySearchRequest(0L, None, None, 5L)
     val response = Http(URL+"/business/policies/"+businessPolicyNS+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -2144,7 +2144,7 @@ class NodesSuite extends AnyFunSuite {
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
     putAllNodePolicyAndAgreements() // add agreements and policies to all nodes to give them a value in the lastUpdated column
     Thread.sleep(2100)    // delay 2.1 seconds so all nodes will be stale
-    val input: PostBusinessPolicySearchRequest = PostBusinessPolicySearchRequest(ApiTime.nowSeconds, Some(true), None, None)
+    val input: PostBusinessPolicySearchRequest = PostBusinessPolicySearchRequest(ApiTime.nowSeconds, None, None, 6L)
     val response = Http(URL + "/business/policies/" + businessPolicySdr + "/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
@@ -2169,19 +2169,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/" + orgid + "/business/policies/" + businessPolicySdr + "/search - now 2 nodes not stales") {
-    val input: PostBusinessPolicySearchRequest = PostBusinessPolicySearchRequest(changedSinceAgo(2L), Some(true), None, None)
-    val response = Http(URL + "/business/policies/"  + businessPolicySdr + "/search").postData(write(input)(DefaultFormats.withLong)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    info("body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 2)
-    assert(nodes.count(d => d.id == orgnodeId || d.id == orgnodeId2) === 2)
-  }
-  
-  test("POST /orgs/" + orgid + "/business/policies/" + businessPolicySdr + "/search - Illegal Argument Exception") {
-    val input: PostBusinessPolicySearchRequest = PostBusinessPolicySearchRequest(0L, Some(true), None, None)
+    val input: PostBusinessPolicySearchRequest = PostBusinessPolicySearchRequest(changedSinceAgo(2L), None, None, 7L)
     val response = Http(URL + "/business/policies/"  + businessPolicySdr + "/search").postData(write(input)(DefaultFormats.withLong)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)

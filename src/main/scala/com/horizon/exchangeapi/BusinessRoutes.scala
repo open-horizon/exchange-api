@@ -1,6 +1,8 @@
 /** Services routes for all of the /orgs/{orgid}/business api methods. */
 package com.horizon.exchangeapi
 
+import java.sql.Timestamp
+
 import javax.ws.rs._
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
@@ -100,9 +102,9 @@ final case class PatchBusinessPolicyRequest(label: Option[String], description: 
 
 /** Input for business policy-based search for nodes to make agreements with. */
 final case class PostBusinessPolicySearchRequest(changedSince: Long = 0L,
-                                                 ignoreOffset: Option[Boolean] = None,
                                                  nodeOrgids: Option[List[String]] = None,
-                                                 numEntries: Option[Int] = None)
+                                                 numEntries: Option[Int] = None,
+                                                 session: Long = -1L)
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
 final case class BusinessPolicySearchHashElement(nodeType: String, publicKey: String, noAgreementYet: Boolean)
@@ -835,10 +837,10 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "changedSince": 123456L,                 // [Long > 0L, 0L], Only return nodes that have changed since this Unix epoch time. Value 0L disables filter. Must be > 0L if ignoreOffset is true.
-  "ignoreOffset": true,                   // (optional) [true], Ignore the set pagination offset for this organization and policy
+  "changedSince": 123456L,                // [Long > 0L, 0L], Only return nodes that have changed since this Unix epoch time. Value 0L disables filter. Must be > 0L if ignoreOffset is true.
   "nodeOrgids": ["org1", "org2", "..."],  // (optional), Defaults to the same organization the business policy is in
-  "numEntries": 100                       // (optional) [Int > 0], Maximum number of nodes returned
+  "numEntries": 100,                      // (optional) [Int > 0], Maximum number of nodes returned
+  "session": 1L                           // Constrains multiple Agbot instances to a singular search.
 }"""
             )
           ),
@@ -869,6 +871,10 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "404",
         description = "not found"
+      ),
+      new responses.ApiResponse(
+        responseCode = "409",
+        description = "old session"
       )
     )
   )
@@ -876,7 +882,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   def busPolPostSearchRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment / "search") & post & entity(as[PostBusinessPolicySearchRequest])) { (orgid, policy, reqBody) =>
     val compositeId: String = OrgAndId(orgid, policy).toString
     exchAuth(TNode(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
-      validateWithMsg(if(!((!(reqBody.changedSince < 0L)) && (reqBody.ignoreOffset.isEmpty || (reqBody.ignoreOffset.get && 0L < reqBody.changedSince)) && (reqBody.numEntries.isEmpty || !(reqBody.numEntries.get < 0)))) Some(ExchMsg.translate("bad.input")) else None) {
+      validateWithMsg(if(!((!(reqBody.changedSince < 0L)) && reqBody.session.isValidLong && (reqBody.numEntries.isEmpty || !(reqBody.numEntries.getOrElse(-1) < 0)))) Some(ExchMsg.translate("bad.input")) else None) {
         complete({
           val nodeOrgids: Set[String] = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
           var searchSvcUrl = ""    // a composite value (org/url), will be set later in the db.run()
@@ -901,13 +907,27 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               */
               val pagination =
                 for {
-                  currentOffset <- SearchOffsetPolicyTQ.getOffset(ident.getIdentity, compositeId).result.headOption
+                  currentOffsetSession <- SearchOffsetPolicyTQ.getOffsetSession(ident.getIdentity, compositeId).result.headOption
+                  
+                  currentOffset: Option[String] =
+                    if (currentOffsetSession.isDefined)
+                      currentOffsetSession.get._1
+                    else
+                      None
+                  
+                  currentSession: Long = currentOffsetSession.getOrElse((None, -1L))._2
                   
                   offset: Option[String] =
-                    if(reqBody.ignoreOffset.isEmpty && currentOffset.isDefined && currentOffset.get.isDefined)
-                      currentOffset.get
-                    else if(reqBody.changedSince > 0L)
-                        Some(ApiTime.thenUTC(reqBody.changedSince))
+                    if ((currentOffset.isEmpty || (currentOffsetSession.isDefined && !(reqBody.session < currentSession))) && 0L < reqBody.changedSince)
+                      Some(ApiTime.thenUTC(reqBody.changedSince))
+                    else if (currentOffset.isDefined && reqBody.session.equals(currentSession))
+                      currentOffset
+                    else
+                      None
+                  
+                  desynchronization: Option[Boolean] =
+                    if (currentOffsetSession.isDefined && reqBody.session < currentSession)
+                      Some(true)
                     else
                       None
                   
@@ -918,6 +938,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                                  .filter(_.orgid inSet nodeOrgids)
                                  .filter(_.pattern === "")
                                  .filter(_.publicKey =!= "")
+                                 .filterOpt(desynchronization)((node, _) ⇒ node.id === "")
                                  .map(node ⇒ (node.id, node.lastUpdated, node.nodeType, node.publicKey))
                                  .joinLeft(NodeAgreementsTQ.rows
                                                            .filter(_.agrSvcUrl === searchSvcUrl)
@@ -933,33 +954,47 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                                  .map(r ⇒ (r._1._1, r._1._2, r._1._3, r._1._4))
                   
                   nodesWoAgreements ← {
-                    if(reqBody.numEntries.isDefined)
+                    if (reqBody.numEntries.isDefined)
                       nodes.take(reqBody.numEntries.get)
                     else
                       nodes}.result.map(List[(String, String, String, String)])
                   
-                  updateOffset: (Option[String], Boolean) =
+                  updateOffset: Option[String] =
                     if (nodesWoAgreements.nonEmpty &&
-                        (currentOffset.isEmpty || (currentOffset.get.isDefined &&
-                                                   currentOffset.get.get < nodesWoAgreements.lastOption.get._2)))
-                      (Some(nodesWoAgreements.lastOption.get._2), true)
-                    else if(currentOffset.isDefined)
-                      (currentOffset.get, false)
+                        (currentOffsetSession.isEmpty || !(nodesWoAgreements.size < reqBody.numEntries.getOrElse(1))))
+                      Some(nodesWoAgreements.lastOption.get._2)
+                    else if (currentOffset.isDefined && reqBody.session <= currentSession)
+                      currentOffset
                     else
-                      (None, false)
+                      None
+                      
                   
-                  _ ← SearchOffsetPolicyTQ.setOffset(ident.identityString, updateOffset._1, compositeId)
-                } yield (nodesWoAgreements, updateOffset._2)
+                  isOffsetUpdated: Boolean =
+                    if (desynchronization.getOrElse(false) ||
+                        (currentOffset.isDefined && updateOffset.get.equals(currentOffset.get)) ||
+                        (currentOffset.isEmpty && updateOffset.isEmpty))
+                      false
+                    else
+                      true
+                  
+                  updateSession: Long =
+                    if(currentOffsetSession.isEmpty || (currentOffsetSession.isDefined && currentSession < reqBody.session))
+                      reqBody.session
+                    else
+                      currentSession
+                  
+                  _ ← SearchOffsetPolicyTQ.setOffsetSession(ident.identityString, updateOffset, compositeId, updateSession)
+                } yield (desynchronization, nodesWoAgreements, isOffsetUpdated)
               
               pagination.transactionally.asTry
             }
             else DBIO.failed(new Throwable(ExchMsg.translate("business.policy.not.found", compositeId))).asTry
           })).map({
             case Success(results) =>
-              if(results._1.nonEmpty) {
+              if(results._2.nonEmpty) {
                 (HttpCode.POST_OK,
                   PostBusinessPolicySearchResponse(
-                    results._1.map(
+                    results._2.map(
                       node =>
                         BusinessPolicyNodeResponse(
                           node._1,
@@ -968,10 +1003,12 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                             case _ => node._3
                           },
                           node._4)),
-                    results._2))
+                    results._3))
               }
+              else if (results._1.getOrElse(false))
+                (HttpCode.ALREADY_EXISTS2, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._3))
               else
-                (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._2))
+                (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._3))
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("invalid.input.message", t.getMessage))
             case Failure(t) =>

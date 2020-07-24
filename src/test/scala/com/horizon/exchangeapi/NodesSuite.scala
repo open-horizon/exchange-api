@@ -1219,34 +1219,8 @@ class NodesSuite extends AnyFunSuite {
     val jsonInput = """{ "publicKey": "NODE3ABC" }"""
     val response = Http(URL + "/nodes/" + nodeId3).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     assert(response.code === HttpCode.PUT_OK.intValue)
-  }
-
-  test("POST /orgs/" + orgid + "/business/policies/" + businessPolicySdr + "/search - all nodes (no agreements yet)") {
+  
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    val input = PostBusinessPolicySearchRequest(0L, None, None, 0L)
-    val response = Http(URL + "/business/policies/" + businessPolicySdr + "/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 4)     // we created 4 nodes in this org
-    assert(nodes.count(d => d.id == orgnodeId || d.id == orgnodeId2 || d.id == orgnodeId3 || d.id == orgnodeId4) === 4)
-    val dev = nodes.find(d => d.id == orgnodeId).get
-    assert(dev.publicKey === nodePubKey)
-    assert(dev.nodeType === NodeType.DEVICE.toString)   // this node defaulted to this value
-    assert(nodes.find(_.id == orgnodeId2).get.nodeType === NodeType.CLUSTER.toString)
-    assert(nodes.find(_.id == orgnodeId4).get.nodeType === NodeType.DEVICE.toString)
-  }
-
-  test("POST /orgs/" + orgid + "/business/policies/" + businessPolicyNS + "/search - as agbot") {
-    val input = PostBusinessPolicySearchRequest(0L, None, None, 1L)
-    val response = Http(URL + "/business/policies/" + businessPolicyNS + "/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3)     // we created 4 nodes in this org, but nodeId4 is arm
   }
 
   //~~~~~ Node health search ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1809,29 +1783,8 @@ class NodesSuite extends AnyFunSuite {
     assert(nodes.contains(orgnodeId) && nodes.contains(orgnodeId2) && nodes.contains(orgnodeId3) && nodes.contains(orgnodeId4)  && nodes.contains(orgnodeId8))
     val dev = nodes(orgnodeId)
     assert(dev.agreements.contains(agreementId))
-  }
-
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - 1 node in sdr agreement") {
+  
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    val input = PostBusinessPolicySearchRequest(0L, None, None, 2L)
-    val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3)
-    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
-  }
-
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+"/search - 1 node in sdr agreement, but that shouldn't affect this") {
-    val input = PostBusinessPolicySearchRequest(0L, None, None, 3L)
-    val response = Http(URL+"/business/policies/"+businessPolicyNS+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3)
-    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3) === 3)
   }
 
   test("POST /orgs/"+orgid+"/search/nodehealth - as agbot, with blank time - should find all nodes and 1 agreement for "+nodeId) {
@@ -1922,18 +1875,8 @@ class NodesSuite extends AnyFunSuite {
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 4)
     assert(nodes.count(d => d.id == orgnodeId2 || d.id == orgnodeId3 || d.id == orgnodeId4 || d.id == orgnodeId8) === 4)
-  }
-
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - the pws agreement shouldn't affect this") {
+  
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    val input = PostBusinessPolicySearchRequest(0L, None, None, 4L)
-    val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3)
-    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - sdr") {
@@ -1985,18 +1928,8 @@ class NodesSuite extends AnyFunSuite {
     assert(nodes.count(d => d.id == orgnodeId || d.id == orgnodeId2 || d.id == orgnodeId3 || d.id == orgnodeId4 || d.id == orgnodeId8) === 5)
     val dev = nodes.find(d => d.id == orgnodeId).get // the 2nd get turns the Some(val) into val
     assert(dev.publicKey === nodePubKey)
-  }
-
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+"/search - the netspeed agreement means we should return 1 less node") {
+  
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    val input = PostBusinessPolicySearchRequest(0L, None, None, 5L)
-    val response = Http(URL+"/business/policies/"+businessPolicyNS+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 2)
-    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3) === 2)
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" delete agreement and test lastUpdated field changed") {
@@ -2138,9 +2071,12 @@ class NodesSuite extends AnyFunSuite {
     val response = Http(URL + "/nodes/" + nodeId + "/agreements").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("GET "+nodeId+"/agreements, code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
+  
+    patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
+    putAllNodePolicyAndAgreements() // add agreements and policies to all nodes to give them a value in the lastUpdated column
   }
 
-  test("POST /orgs/" + orgid + "/business/policies/" + businessPolicySdr + "/search - with a sleep, so all nodes are stale") {
+  ignore("POST /orgs/" + orgid + "/business/policies/" + businessPolicySdr + "/search - with a sleep, so all nodes are stale") {
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
     putAllNodePolicyAndAgreements() // add agreements and policies to all nodes to give them a value in the lastUpdated column
     Thread.sleep(2100)    // delay 2.1 seconds so all nodes will be stale
@@ -2167,19 +2103,7 @@ class NodesSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
-  test("POST /orgs/" + orgid + "/business/policies/" + businessPolicySdr + "/search - now 2 nodes not stales") {
-    val input: PostBusinessPolicySearchRequest = PostBusinessPolicySearchRequest(changedSinceAgo(2L), None, None, 7L)
-    val response = Http(URL + "/business/policies/"  + businessPolicySdr + "/search").postData(write(input)(DefaultFormats.withLong)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    info("body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 2)
-    assert(nodes.count(d => d.id == orgnodeId || d.id == orgnodeId2) === 2)
-  }
-
+  
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId3+" - explicit delete of "+nodeId3) {
     var response = Http(URL+"/nodes/"+nodeId3).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -2202,7 +2126,7 @@ class NodesSuite extends AnyFunSuite {
     assert(parsedBody.changes.exists(y => {(y.id == nodeId3) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "node")}))
   }
 
-  /* test("POST /orgs/"+orgid+"/services - add "+service+" as user so we can grab it from /changes route") {
+  test("POST /orgs/"+orgid+"/services - add "+service+" as user so we can grab it from /changes route") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -3016,7 +2940,7 @@ class NodesSuite extends AnyFunSuite {
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.isEmpty)
     assert(!parsedBody.exchangeVersion.isEmpty)
-  } */
+  }
 
   //~~~~~ Break down ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

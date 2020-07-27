@@ -42,7 +42,6 @@ services in the exchange.
     }
   }
   ```
-- The `config/exchange-api.tmpl` template does not require any content if you do not wish to use it. Should you wish to use this template, minimal configuration has been provided in the source code of this project. The value for each key in the template corresponds to an environment variable passed to the container (i.e. Using a config-map in Kubernetes/Openshift). The Docker container will create a `/etc/horizon/exchange/config.json` configuration file based on the provided template and environment variables at container creation. To swap templates a new Docker image is required. Optionally a bind/volume-mounted `/etc/horizon/exchange/exchange-api.tmpl` can achieve the same result.
 - If you want to run the `FrontEndSuite` test class `config.json` should also include `"frontEndHeader": "issuer"` directly after `email` under `root`.
 - Set the same exchange root password in your shell environment, for example:
 ```
@@ -131,6 +130,22 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 - Check the swagger info from the container: `http://localhost:8080/v1/swagger`
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or might also go to `/var/log/syslog` depending on the docker and syslog configuration.
 - At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
+
+### Notes About `config/exchange-api.tmpl`
+
+- The `config/exchange-api.tmpl` is a application configuration template much like `/etc/horizon/exchange/config.json`. The template file itself is required for building a Docker image, but the content is not. It is recommend that the default content remain as-is when building a Docker image. 
+- The content layout of the template exactly matches that of `/etc/horizon/exchange/config.json`, and the content of the config.json can be directly copied-and-pasted into the template. This will set the default Exchange configuration to the hard-coded specifications defined in the config.json when a Docker container is created.
+- Alternatively, instead of using hard-coded values the template accepts substitution variables (default content of the `config/exchange-api.tmpl`). At container creation the utility `envsubt` will make a value substitution with any corresponding environmental variables passed into the running container by Docker, Kubernetes, Openshift, or etc.
+    - `config/exchange-api.tmpl`:
+        - "jdbcUrl": "$EXCHANGE_DB_URL"
+    - Kubernetes config-map (environment variable passed to container at creation):
+        - "$EXCHANGE_DB_URL=192.168.0.123"
+    - Default `/etc/horizon/exchange/config.json` inside running container:
+        - "jdbcUrl": "192.168.0.123"
+- It is possible to mix-and-match hard-coded values and substitution values in the template.
+- ***WARNING*** `envsubst` will attempt to substitute any value containing a `$` character (hashed passwords for example). To prevent this either pass the environmental variable `$ENVSUBST_CONFIG` with a garbage value (this will effectively disable `envsubst`), or pass with a value containing the exact substitution variables `envsubst` is to substitute (`$ENVSUBST_CONFIG="$EXCHANGE_DB_URL $EXCHANGE_DB_USER $EXCHANGE_DB_PW $EXCHANGE_ROOT_PW ..."`) along with the normal environment variables to actually do the value substitution.
+    - By default `$ENVSUBST_CONFIG` is set to `$ENVSUBST_CONFIG=""` this is basically `envsubst` using is default opportunistic behavior and will attempt to make any/all substitutions where possible.
+- It is also possible to directly pass a `/etc/horizon/exchange/config.json` to a container at creation using a bind/volume mount. This takes precedence over the content of the template `config/exchange-api.tmpl`. The directly passed config.json is still subject to the `envsubt` utility and the above warning still applies.
 
 ### Notes About the Docker Image Build Process
 
@@ -240,6 +255,12 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 2.37.0
+
+- Added the environmental variable `$ENVSUBST_CONFIG` to the Dockerfile for controlling the behavior of the utility `envsubt`.
+- Changed the default UBI metadata labels for `release` to be the same as `version`, and `vendor` to `Open Horizon`.
+- Moved around and rewrote README documentation for `config/exchange-api.tmpl` giving it its own subsection under `Building and Running the Docker Container`.
 
 ## Changes in 2.36.0
 

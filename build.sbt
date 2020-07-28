@@ -28,17 +28,17 @@ val versionFunc = () => {
 
 lazy val root = (project in file("."))
     .settings(
-        description          := "'Containerized exchange-api'", 
-        name                 := "amd64_exchange-api", 
-        organization         := "com.horizon", 
-        release              := "4.1.0", 
-        resolvers            += Classpaths.typesafeReleases, 
-        scalaVersion         := "2.12.10",     // tried updating to scala 2.13.1, but got many compile errors in intellij related to JavaConverters being deprecated
-        summary              := "'Open Horizon exchange-api image'", 
-        vendor               := "IBM", 
-        version              := versionFunc(), 
+        description                   := "'Containerized exchange-api'",
+        name                          := "amd64_exchange-api",
+        organization                  := "com.horizon",
+        release                       := versionFunc(),
+        resolvers                     += Classpaths.typesafeReleases,
+        scalaVersion                  := "2.12.10",     // tried updating to scala 2.13.1, but got many compile errors in intellij related to JavaConverters being deprecated
+        summary                       := "'Open Horizon exchange-api image'",
+        vendor                        := "'Open Horizon'",
+        version                       := versionFunc(),
         scapegoatVersion in ThisBuild := "1.4.4", 
-        coverageEnabled      := false, 
+        coverageEnabled               := false,
         
 
         // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
@@ -135,7 +135,8 @@ lazy val root = (project in file("."))
                                         Cmd("WORKDIR", "/opt/docker"), 
                                         Cmd("COPY --from=stage0 --chown=" ++ (daemonUser in Docker).value ++ ":" ++ (daemonGroup in Docker).value, "/1/opt/docker /opt/docker"), 
                                         Cmd("COPY --from=stage0 --chown=" ++ (daemonUser in Docker).value ++ ":" ++ (daemonGroup in Docker).value, "/2/opt/docker /opt/docker"), 
-                                        Cmd("ENV", "JAVA_OPTS=''"), 
+                                        Cmd("ENV", "JAVA_OPTS=''"),
+                                        Cmd("ENV", "ENVSUBST_CONFIG=''"),
                                         Cmd("EXPOSE", "8080"), 
                                         Cmd("USER", "1001:1001"), 
                                         /*
@@ -143,7 +144,7 @@ lazy val root = (project in file("."))
                                          * provided exchange-api.tmpl provided in this docker image and prevent cases where a bind-mount config.json is set with read-only permissions. 
                                          * Any mounted config.json can choose to use variables to take advantage of the substitution below.
                                          */
-                                        Cmd("ENTRYPOINT", "/usr/bin/envsubst < /etc/horizon/exchange/exchange-api.tmpl > /etc/horizon/exchange/config.json && /opt/docker/bin/" ++ name.value), 
+                                        Cmd("ENTRYPOINT", "/usr/bin/envsubst $ENVSUBST_CONFIG < /etc/horizon/exchange/exchange-api.tmpl > /etc/horizon/exchange/config.json && /opt/docker/bin/" ++ name.value),
                                         Cmd("CMD", "[]")
                                        )
        )

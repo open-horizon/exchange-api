@@ -143,8 +143,8 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - Default `/etc/horizon/exchange/config.json` inside running container:
         - "jdbcUrl": "192.168.0.123"
 - It is possible to mix-and-match hard-coded values and substitution values in the template.
-- ***WARNING*** `envsubst` will attempt to substitute any value containing a `$` character (hashed passwords for example). To prevent this either pass the environmental variable `$ENVSUBST_CONFIG` with a garbage value (this will effectively disable `envsubst`), or pass with a value containing the exact substitution variables `envsubst` is to substitute (`$ENVSUBST_CONFIG="$EXCHANGE_DB_URL $EXCHANGE_DB_USER $EXCHANGE_DB_PW $EXCHANGE_ROOT_PW ..."`) along with the normal environment variables to actually do the value substitution.
-    - By default `$ENVSUBST_CONFIG` is set to `$ENVSUBST_CONFIG=""` this is basically `envsubst` using is default opportunistic behavior and will attempt to make any/all substitutions where possible.
+- ***WARNING*** `envsubst` will attempt to substitute any value containing a `$` character (hashed passwords for example). To prevent this either pass the environmental variable `$ENVSUBST_CONFIG` with a garbage value (this will effectively disable `envsubst`), or pass with a value containing the exact substitution variables `envsubst` is to substitute (`$ENVSUBST_CONFIG='${EXCHANGE_DB_URL} ${EXCHANGE_DB_USER} ${EXCHANGE_DB_PW} ${EXCHANGE_ROOT_PW} ...'`) along with the normal environment variables to actually do the value substitution.
+    - By default `$ENVSUBST_CONFIG` is set to `$ENVSUBST_CONFIG=''` this is basically `envsubst` using is default opportunistic behavior and will attempt to make any/all substitutions where possible.
 - It is also possible to directly pass a `/etc/horizon/exchange/config.json` to a container at creation using a bind/volume mount. This takes precedence over the content of the template `config/exchange-api.tmpl`. The directly passed config.json is still subject to the `envsubt` utility and the above warning still applies.
 
 ### Notes About the Docker Image Build Process

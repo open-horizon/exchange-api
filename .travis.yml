@@ -38,10 +38,7 @@ before_script:
 - unset SBT_OPTS
 - make .docker-exec-run-no-https
 
-- openssl req -x509 -out localhost.crt -keyout localhost.key \
-  -newkey rsa:4096 -nodes -sha512 \
-  -subj '/CN=localhost' -extensions EXT -config <( \
-printf "[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltName=DNS:localhost\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth")
+- openssl req -x509 -out localhost.crt -keyout localhost.key \ -newkey rsa:4096 -nodes -sha512 \ -subj '/CN=localhost' -extensions EXT -config <( \printf "[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltName=DNS:localhost\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth")
 - openssl pkcs12 -export -out $SSL_TRUSTSTORE_LOC/localhost.p12 -in localhost.crt -inkey localhost.key -aes-256-ofb -password env:$SSL_TRUSTSTOREPW
 
 script:

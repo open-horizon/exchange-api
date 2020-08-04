@@ -123,8 +123,8 @@
       "shutdownWaitForRequestsToComplete": 60  // number of seconds to let in-flight requests complete before exiting the server
     },
     "ssl": {
-      "password": "",   // Truststore password
-      "truststore": ""  // Location of .p12 truststore
+      "location": "",  // Location of .p12 truststore
+      "password": ""   // Truststore password
     }
   }
 }

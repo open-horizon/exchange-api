@@ -33,7 +33,7 @@ before_script:
 - export POSTGRES_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
   postgres)
 - sudo mkdir -p /etc/horizon/exchange
-- 'sudo bash -c "echo ''{ \"api\": { \"db\": { \"jdbcUrl\": \"jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB\", \"user\": \"$POSTGRES_USER\" }, \"root\": { \"password\": \"$EXCHANGE_ROOTPW\",\"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" }, \"ssl\": { \"password\": \"$SSL_TRUSTSTORE_PW\", \"truststore\": \"$SSL_TRUSTSTORE_LOC/localhost.p12\" } } }'' > /etc/horizon/exchange/config.json"'
+- 'sudo bash -c "echo ''{ \"api\": { \"db\": { \"jdbcUrl\": \"jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB\", \"user\": \"$POSTGRES_USER\" }, \"root\": { \"password\": \"$EXCHANGE_ROOTPW\",\"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" }, \"ssl\": {  \"location\": \"$SSL_TRUSTSTORE_LOC/localhost.p12\", \"password\": \"$SSL_TRUSTSTORE_PW\" } } }'' > /etc/horizon/exchange/config.json"'
 - cat /etc/horizon/exchange/config.json
 - unset SBT_OPTS
 - make .docker-exec-run-no-https

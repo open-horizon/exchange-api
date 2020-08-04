@@ -48,6 +48,8 @@ printf \"[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltNa
 - sudo chmod o+r ./localhost.p12
 - sudo cp ./localhost.p12 /etc/horizon/exchange/localhost.p12
 
+- openssl ciphers -tls1_2 -s -v
+
 script:
 - make test
 

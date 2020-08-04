@@ -2154,10 +2154,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
         // Remove msgs whose TTL is past, and then get the msgs for this node
-        db.run(NodeMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
-          logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs delete expired result: "+xs.toString)
-          NodeMsgsTQ.getMsgs(compositeId).result
-        })).map({ list =>
+        db.run(NodeMsgsTQ.getMsgs(compositeId).result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs result size: "+list.size)
           //logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs result: "+list.toString)
           val listSorted = list.sortWith(_.msgId < _.msgId)

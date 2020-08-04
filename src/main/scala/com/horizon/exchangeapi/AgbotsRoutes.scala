@@ -1609,10 +1609,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
       complete({
         // Remove msgs whose TTL is past, and then get the msgs for this agbot
-        db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
-          logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs delete expired result: "+xs.toString)
-          AgbotMsgsTQ.getMsgs(compositeId).result
-        })).map({ list =>
+        db.run(AgbotMsgsTQ.getMsgs(compositeId).result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result size: "+list.size)
           //logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result: "+list.toString)
           val listSorted = list.sortWith(_.msgId < _.msgId)

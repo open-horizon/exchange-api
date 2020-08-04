@@ -2094,10 +2094,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         val agbotId = ident.creds.id      //someday: handle the case where the acls allow users to send msgs
         var msgNum = ""
         // Remove msgs whose TTL is past, then check the mailbox is not full, then get the agbot publicKey, then write the nodemsgs row, all in the same db.run thread
-        db.run(NodeMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
-          logger.debug("POST /orgs/"+orgid+"/nodes/"+id+"/msgs delete expired result: "+xs.toString)
-          NodeMsgsTQ.getNumOwned(compositeId).result
-        }).flatMap({ xs =>
+        db.run(NodeMsgsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
           logger.debug("POST /orgs/"+orgid+"/nodes/"+id+"/msgs mailbox size: "+xs)
           val mailboxSize = xs
           val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")

@@ -88,6 +88,8 @@ lazy val root = (project in file("."))
             "junit" % "junit" % "latest.release" % "test"
         ), 
         scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
+        fork := true,
+        javaOptions ++= Seq("-Djavax.net.ssl.trustStore=/etc/horizon/exchange/localhost.p12", "-Djavax.net.ssl.trustStorePassword=truststore-password"),
         //javaOptions ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config", "-Djava.security.policy=src/main/resources/auth.policy")
 
         // These settings are for the Docker subplugin within sbt-native-packager. See: https://sbt-native-packager.readthedocs.io/en/stable/formats/docker.html

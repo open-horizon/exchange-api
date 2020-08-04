@@ -19,7 +19,7 @@ class CatalogSuite extends AnyFunSuite {
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
-  val localUrlRoot = "http://localhost:8080"
+  val localUrlRoot = "https://localhost:8080"
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")

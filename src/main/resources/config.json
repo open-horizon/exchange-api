@@ -2,74 +2,129 @@
 // To run the exchange svr with different values, copy this to /etc/horizon/exchange/config.json.
 // In your version of the config file, you only have to set what you want to override.
 {
-	"api": {
-		"limits": {
-			"maxNodes": 20000,		// maximum number of nodes 1 user is allowed to create, 0 for unlimited
-			"maxAgbots": 1000,		// maximum number of agbots 1 user is allowed to create, 0 for unlimited
-			"maxAgreements": 0,	// maximum number of agreements 1 node or agbot is allowed to create, 0 for unlimited
-			"maxMessagesInMailbox": 0,	// maximum number of msgs currently in 1 node or agbot mailbox (the sending side is handled by rate limiting), 0 for unlimited
-			"maxServices": 1000,		// maximum number of services 1 user is allowed to create, 0 for unlimited
-			"maxPatterns": 1000,		// maximum number of patterns 1 user is allowed to create, 0 for unlimited
-			"maxBusinessPolicies": 5000		// maximum number of business policies 1 user is allowed to create, 0 for unlimited
-		},
-		"defaults": {
-			"pattern": {
-				"missing_heartbeat_interval": 1800,   // used if the services.nodeHealth section is omitted
-				"check_agreement_status": 1800
-			},
-			"businessPolicy": {
-				"missing_heartbeat_interval": 1800,   // used if the service.nodeHealth section is omitted
-				"check_agreement_status": 1800
-			}
-		},
-		"cache": {
-			"idsMaxSize": 22000,   // includes: users, nodes, agbots (all together)
-			"idsTtlSeconds": 300,
-			"resourcesMaxSize": 300,   // each of: users, agbots, services, patterns, policies
-			"resourcesTtlSeconds": 300,
-			"authDbTimeoutSeconds": 15,   // timeout for db access for critical auth info when cache missing
-			"type": "guava"    // currently guava is the only option
-		},
-		"resourceChanges": {
-			"ttl": 604800,    // number of seconds to keep the history records of resource changes - 604800 is 1 week
-			"maxRecordsCap": 10000, // maximum number of records the notification framework route will return
-			"cleanupInterval": 86400	 // number of seconds between pruning the resourcechanges table in the db of expired changes - 86400 is 24 hours
-		},
-		"db": {
-			"driverClass": "org.postgresql.Driver",
-			"jdbcUrl": "",		// the back-end db the exchange uses
-			"user": "",
-			"password": "",
-			"minPoolSize": 1,
-			"acquireIncrement": 1,
-			"maxPoolSize": 50,
-			"upgradeTimeoutSeconds": 180
-		},
-		"logging": {
-			"level": "INFO"		// For possible values, see http://logback.qos.ch/apidocs/ch/qos/logback/classic/Level.html
-		},
-		"root": {
-			"enabled": true,      // if set to false it will not honor the root credentials
-			"password": ""			// set this in your own version of this config file
-		},
-		"service": {
-			"host": "0.0.0.0",
-			"port": 8080,
-			"shutdownWaitForRequestsToComplete": 60   // number of seconds to let in-flight requests complete before exiting the server
-		},
-		"acls": {
-			"Anonymous": [],   // we do not actually use this
-			"User": ["READ_MYSELF", "WRITE_MYSELF", "CREATE_NODE", "READ_MY_NODES", "WRITE_MY_NODES", "CREATE_AGBOT", "READ_MY_AGBOTS", "WRITE_MY_AGBOTS", "DATA_HEARTBEAT_MY_AGBOTS", "READ_ALL_AGBOTS", "STATUS", "UTILITIES", "MAXCHANGEID", "READ_MY_SERVICES", "READ_ALL_SERVICES", "WRITE_MY_SERVICES", "CREATE_SERVICES", "READ_MY_PATTERNS", "READ_ALL_PATTERNS", "WRITE_MY_PATTERNS", "CREATE_PATTERNS", "READ_MY_BUSINESS", "READ_ALL_BUSINESS", "WRITE_MY_BUSINESS", "CREATE_BUSINESS", "READ_MY_ORG", "READ_IBM_ORGS"],
-			"AdminUser": ["ALL_IN_ORG"],
-			"SuperUser": ["ALL"],
-			"Node": ["READ_MYSELF", "WRITE_MYSELF", "SEND_MSG_TO_AGBOT", "READ_ALL_AGBOTS", "READ_ALL_SERVICES", "READ_ALL_PATTERNS", "READ_ALL_BUSINESS", "READ_MY_ORG", "MAXCHANGEID"],
-			"Agbot": ["READ_MYSELF", "WRITE_MYSELF", "DATA_HEARTBEAT_MY_AGBOTS", "READ_MY_AGBOTS", "READ_ALL_AGBOTS", "READ_ALL_NODES", "SEND_MSG_TO_NODE", "READ_ALL_SERVICES", "READ_ALL_PATTERNS", "READ_ALL_BUSINESS", "READ_MY_ORG", "MAXCHANGEID"]
-		},
-		"akka": {
-			// add entries like: "akka.http.server.max-connections": 512
-			// see: https://doc.akka.io/docs/akka-http/current/configuration.html
-			// and see: https://doc.akka.io/docs/akka/current/general/configuration-reference.html
-			// can use this to see all of the akka config: "akka.log-config-on-start": "on"
-		}
-	}
+  "api": {
+    "acls": {
+      "AdminUser": ["ALL_IN_ORG"],
+      "Agbot": [
+        "DATA_HEARTBEAT_MY_AGBOTS",
+        "MAXCHANGEID",
+        "READ_ALL_AGBOTS",
+        "READ_ALL_BUSINESS",
+        "READ_ALL_NODES",
+        "READ_ALL_PATTERNS",
+        "READ_ALL_SERVICES",
+        "READ_MY_AGBOTS",
+        "READ_MY_ORG",
+        "READ_MYSELF",
+        "SEND_MSG_TO_NODE",
+        "WRITE_MYSELF"
+      ],
+      "Anonymous": [],  // we do not actually use this
+      "Node": [
+        "MAXCHANGEID",
+        "READ_ALL_AGBOTS",
+        "READ_ALL_BUSINESS",
+        "READ_ALL_PATTERNS",
+        "READ_ALL_SERVICES",
+        "READ_MY_ORG",
+        "READ_MYSELF",
+        "SEND_MSG_TO_AGBOT",
+        "WRITE_MYSELF"
+      ],
+      "SuperUser": ["ALL"],
+      "User": [
+        "CREATE_AGBOT",
+        "CREATE_BUSINESS",
+        "CREATE_NODE",
+        "CREATE_PATTERNS",
+        "CREATE_SERVICES",
+        "DATA_HEARTBEAT_MY_AGBOTS",
+        "MAXCHANGEID",
+        "READ_ALL_AGBOTS",
+        "READ_ALL_BUSINESS",
+        "READ_ALL_PATTERNS",
+        "READ_ALL_SERVICES",
+        "READ_IBM_ORGS",
+        "READ_MY_AGBOTS",
+        "READ_MY_BUSINESS",
+        "READ_MY_NODES",
+        "READ_MY_ORG",
+        "READ_MY_PATTERNS",
+        "READ_MY_SERVICES",
+        "READ_MYSELF",
+        "WRITE_MY_AGBOTS",
+        "WRITE_MY_BUSINESS",
+        "WRITE_MY_NODES",
+        "WRITE_MY_PATTERNS",
+        "WRITE_MY_SERVICES",
+        "WRITE_MYSELF",
+        "STATUS",
+        "UTILITIES"
+      ]
+    },
+    "akka": {
+      // add entries like: "akka.http.server.max-connections": 512
+      // see: https://doc.akka.io/docs/akka-http/current/configuration.html
+      // and see: https://doc.akka.io/docs/akka/current/general/configuration-reference.html
+      // can use this to see all of the akka config: "akka.log-config-on-start": "on"
+    },
+    "cache": {
+      "authDbTimeoutSeconds": 15,  // timeout for db access for critical auth info when cache missing
+      "idsMaxSize": 22000,         // includes: users, nodes, agbots (all together)
+      "idsTtlSeconds": 300,
+      "resourcesMaxSize": 300,     // each of: users, agbots, services, patterns, policies
+      "resourcesTtlSeconds": 300,
+      "type": "guava"              // currently guava is the only option
+    },
+    "db": {
+      "acquireIncrement": 1,
+      "driverClass": "org.postgresql.Driver",
+      "jdbcUrl": "",                          // the back-end db the exchange uses
+      "maxPoolSize": 50,
+      "minPoolSize": 1,
+      "password": "",
+      "upgradeTimeoutSeconds": 180,
+      "user": ""
+    },
+    "defaults": {
+      "businessPolicy": {
+        "check_agreement_status": 1800,
+        "missing_heartbeat_interval": 1800  // used if the service.nodeHealth section is omitted
+      },
+      "pattern": {
+        "check_agreement_status": 1800,
+        "missing_heartbeat_interval": 1800  // used if the services.nodeHealth section is omitted
+      }
+    },
+    "limits": {
+      "maxAgbots": 1000,            // maximum number of agbots 1 user is allowed to create, 0 for unlimited
+      "maxAgreements": 0,           // maximum number of agreements 1 node or agbot is allowed to create, 0 for unlimited
+      "maxBusinessPolicies": 5000,  // maximum number of business policies 1 user is allowed to create, 0 for unlimited
+      "maxMessagesInMailbox": 0,    // maximum number of msgs currently in 1 node or agbot mailbox (the sending side is handled by rate limiting), 0 for unlimited
+      "maxNodes": 20000,            // maximum number of nodes 1 user is allowed to create, 0 for unlimited
+      "maxPatterns": 1000,          // maximum number of patterns 1 user is allowed to create, 0 for unlimited
+      "maxServices": 1000           // maximum number of services 1 user is allowed to create, 0 for unlimited
+    },
+    "logging": {
+      "level": "INFO"  // For possible values, see http://logback.qos.ch/apidocs/ch/qos/logback/classic/Level.html
+    },
+    "resourceChanges": {
+      "cleanupInterval": 86400,  // number of seconds between pruning the resourcechanges table in the db of expired changes - 86400 is 24 hours
+      "maxRecordsCap": 10000,    // maximum number of records the notification framework route will return
+      "ttl": 604800              // number of seconds to keep the history records of resource changes - 604800 is 1 week
+    },
+    "root": {
+      "enabled": true,  // if set to false it will not honor the root credentials
+      "password": ""    // set this in your own version of this config file
+    },
+    "service": {
+      "host": "0.0.0.0",
+      "port": 8080,
+      "shutdownWaitForRequestsToComplete": 60  // number of seconds to let in-flight requests complete before exiting the server
+    },
+    "ssl": {
+      "password": "",   // Truststore password
+      "truststore": ""  // Location of .p12 truststore
+    }
+  }
 }

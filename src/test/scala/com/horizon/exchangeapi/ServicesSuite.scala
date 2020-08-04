@@ -25,7 +25,7 @@ import scalaj.http._
 @RunWith(classOf[JUnitRunner])
 class ServicesSuite extends AnyFunSuite {
 
-  val localUrlRoot = "http://localhost:8080"
+  val localUrlRoot = "https://localhost:8080"
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
   val runningLocally = (urlRoot == localUrlRoot)
   val ACCEPT = ("Accept","application/json")

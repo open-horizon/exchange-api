@@ -23,7 +23,7 @@ import scala.collection.immutable._
 @RunWith(classOf[JUnitRunner])
 class UsersSuite extends AnyFunSuite {
 
-  val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080")
+  val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "https://localhost:8080")
   val ACCEPT = ("Accept", "application/json")
   val CONTENT = ("Content-Type", "application/json")
   val orgid = "UsersSuiteTests"

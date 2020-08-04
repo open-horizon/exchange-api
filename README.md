@@ -30,14 +30,18 @@ services in the exchange.
     "api": {
       "db": {
         "jdbcUrl": "jdbc:postgresql://localhost/postgres",    // my local postgres db
-        "user": "myuser",
-        "password": ""
+        "password": "",
+        "user": "myuser"
       },
       "logging": {
         "level": "DEBUG"
       },
       "root": {
         "password": "myrootpw"
+      },
+      "ssl": {
+        "password": "",
+        "location":""
       }
     }
   }
@@ -55,6 +59,24 @@ make gen-key
 ```
 
 - Otherwise, get files `exchangecert.pem`, `keypassword`, and `keystore` from the person who created them and put them in `./keys/etc`.
+
+### TLS
+
+- The Exchange requires the use of the `https` protocol for all incoming/outgoing traffic, `http` traffic will not be accepted. A Secure Socket Layer (SSL) certificate is required to encrypt all traffic and must be provided by the user.
+- A PKCS12 truststore (`.p12`) is the required way to pass your SSL certificate and signing key to the application. Location and truststore password must be specified in the `/etc/horizon/exchange/config.json`.
+- Do to the use of Java 8 the Exchange is limited to TLS version 1.2 with no support for TLS version 1.3.
+- The following cipher suites are accepted:
+    - `TLS_DHE_RSA_WITH_AES_256_GCM_SHA384`
+    - `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`
+    - `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`
+
+#### Creating A Self-Signed Certificate For `localhost`
+
+- `sudo openssl genrsa -aes-256-ofb -out localhost.key 4096` (creates signing key-pair)
+- `sudo openssl req -new -key localhost.key -out localhost.csr -sha3-512` (creates a Certificate Signing Request (CSR))
+    - The `CN` field must be `localhost`
+- `sudo openssl x509 -req -days 1 -in localhost.csr -signkey localhost.key -out localhost.crt -sha512` (creates self-signed certificate)
+- `sudo openssl pkcs12 -export -out /etc/horizon/exchange/localhost.p12 -in localhost.crt -inkey localhost.key -aes-256-ofb` (creates PKCS12 truststore)
 
 ## Building and Running in Local Sandbox
 
@@ -83,7 +105,7 @@ When at the `sbt` sub-command prompt:
 - Clean all built files (if the incremental build needs to be reset): `clean`
 
 ## Running the Automated Tests in Local Sandbox
-
+- (Required) `Djavax.net.ssl.trustStore` and `Djavax.net.ssl.trustStorePassword` must be set with the PKCS12 truststore location and password respectively in the build.sbt for test cases to pass.
 - (Optional) To include tests for IBM agbot ACLs: `export EXCHANGE_AGBOTAUTH=myibmagbot:abcdef`
 - (Optional) To include tests for IBM IAM platform key authentication:
 ```
@@ -255,6 +277,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+
+## Changes in 2.39.0
+
+## Changes in 2.38.0
 
 ## Changes in 2.37.0
 

@@ -22,7 +22,7 @@ import com.horizon.exchangeapi._
 @RunWith(classOf[JUnitRunner])
 class OrgsSuite extends AnyFunSuite {
 
-  val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080")
+  val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "https://localhost:8080")
   val URL = urlRoot+"/v1/orgs"
   val ACCEPT = ("Accept","application/json")
   val ACCEPTTEXT = ("Accept","text/plain")

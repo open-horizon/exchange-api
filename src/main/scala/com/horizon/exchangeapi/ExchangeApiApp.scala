@@ -6,9 +6,14 @@
 
 package com.horizon.exchangeapi
 
+import java.io.{FileInputStream, InputStream}
+import java.security
+import java.security.{KeyStore, SecureRandom}
+
 import akka.Done
 import akka.actor.{Actor, ActorSystem, Cancellable, CoordinatedShutdown, Props}
 import akka.event.{Logging, LoggingAdapter}
+import akka.http.javadsl.Http
 
 import scala.util.matching.Regex
 import akka.http.scaladsl.server.RouteResult.Rejected
@@ -18,14 +23,19 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
-import akka.http.scaladsl.Http
+import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Route
-import akka.stream.ActorMaterializer
+import akka.http.scaladsl.settings.PoolImplementation.New
+import akka.stream.{ActorMaterializer, TLSClientAuth}
 import com.horizon.exchangeapi.tables.ResourceChangesTQ
+import com.typesafe.sslconfig.akka.AkkaSSLConfig
+import javax.net.ssl.{KeyManagerFactory, SSLContext, SSLContextSpi, SSLParameters, TrustManagerFactory}
 import org.json4s._
 
+import scala.collection.parallel
+import scala.collection.parallel.immutable
 import scala.io.Source
 import scala.concurrent.duration._
 
@@ -254,8 +264,36 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
 
 
   // Start serving client requests
-  val serverBinding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, ExchangeApi.serviceHost, ExchangeApi.servicePort)
-
+  val serverBinding = {
+    val KEYSTORE: KeyStore = KeyStore.getInstance("pkcs12")
+    KEYSTORE.load(new FileInputStream(ExchConfig.getString("api.ssl.location")), ExchConfig.getString("api.ssl.password").toCharArray)
+    
+    val KEYMANAGER: KeyManagerFactory = KeyManagerFactory.getInstance("PKIX")
+    KEYMANAGER.init(KEYSTORE, ExchConfig.getString("api.ssl.password").toCharArray)
+    
+    val TRUSTMANAGER: TrustManagerFactory = TrustManagerFactory.getInstance("PKIX")
+    TRUSTMANAGER.init(KEYSTORE)
+    
+    val SSLCONTEXT = SSLContext.getInstance("TLSv1.2")
+    SSLCONTEXT.init(KEYMANAGER.getKeyManagers, TRUSTMANAGER.getTrustManagers, new SecureRandom)
+    
+    val HTTPSCONTEXT: HttpsConnectionContext =
+     ConnectionContext.https(enabledCipherSuites = Some(scala.collection.immutable.Seq("TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
+                                                                                       "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+                                                                                       "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384")),
+                             enabledProtocols = Some(scala.collection.immutable.Seq("TLSv1.2")),
+                             clientAuth = None,
+                             sslConfig = None,
+                             sslContext = SSLCONTEXT,
+                             sslParameters = None)
+  
+    akka.http.scaladsl.Http().setDefaultServerHttpContext(HTTPSCONTEXT)
+    akka.http.scaladsl.Http().bindAndHandle(connectionContext = HTTPSCONTEXT,
+                                            handler = routes,
+                                            interface = ExchangeApi.serviceHost,
+                                            port = ExchangeApi.servicePort)
+  }
+  
   // Configure graceful termination. See: https://doc.akka.io/docs/akka-http/current/server-side/graceful-termination.html
   // But also see: https://discuss.lightbend.com/t/graceful-termination-on-sigterm-using-akka-http/1619
   // Note: can't test this in sbt. Instead use 'make runexecutable' and then ctrl-c
@@ -274,7 +312,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   // When the server has initialized
   serverBinding.onComplete {
     case Success(bound) =>
-      println(s"Server online at http://${bound.localAddress.getHostString}:${bound.localAddress.getPort}/")
+      println(s"Server online at https://${bound.localAddress.getHostString}:${bound.localAddress.getPort}/")
       //This will schedule to send the Cleanup-message
       changesCleanup = system.scheduler.schedule(cleanupInterval.seconds, cleanupInterval.seconds, changesCleanupActor, Cleanup)
     case Failure(e) =>

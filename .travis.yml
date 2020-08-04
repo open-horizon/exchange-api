@@ -19,6 +19,8 @@ env:
   POSTGRES_DB=exchange
   POSTGRES_PORT=5432
   POSTGRES_USER=admin
+  SSL_TRUSTSTORE_LOC=/etc/horizon/exchange
+  SSL_TRUSTSTORE_PW=truststore-password
 
 before_install:
 - sudo apt-get -y update
@@ -33,10 +35,17 @@ before_script:
 - sudo mkdir -p /etc/horizon/exchange
 - 'sudo bash -c "echo ''{ \"api\": { \"db\": { \"jdbcUrl\": \"jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB\",
   \"user\": \"$POSTGRES_USER\" }, \"root\": { \"password\": \"$EXCHANGE_ROOTPW\",
-  \"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" } } }'' > /etc/horizon/exchange/config.json"'
+  \"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" },
+  \"ssl\": { \"password\": \"$SSL_TRUSTSTORE_PW", \"truststore\": \"$SSL_TRUSTSTORE_LOC/localhost.p12" } } }'' > /etc/horizon/exchange/config.json"'
 - cat /etc/horizon/exchange/config.json
 - unset SBT_OPTS
 - make .docker-exec-run-no-https
+
+- openssl req -x509 -out localhost.crt -keyout localhost.key \
+  -newkey rsa:4096 -nodes -sha512 \
+  -subj '/CN=localhost' -extensions EXT -config <( \
+  printf "[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltName=DNS:localhost\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth")
+- openssl pkcs12 -export -out $SSL_TRUSTSTORE_LOC/localhost.p12 -in localhost.crt -inkey localhost.key -aes-256-ofb -password env:$SSL_TRUSTSTOREPW
 
 script:
 - make test

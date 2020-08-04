@@ -15,7 +15,7 @@ import org.json4s.native.Serialization.write
 @RunWith(classOf[JUnitRunner])
 class PerfSuite extends AnyFunSuite {
 
-  val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080")
+  val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "https://localhost:8080")
   val URL = urlRoot+"/v1"
   val ACCEPT = ("Accept","application/json")
   val CONTENT = ("Content-Type","application/json")

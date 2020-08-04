@@ -55,13 +55,14 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
   private val PATTERN: String     = "pattern"
   private val ROOTAUTH            = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "") /* need to put this root pw in config.json */))
   private val SERVICE: String     = "service"
-  private val URL                 = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1"
+  private val URL                 = sys.env.getOrElse("EXCHANGE_URL_ROOT", "https://localhost:8080") + "/v1"
   private val USERS: List[String] = List("admin", "user")
   private val ORGS: List[String]  = List("adminsuite", "root")
 
   implicit val FORMATS            = DefaultFormats // Brings in default date formats etc.
 
   override def beforeAll() {
+    
     Http(URL + "/orgs/" + ORGS(0)).postData(write(PostPutOrgRequest(None, (ORGS(0)), "AdminSuite Test Organization", None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
 
     for (org <- ORGS) {

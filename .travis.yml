@@ -2,7 +2,7 @@ services: docker
 dist: bionic
 language: scala
 jdk:
-  - oraclejdk8
+  - openjdk8
 scala: 2.12.7
 notifications:
   slack:

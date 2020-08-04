@@ -42,7 +42,7 @@ before_script:
 -newkey rsa:4096 -nodes -sha512 \
 -subj '/CN=localhost' -extensions EXT -config <( \
 printf \"[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltName=DNS:localhost\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth\")"
-- openssl pkcs12 -export -out ./localhost.p12 -in ./localhost.crt -inkey ./localhost.key -aes-256-ofb -passout pass:$SSL_TRUSTSTORE_PW
+- sudo openssl pkcs12 -export -out ./localhost.p12 -in ./localhost.crt -inkey ./localhost.key -aes-256-ofb -passout pass:""
 - sudo chmod o+r ./localhost.p12
 - sudo cp ./localhost.p12 /etc/horizon/exchange/localhost.p12
 

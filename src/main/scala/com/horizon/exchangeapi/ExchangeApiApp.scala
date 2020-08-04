@@ -25,6 +25,7 @@ import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import com.horizon.exchangeapi.tables.{AgbotMsgsTQ, NodeMsgsTQ, ResourceChangesTQ}
 import org.json4s._
+import slick.jdbc.TransactionIsolation.Serializable
 
 import scala.io.Source
 import scala.concurrent.duration._
@@ -254,9 +255,9 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
 
   /** Task for removing expired nodemsgs and agbotmsgs */
   def removeExpiredMsgs(): Unit ={
-    db.run(NodeMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
+    db.run(NodeMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).flatMap({ xs =>
       logger.debug("nodemsgs delete expired result: "+xs.toString)
-      AgbotMsgsTQ.getMsgsExpired.delete.asTry
+      AgbotMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).asTry
     })).map({
       case Success(v) => logger.debug("agbotmsgs delete expired result: " + v.toString)
       case Failure(_) => logger.error("ERROR: could remove expired msgs")
@@ -302,7 +303,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       println(s"Server online at http://${bound.localAddress.getHostString}:${bound.localAddress.getPort}/")
       // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
       changesCleanup = system.scheduler.schedule(cleanupInterval.seconds, cleanupInterval.seconds, changesCleanupActor, Cleanup)
-      msgsCleanup = system.scheduler.schedule(msgsCleanupInterval.seconds, msgsCleanupInterval.seconds, msgsCleanupActor, msgsCleanup)
+      msgsCleanup = system.scheduler.schedule(msgsCleanupInterval.seconds, msgsCleanupInterval.seconds, msgsCleanupActor, CleanupExpiredMessages)
     case Failure(e) =>
       Console.err.println(s"Server could not start!")
       e.printStackTrace()

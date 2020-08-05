@@ -92,7 +92,7 @@ docker: .docker-exec
 # config.json is renamed to exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
 .docker-exec-run-no-https: .docker-exec .docker-network
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
-	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -e "JAVA_OPTS=$(JAVA_OPTS)" -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONFIG_DIR)/exchange-api.tmpl $(image-string):$(DOCKER_TAG)
+	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -p $(EXCHANGE_API_HTTPS_PORT):$(EXCHANGE_API_HTTPS_PORT) -e "JAVA_OPTS=$(JAVA_OPTS)" -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONFIG_DIR)/exchange-api.tmpl -v $(EXCHANGE_HOST_CONFIG_DIR)/localhost.p12:$(EXCHANGE_CONFIG_DIR)/localhost.p12:ro $(image-string):$(DOCKER_TAG)
 	@touch $@
 
 # Build the executable and run it locally (not in sbt and not in docker)

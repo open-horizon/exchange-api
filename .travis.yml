@@ -37,8 +37,6 @@ before_script:
 - sudo mkdir -p /etc/horizon/exchange
 - 'sudo bash -c "echo ''{ \"api\": { \"db\": { \"jdbcUrl\": \"jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB\", \"user\": \"$POSTGRES_USER\" }, \"root\": { \"password\": \"$EXCHANGE_ROOTPW\",\"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" }, \"ssl\": {  \"location\": \"$SSL_TRUSTSTORE_LOC/localhost.p12\", \"password\": \"$SSL_TRUSTSTORE_PW\" } } }'' > /etc/horizon/exchange/config.json"'
 - cat /etc/horizon/exchange/config.json
-- unset SBT_OPTS
-- make .docker-exec-run-no-https
 
 - "openssl req -x509 -out ./localhost.crt -keyout ./localhost.key \
 -newkey rsa:4096 -nodes -sha512 \
@@ -48,7 +46,8 @@ printf \"[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltNa
 - sudo chmod o+r ./localhost.p12
 - sudo cp ./localhost.p12 /etc/horizon/exchange/localhost.p12
 
-- openssl ciphers -tls1_2 -s -v
+- unset SBT_OPTS
+- make .docker-exec-run-no-https
 
 script:
 - make test

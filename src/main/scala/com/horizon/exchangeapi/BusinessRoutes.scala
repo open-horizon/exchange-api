@@ -104,7 +104,8 @@ final case class PatchBusinessPolicyRequest(label: Option[String], description: 
 final case class PostBusinessPolicySearchRequest(changedSince: Long = 0L,
                                                  nodeOrgids: Option[List[String]] = None,
                                                  numEntries: Option[Int] = None,
-                                                 session: Long = -1L)
+                                                 session: Long = -1L,
+                                                 startIndex: Option[String] = None)       // Not used.
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
 final case class BusinessPolicySearchHashElement(nodeType: String, publicKey: String, noAgreementYet: Boolean)
@@ -837,7 +838,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "changedSince": 123456L,                // [Long > 0L, 0L], Only return nodes that have changed since this Unix epoch time. Value 0L disables filter. Must be > 0L if ignoreOffset is true.
+  "changedSince": 123456L,                // [Long > 0L, 0L], Only return nodes that have changed since this Unix epoch time. Value 0L disables filter.
   "nodeOrgids": ["org1", "org2", "..."],  // (optional), Defaults to the same organization the business policy is in
   "numEntries": 100,                      // (optional) [Int > 0], Maximum number of nodes returned
   "session": 1L                           // Constrains multiple Agbot instances to a singular search.

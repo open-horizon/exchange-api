@@ -3,7 +3,7 @@ package com.horizon.exchangeapi
 import java.time.ZonedDateTime
 import java.util.Base64
 
-import scala.collection.immutable.Map
+import scala.collection.immutable.{List, Map}
 import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable, string2JsonInput}
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.native.Serialization.write
@@ -1161,7 +1161,10 @@ class NodesSuite extends AnyFunSuite {
     info("heartbeat: " + Http(URL + "/nodes/" + nodeId2 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("heartbeat: " + Http(URL + "/nodes/" + nodeId4 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     
-    val input = PostPatternSearchRequest(None, Some(List(orgid, orgid2)), Some(86400), SDRSPEC)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = Some(List(orgid, orgid2)),
+                                         secondsStale = Some(86400),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1178,7 +1181,10 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+PWSSPEC+" which is not in the pattern, so should fail") {
-    val input = PostPatternSearchRequest(None, None, Some(86400), PWSSPEC)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = None,
+                                         secondsStale = Some(86400),
+                                         serviceUrl = PWSSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     //info("code: "+response.code)
@@ -1724,7 +1730,10 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement") {
     patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(None, Some(List(orgid, orgid2)), Some(86400), SDRSPEC)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = Some(List(orgid, orgid2)),
+                                         secondsStale = Some(86400),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     //info("code: "+response.code)
@@ -1744,7 +1753,10 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+org2nodeId+" in agreement") {
     //patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(None, Some(List(orgid, orgid2)), Some(86400), SDRSPEC)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = Some(List(orgid, orgid2)),
+                                         secondsStale = Some(86400),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     //info("code: "+response.code)
@@ -1865,7 +1877,10 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement, should get same result as before") {
     patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(None, None, Some(86400), SDRSPEC)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = None,
+                                         secondsStale = Some(86400),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1905,7 +1920,10 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+NETSPEEDSPEC+" - with "+nodeId+" in agreement") {
     patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(None, None, Some(86400), NETSPEEDSPEC)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = None,
+                                         secondsStale = Some(86400),
+                                         serviceUrl = NETSPEEDSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1917,7 +1935,10 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - should find all nodes again") {
-    val input = PostPatternSearchRequest(None, None, Some(86400), SDRSPEC)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = None,
+                                         secondsStale = Some(86400),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1970,7 +1991,10 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - all nodes stale") {
     patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
     Thread.sleep(1100)    // delay 1.1 seconds so all nodes will be stale
-    val input = PostPatternSearchRequest(None, None, Some(1), SDRSPEC)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = None,
+                                         secondsStale = Some(1),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -2015,7 +2039,10 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - 1 node not stale") {
-    val input = PostPatternSearchRequest(None, None, Some(1), SDRSPEC)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = None,
+                                         secondsStale = Some(1),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)

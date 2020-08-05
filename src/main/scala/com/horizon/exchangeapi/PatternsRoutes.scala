@@ -43,15 +43,10 @@ final case class GetPatternAttributeResponse(attribute: String, value: String)
   **/
 final case class PostPatternSearchRequest(arch: Option[String], 
                                           nodeOrgids: Option[List[String]], 
-                                          // numEntries: Option[Int], 
+                                          numEntries: Option[String] = None,  // Not used.
                                           secondsStale: Option[Int], 
-                                          serviceUrl: String = "") {
-  // require(numEntries.get > 0 || numEntries.isEmpty)
-  require(secondsStale.get > 0 || secondsStale.isEmpty)
-  require(!serviceUrl.isEmpty())
-  
-  def getAnyProblem: Option[String] = None
-}
+                                          serviceUrl: String = "",
+                                          startIndex: Option[String] = None)  // Not used.
 
 object PatternUtils {
   def validatePatternServices(services: List[PServices]): Option[String] = {
@@ -1081,7 +1076,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
   def patternPostSearchRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "search") & post & entity(as[PostPatternSearchRequest])) { (orgid, pattern, reqBody) =>
     val compositeId = OrgAndId(orgid, pattern).toString
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) {agbot =>
-      validateWithMsg(reqBody.getAnyProblem) {
+      validateWithMsg(if(!(reqBody.secondsStale.isEmpty || !(reqBody.secondsStale.get < 0)) && !reqBody.serviceUrl.isEmpty) Some(ExchMsg.translate("bad.input")) else None) {
         complete({
           val nodeOrgids = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
 //          logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+reqBody.toString)
@@ -1111,6 +1106,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                 }
               } }
               val archList = new ListBuffer[String]()
+              val secondsStaleOpt: Option[Int] =
+                if(reqBody.secondsStale.isDefined && reqBody.secondsStale.get.equals(0))
+                  None
+                else
+                  reqBody.secondsStale
+              
               for ( svc <- services) {
                 if(svc.serviceOrgid+"/"+svc.serviceUrl == searchSvcUrl){
                   archList += svc.serviceArch
@@ -1142,7 +1143,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                 
                 NodesTQ.rows
                   .filterOpt(optArchSet)((node, archs) => node.arch inSet(archs))
-                  .filterOpt(reqBody.secondsStale)((node, secondsStale) => !(node.lastHeartbeat < ApiTime.pastUTC(secondsStale)))
+                  .filterOpt(secondsStaleOpt)((node, secondsStale) => !(node.lastHeartbeat < ApiTime.pastUTC(secondsStale)))
                   .filter(_.lastHeartbeat.isDefined)
                   .filter(_.orgid inSet(nodeOrgids))
                   .filter(_.pattern === compositeId)

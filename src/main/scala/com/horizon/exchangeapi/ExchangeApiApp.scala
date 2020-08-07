@@ -23,8 +23,9 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
-import com.horizon.exchangeapi.tables.ResourceChangesTQ
+import com.horizon.exchangeapi.tables.{AgbotMsgsTQ, NodeMsgsTQ, ResourceChangesTQ}
 import org.json4s._
+import slick.jdbc.TransactionIsolation.Serializable
 
 import scala.io.Source
 import scala.concurrent.duration._
@@ -252,6 +253,30 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   val cleanupInterval = ExchConfig.getInt("api.resourceChanges.cleanupInterval")
   logger.info("Resource changes cleanup Interval: " + cleanupInterval.toString)
 
+  /** Task for removing expired nodemsgs and agbotmsgs */
+  def removeExpiredMsgs(): Unit ={
+    db.run(NodeMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).flatMap({ xs =>
+      logger.debug("nodemsgs delete expired result: "+xs.toString)
+      AgbotMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).asTry
+    })).map({
+      case Success(v) => logger.debug("agbotmsgs delete expired result: " + v.toString)
+      case Failure(_) => logger.error("ERROR: could remove expired msgs")
+    })
+  }
+
+  /** Variables and Akka Actor for removing expired nodemsgs and agbotmsgs */
+  val CleanupExpiredMessages = "cleanupExpiredMessages"
+  class MsgsCleanupActor extends Actor {
+    def receive = {
+      case CleanupExpiredMessages => removeExpiredMsgs()
+      case _ => logger.debug("invalid case sent to MsgsCleanupActor")
+    }
+  }
+  val msgsCleanupActor = system.actorOf(Props(classOf[MsgsCleanupActor]))
+  var msgsCleanup : Cancellable = _
+  val msgsCleanupInterval = ExchConfig.getInt("api.defaults.msgs.expired_msgs_removal_interval")
+  logger.info("Remove expired msgs cleanup Interval: " + msgsCleanupInterval.toString)
+
 
   // Start serving client requests
   val serverBinding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, ExchangeApi.serviceHost, ExchangeApi.servicePort)
@@ -263,6 +288,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "http_shutdown") { () =>
     serverBinding.flatMap({ s =>
       println(s"Exchange server unbound, waiting up to $secondsToWait seconds for in-flight requests to complete...")
+      msgsCleanup.cancel()    // This cancels further deletions of node and agbot msgs
       changesCleanup.cancel()   // This cancels further Cleanups to be sent
       s.terminate(hardDeadline = secondsToWait.seconds)
     }).map { _ =>
@@ -275,8 +301,9 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   serverBinding.onComplete {
     case Success(bound) =>
       println(s"Server online at http://${bound.localAddress.getHostString}:${bound.localAddress.getPort}/")
-      //This will schedule to send the Cleanup-message
+      // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
       changesCleanup = system.scheduler.schedule(cleanupInterval.seconds, cleanupInterval.seconds, changesCleanupActor, Cleanup)
+      msgsCleanup = system.scheduler.schedule(msgsCleanupInterval.seconds, msgsCleanupInterval.seconds, msgsCleanupActor, CleanupExpiredMessages)
     case Failure(e) =>
       Console.err.println(s"Server could not start!")
       e.printStackTrace()

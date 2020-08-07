@@ -4,7 +4,7 @@
 {
 	"api": {
 		"limits": {
-			"maxNodes": 20000,		// maximum number of nodes 1 user is allowed to create, 0 for unlimited
+			"maxNodes": 45000,		// maximum number of nodes 1 user is allowed to create, 0 for unlimited
 			"maxAgbots": 1000,		// maximum number of agbots 1 user is allowed to create, 0 for unlimited
 			"maxAgreements": 0,	// maximum number of agreements 1 node or agbot is allowed to create, 0 for unlimited
 			"maxMessagesInMailbox": 0,	// maximum number of msgs currently in 1 node or agbot mailbox (the sending side is handled by rate limiting), 0 for unlimited
@@ -26,7 +26,7 @@
 			}
 		},
 		"cache": {
-			"idsMaxSize": 22000,   // includes: users, nodes, agbots (all together)
+			"idsMaxSize": 47000,   // includes: users, nodes, agbots (all together)
 			"idsTtlSeconds": 300,
 			"resourcesMaxSize": 300,   // each of: users, agbots, services, patterns, policies
 			"resourcesTtlSeconds": 300,

@@ -125,13 +125,13 @@ object BusinessPoliciesTQ {
 final case class SearchOffsetPolicyAttributes(agbot: String,
                                               offset: Option[String] = None,
                                               policy: String,
-                                              session: Long = -1L)
+                                              session: Option[String] = None)
 
 class SearchOffsetPolicy(tag: Tag) extends Table[SearchOffsetPolicyAttributes](tag, "search_offset_policy") {
   def agbot = column[String]("agbot")
   def offset = column[Option[String]]("offset", O.Default(None))
   def policy = column[String]("policy")
-  def session = column[Long]("session", O.Default(-1L))
+  def session = column[Option[String]]("session", O.Default(None))
   
   def pkSearchOffsetsPolicy = primaryKey("pk_searchoffsetpolicy", (agbot, policy))
   def fkAgbot = foreignKey("fk_agbot", agbot, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
@@ -152,6 +152,6 @@ object SearchOffsetPolicyTQ {
       .filter(_.policy === policy)
       .map(offset ⇒ (offset.offset, offset.session))
       
-  def setOffsetSession(agbot: String, offset: Option[String], policy: String, session: Long) =
+  def setOffsetSession(agbot: String, offset: Option[String], policy: String, session: Option[String]) =
     offsets.insertOrUpdate(SearchOffsetPolicyAttributes(agbot, offset, policy, session))
 }

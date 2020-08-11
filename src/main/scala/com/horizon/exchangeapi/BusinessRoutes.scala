@@ -104,7 +104,7 @@ final case class PatchBusinessPolicyRequest(label: Option[String], description: 
 final case class PostBusinessPolicySearchRequest(changedSince: Long = 0L,
                                                  nodeOrgids: Option[List[String]] = None,
                                                  numEntries: Option[Int] = None,
-                                                 session: Long = -1L,
+                                                 session: Option[String] = None,
                                                  startIndex: Option[String] = None)       // Not used.
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
@@ -841,7 +841,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   "changedSince": 123456L,                // [Long > 0L, 0L], Only return nodes that have changed since this Unix epoch time. Value 0L disables filter.
   "nodeOrgids": ["org1", "org2", "..."],  // (optional), Defaults to the same organization the business policy is in
   "numEntries": 100,                      // (optional) [Int > 0], Maximum number of nodes returned
-  "session": 1L                           // Constrains multiple Agbot instances to a singular search.
+  "session": "token"                      // Constrains multiple Agbot instances to a singular search.
 }"""
             )
           ),
@@ -883,7 +883,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   def busPolPostSearchRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment / "search") & post & entity(as[PostBusinessPolicySearchRequest])) { (orgid, policy, reqBody) =>
     val compositeId: String = OrgAndId(orgid, policy).toString
     exchAuth(TNode(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
-      validateWithMsg(if(!((!(reqBody.changedSince < 0L)) && reqBody.session.isValidLong && (reqBody.numEntries.isEmpty || !(reqBody.numEntries.getOrElse(-1) < 0)))) Some(ExchMsg.translate("bad.input")) else None) {
+      validateWithMsg(if(!((!(reqBody.changedSince < 0L)) && (reqBody.numEntries.isEmpty || !(reqBody.numEntries.getOrElse(-1) < 0)))) Some(ExchMsg.translate("bad.input")) else None) {
         complete({
           val nodeOrgids: Set[String] = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
           var searchSvcUrl = ""    // a composite value (org/url), will be set later in the db.run()
@@ -916,18 +916,35 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                     else
                       None
                   
-                  currentSession: Long = currentOffsetSession.getOrElse((None, -1L))._2
+                  // currentSession: Long = currentOffsetSession.getOrElse((None, -1L))._2
+                  currentSession: Option[String] =
+                  if (currentOffsetSession.isDefined)
+                    currentOffsetSession.get._2
+                  else
+                    None
                   
+                  //offset: Option[String] =
+                  //  if ((currentOffset.isEmpty || (currentOffsetSession.isDefined && !(reqBody.session < currentSession))) && 0L < reqBody.changedSince)
+                  //    Some(ApiTime.thenUTC(reqBody.changedSince))
+                  //  else if (currentOffset.isDefined && reqBody.session.equals(currentSession))
+                  //    currentOffset
+                  //  else
+                  //    None
                   offset: Option[String] =
-                    if ((currentOffset.isEmpty || (currentOffsetSession.isDefined && !(reqBody.session < currentSession))) && 0L < reqBody.changedSince)
-                      Some(ApiTime.thenUTC(reqBody.changedSince))
-                    else if (currentOffset.isDefined && reqBody.session.equals(currentSession))
-                      currentOffset
-                    else
-                      None
+                  if (currentOffset.isEmpty && 0L < reqBody.changedSince)
+                    Some(ApiTime.thenUTC(reqBody.changedSince))
+                  else if (currentOffset.isDefined &&
+                           currentSession.isDefined &&
+                           reqBody.session.isDefined &&
+                           currentSession.equals(reqBody.session))
+                    currentOffset
+                  else
+                    None
                   
                   desynchronization: Option[Boolean] =
-                    if (currentOffsetSession.isDefined && reqBody.session < currentSession)
+                    if (currentSession.isDefined &&
+                        reqBody.session.isDefined &&
+                        !currentSession.equals(reqBody.session))
                       Some(true)
                     else
                       None
@@ -956,32 +973,52 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                   
                   nodesWoAgreements ← {
                     if (reqBody.numEntries.isDefined)
-                      nodes.take(reqBody.numEntries.get)
+                      nodes.take(reqBody.numEntries.getOrElse(0))
                     else
                       nodes}.result.map(List[(String, String, String, String)])
                   
                   updateOffset: Option[String] =
-                    if (nodesWoAgreements.nonEmpty &&
-                        (currentOffsetSession.isEmpty || !(nodesWoAgreements.size < reqBody.numEntries.getOrElse(1))))
-                      Some(nodesWoAgreements.lastOption.get._2)
-                    else if (currentOffset.isDefined && reqBody.session <= currentSession)
+                    if (desynchronization.isDefined)
                       currentOffset
+                    else if (reqBody.numEntries.isDefined) {
+                      if (nodesWoAgreements.nonEmpty &&
+                          (currentOffsetSession.isEmpty || nodesWoAgreements.size.equals(reqBody.numEntries.get)))
+                        Some(nodesWoAgreements.lastOption.get._2)
+                      else if (currentOffset.isDefined &&
+                               currentSession.isDefined &&
+                               reqBody.session.isDefined &&
+                               currentSession.get.equals(reqBody.session.get) &&
+                               nodesWoAgreements.size.equals(reqBody.numEntries.get))
+                        currentOffset
+                      else
+                        None
+                    }
                     else
                       None
-                  
+
                   isOffsetUpdated: Boolean =
-                    if (desynchronization.getOrElse(false) ||
-                        (currentOffset.isDefined && updateOffset.get.equals(currentOffset.get)) ||
-                        (currentOffset.isEmpty && updateOffset.isEmpty))
+                   if (desynchronization.getOrElse(false) ||
+                       updateOffset.isEmpty ||
+                       (currentOffset.isDefined && currentOffset.equals(updateOffset)))
                       false
                     else
                       true
                   
-                  updateSession: Long =
-                    if (currentOffsetSession.isEmpty || (currentOffsetSession.isDefined && currentSession < reqBody.session))
-                      reqBody.session
-                    else
+                  updateSession: Option[String] =
+                    if (desynchronization.isDefined)
                       currentSession
+                    else if (currentOffsetSession.isEmpty &&
+                             reqBody.numEntries.isDefined &&
+                             reqBody.session.isDefined &&
+                             nodesWoAgreements.size.equals(reqBody.numEntries.get))
+                      reqBody.session
+                    else if (currentSession.isDefined &&
+                             reqBody.numEntries.isDefined &&
+                             reqBody.session.isDefined &&
+                             currentSession.equals(reqBody.session))
+                      currentSession
+                    else
+                      None
   
                     _ ← SearchOffsetPolicyTQ.setOffsetSession(ident.identityString, updateOffset, compositeId, updateSession)
                 } yield (desynchronization, nodesWoAgreements, isOffsetUpdated)

@@ -2103,20 +2103,6 @@ class NodesSuite extends AnyFunSuite {
     putAllNodePolicyAndAgreements() // add agreements and policies to all nodes to give them a value in the lastUpdated column
   }
 
-  ignore("POST /orgs/" + orgid + "/business/policies/" + businessPolicySdr + "/search - with a sleep, so all nodes are stale") {
-    patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    putAllNodePolicyAndAgreements() // add agreements and policies to all nodes to give them a value in the lastUpdated column
-    Thread.sleep(2100)    // delay 2.1 seconds so all nodes will be stale
-    val input: PostBusinessPolicySearchRequest = PostBusinessPolicySearchRequest(ApiTime.nowSeconds, None, None, 6L)
-    val response = Http(URL + "/business/policies/" + businessPolicySdr + "/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    info("body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 0)
-  }
-
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId2+" - patching public key so this node won't be stale for non-pattern search") {
     val jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
     val response = Http(URL + "/nodes/" + nodeId2).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

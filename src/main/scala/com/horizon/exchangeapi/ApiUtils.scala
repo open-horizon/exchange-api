@@ -5,6 +5,8 @@ import java.io.File
 import java.lang.management.ManagementFactory
 import java.time._
 
+import scala.util.matching.Regex
+
 //import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server._
@@ -250,13 +252,37 @@ object ExchConfig {
       LogLevel.INFO // fallback
     }
   }
-
+  
   def getHostAndPort = {
+    var host = config.getString("api.service.host")
+    if(host.isEmpty) host = "0.0.0.0"
+    val portUnencrypted: Option[Int] =
+      try {
+        Some(config.getInt("api.service.portUnencrypted"))
+      }
+      catch {
+        case _: Exception => None
+      }
+    val portEncrypted: Int =
+      try {
+        config.getInt("api.service.portEncrypted")
+      }
+      catch {
+        case _: Exception =>
+          if(portUnencrypted.isEmpty)
+            8080
+          else
+            8443
+      }
+    (host, portEncrypted, portUnencrypted)
+  }
+
+  /*def getHostAndPort = {
     var host = config.getString("api.service.host")
     if (host == "") host = "0.0.0.0"
     val port = try { config.getInt("api.service.port") } catch { case _: Exception => 8080 }
     (host, port)
-  }
+  }*/
 
   // Get relevant values from our config file to create the akka config
   def getAkkaConfig: Config = {

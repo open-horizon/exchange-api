@@ -26,8 +26,10 @@ SCALA_VERSION ?= 2.12.10
 # this version corresponds to the Version variable in project/build.scala
 #EXCHANGE_API_WAR_VERSION ?= 0.1.0
 EXCHANGE_API_DIR ?= /src/github.com/open-horizon/exchange-api
-EXCHANGE_API_PORT ?= 8080
-EXCHANGE_API_HTTPS_PORT ?= 8443
+EXCHANGE_CONTAINER_PORT_HTTP ?=
+EXCHANGE_CONTAINER_PORT_HTTPS ?= 8080
+EXCHANGE_HOST_PORT_HTTP ?=
+EXCHANGE_HOST_PORT_HTTPS ?= 8080
 # Location of config.json and icp/ca.crt in the container
 EXCHANGE_CONFIG_DIR ?= /etc/horizon/exchange
 EXCHANGE_ICP_CERT_FILE ?= /etc/horizon/exchange/icp/ca.crt
@@ -42,9 +44,9 @@ else
   EXCHANGE_HOST_ICP_CERT_FILE ?= $(EXCHANGE_ICP_CERT_FILE)
 endif
 # Location of the ssl key/cert that it should use so it can serve https routes. This need to be fully qualified, so docker can mount it into the container for jetty to access
-EXCHANGE_HOST_KEYSTORE_DIR ?= $(PWD)/keys/etc
+EXCHANGE_CONTAINER_KEYSTORE_DIR ?= /etc/horizon/exchange
+EXCHANGE_HOST_KEYSTORE_DIR ?= /etc/horizon/exchange
 EXCHANGE_HOST_ALIAS ?= edge-fab-exchange
-EXCHANGE_CONTAINER_KEYSTORE_DIR ?= /var/lib/jetty/etc
 # The public cert we should use to connect to an ibm cloud postgres db
 EXCHANGE_HOST_POSTGRES_CERT_FILE ?= $(EXCHANGE_HOST_CONFIG_DIR)/postres-cert/root.crt
 # Note: this home dir in the container must match what is set for daemonUser in build.sbt
@@ -85,14 +87,20 @@ docker: .docker-exec
 .docker-exec-run: .docker-exec .docker-network
 	@if [[ ! -f "$(EXCHANGE_HOST_KEYSTORE_DIR)/keystore" || ! -f "$(EXCHANGE_HOST_KEYSTORE_DIR)/keypassword" ]]; then echo "Error: keystore and keypassword do not exist in $(EXCHANGE_HOST_KEYSTORE_DIR). You must first copy them there or run 'make gen-key'"; false; fi
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
-	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -p $(EXCHANGE_API_HTTPS_PORT):$(EXCHANGE_API_HTTPS_PORT) -e "JAVA_OPTS=$(JAVA_OPTS)" -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONFIG_DIR)/exchange-api.tmpl:ro -v $(EXCHANGE_HOST_ICP_CERT_FILE):$(EXCHANGE_ICP_CERT_FILE) -v $(EXCHANGE_HOST_KEYSTORE_DIR):$(EXCHANGE_CONTAINER_KEYSTORE_DIR):ro -v $(EXCHANGE_HOST_POSTGRES_CERT_FILE):$(EXCHANGE_CONTAINER_POSTGRES_CERT_FILE) $(image-string):$(DOCKER_TAG)
+	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_HOST_PORT_HTTPS):$(EXCHANGE_CONTAINER_PORT_HTTPS) -e "JAVA_OPTS=$(JAVA_OPTS)" -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONFIG_DIR)/exchange-api.tmpl:ro -v $(EXCHANGE_HOST_ICP_CERT_FILE):$(EXCHANGE_ICP_CERT_FILE) -v $(EXCHANGE_HOST_KEYSTORE_DIR)/localhost.p12:$(EXCHANGE_CONTAINER_KEYSTORE_DIR)/localhost.p12:ro -v $(EXCHANGE_HOST_POSTGRES_CERT_FILE):$(EXCHANGE_CONTAINER_POSTGRES_CERT_FILE) $(image-string):$(DOCKER_TAG)
 	@touch $@
 
-# Note: this target is used by travis as part of testing
+# Note: this target is used by Travis CI's automated testing
 # config.json is renamed to exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
-.docker-exec-run-no-https: .docker-exec .docker-network
+.docker-exec-run-dev: .docker-exec .docker-network
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
-	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -p $(EXCHANGE_API_HTTPS_PORT):$(EXCHANGE_API_HTTPS_PORT) -e "JAVA_OPTS=$(JAVA_OPTS)" -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONFIG_DIR)/exchange-api.tmpl -v $(EXCHANGE_HOST_CONFIG_DIR)/localhost.p12:$(EXCHANGE_CONFIG_DIR)/localhost.p12:ro $(image-string):$(DOCKER_TAG)
+	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_HOST_PORT_HTTPS):$(EXCHANGE_CONTAINER_PORT_HTTPS) -e "JAVA_OPTS=$(JAVA_OPTS)" -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONFIG_DIR)/exchange-api.tmpl:ro -v $(EXCHANGE_HOST_KEYSTORE_DIR)/localhost.p12:$(EXCHANGE_CONTAINER_KEYSTORE_DIR)/localhost.p12:ro $(image-string):$(DOCKER_TAG)
+	@touch $@
+
+# config.json is renamed to exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
+.docker-exec-run-dev-with-http: .docker-exec .docker-network
+	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
+	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) -p $(EXCHANGE_HOST_PORT_HTTPS):$(EXCHANGE_CONTAINER_PORT_HTTPS) -e "JAVA_OPTS=$(JAVA_OPTS)" -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONFIG_DIR)/exchange-api.tmpl:ro -v $(EXCHANGE_HOST_KEYSTORE_DIR)/localhost.p12:$(EXCHANGE_CONTAINER_KEYSTORE_DIR)/localhost.p12:ro $(image-string):$(DOCKER_TAG)
 	@touch $@
 
 # Build the executable and run it locally (not in sbt and not in docker)

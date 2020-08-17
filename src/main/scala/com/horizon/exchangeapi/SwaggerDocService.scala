@@ -26,7 +26,7 @@ object SwaggerDocService extends SwaggerHttpService {
       classOf[ServicesRoutes], 
       classOf[UsersRoutes]
       )
-  override def host = s"${ExchangeApi.serviceHost}:${ExchangeApi.servicePort}" //the url of your api, not swagger's json endpoint
+  override def host = s"${ExchangeApi.serviceHost}:${ExchangeApi.servicePortEncrypted}" //the url of your api, not swagger's json endpoint
   override def apiDocsPath = "api-docs" //where you want the swagger-json endpoint exposed
 
   override def info = Info(

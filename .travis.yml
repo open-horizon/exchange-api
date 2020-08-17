@@ -47,7 +47,7 @@ printf \"[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltNa
 - sudo cp ./localhost.p12 /etc/horizon/exchange/localhost.p12
 
 - unset SBT_OPTS
-- make .docker-exec-run-no-https
+- make .docker-exec-run-dev
 
 script:
 - make test

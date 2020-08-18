@@ -916,20 +916,12 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                     else
                       None
                   
-                  // currentSession: Long = currentOffsetSession.getOrElse((None, -1L))._2
                   currentSession: Option[String] =
                   if (currentOffsetSession.isDefined)
                     currentOffsetSession.get._2
                   else
                     None
                   
-                  //offset: Option[String] =
-                  //  if ((currentOffset.isEmpty || (currentOffsetSession.isDefined && !(reqBody.session < currentSession))) && 0L < reqBody.changedSince)
-                  //    Some(ApiTime.thenUTC(reqBody.changedSince))
-                  //  else if (currentOffset.isDefined && reqBody.session.equals(currentSession))
-                  //    currentOffset
-                  //  else
-                  //    None
                   offset: Option[String] =
                   if (currentOffset.isEmpty && 0L < reqBody.changedSince)
                     Some(ApiTime.thenUTC(reqBody.changedSince))
@@ -1007,16 +999,18 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                   updateSession: Option[String] =
                     if (desynchronization.isDefined)
                       currentSession
-                    else if (currentOffsetSession.isEmpty &&
-                             reqBody.numEntries.isDefined &&
-                             reqBody.session.isDefined &&
-                             nodesWoAgreements.size.equals(reqBody.numEntries.get))
-                      reqBody.session
-                    else if (currentSession.isDefined &&
-                             reqBody.numEntries.isDefined &&
-                             reqBody.session.isDefined &&
-                             currentSession.equals(reqBody.session))
-                      currentSession
+                    else if (reqBody.numEntries.isDefined && reqBody.session.isDefined) {
+                      if (currentSession.isEmpty &&
+                          nodesWoAgreements.nonEmpty &&
+                          nodesWoAgreements.size.equals(reqBody.numEntries.get))
+                        reqBody.session
+                      else if (currentSession.isDefined &&
+                               currentSession.get.equals(reqBody.session.get) &&
+                               nodesWoAgreements.size.equals(reqBody.numEntries.get))
+                        currentSession
+                      else
+                        None
+                    }
                     else
                       None
   

@@ -872,6 +872,71 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   arch = "arm",
                   heartbeatIntervals = "",
                   lastUpdated = ApiTime.nowUTC),
+        NodeRow(id = "TestPolicySearchPost/n2",
+                orgid = "TestPolicySearchPost",
+                token = "",
+                name = "",
+                owner = "TestPolicySearchPost/u1",
+                nodeType = "device",
+                pattern = "",
+                regServices = "[]",
+                userInput = "",
+                msgEndPoint = "",
+                softwareVersions = "",
+                lastHeartbeat = Some(ApiTime.nowUTC),
+                publicKey = "key",
+                arch = "arm",
+                heartbeatIntervals = "",
+                lastUpdated = ApiTime.nowUTC))
+    //val TESTPAGINATION: Seq[SearchOffsetPolicyAttributes] =
+      //Seq(SearchOffsetPolicyAttributes(agbot = "TestPolicySearchPost/a1",
+        //offset = Some(ApiTime.beginningUTC),
+        //policy = "TestPolicySearchPost/pol1",
+        //session = Some("token")))
+    
+    fixturePolicies(
+      _ ⇒ {
+        //fixturePagination(
+          //_ ⇒ {
+            fixtureNodes(
+              _ ⇒ {
+                val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, Some(1), Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+                info("code: " + response.code)
+                info("body: " + response.body)
+                assert(response.code === HttpCode.POST_OK.intValue)
+                
+                val RESPONSEBODY: PostBusinessPolicySearchResponse = parse(response.body).extract[PostBusinessPolicySearchResponse]
+                assert(RESPONSEBODY.nodes.length === 1)
+                assert(RESPONSEBODY.offsetUpdated === true)
+                assert(RESPONSEBODY.nodes.head.id === "TestPolicySearchPost/n1")
+                
+                val offset: Seq[(Option[String], Option[String])] = Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
+                assert(offset.nonEmpty)
+                assert(offset.head._1 === TESTNODE.head.lastHeartbeat)
+                assert(offset.head._2 === Some("token"))
+              }, TESTNODE)
+          //}, TESTPAGINATION)
+      }, TESTPOLICIES)
+  }
+  
+  test("POST /orgs/" + "TestPolicySearchPost" + "/business/policies/" + "pol1" + "/search -- Pagination - Increment Offset - Prior Offset") {
+    val TESTNODE: Seq[NodeRow] =
+      Seq(NodeRow(id = "TestPolicySearchPost/n1",
+                  orgid = "TestPolicySearchPost",
+                  token = "",
+                  name = "",
+                  owner = "TestPolicySearchPost/u1",
+                  nodeType = "device",
+                  pattern = "",
+                  regServices = "[]",
+                  userInput = "",
+                  msgEndPoint = "",
+                  softwareVersions = "",
+                  lastHeartbeat = Some(ApiTime.nowUTC),
+                  publicKey = "key",
+                  arch = "arm",
+                  heartbeatIntervals = "",
+                  lastUpdated = ApiTime.nowUTC),
           NodeRow(id = "TestPolicySearchPost/n2",
                   orgid = "TestPolicySearchPost",
                   token = "",
@@ -904,12 +969,12 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 info("code: " + response.code)
                 info("body: " + response.body)
                 assert(response.code === HttpCode.POST_OK.intValue)
-              
+                
                 val RESPONSEBODY: PostBusinessPolicySearchResponse = parse(response.body).extract[PostBusinessPolicySearchResponse]
                 assert(RESPONSEBODY.nodes.length === 1)
                 assert(RESPONSEBODY.offsetUpdated === true)
                 assert(RESPONSEBODY.nodes.head.id === "TestPolicySearchPost/n1")
-              
+                
                 val offset: Seq[(Option[String], Option[String])] = Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
                 assert(offset.nonEmpty)
                 assert(offset.head._1 === TESTNODE.head.lastHeartbeat)

@@ -23,7 +23,7 @@ before_install:
 
 before_script:
 - unset SBT_OPTS
-- make .docker-exec-run-dev
+- make docker-exec-run-dev
 
 script:
 - make test

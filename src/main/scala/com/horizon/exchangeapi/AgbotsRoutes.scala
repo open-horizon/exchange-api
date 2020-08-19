@@ -1551,10 +1551,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
         val nodeId = ident.creds.id      //somday: handle the case where the acls allow users to send msgs
         var msgNum = ""
         // Remove msgs whose TTL is past, then check the mailbox is not full, then get the node publicKey, then write the agbotmsgs row, all in the same db.run thread
-        db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
-          logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs delete expired result: "+xs.toString)
-          AgbotMsgsTQ.getNumOwned(compositeId).result
-        }).flatMap({ xs =>
+        db.run(AgbotMsgsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
           logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs mailbox size: "+xs)
           val mailboxSize = xs
           val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
@@ -1612,10 +1609,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
       complete({
         // Remove msgs whose TTL is past, and then get the msgs for this agbot
-        db.run(AgbotMsgsTQ.getMsgsExpired.delete.flatMap({ xs =>
-          logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs delete expired result: "+xs.toString)
-          AgbotMsgsTQ.getMsgs(compositeId).result
-        })).map({ list =>
+        db.run(AgbotMsgsTQ.getMsgs(compositeId).result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result size: "+list.size)
           //logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result: "+list.toString)
           val listSorted = list.sortWith(_.msgId < _.msgId)

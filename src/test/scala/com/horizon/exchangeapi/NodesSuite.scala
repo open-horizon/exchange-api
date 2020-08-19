@@ -2442,12 +2442,11 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/" + orgid + "/nodes/" + nodeId + "/msgs") {
-    Thread.sleep(1100)    // delay 1.1 seconds so 1 of the msgs will expire
+//    Thread.sleep(1100)    // delay 1.1 seconds so 1 of the msgs will expire -- TAKEN OUT as node msg deletion was moved to a process that runs at a configurable interval
     val response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).asString
-    info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val resp = parse(response.body).extract[GetNodeMsgsResponse]
-    assert(resp.messages.size === 3)
+    assert(resp.messages.size === 4)
     var msg = resp.messages.find(m => m.message=="{msg1 from agbot1 to node1}").orNull
     assert(msg !== null)
     assert(msg.agbotId === orgagbotId)
@@ -2562,12 +2561,12 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/msgs") {
-    Thread.sleep(1100)    // delay 1.1 seconds so 1 of the msgs will expire
+//    Thread.sleep(1100)    // delay 1.1 seconds so 1 of the msgs will expire -- TAKEN OUT as agbot msg deletion was moved to a process that runs at a configurable interval
     val response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val resp = parse(response.body).extract[GetAgbotMsgsResponse]
-    assert(resp.messages.size === 3)
+    assert(resp.messages.size === 4)
     var msg = resp.messages.find(m => m.message=="{msg1 from node1 to agbot1}").orNull
     assert(msg !== null)
     assert(msg.nodeId === orgnodeId)

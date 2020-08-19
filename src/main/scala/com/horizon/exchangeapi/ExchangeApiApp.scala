@@ -35,6 +35,7 @@ import com.typesafe.sslconfig.akka.AkkaSSLConfig
 import javax.net.ssl.{KeyManagerFactory, SSLContext, SSLContextSpi, SSLParameters, TrustManagerFactory}
 import org.checkerframework.checker.units.qual.{K, h, s}
 import org.json4s._
+import slick.jdbc.TransactionIsolation.Serializable
 
 import scala.collection.parallel
 import scala.collection.parallel.immutable
@@ -266,6 +267,30 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   var changesCleanup: Option[Cancellable] = None
   val cleanupInterval = ExchConfig.getInt("api.resourceChanges.cleanupInterval")
   logger.info("Resource changes cleanup Interval: " + cleanupInterval.toString)
+
+  /** Task for removing expired nodemsgs and agbotmsgs */
+  def removeExpiredMsgs(): Unit ={
+    db.run(NodeMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).flatMap({ xs =>
+      logger.debug("nodemsgs delete expired result: "+xs.toString)
+      AgbotMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).asTry
+    })).map({
+      case Success(v) => logger.debug("agbotmsgs delete expired result: " + v.toString)
+      case Failure(_) => logger.error("ERROR: could remove expired msgs")
+    })
+  }
+
+  /** Variables and Akka Actor for removing expired nodemsgs and agbotmsgs */
+  val CleanupExpiredMessages = "cleanupExpiredMessages"
+  class MsgsCleanupActor extends Actor {
+    def receive = {
+      case CleanupExpiredMessages => removeExpiredMsgs()
+      case _ => logger.debug("invalid case sent to MsgsCleanupActor")
+    }
+  }
+  val msgsCleanupActor = system.actorOf(Props(classOf[MsgsCleanupActor]))
+  var msgsCleanup : Cancellable = _
+  val msgsCleanupInterval = ExchConfig.getInt("api.defaults.msgs.expired_msgs_removal_interval")
+  logger.info("Remove expired msgs cleanup Interval: " + msgsCleanupInterval.toString)
 
 
   // Start serving client requests

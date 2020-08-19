@@ -3,7 +3,7 @@ dist: bionic
 language: scala
 jdk:
   - openjdk8
-scala: 2.12.7
+scala: 2.12.10
 notifications:
   slack:
     secure: nPoYZ8FqRziV5+rQAc9GXFWtNsThBbOdxYOY8HpPwNWsWHtC2ZyPJBnNE6XIkmzR7+D5U8yOYqlk2CiqYLlSwa1+bqKuAyOBBhz51pDi8z+YXsjvgTpkxVmKv8N6jntAqo5eBFbVUW+/FPhKBD6qZIkbfRyThZSNZTSTv9oZ02Ynfb4NKuXgZeuinSotOaICiCvzfY4kYoe7EKss/XY6ON8qHUOcIQBsckDHrFEYwF270qNEIccZIkrOr3PKg3mXz2n+65T5i/UDNw3Z8RKDc32Y+TCfyAc3kyuQQYhKhL6/TLwAW/IPNGaFkUfR+2FH+C1VlLJpm1/mBj6uDvHBVRHSEL3ZofYFd5TTzUqkQRINATRQNpFNfjlMT3ifJrSyopKXyMsiea2y3EvM4/D3I5pHRvX2/BqidjJV3b5UIllirq/jk4PrCKshkKEZtC0CBNj4T8ewa9Qr3IxlKTFVHwnW1RWQmAXgFDFpbDzJ4vuLbUDhAKDXukWqoiwxTC3egMPQVnEFvxHVDAqdQUztsUjtg3LVXagLLl6+tYTwY53124aUXSkQMbANL+2ISZuRmg4dheTtaK/bE8L4dCQyyy7HFh03IbZGnGz3bhpDGxTBFAhnEQ4XWzYNpz8rEr0unvQTfBt2dUq4AH5bh1QseFh77lpBYWj9jxndZMbP9Pw=
@@ -14,38 +14,14 @@ branches:
 
 env:
 - DEBIAN_FRONTEND=noninteractive
-  DOCKER_NETWORK=exchange-api-network
-  DOCKER_REGISTRY=openhorizon
-  EXCHANGE_FE_HEADER=issuer
   EXCHANGE_ROOTPW=ci-password
-  POSTGRES_DB=exchange
-  POSTGRES_PORT=5432
-  POSTGRES_USER=admin
-  SSL_TRUSTSTORE_LOC=/etc/horizon/exchange
-  SSL_TRUSTSTORE_PW=truststore-password
+  EXCHANGE_TRUST_PW=truststore-password
 
 before_install:
 - sudo apt-get -y update
 - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce coreutils || true
 
 before_script:
-- make .docker-network
-- docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER --network 
-  $DOCKER_NETWORK --name postgres postgres
-- export POSTGRES_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
-  postgres)
-- sudo mkdir -p /etc/horizon/exchange
-- 'sudo bash -c "echo ''{ \"api\": { \"db\": { \"jdbcUrl\": \"jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB\", \"user\": \"$POSTGRES_USER\" }, \"root\": { \"password\": \"$EXCHANGE_ROOTPW\",\"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" }, \"ssl\": {  \"location\": \"$SSL_TRUSTSTORE_LOC/localhost.p12\", \"password\": \"$SSL_TRUSTSTORE_PW\" } } }'' > /etc/horizon/exchange/config.json"'
-- cat /etc/horizon/exchange/config.json
-
-- "openssl req -x509 -out ./localhost.crt -keyout ./localhost.key \
--newkey rsa:4096 -nodes -sha512 \
--subj '/CN=localhost' -extensions EXT -config <( \
-printf \"[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltName=DNS:localhost\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth\")"
-- sudo openssl pkcs12 -export -out ./localhost.p12 -in ./localhost.crt -inkey ./localhost.key -aes256 -passout env:SSL_TRUSTSTORE_PW
-- sudo chmod o+r ./localhost.p12
-- sudo cp ./localhost.p12 /etc/horizon/exchange/localhost.p12
-
 - unset SBT_OPTS
 - make .docker-exec-run-dev
 

@@ -343,9 +343,9 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       binding.onComplete {
         case Success(bound) =>
           if (bound.localAddress.getPort == ExchangeApi.servicePortEncrypted)
-            println("Server online accepting encrypted taffic at: https://" + bound.localAddress.getHostString + ":" + bound.localAddress.getPort)
+            println("Server online accepting encrypted trSSaffic at: https://" + bound.localAddress.getHostString + ":" + bound.localAddress.getPort)
           else
-            println("Server online accepting unencrypted taffic at: http://" + bound.localAddress.getHostString + ":" + bound.localAddress.getPort)
+            println("Server online accepting unencrypted traffic at: http://" + bound.localAddress.getHostString + ":" + bound.localAddress.getPort)
           //This will schedule to send the Cleanup-message
           if(changesCleanup.isEmpty)
             changesCleanup = Some(system.scheduler.schedule(cleanupInterval.seconds, cleanupInterval.seconds, changesCleanupActor, Cleanup))

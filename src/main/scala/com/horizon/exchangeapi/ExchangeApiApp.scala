@@ -30,7 +30,7 @@ import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.settings.PoolImplementation.New
 import akka.stream.ActorMaterializer
-import com.horizon.exchangeapi.tables.ResourceChangesTQ
+import com.horizon.exchangeapi.tables.{AgbotMsgsTQ, NodeMsgsTQ, ResourceChangesTQ}
 import com.typesafe.sslconfig.akka.AkkaSSLConfig
 import javax.net.ssl.{KeyManagerFactory, SSLContext, SSLContextSpi, SSLParameters, TrustManagerFactory}
 import org.checkerframework.checker.units.qual.{K, h, s}
@@ -254,7 +254,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       case Failure(_) => logger.error("ERROR: could not trim resourcechanges table")
     })
   }
-
+  
   /** Variables and Akka Actor for trimming `resourcechanges` table */
   val Cleanup = "cleanup"
   class ChangesCleanupActor extends Actor {
@@ -264,10 +264,10 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
     }
   }
   val changesCleanupActor = system.actorOf(Props(classOf[ChangesCleanupActor]))
-  var changesCleanup: Option[Cancellable] = None
+  var changesCleanup : Option[Cancellable] = None
   val cleanupInterval = ExchConfig.getInt("api.resourceChanges.cleanupInterval")
   logger.info("Resource changes cleanup Interval: " + cleanupInterval.toString)
-
+  
   /** Task for removing expired nodemsgs and agbotmsgs */
   def removeExpiredMsgs(): Unit ={
     db.run(NodeMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).flatMap({ xs =>
@@ -278,7 +278,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       case Failure(_) => logger.error("ERROR: could remove expired msgs")
     })
   }
-
+  
   /** Variables and Akka Actor for removing expired nodemsgs and agbotmsgs */
   val CleanupExpiredMessages = "cleanupExpiredMessages"
   class MsgsCleanupActor extends Actor {
@@ -288,10 +288,9 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
     }
   }
   val msgsCleanupActor = system.actorOf(Props(classOf[MsgsCleanupActor]))
-  var msgsCleanup : Cancellable = _
+  var msgsCleanup : Option[Cancellable] = None
   val msgsCleanupInterval = ExchConfig.getInt("api.defaults.msgs.expired_msgs_removal_interval")
   logger.info("Remove expired msgs cleanup Interval: " + msgsCleanupInterval.toString)
-
 
   // Start serving client requests
   // val serverBinding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, ExchangeApi.serviceHost, ExchangeApi.servicePortUnencrypted)
@@ -309,14 +308,15 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
     SSLCONTEXT.init(KEYMANAGER.getKeyManagers, TRUSTMANAGER.getTrustManagers, new SecureRandom)
   
     val HTTPSCONTEXT: HttpsConnectionContext =
-      ConnectionContext.https(enabledCipherSuites = Some(scala.collection.immutable.Seq("TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
-            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
-            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384")),
-            enabledProtocols = Some(scala.collection.immutable.Seq("TLSv1.2")),
-            clientAuth = None,
-            sslConfig = None,
-            sslContext = SSLCONTEXT,
-            sslParameters = None)
+      ConnectionContext.https(enabledCipherSuites =
+                                Some(scala.collection.immutable.Seq("TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
+                                                                    "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+                                                                    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384")),
+                              enabledProtocols = Some(scala.collection.immutable.Seq("TLSv1.2")),
+                              clientAuth = None,
+                              sslConfig = None,
+                              sslContext = SSLCONTEXT,
+                              sslParameters = None)
     
     Http
     
@@ -352,6 +352,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
           .flatMap({
             binding ⇒
               println(s"Exchange server unbound, waiting up to $secondsToWait seconds for in-flight requests to complete...")
+              msgsCleanup.get.cancel()    // This cancels further deletions of node and agbot msgs
               changesCleanup.get.cancel()   // This cancels further Cleanups to be sent
               binding.terminate(hardDeadline = secondsToWait.seconds)
           })
@@ -368,12 +369,14 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       binding.onComplete {
         case Success(bound) =>
           if (bound.localAddress.getPort == ExchangeApi.servicePortEncrypted)
-            println("Server online accepting encrypted trSSaffic at: https://" + bound.localAddress.getHostString + ":" + bound.localAddress.getPort)
+            println("Server online accepting encrypted traffic at: https://" + bound.localAddress.getHostString + ":" + bound.localAddress.getPort)
           else
             println("Server online accepting unencrypted traffic at: http://" + bound.localAddress.getHostString + ":" + bound.localAddress.getPort)
-          //This will schedule to send the Cleanup-message
+          // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
           if(changesCleanup.isEmpty)
             changesCleanup = Some(system.scheduler.schedule(cleanupInterval.seconds, cleanupInterval.seconds, changesCleanupActor, Cleanup))
+          if(msgsCleanup.isEmpty)
+            msgsCleanup = Some(system.scheduler.schedule(msgsCleanupInterval.seconds, msgsCleanupInterval.seconds, msgsCleanupActor, CleanupExpiredMessages))
         case Failure(e) =>
           Console.err.println(s"Server could not start!")
           e.printStackTrace()

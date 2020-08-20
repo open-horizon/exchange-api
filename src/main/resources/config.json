@@ -70,7 +70,7 @@
     },
     "cache": {
       "authDbTimeoutSeconds": 15,  // timeout for db access for critical auth info when cache missing
-      "idsMaxSize": 22000,         // includes: users, nodes, agbots (all together)
+      "idsMaxSize": 47000,         // includes: users, nodes, agbots (all together)
       "idsTtlSeconds": 300,
       "resourcesMaxSize": 300,     // each of: users, agbots, services, patterns, policies
       "resourcesTtlSeconds": 300,
@@ -89,11 +89,14 @@
     "defaults": {
       "businessPolicy": {
         "check_agreement_status": 1800,
-        "missing_heartbeat_interval": 1800  // used if the service.nodeHealth section is omitted
+        "missing_heartbeat_interval": 1800     // used if the service.nodeHealth section is omitted
       },
       "pattern": {
         "check_agreement_status": 1800,
-        "missing_heartbeat_interval": 1800  // used if the services.nodeHealth section is omitted
+        "missing_heartbeat_interval": 1800     // used if the services.nodeHealth section is omitted
+      },
+      "msgs": {
+        "expired_msgs_removal_interval": 3600  // number of seconds between deletions of expired node and agbot messages
       }
     },
     "limits": {
@@ -101,7 +104,7 @@
       "maxAgreements": 0,           // maximum number of agreements 1 node or agbot is allowed to create, 0 for unlimited
       "maxBusinessPolicies": 5000,  // maximum number of business policies 1 user is allowed to create, 0 for unlimited
       "maxMessagesInMailbox": 0,    // maximum number of msgs currently in 1 node or agbot mailbox (the sending side is handled by rate limiting), 0 for unlimited
-      "maxNodes": 20000,            // maximum number of nodes 1 user is allowed to create, 0 for unlimited
+      "maxNodes": 45000,            // maximum number of nodes 1 user is allowed to create, 0 for unlimited
       "maxPatterns": 1000,          // maximum number of patterns 1 user is allowed to create, 0 for unlimited
       "maxServices": 1000           // maximum number of services 1 user is allowed to create, 0 for unlimited
     },

@@ -4,6 +4,7 @@ SHELL = /bin/bash -e
 
 # Some of these vars are also used by the Dockerfiles
 ARCH ?= amd64
+COMPILE_CLEAN ?= clean
 DOCKER_NAME ?= amd64_exchange-api
 DOCKER_NETWORK = exchange-api-network
 DOCKER_REGISTRY ?= openhorizon
@@ -18,7 +19,6 @@ endif
 DOCKER_TAG ?= $(EXCHANGE_VERSION)$(BRANCH)
 DOCKER_LATEST ?= latest$(BRANCH)
 DOCKER_OPTS ?= --no-cache
-COMPILE_CLEAN ?= clean
 IMAGE_STRING = $(DOCKER_REGISTRY)/$(ARCH)_exchange-api
 EXCHANGE_API_DIR ?= /src/github.com/open-horizon/exchange-api
 # This version corresponds to the Version variable in project/build.scala
@@ -52,7 +52,7 @@ EXCHANGE_HOST_POSTGRES_CERT_FILE ?= $(EXCHANGE_HOST_CONFIG_DIR)/postres-cert/roo
 EXCHANGE_HOST_TRUST_DIR ?= $(PROJECT_DIRECTORY)/target/etc/horizon/exchange/truststore
 EXCHANGE_ICP_CERT_FILE ?= /etc/horizon/exchange/icp/ca.crt
 # Set to "DEBUG" to turn on debugging
-EXCHANGE_LOG_LEVEL ?= INFO
+EXCHANGE_LOG_LEVEL ?= DEBUG#INFO
 # Number of days the SSL certificate is valid for
 EXCHANGE_TRUST_DUR ?= 1
 # Use this to pass args to the exchange svr JVM by overriding JAVA_OPTS in your environment
@@ -113,16 +113,47 @@ docker: docker-exec
 docker-network:
 	docker network create $(DOCKER_NETWORK)
 
+      #-v $(EXCHANGE_HOST_TRUST_DIR)/localhost.crt:/var/lib/postgresql/data/localhost.crt:ro \
+      #-v $(EXCHANGE_HOST_TRUST_DIR)/localhost.key:/var/lib/postgresql/data/localhost.key:ro \
+      #-c ssl=true \
+      #-c ssl_cert_file=postgres.crt\
+      #-c ssl_key_file=postgres.key\
+      #-c ssl_ciphers=ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-CHACHA20-POLY1305\
+      #-c ssl_prefer_server_ciphers=true\
+      #-c ssl_min_protocol_version=TLSv1.2
+
+$(PROJECT_DIRECTORY)/target/postgres:
+	mkdir -p $(PROJECT_DIRECTORY)/target/postgres
+
+# Creates a self-signed SSL certificate for localhost
+$(PROJECT_DIRECTORY)/target/postgres/postgres.crt: $(PROJECT_DIRECTORY)/target/postgres
+	openssl req -x509 -days $(EXCHANGE_TRUST_DUR) -out $(PROJECT_DIRECTORY)/target/postgres/postgres.crt -keyout $(PROJECT_DIRECTORY)/target/postgres/postgres.key \
+    -newkey rsa:4096 -nodes -sha512 \
+    -subj '/CN=localhost' -extensions EXT -config <( \
+    printf "[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltName=DNS:localhost\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth")
+	sudo chown 999:999 $(PROJECT_DIRECTORY)/target/postgres/postgres.crt $(PROJECT_DIRECTORY)/target/postgres/postgres.key
+
+.PHONY: truststore-postgres
+truststore-postgres: $(PROJECT_DIRECTORY)/target/postgres/postgres.crt
+
 .PHONY: docker-run-dev-db-postgres
-docker-run-dev-db-postgres: docker-network
+docker-run-dev-db-postgres: docker-network truststore-postgres
 	docker run \
       -d \
       -e POSTGRES_HOST_AUTH_METHOD=trust \
       -e POSTGRES_DB=$(POSTGRES_DB_NAME) \
       -e POSTGRES_USER=$(POSTGRES_DB_USER) \
+      -v $(PROJECT_DIRECTORY)/target/postgres/postgres.crt:/postgres.crt:ro \
+      -v $(PROJECT_DIRECTORY)/target/postgres/postgres.key:/postgres.key:ro \
       --network $(DOCKER_NETWORK) \
       --name $(POSTGRES_CONTAINER_NAME) \
-      postgres
+      postgres \
+      -c ssl=true\
+      -c ssl_cert_file=/postgres.crt\
+      -c ssl_key_file=/postgres.key\
+      -c ssl_ciphers=ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384\
+      -c ssl_prefer_server_ciphers=true\
+      -c ssl_min_protocol_version=TLSv1.2
 
 $(EXCHANGE_CONFIG_DIR):
 	mkdir -p $(EXCHANGE_CONFIG_DIR)
@@ -262,6 +293,7 @@ docker-clean:
 	docker rm -f $(DOCKER_NAME) 2> /dev/null || :
 	docker rm -f $(POSTGRES_CONTAINER_NAME) 2> /dev/null || :
 	docker network remove $(DOCKER_NETWORK) 2> /dev/null || :
+	sudo rm -fr ./target/postgres
 
 .PHONY: docker-cleaner
 docker-cleaner: docker-clean

@@ -14,6 +14,8 @@ import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 import com.horizon.exchangeapi.tables._
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization.read
 import slick.jdbc.PostgresProfile.api._
 
 import scala.util.{Failure, Success}
@@ -28,7 +30,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
 
-  def catalogRoutes: Route = catalogGetServicesRoute ~ catalogGetPatternsRoute ~ catalogGetServicesAll ~ catalogGetPatternsAll
+  def catalogRoutes: Route = catalogGetNodes ~ catalogGetServicesRoute ~ catalogGetPatternsRoute ~ catalogGetServicesAll ~ catalogGetPatternsAll
 
   // ====== GET /catalog/services ================================
   @GET
@@ -249,6 +251,292 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
         })
       }) // end of complete
     } // end of exchAuth
+  }
+  
+  // ====== GET /catalog/{orgid}/nodes ===================================
+  @GET
+  @Path("{orgid}/nodes")
+  @Operation(description = "Returns all nodes with node status and errors",
+             summary = "Returns all nodes (edge devices) with node status and errors. Can be run by any user or agbot.",
+             parameters =
+               Array(new Parameter(description = "Filter results to only include nodes with this architecture (can include % for wildcard - the URL encoding for % is %25)",
+                                   in = ParameterIn.QUERY,
+                                   name = "arch",
+                                   required = false),
+                     new Parameter(description = "Filter results to only include nodes with this id (can include % for wildcard - the URL encoding for % is %25)",
+                                   in = ParameterIn.QUERY,
+                                   name = "id",
+                                   required = false),
+                     new Parameter(description = "Filter results to only include nodes with this name (can include % for wildcard - the URL encoding for % is %25)",
+                                   in = ParameterIn.QUERY,
+                                   name = "name",
+                                   required = false),
+                     new Parameter(description = "Filter results to only include nodes with this type ('device' or 'cluster')",
+                                   in = ParameterIn.QUERY,
+                                   name = "type",
+                                   required = false),
+                     new Parameter(description = "Organization id",
+                                   in = ParameterIn.PATH,
+                                   name = "orgid",
+                                   required = true),
+                     new Parameter(description = "Filter results to only include nodes with this owner (can include % for wildcard - the URL encoding for % is %25)",
+                                   in = ParameterIn.QUERY,
+                                   name = "owner",
+                                   required = false)),
+             responses = Array(
+               new responses.ApiResponse(description = "response body", responseCode = "200",
+                 content = Array(
+                   new Content(
+                     examples = Array(
+                       new ExampleObject(
+                         value ="""{
+  "nodes": {
+    "orgid/nodeid": {
+      "token": "string",
+      "name": "string",
+      "owner": "string",
+      "nodeType": "device",
+      "pattern": "",
+      "registeredServices": [
+        {
+          "url": "string",
+          "numAgreements": 0,
+          "configState": "active",
+          "policy": "",
+          "properties": []
+        },
+        {
+          "url": "string",
+          "numAgreements": 0,
+          "configState": "active",
+          "policy": "",
+          "properties": []
+        },
+        {
+          "url": "string",
+          "numAgreements": 0,
+          "configState": "active",
+          "policy": "",
+          "properties": []
+        }
+      ],
+      "userInput": [
+        {
+          "serviceOrgid": "string",
+          "serviceUrl": "string",
+          "serviceArch": "string",
+          "serviceVersionRange": "string",
+          "inputs": [
+            {
+              "name": "var1",
+              "value": "someString"
+            },
+            {
+              "name": "var2",
+              "value": 5
+            },
+            {
+              "name": "var3",
+              "value": 22.2
+            }
+          ]
+        }
+      ],
+      "msgEndPoint": "",
+      "softwareVersions": {},
+      "lastHeartbeat": "string",
+      "publicKey": "string",
+      "arch": "string",
+      "heartbeatIntervals": {
+        "minInterval": 0,
+        "maxInterval": 0,
+        "intervalAdjustment": 0
+      },
+      "lastUpdated": "string"
+    },
+      ...
+  },
+  "lastIndex": 0
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetNodesResponse])
+          )
+        )),
+      new responses.ApiResponse(description = "invalid credentials", responseCode = "401"),
+      new responses.ApiResponse(description = "access denied", responseCode = "403"),
+      new responses.ApiResponse(description = "not found", responseCode = "404")))
+  def catalogGetNodes: Route =
+    (path("catalog" /  Segment / "nodes") & get & parameter(('arch.?, 'id.?, 'name.?, 'type.?, 'owner.?))) {
+      (orgid: String, arch: Option[String], id: Option[String], name: Option[String], nodeType: Option[String], owner: Option[String]) =>
+        exchAuth(TNode(OrgAndId(orgid,"#").toString), Access.READ) {
+          ident =>
+            validateWithMsg(GetNodesUtils.getNodesProblem(nodeType)) {
+              complete({
+                implicit val jsonFormats: Formats = DefaultFormats
+                val ownerFilter: Option[String] =
+                  if(ident.isAdmin || ident.role.equals(AuthRoles.Agbot))
+                    owner
+                  else
+                    Some(ident.identityString)
+                
+                case class Node(arch: String,
+                                connectivity: Option[Map[String, Boolean]],
+                                errors: Option[List[String]],
+                                heartbeatIntervals: NodeHeartbeatIntervals,
+                                id: String,
+                                lastHeartbeat: Option[String] = None,
+                                lastUpdatedNode: String,
+                                lastUpdatedNodeError: Option[String],
+                                lastUpdatedNodeStatus: Option[String],
+                                msgEndPoint: String,
+                                name: String,
+                                nodeType: String,
+                                owner: String,
+                                pattern: String,
+                                publicKey: String,
+                                token: String,
+                                services: Option[List[OneService]],
+                                softwareVersions: Map[String, String],
+                                registeredServices: Option[List[RegService]],
+                                runningServices: Option[String],
+                                userInput: Option[List[OneUserInputService]])
+                
+                logger.debug("ORGID: " + orgid)
+                logger.debug("ARCH: " + arch)
+                logger.debug("ID: " + id)
+                logger.debug("NAME: " + name)
+                logger.debug("NODETYPE: " + nodeType)
+                logger.debug("OWNER: " + owner)
+      
+                val getNodes =
+                  for {
+                    nodes ← NodesTQ.rows
+                                   .filterOpt(arch)((node, arch) ⇒ node.arch like arch)
+                                   .filterOpt(id)((node, id) ⇒ node.id like id)
+                                   .filterOpt(name)((node, name) ⇒ node.name like name)
+                                   /*.filterOpt(nodeType)(
+                                     (node, nodeType) ⇒
+                                       node.nodeType.replace("", "device") === nodeType.toLowerCase)*/
+                                   .filter(_.orgid === orgid)
+                                   .filterOpt(ownerFilter)((node, ownerFilter) ⇒ node.owner like ownerFilter)
+                                   .joinLeft(NodeErrorTQ.rows/*.filterOpt(id)((nodeErrors, id) ⇒ nodeErrors.nodeId like id)*/)
+                                     .on(_.id === _.nodeId)
+                                   .joinLeft(NodeStatusTQ.rows/*.filterOpt(id)((nodeErrors, id) ⇒ nodeErrors.nodeId like id)*/)
+                                     .on(_._1.id === _.nodeId)
+                                   .sortBy(_._1._1.id.asc)
+                                   .map(
+                                     node ⇒
+                                       (node._1._1.arch,
+                                        node._1._1.id,
+                                        node._1._1.heartbeatIntervals,
+                                        node._1._1.lastHeartbeat,
+                                        node._1._1.lastUpdated,
+                                        node._1._1.msgEndPoint,
+                                        node._1._1.name,
+                                        node._1._1.nodeType.replace("", "device"),
+    //                                    node._1._1.orgid,
+                                        node._1._1.owner,
+                                        node._1._1.pattern,
+                                        node._1._1.publicKey,
+                                        node._1._1.regServices,
+                                        node._1._1.softwareVersions,
+                                        (if(ident.isSuperUser)
+                                          node._1._1.id.substring(0,0)
+                                         else
+                                          node._1._1.token),
+                                        node._1._1.userInput,
+                                        node._1._2,
+                                        node._2))
+                                   .result
+                                   .map(
+                                     results ⇒
+                                       results.map(
+                                         node ⇒
+                                           Node(arch = node._1,
+                                                connectivity =
+                                                  if(node._17.nonEmpty &&
+                                                     node._17.get.connectivity != "")
+                                                    Some(read[Map[String, Boolean]](node._17.get.connectivity))
+                                                  else
+                                                    None,//Map[String, Boolean](),
+                                                errors =
+                                                  if(node._16.nonEmpty &&
+                                                     node._16.get.errors != "")
+                                                    Some(read[List[String]](node._16.get.errors))
+                                                  else
+                                                    None,//List[String](),
+                                                id = node._2,
+                                                heartbeatIntervals =
+                                                  if(node._3 != "")
+                                                    read[NodeHeartbeatIntervals](node._3)
+                                                  else
+                                                    NodeHeartbeatIntervals(0, 0, 0),
+                                                lastHeartbeat = node._4,
+                                                lastUpdatedNode = node._5,
+                                                lastUpdatedNodeError =
+                                                  if(node._16.nonEmpty)
+                                                    Some(node._16.get.lastUpdated)
+                                                  else
+                                                    None,
+                                                lastUpdatedNodeStatus =
+                                                  if(node._17.nonEmpty)
+                                                    Some(node._17.get.lastUpdated)
+                                                  else
+                                                    None,
+                                                msgEndPoint = node._6,
+                                                name = node._7,
+                                                nodeType = node._8,
+                                                owner = node._9,
+                                                pattern = node._10,
+                                                publicKey = node._11,
+                                                registeredServices =
+                                                  if(node._12 != "")
+                                                    Some(read[List[RegService]](node._12).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties)))
+                                                  else
+                                                    None,//List[RegService]()),
+                                                runningServices =
+                                                  if(node._17.nonEmpty)
+                                                    Some(node._17.get.runningServices)
+                                                  else
+                                                    None,
+                                                services =
+                                                  if(node._17.nonEmpty &&
+                                                     node._17.get.services != "")
+                                                    Some(read[List[OneService]](node._17.get.services))
+                                                  else
+                                                    None,//List[OneService](),
+                                                softwareVersions =
+                                                  if(node._13 != "")
+                                                    read[Map[String, String]](node._13)
+                                                  else
+                                                    Map[String, String](),
+                                                token =
+                                                  if(node._14 == "")
+                                                    StrConstants.hiddenPw
+                                                  else
+                                                    node._14,
+                                                userInput =
+                                                  if(node._15 != "")
+                                                    Some(read[List[OneUserInputService]](node._15))
+                                                  else
+                                                    None)).toList)
+                    
+                  } yield(nodes)
+              
+                db.run(getNodes.asTry).map({
+                  case Success(nodes) ⇒
+                    if(nodes.nonEmpty)
+                      (HttpCode.OK, case class(nodes: List[Node]))
+                    else
+                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                  case Failure(t) ⇒
+                    (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
+                })
+              }) // end of complete
+            }
+        } // end of exchAuth
   }
 
   // ====== GET /catalog/{orgid}/services ================================

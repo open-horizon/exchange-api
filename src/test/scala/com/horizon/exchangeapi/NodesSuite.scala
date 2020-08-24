@@ -267,7 +267,7 @@ class NodesSuite extends AnyFunSuite {
     assert(true)
   }
 
-  test("POST /orgs/"+orgid2+"/users/"+user+" - normal") {
+  test("POST /orgs/"+orgid2+"/users/"+user+" - normal") {                //val compositeId = OrgAndId(orgid,id).toString
     val input = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
     val response = Http(URL2+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -3037,7 +3037,7 @@ class NodesSuite extends AnyFunSuite {
 
   //~~~~~ Break down ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  test("Cleanup - DELETE everything") {
+  /*test("Cleanup - DELETE everything") {
     Http(urlRoot + "/v1/orgs/IBM/services/" + ibmService + "_" + svcversion2 + "_" + svcarch2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     
     Http(urlRoot + "/v1/orgs/IBM/changes/cleanup").postData(write(DeleteIBMChangesRequest(List(ibmService + "_" + svcversion2 + "_" + svcarch2)))).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -3045,5 +3045,5 @@ class NodesSuite extends AnyFunSuite {
     deleteAllOrgs()
     
     assert(true)
-  }
+  }*/
 }

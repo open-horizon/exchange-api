@@ -928,7 +928,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                   else if (currentOffset.isDefined &&
                            currentSession.isDefined &&
                            reqBody.session.isDefined &&
-                           currentSession.equals(reqBody.session))
+                           currentSession.get.equals(reqBody.session.get))
                     currentOffset
                   else
                     None
@@ -936,7 +936,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                   desynchronization: Option[Boolean] =
                     if (currentSession.isDefined &&
                         reqBody.session.isDefined &&
-                        !currentSession.equals(reqBody.session))
+                        !currentSession.get.equals(reqBody.session.get))
                       Some(true)
                     else
                       None
@@ -991,7 +991,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                   isOffsetUpdated: Boolean =
                    if (desynchronization.getOrElse(false) ||
                        updateOffset.isEmpty ||
-                       (currentOffset.isDefined && currentOffset.equals(updateOffset)))
+                       (currentOffset.isDefined && currentOffset.get.equals(updateOffset.get)))
                       false
                     else
                       true

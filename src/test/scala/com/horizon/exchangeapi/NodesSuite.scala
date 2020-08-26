@@ -3037,7 +3037,7 @@ class NodesSuite extends AnyFunSuite {
 
   //~~~~~ Break down ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  /*test("Cleanup - DELETE everything") {
+  test("Cleanup - DELETE everything") {
     Http(urlRoot + "/v1/orgs/IBM/services/" + ibmService + "_" + svcversion2 + "_" + svcarch2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     
     Http(urlRoot + "/v1/orgs/IBM/changes/cleanup").postData(write(DeleteIBMChangesRequest(List(ibmService + "_" + svcversion2 + "_" + svcarch2)))).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -3045,5 +3045,5 @@ class NodesSuite extends AnyFunSuite {
     deleteAllOrgs()
     
     assert(true)
-  }*/
+  }
 }

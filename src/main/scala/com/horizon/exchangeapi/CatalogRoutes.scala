@@ -10,7 +10,7 @@ import de.heikoseeberger.akkahttpjackson._
 
 import scala.concurrent.ExecutionContext
 import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
+import io.swagger.v3.oas.annotations.media.{ArraySchema, Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 import com.horizon.exchangeapi.tables._
@@ -19,6 +19,29 @@ import org.json4s.jackson.Serialization.read
 import slick.jdbc.PostgresProfile.api._
 
 import scala.util.{Failure, Success}
+
+case class NodeCatalog(arch: Option[String] = None,
+                       connectivity: Option[Map[String, Boolean]] = None,
+                       errors: Option[List[Any]] = None,
+                       heartbeatIntervals: Option[NodeHeartbeatIntervals] = None,
+                       id: String = "",
+                       lastHeartbeat: Option[String] = None,
+                       lastUpdatedNode: String = "",
+                       lastUpdatedNodeError: Option[String] = None,
+                       lastUpdatedNodeStatus: Option[String] = None,
+                       msgEndPoint: Option[String] = None,
+                       name: Option[String] = None,
+                       nodeType: String = "",
+                       owner: String = "",
+                       orgid: String = "",
+                       pattern: Option[String] = None,
+                       publicKey: Option[String] = None,
+                       registeredServices: Option[List[RegService]] = None,
+                       runningServices: Option[String] = None,
+                       services: Option[List[OneService]] = None,
+                       softwareVersions: Option[Map[String, String]] = None,
+                       token: String = StrConstants.hiddenPw,
+                       userInput: Option[List[OneUserInputService]] = None)
 
 // Provides routes for browsing the services and patterns in the IBM catalog
 @Path("/v1/catalog")
@@ -289,79 +312,103 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
                    new Content(
                      examples = Array(
                        new ExampleObject(
-                         value ="""{
-  "nodes": {
-    "orgid/nodeid": {
-      "token": "string",
-      "name": "string",
-      "owner": "string",
-      "nodeType": "device",
-      "pattern": "",
-      "registeredServices": [
-        {
-          "url": "string",
-          "numAgreements": 0,
-          "configState": "active",
-          "policy": "",
-          "properties": []
-        },
-        {
-          "url": "string",
-          "numAgreements": 0,
-          "configState": "active",
-          "policy": "",
-          "properties": []
-        },
-        {
-          "url": "string",
-          "numAgreements": 0,
-          "configState": "active",
-          "policy": "",
-          "properties": []
-        }
-      ],
-      "userInput": [
-        {
-          "serviceOrgid": "string",
-          "serviceUrl": "string",
-          "serviceArch": "string",
-          "serviceVersionRange": "string",
-          "inputs": [
-            {
-              "name": "var1",
-              "value": "someString"
-            },
-            {
-              "name": "var2",
-              "value": 5
-            },
-            {
-              "name": "var3",
-              "value": 22.2
-            }
-          ]
-        }
-      ],
-      "msgEndPoint": "",
-      "softwareVersions": {},
-      "lastHeartbeat": "string",
-      "publicKey": "string",
-      "arch": "string",
-      "heartbeatIntervals": {
-        "minInterval": 0,
-        "maxInterval": 0,
-        "intervalAdjustment": 0
-      },
-      "lastUpdated": "string"
+                         value = """[
+  {
+    "arch": "string",
+    "connectivity": {
+      "string": boolean,
+      "string": boolean
     },
-      ...
-  },
-  "lastIndex": 0
-}"""
+    "errors": [
+      {
+        "event_code": "string",
+        "hidden": boolean,
+        "message": "string",
+        "record_id": "string"
+      }
+    ],
+    "heartbeatIntervals": {
+      "intervalAdjustment": 0,
+      "minInterval": 0,
+      "maxInterval": 0
+    },
+    "id": "string",
+    "lastHeartbeat": "string",
+    "lastUpdatedNode": "string",
+    "lastUpdatedNodeError": "string",
+    "lastUpdatedNodeStatus": "string",
+    "msgEndPoint": "",
+    "name": "string",
+    "nodeType": "device",
+    "owner": "string",
+    "orgid": "string",
+    "pattern": "",
+    "publicKey": "string",
+    "registeredServices": [
+      {
+        "configState": "active",
+        "numAgreements": 0,
+        "policy": "",
+        "properties": [],
+        "url": "string"
+      },
+      {
+        "configState": "active",
+        "numAgreements": 0,
+        "policy": "",
+        "properties": [],
+        "url": "string"
+      },
+      {
+        "configState": "active",
+        "numAgreements": 0,
+        "policy": "",
+        "properties": [],
+        "url": "string",
+      }
+    ],
+    "runningServices": "|orgid/serviceid|",
+    "services": [
+      {
+        "agreementId": "string",
+        "arch": "string",
+        "containerStatus": [],
+        "operatorStatus": {},
+        "orgid": "string",
+        "serviceUrl": "string",
+        "version": "string"
+      }
+    ],
+    "softwareVersions": {},
+    "token": "string",
+    "userInput": [
+      {
+        "inputs": [
+          {
+            "name": "var1",
+            "value": "someString"
+          },
+          {
+            "name": "var2",
+            "value": 5
+          },
+          {
+            "name": "var3",
+            "value": 22.2
+          }
+        ],
+        "serviceArch": "string",
+        "serviceOrgid": "string",
+        "serviceUrl": "string",
+        "serviceVersionRange": "string"
+      }
+    ],
+  }
+]"""
               )
             ),
             mediaType = "application/json",
-            schema = new Schema(implementation = classOf[GetNodesResponse])
+            array = new ArraySchema(schema = new Schema(implementation = classOf[NodeCatalog]))
           )
         )),
       new responses.ApiResponse(description = "invalid credentials", responseCode = "401"),
@@ -380,35 +427,6 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
                     owner
                   else
                     Some(ident.identityString)
-                
-                case class Node(arch: String,
-                                connectivity: Option[Map[String, Boolean]],
-                                errors: Option[List[String]],
-                                heartbeatIntervals: NodeHeartbeatIntervals,
-                                id: String,
-                                lastHeartbeat: Option[String] = None,
-                                lastUpdatedNode: String,
-                                lastUpdatedNodeError: Option[String],
-                                lastUpdatedNodeStatus: Option[String],
-                                msgEndPoint: String,
-                                name: String,
-                                nodeType: String,
-                                owner: String,
-                                pattern: String,
-                                publicKey: String,
-                                token: String,
-                                services: Option[List[OneService]],
-                                softwareVersions: Map[String, String],
-                                registeredServices: Option[List[RegService]],
-                                runningServices: Option[String],
-                                userInput: Option[List[OneUserInputService]])
-                
-                logger.debug("ORGID: " + orgid)
-                logger.debug("ARCH: " + arch)
-                logger.debug("ID: " + id)
-                logger.debug("NAME: " + name)
-                logger.debug("NODETYPE: " + nodeType)
-                logger.debug("OWNER: " + owner)
       
                 val getNodes =
                   for {
@@ -416,14 +434,15 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
                                    .filterOpt(arch)((node, arch) ⇒ node.arch like arch)
                                    .filterOpt(id)((node, id) ⇒ node.id like id)
                                    .filterOpt(name)((node, name) ⇒ node.name like name)
-                                   /*.filterOpt(nodeType)(
-                                     (node, nodeType) ⇒
-                                       node.nodeType.replace("", "device") === nodeType.toLowerCase)*/
+                                   .filterOpt(nodeType)(
+                                     (node, nodeType) ⇒ {
+                                       (node.nodeType === nodeType.toLowerCase ||
+                                        node.nodeType === nodeType.toLowerCase.replace("device", ""))})
                                    .filter(_.orgid === orgid)
                                    .filterOpt(ownerFilter)((node, ownerFilter) ⇒ node.owner like ownerFilter)
-                                   .joinLeft(NodeErrorTQ.rows/*.filterOpt(id)((nodeErrors, id) ⇒ nodeErrors.nodeId like id)*/)
+                                   .joinLeft(NodeErrorTQ.rows.filterOpt(id)((nodeErrors, id) ⇒ nodeErrors.nodeId like id))
                                      .on(_.id === _.nodeId)
-                                   .joinLeft(NodeStatusTQ.rows/*.filterOpt(id)((nodeErrors, id) ⇒ nodeErrors.nodeId like id)*/)
+                                   .joinLeft(NodeStatusTQ.rows.filterOpt(id)((nodeStatuses, id) ⇒ nodeStatuses.nodeId like id))
                                      .on(_._1.id === _.nodeId)
                                    .sortBy(_._1._1.id.asc)
                                    .map(
@@ -435,8 +454,8 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
                                         node._1._1.lastUpdated,
                                         node._1._1.msgEndPoint,
                                         node._1._1.name,
-                                        node._1._1.nodeType.replace("", "device"),
-    //                                    node._1._1.orgid,
+                                        node._1._1.nodeType,
+                                        node._1._1.orgid,
                                         node._1._1.owner,
                                         node._1._1.pattern,
                                         node._1._1.publicKey,
@@ -454,81 +473,107 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
                                      results ⇒
                                        results.map(
                                          node ⇒
-                                           Node(arch = node._1,
+                                           NodeCatalog(arch =
+                                                  if(node._1.isEmpty)
+                                                    None
+                                                  else
+                                                    Some(node._1),
                                                 connectivity =
-                                                  if(node._17.nonEmpty &&
-                                                     node._17.get.connectivity != "")
-                                                    Some(read[Map[String, Boolean]](node._17.get.connectivity))
+                                                  if(node._18.isEmpty ||
+                                                     node._18.get.connectivity.isEmpty)
+                                                    None
                                                   else
-                                                    None,//Map[String, Boolean](),
+                                                    Some(read[Map[String, Boolean]](node._18.get.connectivity)),
                                                 errors =
-                                                  if(node._16.nonEmpty &&
-                                                     node._16.get.errors != "")
-                                                    Some(read[List[String]](node._16.get.errors))
+                                                  if(node._17.isEmpty ||
+                                                     node._17.get.errors.isEmpty)
+                                                    None
                                                   else
-                                                    None,//List[String](),
+                                                    Some(read[List[Any]](node._17.get.errors)),
                                                 id = node._2,
                                                 heartbeatIntervals =
-                                                  if(node._3 != "")
-                                                    read[NodeHeartbeatIntervals](node._3)
+                                                  if(node._3.isEmpty)
+                                                    Some(NodeHeartbeatIntervals(0, 0, 0))
                                                   else
-                                                    NodeHeartbeatIntervals(0, 0, 0),
+                                                    Some(read[NodeHeartbeatIntervals](node._3)),
                                                 lastHeartbeat = node._4,
                                                 lastUpdatedNode = node._5,
                                                 lastUpdatedNodeError =
-                                                  if(node._16.nonEmpty)
-                                                    Some(node._16.get.lastUpdated)
-                                                  else
-                                                    None,
-                                                lastUpdatedNodeStatus =
-                                                  if(node._17.nonEmpty)
+                                                  if(node._17.isDefined)
                                                     Some(node._17.get.lastUpdated)
                                                   else
                                                     None,
-                                                msgEndPoint = node._6,
-                                                name = node._7,
-                                                nodeType = node._8,
-                                                owner = node._9,
-                                                pattern = node._10,
-                                                publicKey = node._11,
-                                                registeredServices =
-                                                  if(node._12 != "")
-                                                    Some(read[List[RegService]](node._12).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties)))
-                                                  else
-                                                    None,//List[RegService]()),
-                                                runningServices =
-                                                  if(node._17.nonEmpty)
-                                                    Some(node._17.get.runningServices)
+                                                lastUpdatedNodeStatus =
+                                                  if(node._18.isDefined)
+                                                    Some(node._18.get.lastUpdated)
                                                   else
                                                     None,
+                                                msgEndPoint =
+                                                  if(node._6.isEmpty)
+                                                    None
+                                                  else
+                                                    Some(node._6),
+                                                name =
+                                                  if(node._7.isEmpty)
+                                                    None
+                                                  else
+                                                    Some(node._7),
+                                                nodeType =
+                                                  if(node._8.isEmpty)
+                                                    "device"
+                                                  else
+                                                    node._8,
+                                                orgid = node._9,
+                                                owner = node._10,
+                                                pattern =
+                                                  if(node._11.isEmpty)
+                                                    None
+                                                  else
+                                                    Some(node._11),
+                                                publicKey =
+                                                  if(node._12.isEmpty)
+                                                    None
+                                                  else
+                                                    Some(node._12),
+                                                registeredServices =
+                                                  if(node._13.isEmpty)
+                                                    None
+                                                  else
+                                                    Some(read[List[RegService]](node._13).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))),
+                                                runningServices =
+                                                  if(node._18.isEmpty ||
+                                                     node._18.get.services.isEmpty)
+                                                    None
+                                                  else
+                                                    Some(node._18.get.runningServices),
                                                 services =
-                                                  if(node._17.nonEmpty &&
-                                                     node._17.get.services != "")
-                                                    Some(read[List[OneService]](node._17.get.services))
+                                                  if(node._18.isEmpty ||
+                                                     node._18.get.services.isEmpty)
+                                                    None
                                                   else
-                                                    None,//List[OneService](),
+                                                    Some(read[List[OneService]](node._18.get.services)),
                                                 softwareVersions =
-                                                  if(node._13 != "")
-                                                    read[Map[String, String]](node._13)
+                                                  if(node._14.isEmpty)
+                                                    None
                                                   else
-                                                    Map[String, String](),
+                                                    Some(read[Map[String, String]](node._14)),
                                                 token =
-                                                  if(node._14 == "")
+                                                  if(node._15.isEmpty)
                                                     StrConstants.hiddenPw
                                                   else
-                                                    node._14,
+                                                    node._15,
                                                 userInput =
-                                                  if(node._15 != "")
-                                                    Some(read[List[OneUserInputService]](node._15))
+                                                  if(node._16.isEmpty)
+                                                    None
                                                   else
-                                                    None)).toList)
+                                                    Some(read[List[OneUserInputService]](node._16)))).toList)
                     
                   } yield(nodes)
               
                 db.run(getNodes.asTry).map({
                   case Success(nodes) ⇒
                     if(nodes.nonEmpty)
-                      (HttpCode.OK, case class(nodes: List[Node]))
+                      (HttpCode.OK, nodes)
                     else
                       (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
                   case Failure(t) ⇒

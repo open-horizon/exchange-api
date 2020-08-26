@@ -13,7 +13,7 @@ class ExchConfigSuite extends AnyFunSuite {
   test("ExchConfig tests") {
     ExchConfig.load()
     // Note: this test needs to work with the default version of config.json that is in src/main/resources (so that 'make test' in travis works)
-    assert(ExchConfig.getInt("api.limits.maxNodes") === 20000)
+    assert(ExchConfig.getInt("api.limits.maxNodes") === 45000)
     assert(ExchConfig.getInt("api.limits.maxAgreements") === 0)
     assert(ExchConfig.getInt("api.limits.maxMessagesInMailbox") === 0)
     assert(ExchConfig.getString("api.db.driverClass") === "org.postgresql.Driver")

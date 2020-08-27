@@ -16,7 +16,7 @@ import scala.collection.immutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-
+// Allows route to be tested without any other route dependencies.
 class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndAfterEach {
   private val ACCEPT: (String, String) = ("Content-Type", "application/json")
   private val AGBOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestPolicySearchPost/a1" + ":" + "a1tok"))
@@ -28,6 +28,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   
   private val AWAITDURATION: Duration = 15.seconds
   
+  // Resources we minimally and statically need for all test cases.
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id            = "TestPolicySearchPost/a1",
              lastHeartbeat = ApiTime.nowUTC,
@@ -36,7 +37,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
              orgid         = "TestPolicySearchPost",
              owner         = "TestPolicySearchPost/u1",
              publicKey     = "",
-             token         = "$2a$10$2ElhDrDUXcFzvU63Gl3dWeGYsWYTqgaBxkthhhdwwWc2YTP1yB4Ky")
+             token         = "$2a$10$2ElhDrDUXcFzvU63Gl3dWeGYsWYTqgaBxkthhhdwwWc2YTP1yB4Ky") // "TestPolicySearchPost/a1:a1tok"
   private val TESTORGANIZATION: OrgRow =
     OrgRow(heartbeatIntervals = "",
            description        = "",
@@ -89,7 +90,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   
   implicit private val formats: Formats = DefaultFormats.withLong
   
-  
+  // Begin building testing harness.
   override def beforeAll() {
     Await.ready(DBCONNECTION.getDb.run((OrgsTQ.rows += TESTORGANIZATION) andThen
                                        (UsersTQ.rows += TESTUSER) andThen
@@ -97,6 +98,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                                        (ServicesTQ.rows ++= TESTSERVICES)), AWAITDURATION)
   }
   
+  // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.rows.filter(_.orgId startsWith "TestPolicySearchPost").delete andThen
                                        OrgsTQ.rows.filter(_.orgid startsWith "TestPolicySearchPost").delete), AWAITDURATION)
@@ -104,20 +106,24 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
     DBCONNECTION.getDb.close()
   }
   
+  // Isolates test cases.
   override def afterEach(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.dropAllOffsets()), AWAITDURATION)
   }
   
-  
+  // Node Agreements that are dynamically needed, specific to the test case.
   def fixtureNodeAgreements(testCode: Seq[NodeAgreementRow] ⇒ Any, testData: Seq[NodeAgreementRow]): Any = {
+    // Create resources and continue.
     try {
       Await.result(DBCONNECTION.getDb.run(NodeAgreementsTQ.rows ++= testData), AWAITDURATION)
       testCode(testData)
     }
+    // Teardown created resources.
     finally
       Await.result(DBCONNECTION.getDb.run(NodeAgreementsTQ.rows.filter(_.agId inSet testData.map(_.agId)).delete), AWAITDURATION)
   }
   
+  // Nodes that are dynamically needed, specific to the test case.
   def fixtureNodes(testCode: Seq[NodeRow] ⇒ Any, testData: Seq[NodeRow]): Any = {
     try {
       Await.result(DBCONNECTION.getDb.run(NodesTQ.rows ++= testData), AWAITDURATION)
@@ -127,6 +133,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
       Await.result(DBCONNECTION.getDb.run(NodesTQ.rows.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
   }
   
+  // Organizations that are dynamically needed, specific to the test case.
   def fixtureOrganizations(testCode: Seq[OrgRow] ⇒ Any, testData: Seq[OrgRow]): Any = {
     try {
       Await.result(DBCONNECTION.getDb.run(OrgsTQ.rows ++= testData), AWAITDURATION)
@@ -136,6 +143,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
       Await.result(DBCONNECTION.getDb.run(OrgsTQ.rows.filter(_.orgid inSet testData.map(_.orgId)).delete), AWAITDURATION)
   }
   
+  // Offsets/Sessions that are dynamically needed, specific to the test case.
   def fixturePagination(testCode: Seq[SearchOffsetPolicyAttributes] ⇒ Any, testData: Seq[SearchOffsetPolicyAttributes]): Any = {
     try{
       Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.offsets ++= testData), AWAITDURATION)
@@ -145,6 +153,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
       None
   }
   
+  // Policies that are dynamically needed, specific to the test case.
   def fixturePolicies(testCode: Seq[BusinessPolicyRow] ⇒ Any, testData: Seq[BusinessPolicyRow]): Any = {
     try {
       Await.result(DBCONNECTION.getDb.run(BusinessPoliciesTQ.rows ++= testData), AWAITDURATION)
@@ -170,20 +179,21 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   test("POST /orgs/" + "TestPolicySearchPost" + "/business/policies/" + "pol1" + "/search -- No Nodes") {
-    fixturePolicies(_ ⇒ {
-      val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-      info("code: " + response.code)
-      info("body: " + response.body)
-      assert(response.code === HttpCode.NOT_FOUND.intValue)
-  
-      val responseBody: PostBusinessPolicySearchResponse = parse(response.body).extract[PostBusinessPolicySearchResponse]
-      assert(responseBody.nodes.isEmpty)
-      assert(responseBody.offsetUpdated === false)
-  
-      //val offset: Seq[(Option[String], Long)] = Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
-      //assert(offset.nonEmpty)
-      //assert(offset.head._1.isEmpty)
-      //assert(offset.head._2 === 0L)
+    fixturePolicies(
+      _ ⇒ {
+        val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+        info("code: " + response.code)
+        info("body: " + response.body)
+        assert(response.code === HttpCode.NOT_FOUND.intValue)
+    
+        val responseBody: PostBusinessPolicySearchResponse = parse(response.body).extract[PostBusinessPolicySearchResponse]
+        assert(responseBody.nodes.isEmpty)
+        assert(responseBody.offsetUpdated === false)
+    
+        //val offset: Seq[(Option[String], Long)] = Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
+        //assert(offset.nonEmpty)
+        //assert(offset.head._1.isEmpty)
+        //assert(offset.head._2 === 0L)
     }, TESTPOLICIES)
   }
   
@@ -286,21 +296,21 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   test("POST /orgs/" + "TestPolicySearchPost" + "/business/policies/" + "pol1" + "/search -- Node - Matched ALL Service Architectures - *") {
     val TESTNODE: Seq[NodeRow] =
       Seq(NodeRow(id = "TestPolicySearchPost/n1",
-        orgid = "TestPolicySearchPost",
-        token = "",
-        name = "",
-        owner = "TestPolicySearchPost/u1",
-        nodeType = "device",
-        pattern = "",
-        regServices = "[]",
-        userInput = "",
-        msgEndPoint = "",
-        softwareVersions = "",
-        lastHeartbeat = Some(ApiTime.nowUTC),
-        publicKey = "key",
-        arch = "arm",
-        heartbeatIntervals = "",
-        lastUpdated = ApiTime.nowUTC))
+                  orgid = "TestPolicySearchPost",
+                  token = "",
+                  name = "",
+                  owner = "TestPolicySearchPost/u1",
+                  nodeType = "device",
+                  pattern = "",
+                  regServices = "[]",
+                  userInput = "",
+                  msgEndPoint = "",
+                  softwareVersions = "",
+                  lastHeartbeat = Some(ApiTime.nowUTC),
+                  publicKey = "key",
+                  arch = "arm",
+                  heartbeatIntervals = "",
+                  lastUpdated = ApiTime.nowUTC))
     val TESTPOLICY: Seq[BusinessPolicyRow] =
       Seq(BusinessPolicyRow(businessPolicy = "TestPolicySearchPost/pol1",
                             constraints    = """["a == b"]""",
@@ -335,21 +345,21 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   test("POST /orgs/" + "TestPolicySearchPost" + "/business/policies/" + "pol1" + "/search -- Node - Matched ALL Service Architectures - Unspecified Architecture") {
     val TESTNODE: Seq[NodeRow] =
       Seq(NodeRow(id = "TestPolicySearchPost/n1",
-        orgid = "TestPolicySearchPost",
-        token = "",
-        name = "",
-        owner = "TestPolicySearchPost/u1",
-        nodeType = "device",
-        pattern = "",
-        regServices = "[]",
-        userInput = "",
-        msgEndPoint = "",
-        softwareVersions = "",
-        lastHeartbeat = Some(ApiTime.nowUTC),
-        publicKey = "key",
-        arch = "arm",
-        heartbeatIntervals = "",
-        lastUpdated = ApiTime.nowUTC))
+                  orgid = "TestPolicySearchPost",
+                  token = "",
+                  name = "",
+                  owner = "TestPolicySearchPost/u1",
+                  nodeType = "device",
+                  pattern = "",
+                  regServices = "[]",
+                  userInput = "",
+                  msgEndPoint = "",
+                  softwareVersions = "",
+                  lastHeartbeat = Some(ApiTime.nowUTC),
+                  publicKey = "key",
+                  arch = "arm",
+                  heartbeatIntervals = "",
+                  lastUpdated = ApiTime.nowUTC))
     val TESTPOLICY: Seq[BusinessPolicyRow] =
       Seq(BusinessPolicyRow(businessPolicy = "TestPolicySearchPost/pol1",
                             constraints    = """["a == b"]""",
@@ -384,21 +394,21 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   test("POST /orgs/" + "TestPolicySearchPost" + "/business/policies/" + "pol1" + "/search -- Node - No Node Type") {
     val TESTNODE: Seq[NodeRow] =
       Seq(NodeRow(id = "TestPolicySearchPost/n1",
-        orgid = "TestPolicySearchPost",
-        token = "",
-        name = "",
-        owner = "TestPolicySearchPost/u1",
-        nodeType = "",
-        pattern = "",
-        regServices = "[]",
-        userInput = "",
-        msgEndPoint = "",
-        softwareVersions = "",
-        lastHeartbeat = Some(ApiTime.nowUTC),
-        publicKey = "key",
-        arch = "arm",
-        heartbeatIntervals = "",
-        lastUpdated = ApiTime.nowUTC))
+                  orgid = "TestPolicySearchPost",
+                  token = "",
+                  name = "",
+                  owner = "TestPolicySearchPost/u1",
+                  nodeType = "",
+                  pattern = "",
+                  regServices = "[]",
+                  userInput = "",
+                  msgEndPoint = "",
+                  softwareVersions = "",
+                  lastHeartbeat = Some(ApiTime.nowUTC),
+                  publicKey = "key",
+                  arch = "arm",
+                  heartbeatIntervals = "",
+                  lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
       _ ⇒ {
@@ -557,29 +567,29 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   test("POST /orgs/" + "TestPolicySearchPost" + "/business/policies/" + "pol1" + "/search -- Node - Matched Policy Organization - With Request") {
     val TESTNODE: Seq[NodeRow] =
       Seq(NodeRow(id = "TestPolicySearchPost2/n1",
-        orgid = "TestPolicySearchPost2",
-        token = "",
-        name = "",
-        owner = "TestPolicySearchPost/u1",
-        nodeType = "device",
-        pattern = "",
-        regServices = "[]",
-        userInput = "",
-        msgEndPoint = "",
-        softwareVersions = "",
-        lastHeartbeat = Some(ApiTime.nowUTC),
-        publicKey = "key",
-        arch = "arm",
-        heartbeatIntervals = "",
-        lastUpdated = ApiTime.nowUTC))
+                  orgid = "TestPolicySearchPost2",
+                  token = "",
+                  name = "",
+                  owner = "TestPolicySearchPost/u1",
+                  nodeType = "device",
+                  pattern = "",
+                  regServices = "[]",
+                  userInput = "",
+                  msgEndPoint = "",
+                  softwareVersions = "",
+                  lastHeartbeat = Some(ApiTime.nowUTC),
+                  publicKey = "key",
+                  arch = "arm",
+                  heartbeatIntervals = "",
+                  lastUpdated = ApiTime.nowUTC))
     val TESTORGANIZATION: Seq[OrgRow] =
       Seq(OrgRow(description = "",
-        heartbeatIntervals = "",
-        label = "",
-        lastUpdated = "",
-        orgId = "TestPolicySearchPost2",
-        orgType = "",
-        tags = None))
+                 heartbeatIntervals = "",
+                 label = "",
+                 lastUpdated = "",
+                 orgId = "TestPolicySearchPost2",
+                 orgType = "",
+                 tags = None))
     
     fixtureOrganizations(
       _ ⇒ {
@@ -713,30 +723,30 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   test("POST /orgs/" + "TestPolicySearchPost" + "/business/policies/" + "pol1" + "/search -- Node Agreement - No Matched Node - Mismatched Service URL") {
     val TESTNODE: Seq[NodeRow] =
       Seq(NodeRow(id = "TestPolicySearchPost/n1",
-        orgid = "TestPolicySearchPost",
-        token = "",
-        name = "",
-        owner = "TestPolicySearchPost/u1",
-        nodeType = "device",
-        pattern = "",
-        regServices = "[]",
-        userInput = "",
-        msgEndPoint = "",
-        softwareVersions = "",
-        lastHeartbeat = Some(ApiTime.nowUTC),
-        publicKey = "key",
-        arch = "arm",
-        heartbeatIntervals = "",
-        lastUpdated = ApiTime.nowUTC))
+                  orgid = "TestPolicySearchPost",
+                  token = "",
+                  name = "",
+                  owner = "TestPolicySearchPost/u1",
+                  nodeType = "device",
+                  pattern = "",
+                  regServices = "[]",
+                  userInput = "",
+                  msgEndPoint = "",
+                  softwareVersions = "",
+                  lastHeartbeat = Some(ApiTime.nowUTC),
+                  publicKey = "key",
+                  arch = "arm",
+                  heartbeatIntervals = "",
+                  lastUpdated = ApiTime.nowUTC))
     val TESTNODEAGREEMENT: Seq[NodeAgreementRow] =
       Seq(NodeAgreementRow(agId = "ag1",
-        nodeId = "TestPolicySearchPost/n1",
-        services = "",
-        agrSvcOrgid = "",
-        agrSvcPattern = "",
-        agrSvcUrl = "url",
-        state = "signed",
-        lastUpdated = ApiTime.nowUTC))
+                           nodeId = "TestPolicySearchPost/n1",
+                           services = "",
+                           agrSvcOrgid = "",
+                           agrSvcPattern = "",
+                           agrSvcUrl = "url",
+                           state = "signed",
+                           lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
       _ ⇒ {
@@ -809,30 +819,30 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   test("POST /orgs/" + "TestPolicySearchPost" + "/business/policies/" + "pol1" + "/search -- Node Agreement - No Matched Node - No Agreement State") {
     val TESTNODE: Seq[NodeRow] =
       Seq(NodeRow(id = "TestPolicySearchPost/n1",
-        orgid = "TestPolicySearchPost",
-        token = "",
-        name = "",
-        owner = "TestPolicySearchPost/u1",
-        nodeType = "device",
-        pattern = "",
-        regServices = "[]",
-        userInput = "",
-        msgEndPoint = "",
-        softwareVersions = "",
-        lastHeartbeat = Some(ApiTime.nowUTC),
-        publicKey = "key",
-        arch = "arm",
-        heartbeatIntervals = "",
-        lastUpdated = ApiTime.nowUTC))
+                  orgid = "TestPolicySearchPost",
+                  token = "",
+                  name = "",
+                  owner = "TestPolicySearchPost/u1",
+                  nodeType = "device",
+                  pattern = "",
+                  regServices = "[]",
+                  userInput = "",
+                  msgEndPoint = "",
+                  softwareVersions = "",
+                  lastHeartbeat = Some(ApiTime.nowUTC),
+                  publicKey = "key",
+                  arch = "arm",
+                  heartbeatIntervals = "",
+                  lastUpdated = ApiTime.nowUTC))
     val TESTNODEAGREEMENT: Seq[NodeAgreementRow] =
       Seq(NodeAgreementRow(agId = "ag1",
-        nodeId = "TestPolicySearchPost/n1",
-        services = "",
-        agrSvcOrgid = "",
-        agrSvcPattern = "",
-        agrSvcUrl = "TestPolicySearchPost/svc1",
-        state = "",
-        lastUpdated = ApiTime.nowUTC))
+                           nodeId = "TestPolicySearchPost/n1",
+                           services = "",
+                           agrSvcOrgid = "",
+                           agrSvcPattern = "",
+                           agrSvcUrl = "TestPolicySearchPost/svc1",
+                           state = "",
+                           lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
       _ ⇒ {

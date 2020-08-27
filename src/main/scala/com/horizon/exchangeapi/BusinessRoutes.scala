@@ -891,8 +891,11 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
             if (list.nonEmpty) {
               // Finding the service was successful, form the query for the nodes for the next step
               val service: BService = BusinessPoliciesTQ.getServiceFromString(list.head)    // we should have found only 1 business pol service string, now parse it to get service list
+              
+              // Bypass filter on architecture.
               val optArch: Option[String] =
-                if(service.arch.equals("") || service.arch.equals("*"))
+                if(service.arch.equals("") ||
+                   service.arch.equals("*"))
                   None
                 else
                   Some(service.arch)
@@ -908,6 +911,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               */
               val pagination =
                 for {
+                  // Grab any set offset and session for agbot and policy
                   currentOffsetSession <- SearchOffsetPolicyTQ.getOffsetSession(ident.identityString, compositeId).result.headOption
                   
                   currentOffset: Option[String] =
@@ -922,17 +926,20 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                   else
                     None
                   
+                  // Figure out what our offset is going to be in DB query.
                   offset: Option[String] =
-                  if (currentOffset.isEmpty && 0L < reqBody.changedSince)
+                  if (currentOffset.isEmpty && 0L < reqBody.changedSince) // New workflow for abgot and policy
                     Some(ApiTime.thenUTC(reqBody.changedSince))
                   else if (currentOffset.isDefined &&
                            currentSession.isDefined &&
                            reqBody.session.isDefined &&
-                           currentSession.get.equals(reqBody.session.get))
+                           currentSession.get.equals(reqBody.session.get)) // All other pages.
                     currentOffset
                   else
-                    None
+                    None // No pagination/Agbot Desynchronization
                   
+                  // Culls any desynchronized agbots forcing them onto the same workflow as the rest.
+                  // In the case of catastrophic failure of the entire set of agbots the Exchange will throw Http code 409 - Conflict to all agbots (pending the set forgetting the session)!
                   desynchronization: Option[Boolean] =
                     if (currentSession.isDefined &&
                         reqBody.session.isDefined &&
@@ -941,6 +948,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                     else
                       None
                   
+                  // Result set includes all nodes without agreements as-well-as non-valid agreements.
+                  // Live-lock will occur if the resulting number of nodes with the same lastUpdated is greater than the size of the page between the agbots and the Exchange!
                   nodes = NodesTQ.rows
                                  .filterOpt(optArch)((node, arch) ⇒ node.arch === arch)
                                  .filter(_.lastHeartbeat.isDefined)
@@ -953,41 +962,47 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                                  .joinLeft(NodeAgreementsTQ.rows
                                                            .filter(_.agrSvcUrl === searchSvcUrl)
                                                            .map(agreement => (agreement.agrSvcUrl, agreement.nodeId, agreement.state)))
-                                 .on((node, agreement) ⇒ node._1 === agreement._2)
+                                 .on((node, agreement) ⇒ node._1 === agreement._2) // (node.id === agreements.nodeId)
                                  .filter ({
+                                   // No/non-valid agreements
                                    case (_, agreement) ⇒
-                                     agreement.map(_._2).isEmpty ||
-                                     agreement.map(_._1).getOrElse("") === "" ||
-                                     agreement.map(_._3).getOrElse("") === ""
+                                     agreement.map(_._2).isEmpty ||                        // agreement.nodeId
+                                     agreement.map(_._1).getOrElse("") === "" ||  // agreement.agrSvcUrl
+                                     agreement.map(_._3).getOrElse("") === ""     // agreement.state
                                  })
-                                 .sortBy(r ⇒ (r._1._2.asc, r._1._1.asc, r._2.getOrElse(("", "", ""))._1.asc.nullsFirst))
-                                 .map(r ⇒ (r._1._1, r._1._2, r._1._3, r._1._4))
+                                 .sortBy(r ⇒ (r._1._2.asc, r._1._1.asc, r._2.getOrElse(("", "", ""))._1.asc.nullsFirst)) // (node.lastUpdated ASC, node.id ASC, agreements.agrSvcUrl ASC NULLS FIRST)
+                                 .map(r ⇒ (r._1._1, r._1._2, r._1._3, r._1._4))                                          // (node.id, node.lastUpdated, node.nodeType, node.publicKey)
                   
+                  // If paginating then create page else return everything.
                   nodesWoAgreements ← {
                     if (reqBody.numEntries.isDefined)
                       nodes.take(reqBody.numEntries.getOrElse(0))
                     else
                       nodes}.result.map(List[(String, String, String, String)])
                   
+                  // Decide what the offset is to be for the next call.
                   updateOffset: Option[String] =
-                    if (desynchronization.isDefined)
+                    if (desynchronization.isDefined) // Write back what we currently have.
                       currentOffset
                     else if (reqBody.numEntries.isDefined) {
                       if (nodesWoAgreements.nonEmpty &&
-                          (currentOffsetSession.isEmpty || nodesWoAgreements.size.equals(reqBody.numEntries.get)))
+                          (currentOffset.isEmpty ||
+                           (currentOffset.get < nodesWoAgreements.lastOption.get._2 &&
+                            nodesWoAgreements.size.equals(reqBody.numEntries.get)))) // New workflow/beginning of the next page with a newer lastUpdated as offset.
                         Some(nodesWoAgreements.lastOption.get._2)
                       else if (currentOffset.isDefined &&
                                currentSession.isDefined &&
                                reqBody.session.isDefined &&
                                currentSession.get.equals(reqBody.session.get) &&
-                               nodesWoAgreements.size.equals(reqBody.numEntries.get))
+                               nodesWoAgreements.size.equals(reqBody.numEntries.get)) // Last to be returned record has the same lastUpdated as the current offset.
                         currentOffset
-                      else
+                      else // End of workflow.
                         None
                     }
-                    else
+                    else // No defined workflow.
                       None
-
+                  
+                  // Returned in response body.
                   isOffsetUpdated: Boolean =
                    if (desynchronization.getOrElse(false) ||
                        updateOffset.isEmpty ||
@@ -996,50 +1011,55 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                     else
                       true
                   
+                  // Decide what the session is to be for the next call
                   updateSession: Option[String] =
-                    if (desynchronization.isDefined)
+                    if (desynchronization.isDefined) // Write back what we currently have.
                       currentSession
-                    else if (reqBody.numEntries.isDefined && reqBody.session.isDefined) {
+                    else if (reqBody.numEntries.isDefined &&
+                             reqBody.session.isDefined) {
                       if (currentSession.isEmpty &&
                           nodesWoAgreements.nonEmpty &&
-                          nodesWoAgreements.size.equals(reqBody.numEntries.get))
+                          nodesWoAgreements.size.equals(reqBody.numEntries.get)) // New workflow.
                         reqBody.session
                       else if (currentSession.isDefined &&
                                currentSession.get.equals(reqBody.session.get) &&
-                               nodesWoAgreements.size.equals(reqBody.numEntries.get))
+                               nodesWoAgreements.size.equals(reqBody.numEntries.get)) // Continue workflow.
                         currentSession
-                      else
+                      else // End of workflow.
                         None
                     }
-                    else
+                    else // No defined workflow.
                       None
-  
+                    
+                    // Clear/continue/set/update offset and session for the next call.
                     _ ← SearchOffsetPolicyTQ.setOffsetSession(ident.identityString, updateOffset, compositeId, updateSession)
                 } yield (desynchronization, nodesWoAgreements, isOffsetUpdated)
               
+              // Prevent dirty reads/writes.
               pagination.transactionally.asTry
             }
             else DBIO.failed(new Throwable(ExchMsg.translate("business.policy.not.found", compositeId))).asTry
           })).map({
             case Success(results) =>
-              if(results._2.nonEmpty) {
+              if(results._2.nonEmpty) { // results.nodesWoAgreements.nonEmpty
                 (HttpCode.POST_OK,
                   PostBusinessPolicySearchResponse(
-                    results._2.map(
+                    results._2.map( // results.nodesWoAgreements
                       node =>
                         BusinessPolicyNodeResponse(
-                          node._1,
-                          node._3 match {
-                            case "" => NodeType.DEVICE.toString
-                            case _ => node._3
+                          node._1,                              // node.id
+                          node._3 match {                       // node.nodeType
+                            case "" => NodeType.DEVICE.toString // "" -> "device"
+                            case _ => node._3                   // Passthrough
                           },
-                          node._4)),
-                    results._3))
+                          node._4)),                            // node.publicKey
+                    results._3)) // results.isOffsetUpdated
               }
-              else if (results._1.getOrElse(false))
-                (HttpCode.ALREADY_EXISTS2, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._3))
+              // Throw Http code 409 - Conflict, return no results.
+              else if (results._1.getOrElse(false)) // results.desynchronization
+                (HttpCode.ALREADY_EXISTS2, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._3)) // results.isOffsetUpdated
               else
-                (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._3))
+                (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._3)) // results.isOffsetUpdated
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("invalid.input.message", t.getMessage))
             case Failure(t) =>

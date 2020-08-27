@@ -423,7 +423,9 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
               complete({
                 implicit val jsonFormats: Formats = DefaultFormats
                 val ownerFilter: Option[String] =
-                  if(ident.isAdmin || ident.role.equals(AuthRoles.Agbot))
+                  if(ident.isAdmin ||
+                     ident.isSuperUser ||
+                     ident.role.equals(AuthRoles.Agbot))
                     owner
                   else
                     Some(ident.identityString)
@@ -437,14 +439,16 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
                                    .filterOpt(nodeType)(
                                      (node, nodeType) ⇒ {
                                        (node.nodeType === nodeType.toLowerCase ||
-                                        node.nodeType === nodeType.toLowerCase.replace("device", ""))})
+                                        node.nodeType === nodeType.toLowerCase.replace("device", ""))}) // "" === ""
                                    .filter(_.orgid === orgid)
                                    .filterOpt(ownerFilter)((node, ownerFilter) ⇒ node.owner like ownerFilter)
                                    .joinLeft(NodeErrorTQ.rows.filterOpt(id)((nodeErrors, id) ⇒ nodeErrors.nodeId like id))
                                      .on(_.id === _.nodeId)
                                    .joinLeft(NodeStatusTQ.rows.filterOpt(id)((nodeStatuses, id) ⇒ nodeStatuses.nodeId like id))
-                                     .on(_._1.id === _.nodeId)
-                                   .sortBy(_._1._1.id.asc)
+                                     .on(_._1.id === _.nodeId) // node.id === nodeStatus.nodeid
+                                   .sortBy(_._1._1.id.asc) // node.id ASC
+                                   // ((Nodes, Node Errors), Node Statuses)
+                                   // Flatten the tupled structure, lexically sort columns.
                                    .map(
                                      node ⇒
                                        (node._1._1.arch,
@@ -461,14 +465,16 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
                                         node._1._1.publicKey,
                                         node._1._1.regServices,
                                         node._1._1.softwareVersions,
-                                        (if(ident.isSuperUser)
-                                          node._1._1.id.substring(0,0)
+                                        (if(ident.isAdmin ||
+                                            ident.isSuperUser) // Do not pull nor query the Node's token if (Super)Admin.
+                                          node._1._1.id.substring(0,0) // node.id -> ""
                                          else
                                           node._1._1.token),
                                         node._1._1.userInput,
-                                        node._1._2,
-                                        node._2))
+                                        node._1._2,            // Node Errors (errors, lastUpdated)
+                                        node._2))              // Node Statuses (connectivity, lastUpdated, runningServices, services)
                                    .result
+                                   // Complete type conversion to something more usable.
                                    .map(
                                      results ⇒
                                        results.map(

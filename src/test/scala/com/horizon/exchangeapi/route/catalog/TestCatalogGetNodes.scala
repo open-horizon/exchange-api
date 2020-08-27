@@ -27,7 +27,7 @@ class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
   
   private implicit val formats = DefaultFormats
   
-  
+  // Test data.
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id            = "TestCatalogGetNodes/a1",
              lastHeartbeat = ApiTime.nowUTC,
@@ -36,7 +36,7 @@ class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
              orgid         = "TestCatalogGetNodes",
              owner         = "TestCatalogGetNodes/u1",
              publicKey     = "",
-             token         = "$2a$10$SpL9Rzo1SdteOO/xr9282.g0ZfgxWl57YLJxNWrkdq/nR/FaC8rVG")
+             token         = "$2a$10$SpL9Rzo1SdteOO/xr9282.g0ZfgxWl57YLJxNWrkdq/nR/FaC8rVG") // TestCatalogGetNodes/a2:a1pw
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch = "amd64",
                 id = "TestCatalogGetNodes/n1",
@@ -52,7 +52,7 @@ class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
                 publicKey = "key",
                 regServices = """[{"url":"NodesSuiteTests/bluehorizon.network.sdr","numAgreements":1,"configState":"active","policy":"{json policy for n1 sdr}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"memory","value":"300","propType":"int","op":">="},{"name":"version","value":"1.0.0","propType":"version","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"dataVerification","value":"true","propType":"boolean","op":"="}]},{"url":"NodesSuiteTests/bluehorizon.network.netspeed","numAgreements":1,"configState":"active","policy":"{json policy for n1 netspeed}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"version","value":"1.0.0","propType":"version","op":"in"}]}]""",
                 softwareVersions = """{"horizon":"3.2.1"}""",
-                token = "$2a$10$rFvQd.eGhaWiApRtMjv3F.6wVsfHIYmAww9r.2XozkrzBpMlb3nxO",
+                token = "$2a$10$rFvQd.eGhaWiApRtMjv3F.6wVsfHIYmAww9r.2XozkrzBpMlb3nxO", // TestCatalogGetNodes/n1:n1pw
                 userInput = """[{"serviceOrgid":"NodesSuiteTests","serviceUrl":"bluehorizon.network.sdr","serviceArch":"amd64","serviceVersionRange":"[0.0.0,INFINITY)","inputs":[{"name":"UI_STRING","value":"mystr - updated"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}]"""),
         NodeRow(arch = "x86",
                 id = "TestCatalogGetNodes/n2",
@@ -138,7 +138,7 @@ class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
   private val TESTUSERS: Seq[UserRow] =
     Seq(UserRow(admin       = false,
                 email       = "",
-                hashedPw    = "$2a$10$k5eecUM77Zh0EfbEjZFYJ.qqUIlxgxKh/HIrEaO1kmZHM5VrtYwcS",
+                hashedPw    = "$2a$10$k5eecUM77Zh0EfbEjZFYJ.qqUIlxgxKh/HIrEaO1kmZHM5VrtYwcS", // TestCatalogGetNodes/u1:u1pw
                 lastUpdated = ApiTime.nowUTC,
                 orgid       = "TestCatalogGetNodes",
                 updatedBy   = "",
@@ -158,7 +158,7 @@ class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
                 updatedBy   = "",
                 username    = "TestCatalogGetNodes2/u3"))
   
-  
+  // Build test harness.
   override def beforeAll {
     Await.ready(DBCONNECTION.getDb.run((OrgsTQ.rows ++= TESTORGANIZATIONS) andThen
                                        (UsersTQ.rows ++= TESTUSERS) andThen
@@ -168,6 +168,7 @@ class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
                                        (NodeStatusTQ.rows ++= TESTNODESTATUSES)), AWAITDURATION)
   }
   
+  // Teardown test harness.
   override def afterAll {
     Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.rows.filter(_.orgId startsWith "TestCatalogGetNodes").delete andThen
                                        OrgsTQ.rows.filter(_.orgid startsWith "TestCatalogGetNodes").delete), AWAITDURATION)

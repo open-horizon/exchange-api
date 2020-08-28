@@ -112,6 +112,7 @@ final case class BusinessPolicySearchHashElement(nodeType: String, publicKey: St
 
 final case class BusinessPolicyNodeResponse(id: String, nodeType: String, publicKey: String)
 final case class PostBusinessPolicySearchResponse(nodes: List[BusinessPolicyNodeResponse], offsetUpdated: Boolean = false)
+final case class PolicySearchResponseDesync(agbot: String, offset: Option[String], session: Option[String])
 
 
 
@@ -853,29 +854,32 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     ),
     responses = Array(
       new responses.ApiResponse(
-        responseCode = "201",
+        content = Array(new Content(mediaType = "application/json",
+                                    schema = new Schema(implementation = classOf[PostBusinessPolicySearchResponse]))),
         description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[PostBusinessPolicySearchResponse])))
+        responseCode = "201"
       ),
       new responses.ApiResponse(
-        responseCode = "400",
-        description = "bad request"
+        description = "bad request",
+        responseCode = "400"
       ),
       new responses.ApiResponse(
-        responseCode = "401",
-        description = "invalid credentials"
+        description = "invalid credentials",
+        responseCode = "401"
       ),
       new responses.ApiResponse(
-        responseCode = "403",
-        description = "access denied"
+        description = "access denied",
+        responseCode = "403"
       ),
       new responses.ApiResponse(
-        responseCode = "404",
-        description = "not found"
+        description = "not found",
+        responseCode = "404"
       ),
       new responses.ApiResponse(
-        responseCode = "409",
-        description = "old session"
+        content = Array(new Content(mediaType = "application/json",
+                                    schema = new Schema(implementation = classOf[PolicySearchResponseDesync]))),
+        description = "old session",
+        responseCode = "409"
       )
     )
   )
@@ -940,11 +944,13 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                   
                   // Culls any desynchronized agbots forcing them onto the same workflow as the rest.
                   // In the case of catastrophic failure of the entire set of agbots the Exchange will throw Http code 409 - Conflict to all agbots (pending the set forgetting the session)!
-                  desynchronization: Option[Boolean] =
+                  desynchronization: Option[PolicySearchResponseDesync] =
                     if (currentSession.isDefined &&
                         reqBody.session.isDefined &&
                         !currentSession.get.equals(reqBody.session.get))
-                      Some(true)
+                      Some(PolicySearchResponseDesync(agbot = ident.identityString,
+                                                      offset = currentOffset,
+                                                      session = currentSession))
                     else
                       None
                   
@@ -1004,7 +1010,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                   
                   // Returned in response body.
                   isOffsetUpdated: Boolean =
-                   if (desynchronization.getOrElse(false) ||
+                   if (desynchronization.isDefined ||
                        updateOffset.isEmpty ||
                        (currentOffset.isDefined && currentOffset.get.equals(updateOffset.get)))
                       false
@@ -1056,8 +1062,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                     results._3)) // results.isOffsetUpdated
               }
               // Throw Http code 409 - Conflict, return no results.
-              else if (results._1.getOrElse(false)) // results.desynchronization
-                (HttpCode.ALREADY_EXISTS2, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._3)) // results.isOffsetUpdated
+              else if (results._1.isDefined) // results.desynchronization
+                (HttpCode.ALREADY_EXISTS2, results._1)
               else
                 (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._3)) // results.isOffsetUpdated
             case Failure(t: org.postgresql.util.PSQLException) =>

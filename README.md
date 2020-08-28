@@ -258,7 +258,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 ## Changes in 2.39.0
 
-- Issue 383: Implemented "GET /v1/catalog/{orgid}/nodes" route.
+- Issue 383: Implemented "GET /v1/orgs/{orgid}/nodes/details" route.
 
 ## Changes in 2.38.0
 

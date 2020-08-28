@@ -1,7 +1,7 @@
-package com.horizon.exchangeapi.route.catalog
+package com.horizon.exchangeapi.route.node
 
 import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeErrorRow, NodeErrorTQ, NodeHeartbeatIntervals, NodeRow, NodeStatusRow, NodeStatusTQ, NodesTQ, OneService, OneUserInputService, OrgRow, OrgsTQ, RegService, ResourceChangesTQ, UserRow, UsersTQ}
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, NodeCatalog, Role, StrConstants, TestDBConnection}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, NodeDetails, Role, StrConstants, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.scalatest.BeforeAndAfterAll
@@ -13,57 +13,57 @@ import scala.collection.immutable.Map
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
-class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
+class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT = ("Accept","application/json")
-  private val AGBOTAUTH = ("Authorization","Basic " + ApiUtils.encode("TestCatalogGetNodes" + "/" + "a1" + ":" + "a1pw"))
+  private val AGBOTAUTH = ("Authorization","Basic " + ApiUtils.encode("TestNodesGetDetails" + "/" + "a1" + ":" + "a1pw"))
   private val AWAITDURATION: Duration = 15.seconds
   private val CONTENT = ("Content-Type","application/json")
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
-  private val NODEAUTH = ("Authorization","Basic " + ApiUtils.encode("TestCatalogGetNodes" + "/" + "n1" + ":" + "n1pw"))
-  // private val ORGID = "TestCatalogGetNodes"
+  private val NODEAUTH = ("Authorization","Basic " + ApiUtils.encode("TestNodesGetDetails" + "/" + "n1" + ":" + "n1pw"))
+  // private val ORGID = "TestNodesGetDetails"
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
-  private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/catalog/"
-  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode("TestCatalogGetNodes" + "/" + "u1" + ":" + "u1pw"))
+  private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
+  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode("TestNodesGetDetails" + "/" + "u1" + ":" + "u1pw"))
   
   private implicit val formats = DefaultFormats
   
   // Test data.
   private val TESTAGBOT: AgbotRow =
-    AgbotRow(id            = "TestCatalogGetNodes/a1",
+    AgbotRow(id            = "TestNodesGetDetails/a1",
              lastHeartbeat = ApiTime.nowUTC,
              msgEndPoint   = "",
              name          = "",
-             orgid         = "TestCatalogGetNodes",
-             owner         = "TestCatalogGetNodes/u1",
+             orgid         = "TestNodesGetDetails",
+             owner         = "TestNodesGetDetails/u1",
              publicKey     = "",
-             token         = "$2a$10$SpL9Rzo1SdteOO/xr9282.g0ZfgxWl57YLJxNWrkdq/nR/FaC8rVG") // TestCatalogGetNodes/a2:a1pw
+             token         = "$2a$10$XAPxetRTktteNbKoPXdGO.vL8LKWMp0BiiVMpTCG1ZhBMUj09/iyG") // TestNodesGetDetails/a2:a1pw
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch = "amd64",
-                id = "TestCatalogGetNodes/n1",
+                id = "TestNodesGetDetails/n1",
                 heartbeatIntervals = """{"minInterval":6,"maxInterval":15,"intervalAdjustment":2}""",
                 lastHeartbeat = Some(ApiTime.nowUTC),
                 lastUpdated = ApiTime.nowUTC,
                 msgEndPoint = "messageEndpoint",
                 name = "rpin1-normal",
                 nodeType = "device",
-                orgid = "TestCatalogGetNodes",
-                owner = "TestCatalogGetNodes/u1",
-                pattern = "TestCatalogGetNodes/p1",
+                orgid = "TestNodesGetDetails",
+                owner = "TestNodesGetDetails/u1",
+                pattern = "TestNodesGetDetails/p1",
                 publicKey = "key",
                 regServices = """[{"url":"NodesSuiteTests/bluehorizon.network.sdr","numAgreements":1,"configState":"active","policy":"{json policy for n1 sdr}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"memory","value":"300","propType":"int","op":">="},{"name":"version","value":"1.0.0","propType":"version","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"dataVerification","value":"true","propType":"boolean","op":"="}]},{"url":"NodesSuiteTests/bluehorizon.network.netspeed","numAgreements":1,"configState":"active","policy":"{json policy for n1 netspeed}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"version","value":"1.0.0","propType":"version","op":"in"}]}]""",
                 softwareVersions = """{"horizon":"3.2.1"}""",
-                token = "$2a$10$rFvQd.eGhaWiApRtMjv3F.6wVsfHIYmAww9r.2XozkrzBpMlb3nxO", // TestCatalogGetNodes/n1:n1pw
+                token = "$2a$10$iXtbvxfSH8iN3LxPDlntEO7yLq6Wk4YhE4Tq4B7RtiqLfeHOaBE8q", // TestNodesGetDetails/n1:n1pw
                 userInput = """[{"serviceOrgid":"NodesSuiteTests","serviceUrl":"bluehorizon.network.sdr","serviceArch":"amd64","serviceVersionRange":"[0.0.0,INFINITY)","inputs":[{"name":"UI_STRING","value":"mystr - updated"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}]"""),
         NodeRow(arch = "x86",
-                id = "TestCatalogGetNodes/n2",
+                id = "TestNodesGetDetails/n2",
                 heartbeatIntervals = "",
                 lastHeartbeat = Some(ApiTime.nowUTC),
                 lastUpdated = ApiTime.nowUTC,
                 msgEndPoint = "",
                 name = "rpin2-normal-x86",
                 nodeType = "cluster",
-                orgid = "TestCatalogGetNodes",
-                owner = "TestCatalogGetNodes/u2",
+                orgid = "TestNodesGetDetails",
+                owner = "TestNodesGetDetails/u2",
                 pattern = "",
                 publicKey = "",
                 regServices = "",
@@ -71,15 +71,15 @@ class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
                 token = "$2a$10$0EOlHl1mb2THvz3f/AnyWOV6ivUMItcQKLTzltNLmrdiLn.VCgavy",
                 userInput = ""),
         NodeRow(arch = "",
-                id = "TestCatalogGetNodes/n3",
+                id = "TestNodesGetDetails/n3",
                 heartbeatIntervals = "",
                 lastHeartbeat = None,
                 lastUpdated = ApiTime.nowUTC,
                 msgEndPoint = "",
                 name = "",
                 nodeType = "",
-                orgid = "TestCatalogGetNodes",
-                owner = "TestCatalogGetNodes/u1",
+                orgid = "TestNodesGetDetails",
+                owner = "TestNodesGetDetails/u1",
                 pattern = "",
                 publicKey = "",
                 regServices = "",
@@ -87,15 +87,15 @@ class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
                 token = "",
                 userInput = ""),
         NodeRow(arch = "",
-                id = "TestCatalogGetNodes2/n4",
+                id = "TestNodesGetDetails2/n4",
                 heartbeatIntervals = "",
                 lastHeartbeat = None,
                 lastUpdated = ApiTime.nowUTC,
                 msgEndPoint = "",
                 name = "",
                 nodeType = "",
-                orgid = "TestCatalogGetNodes2",
-                owner = "TestCatalogGetNodes2/u3",
+                orgid = "TestNodesGetDetails2",
+                owner = "TestNodesGetDetails2/u3",
                 pattern = "",
                 publicKey = "",
                 regServices = "",
@@ -105,19 +105,19 @@ class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
   private val TESTNODEERRORS: Seq[NodeErrorRow] =
     Seq(NodeErrorRow(errors = """[{"record_id":"1","workload":{"url":"myservice"},"timestamp":"yesterday","hidden":false,"message":"test error 1","event_code":"500"},{"record_id":"2","workload":{"url":"myservice2"},"timestamp":"yesterday","hidden":true,"message":"test error 2","event_code":"404"}]""",
                      lastUpdated = ApiTime.nowUTC,
-                     nodeId = "TestCatalogGetNodes/n1"),
+                     nodeId = "TestNodesGetDetails/n1"),
         NodeErrorRow(errors = "",
                      lastUpdated = ApiTime.nowUTC,
-                     nodeId = "TestCatalogGetNodes/n2"))
+                     nodeId = "TestNodesGetDetails/n2"))
   private val TESTNODESTATUSES: Seq[NodeStatusRow] =
     Seq(NodeStatusRow(connectivity = """{"images.bluehorizon.network":true}""",
                       lastUpdated = ApiTime.nowUTC,
-                      nodeId = "TestCatalogGetNodes/n1",
+                      nodeId = "TestNodesGetDetails/n1",
                       runningServices = """|NodesSuiteTests/testService_0.0.1_arm|""",
                       services = """[{"agreementId":"agreementid","serviceUrl":"testService","orgid":"NodesSuiteTests","version":"0.0.1","arch":"arm","containerStatus":[]}]"""),
         NodeStatusRow(connectivity = "",
                       lastUpdated = ApiTime.nowUTC,
-                      nodeId = "TestCatalogGetNodes/n2",
+                      nodeId = "TestNodesGetDetails/n2",
                       runningServices = "",
                       services = ""))
   private val TESTORGANIZATIONS: Seq[OrgRow] =
@@ -125,38 +125,38 @@ class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
                description        = "",
                label              = "",
                lastUpdated        = ApiTime.nowUTC,
-               orgId              = "TestCatalogGetNodes",
+               orgId              = "TestNodesGetDetails",
                orgType            = "",
                tags               = None),
         OrgRow(heartbeatIntervals = "",
                description        = "",
                label              = "",
                lastUpdated        = ApiTime.nowUTC,
-               orgId              = "TestCatalogGetNodes2",
+               orgId              = "TestNodesGetDetails2",
                orgType            = "",
                tags               = None))
   private val TESTUSERS: Seq[UserRow] =
     Seq(UserRow(admin       = false,
                 email       = "",
-                hashedPw    = "$2a$10$k5eecUM77Zh0EfbEjZFYJ.qqUIlxgxKh/HIrEaO1kmZHM5VrtYwcS", // TestCatalogGetNodes/u1:u1pw
+                hashedPw    = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i", // TestNodesGetDetails/u1:u1pw
                 lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestCatalogGetNodes",
+                orgid       = "TestNodesGetDetails",
                 updatedBy   = "",
-                username    = "TestCatalogGetNodes/u1"),
+                username    = "TestNodesGetDetails/u1"),
         UserRow(admin       = false,
                 email       = "",
                 hashedPw    = "$2a$10$0EOlHl1mb2THvz3f/AnyWOV6ivUMItcQKLTzltNLmrdiLn.VCgavy",
                 lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestCatalogGetNodes",
+                orgid       = "TestNodesGetDetails",
                 updatedBy   = "",
-                username    = "TestCatalogGetNodes/u2"),
+                username    = "TestNodesGetDetails/u2"),
         UserRow(admin       = false,
                 email       = "",
                 hashedPw    = "",
                 lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestCatalogGetNodes2",
+                orgid       = "TestNodesGetDetails2",
                 updatedBy   = "",
-                username    = "TestCatalogGetNodes2/u3"))
+                username    = "TestNodesGetDetails2/u3"))
   
   // Build test harness.
   override def beforeAll {
@@ -170,20 +170,20 @@ class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
   
   // Teardown test harness.
   override def afterAll {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.rows.filter(_.orgId startsWith "TestCatalogGetNodes").delete andThen
-                                       OrgsTQ.rows.filter(_.orgid startsWith "TestCatalogGetNodes").delete), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.rows.filter(_.orgId startsWith "TestNodesGetDetails").delete andThen
+                                       OrgsTQ.rows.filter(_.orgid startsWith "TestNodesGetDetails").delete), AWAITDURATION)
   
     DBCONNECTION.getDb.close()
   }
   
   
-  test("GET /catalog/" + "TestCatalogGetNodes" + "/nodes -- Filter By Org") {
-    val response: HttpResponse[String] = Http(URL + "TestCatalogGetNodes" + "/nodes").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Org") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     //info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     
-    val NODES: List[NodeCatalog] = parse(response.body).extract[List[NodeCatalog]]
+    val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 3)
     assert(NODES(0).id === TESTNODES(0).id &&
            NODES(1).id === TESTNODES(1).id &&
@@ -238,86 +238,86 @@ class TestCatalogGetNodes extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(2).userInput             === None)
   }
   
-  test("GET /catalog/" + "TestCatalogGetNodes" + "/nodes -- Filter By Architecture") {
-    val response: HttpResponse[String] = Http(URL + "TestCatalogGetNodes" + "/nodes").param("arch", "%64").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Architecture") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").param("arch", "%64").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     
-    val NODES: List[NodeCatalog] = parse(response.body).extract[List[NodeCatalog]]
+    val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 1)
     assert(NODES(0).id === TESTNODES(0).id)
   }
   
-  test("GET /catalog/" + "TestCatalogGetNodes" + "/nodes -- Filter By ID") {
-    val response: HttpResponse[String] = Http(URL + "TestCatalogGetNodes" + "/nodes").param("id", "%2").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By ID") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").param("id", "%2").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     
-    val NODES: List[NodeCatalog] = parse(response.body).extract[List[NodeCatalog]]
+    val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 1)
     assert(NODES(0).id                    === TESTNODES(1).id)
     assert(NODES(0).lastUpdatedNodeError === Some(TESTNODEERRORS(1).lastUpdated))
     assert(NODES(0).lastUpdatedNodeStatus === Some(TESTNODESTATUSES(1).lastUpdated))
   }
   
-  test("GET /catalog/" + "TestCatalogGetNodes" + "/nodes -- Filter By Name") {
-    val response: HttpResponse[String] = Http(URL + "TestCatalogGetNodes" + "/nodes").param("name", "%").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Name") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").param("name", "%").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     
-    val NODES: List[NodeCatalog] = parse(response.body).extract[List[NodeCatalog]]
+    val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 3)
     assert(NODES(0).id === TESTNODES(0).id &&
            NODES(1).id === TESTNODES(1).id &&
            NODES(2).id === TESTNODES(2).id)
   }
   
-  test("GET /catalog/" + "TestCatalogGetNodes" + "/nodes -- Filter By Type") {
-    val response: HttpResponse[String] = Http(URL + "TestCatalogGetNodes" + "/nodes").param("type", "device").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Type") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").param("type", "device").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     
-    val NODES: List[NodeCatalog] = parse(response.body).extract[List[NodeCatalog]]
+    val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 2)
     assert(NODES(0).id === TESTNODES(0).id &&
            NODES(1).id === TESTNODES(2).id)
   }
   
-  test("GET /catalog/" + "TestCatalogGetNodes" + "/nodes -- Filter By Owner - Agbot") {
-    val response: HttpResponse[String] = Http(URL + "TestCatalogGetNodes" + "/nodes").param("owner", "%u2").headers(ACCEPT).headers(AGBOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Owner - Agbot") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").param("owner", "%u2").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     
-    val NODES: List[NodeCatalog] = parse(response.body).extract[List[NodeCatalog]]
+    val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 1)
     assert(NODES(0).id === TESTNODES(1).id)
   
     assert(NODES(0).token === TESTNODES(1).token)
   }
   
-  test("GET /catalog/" + "TestCatalogGetNodes" + "/nodes -- Filter By Owner - Root") {
-    val response: HttpResponse[String] = Http(URL + "TestCatalogGetNodes" + "/nodes").param("owner", "%u2").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Owner - Root") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").param("owner", "%u2").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     
-    val NODES: List[NodeCatalog] = parse(response.body).extract[List[NodeCatalog]]
+    val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 1)
     assert(NODES(0).id === TESTNODES(1).id)
   }
   
-  test("GET /catalog/" + "TestCatalogGetNodes" + "/nodes -- Filter By Owner - User1") {
-    val response: HttpResponse[String] = Http(URL + "TestCatalogGetNodes" + "/nodes").headers(ACCEPT).headers(USERAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Owner - User1") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").headers(ACCEPT).headers(USERAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     
-    val NODES: List[NodeCatalog] = parse(response.body).extract[List[NodeCatalog]]
+    val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 2)
     assert(NODES(0).id === TESTNODES(0).id &&
            NODES(1).id === TESTNODES(2).id)

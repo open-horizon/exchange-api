@@ -165,11 +165,14 @@ object SchemaTQ {
       case 36 => DBIO.seq(   // v2.35.0
         sqlu"alter table nodes alter column lastheartbeat drop not null"
       )
+      case 37 ⇒ DBIO.seq(SearchOffsetPolicyTQ.offsets.schema.create)
+
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
-  val latestSchemaVersion = 36    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+
+  val latestSchemaVersion = 37    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription = "remove not null constraint on nodes table column lastheartbeat"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

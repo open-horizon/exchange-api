@@ -1,6 +1,8 @@
 /** Services routes for all of the /orgs/{orgid}/business api methods. */
 package com.horizon.exchangeapi
 
+import java.sql.Timestamp
+
 import javax.ws.rs._
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
@@ -16,9 +18,9 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
-
 import com.horizon.exchangeapi.tables._
-import org.json4s._
+import org.json4s.{DefaultFormats, Formats}
+//import org.json4s._
 import org.json4s.jackson.Serialization.write
 import slick.jdbc.PostgresProfile.api._
 
@@ -99,15 +101,18 @@ final case class PatchBusinessPolicyRequest(label: Option[String], description: 
 
 
 /** Input for business policy-based search for nodes to make agreements with. */
-final case class PostBusinessPolicySearchRequest(nodeOrgids: Option[List[String]], changedSince: Long, startIndex: Option[Int], numEntries: Option[Int]) {
-  def getAnyProblem: Option[String] = None
-}
+final case class PostBusinessPolicySearchRequest(changedSince: Long = 0L,
+                                                 nodeOrgids: Option[List[String]] = None,
+                                                 numEntries: Option[Int] = None,
+                                                 session: Option[String] = None,
+                                                 startIndex: Option[String] = None)       // Not used.
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
 final case class BusinessPolicySearchHashElement(nodeType: String, publicKey: String, noAgreementYet: Boolean)
 
 final case class BusinessPolicyNodeResponse(id: String, nodeType: String, publicKey: String)
-final case class PostBusinessPolicySearchResponse(nodes: List[BusinessPolicyNodeResponse], lastIndex: Int)
+final case class PostBusinessPolicySearchResponse(nodes: List[BusinessPolicyNodeResponse], offsetUpdated: Boolean = false)
+final case class PolicySearchResponseDesync(agbot: String, offset: Option[String], session: Option[String])
 
 
 
@@ -834,10 +839,10 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "nodeOrgids": ["org1", "org2", "..."],  // if not specified, defaults to the same org the business policy is in
-  "changedSince": 123456,                 // only return nodes that have changed since this unix epoch time, 0 if you want all relevant nodes
-  "startIndex": 0,                        // for pagination, ignored right now
-  "numEntries": 0                         // ignored right now
+  "changedSince": 123456L,                // [Long > 0L, 0L], Only return nodes that have changed since this Unix epoch time. Value 0L disables filter.
+  "nodeOrgids": ["org1", "org2", "..."],  // (optional), Defaults to the same organization the business policy is in
+  "numEntries": 100,                      // (optional) [Int > 0], Maximum number of nodes returned
+  "session": "token"                      // Constrains multiple Agbot instances to a singular search.
 }"""
             )
           ),
@@ -849,38 +854,58 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     ),
     responses = Array(
       new responses.ApiResponse(
-        responseCode = "201",
+        content = Array(new Content(mediaType = "application/json",
+                                    schema = new Schema(implementation = classOf[PostBusinessPolicySearchResponse]))),
         description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[PostBusinessPolicySearchResponse])))
+        responseCode = "201"
       ),
       new responses.ApiResponse(
-        responseCode = "401",
-        description = "invalid credentials"
+        description = "bad request",
+        responseCode = "400"
       ),
       new responses.ApiResponse(
-        responseCode = "403",
-        description = "access denied"
+        description = "invalid credentials",
+        responseCode = "401"
       ),
       new responses.ApiResponse(
-        responseCode = "404",
-        description = "not found"
+        description = "access denied",
+        responseCode = "403"
+      ),
+      new responses.ApiResponse(
+        description = "not found",
+        responseCode = "404"
+      ),
+      new responses.ApiResponse(
+        content = Array(new Content(mediaType = "application/json",
+                                    schema = new Schema(implementation = classOf[PolicySearchResponseDesync]))),
+        description = "old session",
+        responseCode = "409"
       )
     )
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "policy")
   def busPolPostSearchRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment / "search") & post & entity(as[PostBusinessPolicySearchRequest])) { (orgid, policy, reqBody) =>
-    val compositeId = OrgAndId(orgid, policy).toString
-    exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { ident =>
-      validateWithMsg(reqBody.getAnyProblem) {
+    val compositeId: String = OrgAndId(orgid, policy).toString
+    exchAuth(TNode(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
+      validateWithMsg(if(!((!(reqBody.changedSince < 0L)) && (reqBody.numEntries.isEmpty || !(reqBody.numEntries.getOrElse(-1) < 0)))) Some(ExchMsg.translate("bad.input")) else None) {
         complete({
-          val nodeOrgids = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
+          val nodeOrgids: Set[String] = reqBody.nodeOrgids.getOrElse(List(orgid)).toSet
           var searchSvcUrl = ""    // a composite value (org/url), will be set later in the db.run()
           db.run(BusinessPoliciesTQ.getService(compositeId).result.flatMap({ list =>
-            logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + "/search getService size: " + list.size)
             if (list.nonEmpty) {
               // Finding the service was successful, form the query for the nodes for the next step
-              val service = BusinessPoliciesTQ.getServiceFromString(list.head)    // we should have found only 1 business pol service string, now parse it to get service list
+              val service: BService = BusinessPoliciesTQ.getServiceFromString(list.head)    // we should have found only 1 business pol service string, now parse it to get service list
+              
+              // Bypass filter on architecture.
+              val optArch: Option[String] =
+                if(service.arch.equals("") ||
+                   service.arch.equals("*"))
+                  None
+                else
+                  Some(service.arch)
+              
               searchSvcUrl = OrgAndId(service.org, service.name).toString
+              
               /*
                 Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
                 In english, the join gets: n.id, n.nodeType, n.publicKey, a.serviceUrl, a.state
@@ -888,44 +913,159 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                 After this we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
                 Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
               */
-              val oldestTime = if (reqBody.changedSince > 0) ApiTime.thenUTC(reqBody.changedSince) else ApiTime.beginningUTC
-              val nodeQuery = for {
-                (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === "").filter(_.publicKey =!= "").filter(_.lastUpdated >= oldestTime).filter(n => {n.arch === service.arch || service.arch == "" || service.arch == "*"}) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
-              } yield (n.id, n.nodeType, n.publicKey, a.map(_.agrSvcUrl), a.map(_.state))
+              val pagination =
+                for {
+                  // Grab any set offset and session for agbot and policy
+                  currentOffsetSession <- SearchOffsetPolicyTQ.getOffsetSession(ident.identityString, compositeId).result.headOption
+                  
+                  currentOffset: Option[String] =
+                    if (currentOffsetSession.isDefined)
+                      currentOffsetSession.get._1
+                    else
+                      None
+                  
+                  currentSession: Option[String] =
+                  if (currentOffsetSession.isDefined)
+                    currentOffsetSession.get._2
+                  else
+                    None
+                  
+                  // Figure out what our offset is going to be in DB query.
+                  offset: Option[String] =
+                  if (currentOffset.isEmpty && 0L < reqBody.changedSince) // New workflow for abgot and policy
+                    Some(ApiTime.thenUTC(reqBody.changedSince))
+                  else if (currentOffset.isDefined &&
+                           currentSession.isDefined &&
+                           reqBody.session.isDefined &&
+                           currentSession.get.equals(reqBody.session.get)) // All other pages.
+                    currentOffset
+                  else
+                    None // No pagination/Agbot Desynchronization
+                  
+                  // Culls any desynchronized agbots forcing them onto the same workflow as the rest.
+                  // In the case of catastrophic failure of the entire set of agbots the Exchange will throw Http code 409 - Conflict to all agbots (pending the set forgetting the session)!
+                  desynchronization: Option[PolicySearchResponseDesync] =
+                    if (currentSession.isDefined &&
+                        reqBody.session.isDefined &&
+                        !currentSession.get.equals(reqBody.session.get))
+                      Some(PolicySearchResponseDesync(agbot = ident.identityString,
+                                                      offset = currentOffset,
+                                                      session = currentSession))
+                    else
+                      None
+                  
+                  // Result set includes all nodes without agreements as-well-as non-valid agreements.
+                  // Live-lock will occur if the resulting number of nodes with the same lastUpdated is greater than the size of the page between the agbots and the Exchange!
+                  nodes = NodesTQ.rows
+                                 .filterOpt(optArch)((node, arch) ⇒ node.arch === arch)
+                                 .filter(_.lastHeartbeat.isDefined)
+                                 .filterOpt(offset)((node, changedSince) ⇒ !(node.lastUpdated < changedSince))
+                                 .filter(_.orgid inSet nodeOrgids)
+                                 .filter(_.pattern === "")
+                                 .filter(_.publicKey =!= "")
+                                 .filterOpt(desynchronization)((node, _) ⇒ node.id === "")
+                                 .map(node ⇒ (node.id, node.lastUpdated, node.nodeType, node.publicKey))
+                                 .joinLeft(NodeAgreementsTQ.rows
+                                                           .filter(_.agrSvcUrl === searchSvcUrl)
+                                                           .map(agreement => (agreement.agrSvcUrl, agreement.nodeId, agreement.state)))
+                                 .on((node, agreement) ⇒ node._1 === agreement._2) // (node.id === agreements.nodeId)
+                                 .filter ({
+                                   // No/non-valid agreements
+                                   case (_, agreement) ⇒
+                                     agreement.map(_._2).isEmpty ||                        // agreement.nodeId
+                                     agreement.map(_._1).getOrElse("") === "" ||  // agreement.agrSvcUrl
+                                     agreement.map(_._3).getOrElse("") === ""     // agreement.state
+                                 })
+                                 .sortBy(r ⇒ (r._1._2.asc, r._1._1.asc, r._2.getOrElse(("", "", ""))._1.asc.nullsFirst)) // (node.lastUpdated ASC, node.id ASC, agreements.agrSvcUrl ASC NULLS FIRST)
+                                 .map(r ⇒ (r._1._1, r._1._2, r._1._3, r._1._4))                                          // (node.id, node.lastUpdated, node.nodeType, node.publicKey)
+                  
+                  // If paginating then create page else return everything.
+                  nodesWoAgreements ← {
+                    if (reqBody.numEntries.isDefined)
+                      nodes.take(reqBody.numEntries.getOrElse(0))
+                    else
+                      nodes}.result.map(List[(String, String, String, String)])
+                  
+                  // Decide what the offset is to be for the next call.
+                  updateOffset: Option[String] =
+                    if (desynchronization.isDefined) // Write back what we currently have.
+                      currentOffset
+                    else if (reqBody.numEntries.isDefined) {
+                      if (nodesWoAgreements.nonEmpty &&
+                          (currentOffset.isEmpty ||
+                           (currentOffset.get < nodesWoAgreements.lastOption.get._2 &&
+                            nodesWoAgreements.size.equals(reqBody.numEntries.get)))) // New workflow/beginning of the next page with a newer lastUpdated as offset.
+                        Some(nodesWoAgreements.lastOption.get._2)
+                      else if (currentOffset.isDefined &&
+                               currentSession.isDefined &&
+                               reqBody.session.isDefined &&
+                               currentSession.get.equals(reqBody.session.get) &&
+                               nodesWoAgreements.size.equals(reqBody.numEntries.get)) // Last to be returned record has the same lastUpdated as the current offset.
+                        currentOffset
+                      else // End of workflow.
+                        None
+                    }
+                    else // No defined workflow.
+                      None
+                  
+                  // Returned in response body.
+                  isOffsetUpdated: Boolean =
+                   if (desynchronization.isDefined ||
+                       updateOffset.isEmpty ||
+                       (currentOffset.isDefined && currentOffset.get.equals(updateOffset.get)))
+                      false
+                    else
+                      true
+                  
+                  // Decide what the session is to be for the next call
+                  updateSession: Option[String] =
+                    if (desynchronization.isDefined) // Write back what we currently have.
+                      currentSession
+                    else if (reqBody.numEntries.isDefined &&
+                             reqBody.session.isDefined) {
+                      if (currentSession.isEmpty &&
+                          nodesWoAgreements.nonEmpty &&
+                          nodesWoAgreements.size.equals(reqBody.numEntries.get)) // New workflow.
+                        reqBody.session
+                      else if (currentSession.isDefined &&
+                               currentSession.get.equals(reqBody.session.get) &&
+                               nodesWoAgreements.size.equals(reqBody.numEntries.get)) // Continue workflow.
+                        currentSession
+                      else // End of workflow.
+                        None
+                    }
+                    else // No defined workflow.
+                      None
+                    
+                    // Clear/continue/set/update offset and session for the next call.
+                    _ ← SearchOffsetPolicyTQ.setOffsetSession(ident.identityString, updateOffset, compositeId, updateSession)
+                } yield (desynchronization, nodesWoAgreements, isOffsetUpdated)
               
-              nodeQuery.result.asTry    // Now get the potential nodes to make agreements with
+              // Prevent dirty reads/writes.
+              pagination.transactionally.asTry
             }
             else DBIO.failed(new Throwable(ExchMsg.translate("business.policy.not.found", compositeId))).asTry
           })).map({
-            case Success(list) =>
-              logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + "/search result size: " + list.size)
-              logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + "/search: looking for nodes w/o agreement for '" + searchSvcUrl)
-              if (list.nonEmpty) {
-                // Go thru the rows and build a hash of the nodes that do NOT have an agreement for our service
-                //todo: factor in num agreements??
-                val nodeHash = new MutableHashMap[String, BusinessPolicySearchHashElement] // key is node id, value noAgreementYet which is true if so far we haven't hit an agreement for our service for this node
-                for ((nodeid, nodeType, publicKey, agrSvcUrlOpt, stateOpt) <- list) {
-                  //logger.debug("nodeid: "+nodeid+", agrSvcUrlOpt: "+agrSvcUrlOpt.getOrElse("")+", searchSvcUrl: "+searchSvcUrl+", stateOpt: "+stateOpt.getOrElse(""))
-                  val nt = if (nodeType == "") NodeType.DEVICE.toString else nodeType
-                  nodeHash.get(nodeid) match {
-                    // This node is already in the hash. Only replace it if this is an agreement for the service, because the absence of an agr for this svc isn't useful info
-                    case Some(_) => if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") {
-                      /*logger.debug("setting to false");*/ nodeHash.put(nodeid, BusinessPolicySearchHashElement(nt, publicKey, noAgreementYet = false))
-                    } // this is no longer a candidate
-                    // This node is not yet in the hash. Add it with whatever value it has for agreement - this may be overridden later
-                    case None => val noAgr = if (agrSvcUrlOpt.getOrElse("") == searchSvcUrl && stateOpt.getOrElse("") != "") false else true
-                      nodeHash.put(nodeid, BusinessPolicySearchHashElement(nt, publicKey, noAgr)) // this node not in the hash yet, add it
-                  }
-                }
-                // Convert our hash to the list response of the rest api
-                //val respList = list.map( x => BusinessPolicyNodeResponse(x._1, x._2, x._3)).toList
-                val respList = new ListBuffer[BusinessPolicyNodeResponse]
-                for ((k, v) <- nodeHash) if (v.noAgreementYet) respList += BusinessPolicyNodeResponse(k, v.nodeType, v.publicKey)
-                val code = if (respList.nonEmpty) HttpCode.POST_OK else HttpCode.NOT_FOUND
-                (code, PostBusinessPolicySearchResponse(respList.toList, 0))
-              } else {
-                (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), 0))
+            case Success(results) =>
+              if(results._2.nonEmpty) { // results.nodesWoAgreements.nonEmpty
+                (HttpCode.POST_OK,
+                  PostBusinessPolicySearchResponse(
+                    results._2.map( // results.nodesWoAgreements
+                      node =>
+                        BusinessPolicyNodeResponse(
+                          node._1,                              // node.id
+                          node._3 match {                       // node.nodeType
+                            case "" => NodeType.DEVICE.toString // "" -> "device"
+                            case _ => node._3                   // Passthrough
+                          },
+                          node._4)),                            // node.publicKey
+                    results._3)) // results.isOffsetUpdated
               }
+              // Throw Http code 409 - Conflict, return no results.
+              else if (results._1.isDefined) // results.desynchronization
+                (HttpCode.ALREADY_EXISTS2, results._1)
+              else
+                (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._3)) // results.isOffsetUpdated
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("invalid.input.message", t.getMessage))
             case Failure(t) =>
@@ -935,5 +1075,4 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       } // end of validateWithMsg
     } // end of exchAuth
   }
-
 }

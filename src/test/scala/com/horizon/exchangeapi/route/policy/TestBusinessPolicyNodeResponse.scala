@@ -1,29 +1,29 @@
-package com.horizon.exchangeapi.route.business
+package com.horizon.exchangeapi.route.policy
 
 import org.junit.runner.RunWith
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 
-import com.horizon.exchangeapi.BusinessPolicySearchHashElement
+import com.horizon.exchangeapi.BusinessPolicyNodeResponse
 
 @RunWith(classOf[JUnitRunner])
-class TestBusinessPolicySearchHashElement extends AnyFunSuite {
+class TestBusinessPolicyNodeResponse extends AnyFunSuite {
   test("Constructor") {
-    val testResponse  = BusinessPolicySearchHashElement(nodeType = "", publicKey = "", noAgreementYet = false)
+    val testResponse  = BusinessPolicyNodeResponse(id = "", nodeType = "", publicKey = "")
     
-    assert(testResponse.isInstanceOf[BusinessPolicySearchHashElement])
+    assert(testResponse.isInstanceOf[BusinessPolicyNodeResponse])
     
+    assert(testResponse.id === "")
     assert(testResponse.nodeType === "")
     assert(testResponse.publicKey === "")
-    assert(testResponse.noAgreementYet === false)
   }
   
   test("Equality") {
     class TestClass(variable1:String = "", variable2:String = "", Variable3:String = "")
     
-    val testResponse  = BusinessPolicySearchHashElement(nodeType = "", publicKey = "", noAgreementYet = false)
-    val testResponse2 = BusinessPolicySearchHashElement(nodeType = "", publicKey = "", noAgreementYet = false)
-    val testResponse3 = BusinessPolicySearchHashElement(nodeType = " ", publicKey = " ", noAgreementYet = true)
+    val testResponse  = BusinessPolicyNodeResponse(id = "", nodeType = "", publicKey = "")
+    val testResponse2 = BusinessPolicyNodeResponse(id = "", nodeType = "", publicKey = "")
+    val testResponse3 = BusinessPolicyNodeResponse(id = " ", nodeType = " ", publicKey = " ")
     val testResponse4 = testResponse
     
     assert(!testResponse.equals(AnyRef))
@@ -50,16 +50,16 @@ class TestBusinessPolicySearchHashElement extends AnyFunSuite {
   }
   
   test("Copy") {
-    val testResponse  = BusinessPolicySearchHashElement(nodeType = "", publicKey = "", noAgreementYet = false)
+    val testResponse  = BusinessPolicyNodeResponse(id = "", nodeType = "", publicKey = "")
     val testResponse2 = testResponse.copy()
-    val testResponse3 = testResponse.copy(nodeType = "a", publicKey = "b", noAgreementYet = true)
+    val testResponse3 = testResponse.copy(id = "a", nodeType = "b", publicKey = "c")
     
+    assert(testResponse2.id === "")
     assert(testResponse2.nodeType === "")
     assert(testResponse2.publicKey === "")
-    assert(testResponse2.noAgreementYet === false)
-    assert(testResponse3.nodeType === "a")
-    assert(testResponse3.publicKey === "b")
-    assert(testResponse3.noAgreementYet === true)
+    assert(testResponse3.id === "a")
+    assert(testResponse3.nodeType === "b")
+    assert(testResponse3.publicKey === "c")
     
     assert(testResponse.equals(testResponse2))
     assert(!testResponse.equals(testResponse3))
@@ -75,8 +75,8 @@ class TestBusinessPolicySearchHashElement extends AnyFunSuite {
   }
   
   test("toString()") {
-    var testResponse = BusinessPolicySearchHashElement(nodeType = "abc", publicKey = "def", noAgreementYet = true)
+    var testResponse = BusinessPolicyNodeResponse(id = "abc", nodeType = "def", publicKey = "ghi")
     
-    assert(testResponse.toString() === "BusinessPolicySearchHashElement(abc,def,true)")
+    assert(testResponse.toString() === "BusinessPolicyNodeResponse(abc,def,ghi)")
   }
 }

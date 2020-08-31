@@ -3,37 +3,16 @@ package com.horizon.exchangeapi
 import java.time.ZonedDateTime
 import java.util.Base64
 
-import scala.collection.immutable.Map
-
-import org.json4s.DefaultFormats
+import scala.collection.immutable.{List, Map}
+import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable, string2JsonInput}
 import org.json4s.jackson.JsonMethods.parse
-import org.json4s.jvalue2extractable
 import org.json4s.native.Serialization.write
-import org.json4s.string2JsonInput
 import org.junit.runner.RunWith
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
-
-import com.horizon.exchangeapi.tables.{BService, 
-                                       BServiceVersions, 
-                                       ContainerStatus, 
-                                       NAService, 
-                                       NAgrService, 
-                                       NodeError, 
-                                       NodeHeartbeatIntervals, 
-                                       NodePolicy, 
-                                       NodeStatus, 
-                                       NodeType, 
-                                       OneProperty, 
-                                       OneService, 
-                                       OneUserInputService, 
-                                       OneUserInputValue, 
-                                       PServiceVersions, 
-                                       PServices, 
-                                       Prop, 
-                                       RegService}
-import scalaj.http.{Http, 
-                    HttpResponse}
+import com.horizon.exchangeapi.tables.{BService, BServiceVersions, ContainerStatus, NAService, NAgrService, NodeError, NodeHeartbeatIntervals, NodePolicy, NodeStatus, NodeType, OneProperty, OneService, OneUserInputService, OneUserInputValue, PServiceVersions, PServices, Prop, RegService}
+import org.json4s.native.JsonMethods
+import scalaj.http.{Http, HttpResponse}
 
 
 /**
@@ -142,7 +121,7 @@ class NodesSuite extends AnyFunSuite {
   val service = svcBase + "_" + svcVersion + "_" + svcArch
   val orgservice = authpref+service
 
-  implicit val formats = DefaultFormats // Brings in default date formats etc.
+  implicit val formats = DefaultFormats.withLong // Brings in default date formats etc.
 
   // Operators: test, ignore, pending
 
@@ -235,7 +214,7 @@ class NodesSuite extends AnyFunSuite {
 
 
   /** Calculated the changedSince arg for business pol search, given seconds ago. */
-  def changedSinceAgo(secondsAgo: Int) = { ApiTime.nowSeconds - secondsAgo }
+  def changedSinceAgo(secondsAgo: Long) = {ApiTime.nowSeconds - secondsAgo}
 
   //~~~~~ Create org, user, service, pattern ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1182,7 +1161,10 @@ class NodesSuite extends AnyFunSuite {
     info("heartbeat: " + Http(URL + "/nodes/" + nodeId2 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("heartbeat: " + Http(URL + "/nodes/" + nodeId4 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     
-    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0, None)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = Some(List(orgid, orgid2)),
+                                         secondsStale = Some(86400),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1199,7 +1181,10 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+PWSSPEC+" which is not in the pattern, so should fail") {
-    val input = PostPatternSearchRequest(PWSSPEC, None, 86400, 0, 0, None)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = None,
+                                         secondsStale = Some(86400),
+                                         serviceUrl = PWSSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     //info("code: "+response.code)
@@ -1240,33 +1225,8 @@ class NodesSuite extends AnyFunSuite {
     val jsonInput = """{ "publicKey": "NODE3ABC" }"""
     val response = Http(URL + "/nodes/" + nodeId3).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     assert(response.code === HttpCode.PUT_OK.intValue)
-  }
-
-  test("POST /orgs/" + orgid + "/business/policies/" + businessPolicySdr + "/search - all nodes (no agreements yet)") {
+  
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    val input = PostBusinessPolicySearchRequest(None, 0, None, None)
-    val response = Http(URL + "/business/policies/" + businessPolicySdr + "/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 4)     // we created 4 nodes in this org
-    assert(nodes.count(d => d.id == orgnodeId || d.id == orgnodeId2 || d.id == orgnodeId3 || d.id == orgnodeId4) === 4)
-    val dev = nodes.find(d => d.id == orgnodeId).get
-    assert(dev.publicKey === nodePubKey)
-    assert(dev.nodeType === NodeType.DEVICE.toString)   // this node defaulted to this value
-    assert(nodes.find(_.id == orgnodeId2).get.nodeType === NodeType.CLUSTER.toString)
-    assert(nodes.find(_.id == orgnodeId4).get.nodeType === NodeType.DEVICE.toString)
-  }
-
-  test("POST /orgs/" + orgid + "/business/policies/" + businessPolicyNS + "/search - as agbot") {
-    val input = PostBusinessPolicySearchRequest(None, 0, None, None)
-    val response = Http(URL + "/business/policies/" + businessPolicyNS + "/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3)     // we created 4 nodes in this org, but nodeId4 is arm
   }
 
   //~~~~~ Node health search ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1288,7 +1248,8 @@ class NodesSuite extends AnyFunSuite {
     val input = PostNodeHealthRequest(ApiTime.futureUTC(100000), None)
     val response = Http(URL+"/search/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
-    info("code: "+response.code)
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
     val postResp = parse(response.body).extract[PostNodeHealthResponse]
     val nodes = postResp.nodes
@@ -1769,7 +1730,10 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement") {
     patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0, None)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = Some(List(orgid, orgid2)),
+                                         secondsStale = Some(86400),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     //info("code: "+response.code)
@@ -1781,7 +1745,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+"/agreements/"+agreementId2+" - create agreement for node in 2nd org, with short old style url") {
-    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC_URL)), "signed")
+    val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
     val response = Http(URL2+"/nodes/"+nodeId+"/agreements/"+agreementId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1789,7 +1753,10 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+org2nodeId+" in agreement") {
     //patchNodePattern(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(SDRSPEC, Some(List(orgid,orgid2)), 86400, 0, 0, None)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = Some(List(orgid, orgid2)),
+                                         secondsStale = Some(86400),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     //info("code: "+response.code)
@@ -1828,29 +1795,8 @@ class NodesSuite extends AnyFunSuite {
     assert(nodes.contains(orgnodeId) && nodes.contains(orgnodeId2) && nodes.contains(orgnodeId3) && nodes.contains(orgnodeId4)  && nodes.contains(orgnodeId8))
     val dev = nodes(orgnodeId)
     assert(dev.agreements.contains(agreementId))
-  }
-
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - 1 node in sdr agreement") {
+  
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    val input = PostBusinessPolicySearchRequest(None, 0, None, None)
-    val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3)
-    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
-  }
-
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+"/search - 1 node in sdr agreement, but that shouldn't affect this") {
-    val input = PostBusinessPolicySearchRequest(None, 0, None, None)
-    val response = Http(URL+"/business/policies/"+businessPolicyNS+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3)
-    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2 || d.id==orgnodeId3) === 3)
   }
 
   test("POST /orgs/"+orgid+"/search/nodehealth - as agbot, with blank time - should find all nodes and 1 agreement for "+nodeId) {
@@ -1931,7 +1877,10 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement, should get same result as before") {
     patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(SDRSPEC, None, 86400, 0, 0, None)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = None,
+                                         secondsStale = Some(86400),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1941,18 +1890,8 @@ class NodesSuite extends AnyFunSuite {
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 4)
     assert(nodes.count(d => d.id == orgnodeId2 || d.id == orgnodeId3 || d.id == orgnodeId4 || d.id == orgnodeId8) === 4)
-  }
-
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - the pws agreement shouldn't affect this") {
+  
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    val input = PostBusinessPolicySearchRequest(None, 0, None, None)
-    val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 3)
-    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3 || d.id==orgnodeId4) === 3)
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - sdr") {
@@ -1981,7 +1920,10 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+NETSPEEDSPEC+" - with "+nodeId+" in agreement") {
     patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
-    val input = PostPatternSearchRequest(NETSPEEDSPEC, None, 86400, 0, 0, None)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = None,
+                                         secondsStale = Some(86400),
+                                         serviceUrl = NETSPEEDSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -1993,7 +1935,10 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - should find all nodes again") {
-    val input = PostPatternSearchRequest(SDRSPEC, None, 86400, 0, 0, None)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = None,
+                                         secondsStale = Some(86400),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -2004,18 +1949,8 @@ class NodesSuite extends AnyFunSuite {
     assert(nodes.count(d => d.id == orgnodeId || d.id == orgnodeId2 || d.id == orgnodeId3 || d.id == orgnodeId4 || d.id == orgnodeId8) === 5)
     val dev = nodes.find(d => d.id == orgnodeId).get // the 2nd get turns the Some(val) into val
     assert(dev.publicKey === nodePubKey)
-  }
-
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+"/search - the netspeed agreement means we should return 1 less node") {
+  
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
-    val input = PostBusinessPolicySearchRequest(None, 0, None, None)
-    val response = Http(URL+"/business/policies/"+businessPolicyNS+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 2)
-    assert(nodes.count(d => d.id==orgnodeId2 || d.id==orgnodeId3) === 2)
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" delete agreement and test lastUpdated field changed") {
@@ -2056,7 +1991,10 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - all nodes stale") {
     patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
     Thread.sleep(1100)    // delay 1.1 seconds so all nodes will be stale
-    val input = PostPatternSearchRequest(SDRSPEC, None, 1, 0, 0, None)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = None,
+                                         secondsStale = Some(1),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -2101,7 +2039,10 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - 1 node not stale") {
-    val input = PostPatternSearchRequest(SDRSPEC, None, 1, 0, 0, None)
+    val input = PostPatternSearchRequest(arch = None,
+                                         nodeOrgids = None,
+                                         secondsStale = Some(1),
+                                         serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: "+response.code)
@@ -2157,19 +2098,9 @@ class NodesSuite extends AnyFunSuite {
     val response = Http(URL + "/nodes/" + nodeId + "/agreements").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("GET "+nodeId+"/agreements, code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
-  }
-
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - with a sleep, so all nodes are stale") {
+  
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
     putAllNodePolicyAndAgreements() // add agreements and policies to all nodes to give them a value in the lastUpdated column
-    Thread.sleep(2100)    // delay 2.1 seconds so all nodes will be stale
-    val input = PostBusinessPolicySearchRequest(None, ApiTime.nowSeconds, None, None)
-    val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 0)
   }
 
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId2+" - patching public key so this node won't be stale for non-pattern search") {
@@ -2185,19 +2116,7 @@ class NodesSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+"/search - now 2 nodes not stales") {
-    val input = PostBusinessPolicySearchRequest(None, changedSinceAgo(2), None, None)
-    val response = Http(URL+"/business/policies/"+businessPolicySdr+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    //info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postSearchDevResp = parse(response.body).extract[PostBusinessPolicySearchResponse]
-    val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 2)
-    assert(nodes.count(d => d.id==orgnodeId || d.id==orgnodeId2) === 2)
-  }
-
+  
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId3+" - explicit delete of "+nodeId3) {
     var response = Http(URL+"/nodes/"+nodeId3).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

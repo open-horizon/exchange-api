@@ -121,3 +121,37 @@ object BusinessPoliciesTQ {
   /** Returns the actions to delete the businessPolicy and the blockchains that reference it */
   def getDeleteActions(businessPolicy: String): DBIO[_] = getBusinessPolicy(businessPolicy).delete   // with the foreign keys set up correctly and onDelete=cascade, the db will automatically delete these associated blockchain rows
 }
+
+final case class SearchOffsetPolicyAttributes(agbot: String,
+                                              offset: Option[String] = None,
+                                              policy: String,
+                                              session: Option[String] = None)
+
+class SearchOffsetPolicy(tag: Tag) extends Table[SearchOffsetPolicyAttributes](tag, "search_offset_policy") {
+  def agbot = column[String]("agbot")
+  def offset = column[Option[String]]("offset", O.Default(None))
+  def policy = column[String]("policy")
+  def session = column[Option[String]]("session", O.Default(None))
+  
+  def pkSearchOffsetsPolicy = primaryKey("pk_searchoffsetpolicy", (agbot, policy))
+  def fkAgbot = foreignKey("fk_agbot", agbot, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkPolicy = foreignKey("fk_policy", policy, BusinessPoliciesTQ.rows)(_.businessPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  
+  def * = (agbot, offset, policy, session).mapTo[SearchOffsetPolicyAttributes]
+}
+
+object SearchOffsetPolicyTQ {
+  val offsets = TableQuery[SearchOffsetPolicy]
+  
+  def dropAllOffsets() =
+    offsets.delete
+  
+  def getOffsetSession(agbot: String, policy: String) =
+    offsets
+      .filter(_.agbot === agbot)
+      .filter(_.policy === policy)
+      .map(offset ⇒ (offset.offset, offset.session))
+      
+  def setOffsetSession(agbot: String, offset: Option[String], policy: String, session: Option[String]) =
+    offsets.insertOrUpdate(SearchOffsetPolicyAttributes(agbot, offset, policy, session))
+}

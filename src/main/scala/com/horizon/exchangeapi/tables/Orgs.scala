@@ -152,6 +152,9 @@ object ResourceChangesTQ {
       case _ => null
     }
   }
+  
+  def dropAllChanges() =
+    rows.delete
 }
 
 final case class ResourceChange(changeId: Long, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: java.sql.Timestamp)

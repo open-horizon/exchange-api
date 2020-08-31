@@ -177,8 +177,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   
-  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Org") {
-    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/node-details -- Filter By Org") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     //info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -238,8 +238,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(2).userInput             === None)
   }
   
-  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Architecture") {
-    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").param("arch", "%64").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/node-details -- Filter By Architecture") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").param("arch", "%64").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -249,8 +249,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(0).id === TESTNODES(0).id)
   }
   
-  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By ID") {
-    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").param("id", "%2").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/node-details -- Filter By ID") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").param("id", "%2").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -262,8 +262,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(0).lastUpdatedNodeStatus === Some(TESTNODESTATUSES(1).lastUpdated))
   }
   
-  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Name") {
-    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").param("name", "%").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/node-details -- Filter By Name") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").param("name", "%").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -275,8 +275,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
            NODES(2).id === TESTNODES(2).id)
   }
   
-  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Type") {
-    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").param("type", "device").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/node-details -- Filter By Type") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").param("type", "device").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -287,8 +287,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
            NODES(1).id === TESTNODES(2).id)
   }
   
-  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Owner - Agbot") {
-    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").param("owner", "%u2").headers(ACCEPT).headers(AGBOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/node-details -- Filter By Owner - Agbot") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").param("owner", "%u2").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -300,8 +300,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(0).token === TESTNODES(1).token)
   }
   
-  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Owner - Root") {
-    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").param("owner", "%u2").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/node-details -- Filter By Owner - Root") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").param("owner", "%u2").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -311,8 +311,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(0).id === TESTNODES(1).id)
   }
   
-  test("GET /orgs/" + "TestNodesGetDetails" + "/nodes/details -- Filter By Owner - User1") {
-    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/nodes/details").headers(ACCEPT).headers(USERAUTH).asString
+  test("GET /orgs/" + "TestNodesGetDetails" + "/node-details -- Filter By Owner - User1") {
+    val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").headers(ACCEPT).headers(USERAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)

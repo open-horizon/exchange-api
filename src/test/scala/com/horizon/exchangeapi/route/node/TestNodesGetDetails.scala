@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.route.node
 
-import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeErrorRow, NodeErrorTQ, NodeHeartbeatIntervals, NodeRow, NodeStatusRow, NodeStatusTQ, NodesTQ, OneService, OneUserInputService, OrgRow, OrgsTQ, RegService, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeErrorRow, NodeErrorTQ, NodeHeartbeatIntervals, NodePolicy, NodePolicyRow, NodePolicyTQ, NodeRow, NodeStatusRow, NodeStatusTQ, NodesTQ, OneProperty, OneService, OneUserInputService, OrgRow, OrgsTQ, RegService, ResourceChangesTQ, UserRow, UsersTQ}
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, NodeDetails, Role, StrConstants, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
@@ -9,7 +9,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc.PostgresProfile.api._
 
-import scala.collection.immutable.Map
+import scala.collection.immutable.{List, Map}
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -109,6 +109,15 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
         NodeErrorRow(errors = "",
                      lastUpdated = ApiTime.nowUTC,
                      nodeId = "TestNodesGetDetails/n2"))
+  private val TESTNODEPOLICIES: Seq[NodePolicyRow] =
+    Seq(NodePolicyRow(constraints = """["a===b"]""",
+                      lastUpdated = ApiTime.nowUTC,
+                      nodeId = "TestNodesGetDetails/n1",
+                      properties = """[{"name":"purpose","type":"list of strings","value":"testing"}]"""),
+        NodePolicyRow(constraints = "",
+                      lastUpdated = ApiTime.nowUTC,
+                      nodeId = "TestNodesGetDetails/n2",
+                      properties = ""))
   private val TESTNODESTATUSES: Seq[NodeStatusRow] =
     Seq(NodeStatusRow(connectivity = """{"images.bluehorizon.network":true}""",
                       lastUpdated = ApiTime.nowUTC,
@@ -165,6 +174,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                                        (AgbotsTQ.rows += TESTAGBOT) andThen
                                        (NodesTQ.rows ++= TESTNODES) andThen
                                        (NodeErrorTQ.rows ++= TESTNODEERRORS) andThen
+                                       (NodePolicyTQ.rows ++= TESTNODEPOLICIES) andThen
                                        (NodeStatusTQ.rows ++= TESTNODESTATUSES)), AWAITDURATION)
   }
   
@@ -191,11 +201,13 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(NODES(0).arch                  === Some(TESTNODES(0).arch))
     assert(NODES(0).connectivity          === Some(parse(TESTNODESTATUSES(0).connectivity).extract[Map[String, Boolean]]))
+    assert(NODES(0).constraints           === Some(parse(TESTNODEPOLICIES(0).constraints).extract[List[String]]))
     assert(NODES(0).errors                === Some(parse(TESTNODEERRORS(0).errors).extract[List[Any]]))
     assert(NODES(0).heartbeatIntervals    === Some(parse(TESTNODES(0).heartbeatIntervals).extract[NodeHeartbeatIntervals]))
     assert(NODES(0).lastHeartbeat         === TESTNODES(0).lastHeartbeat)
     assert(NODES(0).lastUpdatedNode       === TESTNODES(0).lastUpdated)
     assert(NODES(0).lastUpdatedNodeError  === Some(TESTNODEERRORS(0).lastUpdated))
+    assert(NODES(0).lastUpdatedNodePolicy === Some(TESTNODEPOLICIES(0).lastUpdated))
     assert(NODES(0).lastUpdatedNodeStatus === Some(TESTNODESTATUSES(0).lastUpdated))
     assert(NODES(0).msgEndPoint           === Some(TESTNODES(0).msgEndPoint))
     assert(NODES(0).name                  === Some(TESTNODES(0).name))
@@ -203,6 +215,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(0).orgid                 === TESTNODES(0).orgid)
     assert(NODES(0).owner                 === TESTNODES(0).owner)
     assert(NODES(0).pattern               === Some(TESTNODES(0).pattern))
+    assert(NODES(0).properties            === Some(parse(TESTNODEPOLICIES(0).properties).extract[List[OneProperty]]))
     assert(NODES(0).publicKey             === Some(TESTNODES(0).publicKey))
     assert(NODES(0).registeredServices    === Some(parse(TESTNODES(0).regServices).extract[List[RegService]]))
     assert(NODES(0).runningServices       === Some(TESTNODESTATUSES(0).runningServices))
@@ -213,22 +226,28 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(NODES(2).errors                === None)
     assert(NODES(1).connectivity          === None)
+    assert(NODES(1).constraints           === None)
     assert(NODES(1).lastUpdatedNodeError  === Some(TESTNODEERRORS(1).lastUpdated))
+    assert(NODES(1).lastUpdatedNodePolicy === Some(TESTNODEPOLICIES(1).lastUpdated))
     assert(NODES(1).lastUpdatedNodeStatus === Some(TESTNODESTATUSES(1).lastUpdated))
+    assert(NODES(1).properties            === None)
     assert(NODES(1).runningServices       === None)
     assert(NODES(1).services              === None)
     
     assert(NODES(2).arch                  === None)
     assert(NODES(2).connectivity          === None)
+    assert(NODES(2).constraints           === None)
     assert(NODES(2).errors                === None)
     assert(NODES(2).heartbeatIntervals    === Some(NodeHeartbeatIntervals(0, 0, 0)))
     assert(NODES(2).lastHeartbeat         === None)
     assert(NODES(2).lastUpdatedNodeError  === None)
+    assert(NODES(2).lastUpdatedNodePolicy === None)
     assert(NODES(2).lastUpdatedNodeStatus === None)
     assert(NODES(2).msgEndPoint           === None)
     assert(NODES(2).name                  === None)
     assert(NODES(2).nodeType              === "device")
     assert(NODES(2).pattern               === None)
+    assert(NODES(2).properties            === None)
     assert(NODES(2).publicKey             === None)
     assert(NODES(2).registeredServices    === None)
     assert(NODES(2).runningServices       === None)
@@ -259,6 +278,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES.size === 1)
     assert(NODES(0).id                    === TESTNODES(1).id)
     assert(NODES(0).lastUpdatedNodeError === Some(TESTNODEERRORS(1).lastUpdated))
+    assert(NODES(0).lastUpdatedNodePolicy === Some(TESTNODEPOLICIES(1).lastUpdated))
     assert(NODES(0).lastUpdatedNodeStatus === Some(TESTNODESTATUSES(1).lastUpdated))
   }
   

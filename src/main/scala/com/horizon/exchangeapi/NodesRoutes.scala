@@ -40,12 +40,14 @@ object GetNodesUtils {
 
 case class NodeDetails(arch: Option[String] = None,
                        connectivity: Option[Map[String, Boolean]] = None,
+                       constraints: Option[List[String]] = None,
                        errors: Option[List[Any]] = None,
                        heartbeatIntervals: Option[NodeHeartbeatIntervals] = None,
                        id: String = "",
                        lastHeartbeat: Option[String] = None,
                        lastUpdatedNode: String = "",
                        lastUpdatedNodeError: Option[String] = None,
+                       lastUpdatedNodePolicy: Option[String] = None,
                        lastUpdatedNodeStatus: Option[String] = None,
                        msgEndPoint: Option[String] = None,
                        name: Option[String] = None,
@@ -53,6 +55,7 @@ case class NodeDetails(arch: Option[String] = None,
                        owner: String = "",
                        orgid: String = "",
                        pattern: Option[String] = None,
+                       properties: Option[List[OneProperty]] = None,
                        publicKey: Option[String] = None,
                        registeredServices: Option[List[RegService]] = None,
                        runningServices: Option[String] = None,
@@ -2227,8 +2230,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   // ====== GET /orgs/{orgid}/node-details ===================================
   @GET
   @Path("node-details")
-  @Operation(description = "Returns all nodes with node status and errors",
-    summary = "Returns all nodes (edge devices) with node status and errors. Can be run by any user or agbot.",
+  @Operation(description = "Returns all nodes with node errors, policy and status",
+    summary = "Returns all nodes (edge devices) with node errors, policy and status. Can be run by any user or agbot.",
     parameters =
       Array(new Parameter(description = "Filter results to only include nodes with this architecture (can include % for wildcard - the URL encoding for % is %25)",
         in = ParameterIn.QUERY,
@@ -2267,6 +2270,11 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       "string": boolean,
       "string": boolean
     },
+    "constraints": [
+      "string",
+      "string",
+      "string"
+    ],
     "errors": [
       {
         "event_code": "string",
@@ -2284,6 +2292,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     "lastHeartbeat": "string",
     "lastUpdatedNode": "string",
     "lastUpdatedNodeError": "string",
+    "lastUpdatedNodePolicy": "string",
     "lastUpdatedNodeStatus": "string",
     "msgEndPoint": "",
     "name": "string",
@@ -2291,6 +2300,11 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     "owner": "string",
     "orgid": "string",
     "pattern": "",
+    "properties": [
+      "string": "string",
+      "string": "string",
+      "string": "string"
+    ],
     "publicKey": "string",
     "registeredServices": [
       {
@@ -2391,36 +2405,39 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                    .filter(_.orgid === orgid)
                                    .filterOpt(ownerFilter)((node, ownerFilter) ⇒ node.owner like ownerFilter)
                                    .joinLeft(NodeErrorTQ.rows.filterOpt(id)((nodeErrors, id) ⇒ nodeErrors.nodeId like id))
-                                   .on(_.id === _.nodeId)
+                                     .on(_.id === _.nodeId)
+                                   .joinLeft(NodePolicyTQ.rows.filterOpt(id)((nodePolicy, id) ⇒ nodePolicy.nodeId like id))
+                                     .on(_._1.id === _.nodeId)
                                    .joinLeft(NodeStatusTQ.rows.filterOpt(id)((nodeStatuses, id) ⇒ nodeStatuses.nodeId like id))
-                                   .on(_._1.id === _.nodeId) // node.id === nodeStatus.nodeid
-                                   .sortBy(_._1._1.id.asc) // node.id ASC
-                                   // ((Nodes, Node Errors), Node Statuses)
+                                     .on(_._1._1.id === _.nodeId) // node.id === nodeStatus.nodeid
+                                   .sortBy(_._1._1._1.id.asc)     // node.id ASC
+                                   // (((Nodes, Node Errors), Node Policy), Node Statuses)
                                    // Flatten the tupled structure, lexically sort columns.
                                    .map(
                                      node ⇒
-                                       (node._1._1.arch,
-                                         node._1._1.id,
-                                         node._1._1.heartbeatIntervals,
-                                         node._1._1.lastHeartbeat,
-                                         node._1._1.lastUpdated,
-                                         node._1._1.msgEndPoint,
-                                         node._1._1.name,
-                                         node._1._1.nodeType,
-                                         node._1._1.orgid,
-                                         node._1._1.owner,
-                                         node._1._1.pattern,
-                                         node._1._1.publicKey,
-                                         node._1._1.regServices,
-                                         node._1._1.softwareVersions,
+                                       (node._1._1._1.arch,
+                                         node._1._1._1.id,
+                                         node._1._1._1.heartbeatIntervals,
+                                         node._1._1._1.lastHeartbeat,
+                                         node._1._1._1.lastUpdated,
+                                         node._1._1._1.msgEndPoint,
+                                         node._1._1._1.name,
+                                         node._1._1._1.nodeType,
+                                         node._1._1._1.orgid,
+                                         node._1._1._1.owner,
+                                         node._1._1._1.pattern,
+                                         node._1._1._1.publicKey,
+                                         node._1._1._1.regServices,
+                                         node._1._1._1.softwareVersions,
                                          (if(ident.isAdmin ||
                                              ident.isSuperUser) // Do not pull nor query the Node's token if (Super)Admin.
-                                           node._1._1.id.substring(0,0) // node.id -> ""
+                                           node._1._1._1.id.substring(0,0) // node.id -> ""
                                          else
-                                           node._1._1.token),
-                                         node._1._1.userInput,
-                                         node._1._2,            // Node Errors (errors, lastUpdated)
-                                         node._2))              // Node Statuses (connectivity, lastUpdated, runningServices, services)
+                                           node._1._1._1.token),
+                                         node._1._1._1.userInput,
+                                         node._1._1._2,           // Node Errors (errors, lastUpdated)
+                                         node._1._2,              // Node Policy (constraints, lastUpdated, properties)
+                                         node._2))                // Node Statuses (connectivity, lastUpdated, runningServices, services)
                                    .result
                                    // Complete type conversion to something more usable.
                                    .map(
@@ -2433,11 +2450,17 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                              else
                                                Some(node._1),
                                              connectivity =
-                                               if(node._18.isEmpty ||
-                                                  node._18.get.connectivity.isEmpty)
+                                               if(node._19.isEmpty ||
+                                                  node._19.get.connectivity.isEmpty)
                                                  None
                                                else
-                                                 Some(read[Map[String, Boolean]](node._18.get.connectivity)),
+                                                 Some(read[Map[String, Boolean]](node._19.get.connectivity)),
+                                             constraints =
+                                              if(node._18.isEmpty ||
+                                                 node._18.get.constraints.isEmpty)
+                                                None
+                                              else
+                                                Some(read[List[String]](node._18.get.constraints)),
                                              errors =
                                                if(node._17.isEmpty ||
                                                   node._17.get.errors.isEmpty)
@@ -2457,9 +2480,14 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                                  Some(node._17.get.lastUpdated)
                                                else
                                                  None,
+                                             lastUpdatedNodePolicy =
+                                              if(node._18.isDefined)
+                                                Some(node._18.get.lastUpdated)
+                                              else
+                                                None,
                                              lastUpdatedNodeStatus =
-                                               if(node._18.isDefined)
-                                                 Some(node._18.get.lastUpdated)
+                                               if(node._19.isDefined)
+                                                 Some(node._19.get.lastUpdated)
                                                else
                                                  None,
                                              msgEndPoint =
@@ -2484,6 +2512,12 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                                  None
                                                else
                                                  Some(node._11),
+                                             properties =
+                                              if(node._18.isEmpty ||
+                                                 node._18.get.properties.isEmpty)
+                                                None
+                                              else
+                                                Some(read[List[OneProperty]](node._18.get.properties)),
                                              publicKey =
                                                if(node._12.isEmpty)
                                                  None
@@ -2495,17 +2529,17 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                                else
                                                  Some(read[List[RegService]](node._13).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))),
                                              runningServices =
-                                               if(node._18.isEmpty ||
-                                                  node._18.get.services.isEmpty)
+                                               if(node._19.isEmpty ||
+                                                  node._19.get.services.isEmpty)
                                                  None
                                                else
-                                                 Some(node._18.get.runningServices),
+                                                 Some(node._19.get.runningServices),
                                              services =
-                                               if(node._18.isEmpty ||
-                                                  node._18.get.services.isEmpty)
+                                               if(node._19.isEmpty ||
+                                                  node._19.get.services.isEmpty)
                                                  None
                                                else
-                                                 Some(read[List[OneService]](node._18.get.services)),
+                                                 Some(read[List[OneService]](node._19.get.services)),
                                              softwareVersions =
                                                if(node._14.isEmpty)
                                                  None

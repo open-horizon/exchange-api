@@ -776,7 +776,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(totalNodes) =>
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " total number of nodes in org: " + totalNodes)
               if (orgLimitMaxNodes == 0) NodesTQ.getNumOwned(owner).result.asTry // no limit set
-              else if (totalNodes >= orgLimitMaxNodes) DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.org.max.limit.of.nodes", orgLimitMaxNodes))).asTry
+              else if (totalNodes >= orgLimitMaxNodes) DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.org.max.limit.of.nodes", totalNodes, orgLimitMaxNodes))).asTry
               else if ((orgLimitMaxNodes-totalNodes) <= orgLimitMaxNodes*.05) { // if we are within 5% of the limit
                 fivePercentWarning = true // used for warning later
                 NodesTQ.getNumOwned(owner).result.asTry

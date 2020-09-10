@@ -2977,7 +2977,7 @@ class NodesSuite extends AnyFunSuite {
     info("code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    assert(response.body.contains("you are over the org limit"))
+    assert(response.body.contains("Your current total number of nodes"))
   }
 
   // patch the org to have maxNodes 0

@@ -195,8 +195,19 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
                 value ="""{
   "orgs": {
     "string" : {
-      "orgType": "string",
-      "label": "string"
+      "orgType": "",
+      "label": "",
+      "description": "",
+      "lastUpdated": "",
+      "tags": null,
+      "limits": {
+        "maxNodes": 0
+      },
+      "heartbeatIntervals": {
+        "minInterval": 0,
+        "maxInterval": 0,
+        "intervalAdjustment": 0
+      }
     }.
       ...
   },
@@ -259,8 +270,21 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
                 value ="""{
   "orgs": {
     "string" : {
-      "orgType": "string",
-      "label": "string"
+      "orgType": "",
+      "label": "Test Org",
+      "description": "No",
+      "lastUpdated": "2020-08-25T14:04:21.707Z[UTC]",
+      "tags": {
+        "ibmcloud_id": ""
+      },
+      "limits": {
+        "maxNodes": 0
+      },
+      "heartbeatIntervals": {
+        "minInterval": 0,
+        "maxInterval": 0,
+        "intervalAdjustment": 0
+      }
     }
   },
   "lastIndex": 0
@@ -327,7 +351,10 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   "description": "blah blah",
   "tags": {   // (optional)
     "ibmcloud_id": "abc123def456"
-  }
+  },
+  "limits": { // optional
+    "maxNodes": 50
+  },
   "heartbeatIntervals": {     // default values (in seconds) if not set in the node resource. This section can be omitted
     "minInterval": 10,        // the initial heartbeat interval
     "maxInterval": 120,       // the max the interval will ever become
@@ -412,7 +439,10 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   "description": "blah blah",
   "tags": {   // (optional)
     "ibmcloud_id": "abc123def456"
-  }
+  },
+  "limits": { // optional
+    "maxNodes": 50
+  },
   "heartbeatIntervals": {     // default values (in seconds) if not set in the node resource. This section can be omitted
     "minInterval": 10,        // the initial heartbeat interval
     "maxInterval": 120,       // the max the interval will ever become
@@ -481,7 +511,10 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   "description": "blah blah",
   "tags": {
     "ibmcloud_id": "abc123def456"
-  }
+  },
+  "limits": {
+    "maxNodes": 0
+  },
   "heartbeatIntervals": {     // default values (in seconds) if not set in the node resource. This section can be omitted
     "minInterval": 10,        // the initial heartbeat interval
     "maxInterval": 120,       // the max the interval will ever become

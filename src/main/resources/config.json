@@ -55,10 +55,6 @@
 			"enabled": true,      // if set to false it will not honor the root credentials
 			"password": ""			// set this in your own version of this config file
 		},
-		"hubAdmin": { // the first hub-admin user created
-			"username": "", // set this in your own version of this config file
-			"password": "" // set this in your own version of this config file
-		},
 		"service": {
 			"host": "0.0.0.0",
 			"port": 8080,

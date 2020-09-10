@@ -312,16 +312,16 @@ object ExchConfig {
     //val rootemail = config.getString("api.root.email")
     val rootemail = ""
     // Create the root org, create the IBM org, and create the root user (all only if necessary)
-    db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None, "").upsert.asTry.flatMap({ xs =>
+    db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None, "", "").upsert.asTry.flatMap({ xs =>
       logger.debug("Upsert /orgs/root result: " + xs.toString)
       xs match {
-        case Success(_) => UserRow(Role.superUser, "root", rootHashedPw, admin = true, rootemail, ApiTime.nowUTC, Role.superUser).upsertUser.asTry // next action
+        case Success(_) => UserRow(Role.superUser, "root", rootHashedPw, admin = true, hubAdmin = true, rootemail, ApiTime.nowUTC, Role.superUser).upsertUser.asTry // next action
         case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
       }
     }).flatMap({ xs =>
       logger.debug("Upsert /orgs/root/users/root (root) result: " + xs.toString)
       xs match {
-        case Success(_) => OrgRow("IBM", "IBM", "IBM Org", "Organization containing IBM services", ApiTime.nowUTC, None, "").upsert.asTry // next action
+        case Success(_) => OrgRow("IBM", "IBM", "IBM Org", "Organization containing IBM services", ApiTime.nowUTC, None, "", "").upsert.asTry // next action
         case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
       }
     })).map({ xs =>

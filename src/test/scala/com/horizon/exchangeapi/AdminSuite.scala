@@ -58,15 +58,19 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
   private val URL                 = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1"
   private val USERS: List[String] = List("admin", "user")
   private val ORGS: List[String]  = List("adminsuite", "root")
+  private val hubadmin            = "AdminSuitTestsHubAdmin"
+  private val urlRootOrg          =  URL + "/orgs/root"
+  private val pw                  = "password"
+  private val HUBADMINAUTH        = ("Authorization", "Basic " + ApiUtils.encode("root/"+hubadmin+":"+pw))
 
   implicit val FORMATS            = DefaultFormats // Brings in default date formats etc.
 
   override def beforeAll() {
-    Http(URL + "/orgs/" + ORGS(0)).postData(write(PostPutOrgRequest(None, (ORGS(0)), "AdminSuite Test Organization", None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    Http(URL + "/orgs/" + ORGS(0)).postData(write(PostPutOrgRequest(None, (ORGS(0)), "AdminSuite Test Organization", None, None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
 
     for (org <- ORGS) {
       for (user <- USERS) {
-        Http(URL + "/orgs/" + org + "/users/" + user).postData(write(PostPutUsersRequest("password", user.endsWith("admin"), user + "@host.domain"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        Http(URL + "/orgs/" + org + "/users/" + user).postData(write(PostPutUsersRequest("password", user.endsWith("admin"), Some(false), user + "@host.domain"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       }
       
       Http(URL + "/orgs/" + org + "/agbots/" + AGBOT).postData(write(PutAgbotsRequest("password", AGBOT, None, "password"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -265,6 +269,71 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
     // info("headers: " + response.headers)
     info("body: " + response.body)
     assert(response.code === HttpCode.BADCREDS.intValue)
+  }
+
+  // =============== Get Exchange Org-Specific Status ===============
+  test("GET /admin/orgstatus - root/root") {
+    val response = Http(URL + "/admin/orgstatus").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("http status code: " + response.code)
+    // info("headers: " + response.headers)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val getResp = parse(response.body).extract[GetAdminOrgStatusResponse]
+    assert(getResp.msg.contains("operating normally"))
+    assert(!getResp.nodes.isEmpty) // nodes should be visible
+    assert(getResp.nodes.size >= ORGS.size) // account for orgs that might already exist in db, but there should be at least 2
+    assert(getResp.nodes.contains(ORGS.head))
+    assert(getResp.nodes.contains(ORGS(1)))
+  }
+
+  test("GET /admin/orgstatus - normal user without access Access Denied") {
+    val response = Http(URL + "/admin/orgstatus").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(ORGS.head + "/" + USERS(1) + ":" + "password"))).asString
+    info("http status code: " + response.code)
+    // info("headers: " + response.headers)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.body.contains("Access denied"))
+  }
+
+  test("GET /admin/orgstatus - org admin") {
+    val response = Http(URL + "/admin/orgstatus").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(ORGS.head + "/" + USERS.head + ":" + "password"))).asString
+    info("http status code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val getResp = parse(response.body).extract[GetAdminOrgStatusResponse]
+    assert(getResp.msg.contains("operating normally"))
+    assert(!getResp.nodes.isEmpty) // nodes should be visible
+    assert(getResp.nodes.size >= ORGS.size) // account for orgs that might already exist in db, but there should be at least 2
+    assert(getResp.nodes.contains(ORGS.head))
+    assert(getResp.nodes.contains(ORGS(1)))
+  }
+
+  // make a hubadmin
+  test("POST /orgs/root/users/" + hubadmin ) {
+    val input = PostPutUsersRequest(pw, admin = false, Some(true), hubadmin + "@hotmail.com")
+    val response = Http(urlRootOrg + "/users/" + hubadmin).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+  }
+
+  test("GET /admin/orgstatus - hub admin") {
+    val response = Http(URL + "/admin/orgstatus").headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("http status code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val getResp = parse(response.body).extract[GetAdminOrgStatusResponse]
+    assert(getResp.msg.contains("operating normally"))
+    assert(!getResp.nodes.isEmpty) // nodes should be visible
+    assert(getResp.nodes.size >= ORGS.size) // account for orgs that might already exist in db, but there should be at least 2
+    assert(getResp.nodes.contains(ORGS.head))
+    assert(getResp.nodes.contains(ORGS(1)))
+  }
+
+  // delete the hubadmin
+  test("DELETE /orgs/root/users/" + hubadmin ) {
+    val response = Http(urlRootOrg + "/users/" + hubadmin).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   // =============== Get Exchange API Version ===============

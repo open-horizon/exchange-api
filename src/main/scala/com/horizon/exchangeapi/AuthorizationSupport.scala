@@ -55,6 +55,7 @@ object Access extends Enumeration {
   val WRITE_MY_ORG = Value("WRITE_MY_ORG")
   val SET_IBM_ORG_TYPE = Value("SET_IBM_ORG_TYPE")
   val STATUS = Value("STATUS")
+  val ORGSTATUS = Value("ORGSTATUS")
   val UTILITIES = Value("UTILITIES")
   val MAXCHANGEID = Value("MAXCHANGEID")
   val CREATE_ORGS = Value("CREATE_ORGS")
@@ -63,6 +64,10 @@ object Access extends Enumeration {
   val WRITE_OTHER_ORGS = Value("WRITE_OTHER_ORGS")
   val CREATE_IN_OTHER_ORGS = Value("CREATE_IN_OTHER_ORGS")
   val ADMIN = Value("ADMIN")
+  // Hub Admin Permissions
+  val READ_MY_USERS = Value("READ_MY_USERS")
+  val WRITE_MY_USERS = Value("WRITE_MY_USERS")
+  val WRITE_ALL_ORGS = Value("WRITE_ALL_ORGS")
 
   val ALL_IN_ORG = Value("ALL_IN_ORG")
   val ALL = Value("ALL")
@@ -80,11 +85,12 @@ object AccessGroups {
 object AuthRoles {
   val SuperUser = "SuperUser"
   val AdminUser = "AdminUser"
+  val HubAdmin = "HubAdmin"
   val User = "User"
   val Node = "Node"
   val Agbot = "Agbot"
   val Anonymous = "Anonymous"
-  val requiredRoles = Set(Anonymous, User, AdminUser, SuperUser, Node, Agbot)
+  val requiredRoles = Set(Anonymous, User, AdminUser, HubAdmin, SuperUser, Node, Agbot)
 }
 
 /* Not using the java authorization framework anymore, because it doesn't add any value for us and adds complexity
@@ -149,6 +155,7 @@ object Role {
 
   def superUser = "root/root"
   def isSuperUser(username: String): Boolean = return username == superUser // only checks the username, does not verify the pw
+  def isHubAdmin(username: String): Boolean = username.startsWith("root/") // only checks that user is in root org, doesn't verify anything else
 }
 
 final case class Creds(id: String, token: String) { // id and token are generic names and their values can actually be username and password
@@ -253,6 +260,7 @@ trait AuthorizationSupport {
     def toIAnonymous = IAnonymous(Creds("",""))
     def isSuperUser = false       // IUser overrides this
     def isAdmin = false       // IUser overrides this
+    def isHubAdmin = false       // IUser overrides this
     def isAnonymous = false // = creds.isAnonymous
     def identityString = creds.id     // for error msgs
     def accessDeniedMsg(access: Access, target: Target) = ExchMsg.translate("access.denied.no.auth", identityString, access, target.toAccessMsg)
@@ -317,6 +325,7 @@ trait AuthorizationSupport {
     override lazy val role =
       if (isSuperUser) AuthRoles.SuperUser
       else if (isAdmin) AuthRoles.AdminUser
+      else if (isHubAdmin) AuthRoles.HubAdmin
       else AuthRoles.User
 
     override def authorizeTo(target: Target, access: Access): Try[Identity] = {
@@ -325,8 +334,8 @@ trait AuthorizationSupport {
         if (isMyOrg(target) || target.isPublic) {
           target match {
             case TUser(id) => access match { // a user accessing a user
-              case Access.READ => logger.debug(s"id=$id, creds.id=${creds.id}"); if (id == creds.id) Access.READ_MYSELF else Access.READ_ALL_USERS
-              case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else Access.WRITE_ALL_USERS
+              case Access.READ => logger.debug(s"id=$id, creds.id=${creds.id}"); if (id == creds.id) Access.READ_MYSELF else if (Role.isHubAdmin(creds.id)) Access.READ_MY_USERS else Access.READ_ALL_USERS
+              case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (Role.isHubAdmin(creds.id)) Access.WRITE_MY_USERS else Access.WRITE_ALL_USERS
               case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
               case _ => access
             }
@@ -363,7 +372,7 @@ trait AuthorizationSupport {
             case TOrg(_) => access match {    // a user accessing an org resource
               case Access.READ => Access.READ_MY_ORG
               case Access.READ_IBM_ORGS => Access.READ_IBM_ORGS
-              case Access.WRITE => Access.WRITE_MY_ORG
+              case Access.WRITE => if (Role.isHubAdmin(creds.id)) Access.WRITE_ALL_ORGS else Access.WRITE_MY_ORG
               case Access.CREATE => Access.CREATE_ORGS
               case _ => access
             }
@@ -388,6 +397,14 @@ trait AuthorizationSupport {
       if (isSuperUser) return true
       //println("getting admin for "+creds.id+" ...")
       val resp = AuthCache.getUserIsAdmin(creds.id).getOrElse(false)
+      //println("... back from getting admin for "+creds.id+": "+resp)
+      resp
+    }
+
+    override def isHubAdmin: Boolean = {
+      if (isSuperUser) return true
+      //println("getting admin for "+creds.id+" ...")
+      val resp = AuthCache.getUserIsHubAdmin(creds.id).getOrElse(false)
       //println("... back from getting admin for "+creds.id+": "+resp)
       resp
     }

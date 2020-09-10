@@ -10,7 +10,7 @@ import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
-import com.horizon.exchangeapi.tables.{BService, BServiceVersions, ContainerStatus, NAService, NAgrService, NodeError, NodeHeartbeatIntervals, NodePolicy, NodeStatus, NodeType, OneProperty, OneService, OneUserInputService, OneUserInputValue, PServiceVersions, PServices, Prop, RegService}
+import com.horizon.exchangeapi.tables.{BService, BServiceVersions, ContainerStatus, NAService, NAgrService, NodeError, NodeHeartbeatIntervals, NodePolicy, NodeStatus, NodeType, OneProperty, OneService, OneUserInputService, OneUserInputValue, OrgLimits, PServiceVersions, PServices, Prop, RegService}
 import org.json4s.native.JsonMethods
 import scalaj.http.{Http, HttpResponse}
 
@@ -225,29 +225,29 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+" - create org to use for this test suite") {
-    val input = PostPutOrgRequest(None, "My Org", "desc", None, None)
+    val input = PostPutOrgRequest(None, "My Org", "desc", None, None, None)
     val response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/"+orgid2+" - create 2nd org to use for this test suite") {
-    val input = PostPutOrgRequest(None, "My 2nd Org", "desc", None, None)
+    val input = PostPutOrgRequest(None, "My 2nd Org", "desc", None, None, None)
     val response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/" + orgid + "/users/" + user + " - normal") {
-    Http(URL + "/users/" + user).postData(write(PostPutUsersRequest(pw, admin = false, user + "@hotmail.com"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    Http(URL + "/users/" + user).postData(write(PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     
-    Http(URL + "/users/u2").postData(write(PostPutUsersRequest("u2pw", admin = false, "u2@hotmail.com"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    Http(URL + "/users/u2").postData(write(PostPutUsersRequest("u2pw", admin = false, Some(false), "u2@hotmail.com"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     
     assert(true)
   }
 
   test("POST /orgs/"+orgid2+"/users/"+user+" - normal") {                //val compositeId = OrgAndId(orgid,id).toString
-    val input = PostPutUsersRequest(pw, admin = false, user+"@hotmail.com")
+    val input = PostPutUsersRequest(pw, admin = false, Some(false), user+"@hotmail.com")
     val response = Http(URL2+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -2731,6 +2731,16 @@ class NodesSuite extends AnyFunSuite {
     assert(response.body.contains(nodeId2))
   }
 
+  test("POST /orgs/"+orgid+"/search/nodes/service - should find " + SDRSPEC_URL + " running on 2 nodes called by user") {
+    val input = PostServiceSearchRequest(orgid, SDRSPEC_URL, svcversion, svcarch)
+    val response = Http(URL+"/search/nodes/service").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.body.contains(nodeId))
+    assert(response.body.contains(nodeId2))
+  }
+
   test("POST /orgs/"+orgid+"/search/nodes/service - should find " + NETSPEEDSPEC_URL + " running on 2 nodes") {
     val input = PostServiceSearchRequest(orgid, NETSPEEDSPEC_URL, svcversion2, svcarch2)
     val response = Http(URL+"/search/nodes/service").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -2905,6 +2915,102 @@ class NodesSuite extends AnyFunSuite {
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[MaxChangeIdResponse]
     assert(parsedBody.maxChangeId > 0)
+  }
+
+  // Test Org maxNodes limit
+  val hubadmin = "NodeSuitTestsHubAdmin"
+  val urlRootOrg = urlRoot + "/v1/orgs/root"
+  val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/"+hubadmin+":"+pw))
+  val orgid3 = "NodeSuitTestsOrgMaxNodes"
+  val ORG3USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(orgid3+"/"+user+":"+pw))
+
+  // make a hubadmin
+  test("POST /orgs/root/users/" + hubadmin ) {
+    val input = PostPutUsersRequest(pw, admin = false, Some(true), hubadmin + "@hotmail.com")
+    val response = Http(urlRootOrg + "/users/" + hubadmin).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+  }
+
+  // make an org with low org maxNodes
+  test("POST /orgs/" + orgid3) {
+    val limits = OrgLimits(20)
+    // orgType, label, description, tags, limits, heartbeatIntervals
+    val input = PostPutOrgRequest(None, "My Org", "desc", None, Some(limits), None)
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code == HttpCode.POST_OK.intValue)
+  }
+
+  // make a user in the org
+  test("POST /orgs/" + orgid3 + "/users/" + user + " - normal") {
+    val input = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/users/" + user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+  }
+
+  // make a node, have it work fine
+  test("PUT /orgs/" + orgid3 + "/nodes/ - adding 19 nodes for low org maxNodes test") {
+    for( i <- 1 to 19) {
+      val input = PutNodesRequest(nodeToken, "test" + i, None, "", None, None, None, None, nodePubKey, Some("amd64"), None)
+      val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/nodes/" + nodeId + i).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ORG3USERAUTH).asString
+      info("code: " + response.code)
+      info("body: " + response.body)
+      assert(response.code === HttpCode.PUT_OK.intValue)
+    }
+  }
+  // make another node to put you within 5% of limit
+  test("PUT /orgs/" + orgid3 + "/nodes/ - adding the 20th node for low org maxNodes test") {
+    val input = PutNodesRequest(nodeToken, "test" + 20, None, "", None, None, None, None, nodePubKey, Some("amd64"), None)
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/nodes/" + nodeId + 20).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ORG3USERAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.body.contains("Warning: you are within 5%"))
+  }
+
+  // make another node so you're now over limit and it should fail
+  test("PUT /orgs/" + orgid3 + "/nodes/ - trying to add 21st node with org maxNodes of 20") {
+    val input = PutNodesRequest(nodeToken, "test" + 21, None, "", None, None, None, None, nodePubKey, Some("amd64"), None)
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/nodes/" + nodeId + 21).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ORG3USERAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.body.contains("you are over the org limit"))
+  }
+
+  // patch the org to have maxNodes 0
+  test("PATCH /orgs/" + orgid3) {
+    val limits = OrgLimits(0)
+    // orgType, label, description, tags, limits, heartbeatIntervals
+    val input = PatchOrgRequest(None, None, None, None, Some(limits), None)
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code == HttpCode.POST_OK.intValue)
+  }
+
+  // make another node, verify it works
+  test("PUT /orgs/" + orgid3 + "/nodes/ - trying to add 21st node with org maxNodes of 0") {
+    val input = PutNodesRequest(nodeToken, "test" + 21, None, "", None, None, None, None, nodePubKey, Some("amd64"), None)
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/nodes/" + nodeId + 21).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ORG3USERAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  // delete the org
+  test("DELETE /orgs/" + orgid3) {
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3).method("delete").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code == HttpCode.DELETED.intValue)
+  }
+
+  // delete the hubadmin
+  test("DELETE /orgs/root/users/" + hubadmin ) {
+    val response = Http(urlRootOrg + "/users/" + hubadmin).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId) {

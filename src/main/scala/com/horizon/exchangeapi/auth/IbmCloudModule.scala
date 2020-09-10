@@ -413,7 +413,7 @@ object IbmCloudAuth {
               // This is the case in which between the call to fetchUser and createUser another client created the user, so this is a duplicate that is not needed.
               // Instead of returning an error just create an artificial response in which the username is correct (that's the only field used from this).
               // (We don't want to do an upsert in createUser in case the user has changed it since it was created, e.g. set admin true)
-              DBIO.successful(Success(UserRow(authInfo.org + "/" + userInfo.user, "", "", admin = false, "", "", "")))
+              DBIO.successful(Success(UserRow(authInfo.org + "/" + userInfo.user, "", "", admin = false, hubAdmin = false, "", "", "")))
             } else {
               DBIO.failed(new UserCreateException(ExchMsg.translate("error.creating.user", authInfo.org, userInfo.user, t.getMessage)))
 
@@ -502,6 +502,7 @@ object IbmCloudAuth {
       org,
       "",
       admin = false,
+      hubAdmin = false,
       userInfo.user,
       ApiTime.nowUTC,
       s"$org/${userInfo.user}")

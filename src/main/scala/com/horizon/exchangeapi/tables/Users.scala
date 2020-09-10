@@ -6,20 +6,20 @@ import slick.jdbc.PostgresProfile.api._
 /** Contains the object representations of the DB tables related to users. */
 
 //future: figure out how to use the slick type Timestamp, but have it stored in UTC
-final case class UserRow(username: String, orgid: String, hashedPw: String, admin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
+final case class UserRow(username: String, orgid: String, hashedPw: String, admin: Boolean, hubAdmin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
   def insertUser(): DBIO[_] = {
     //val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
-    UsersTQ.rows += UserRow(username, orgid, hashedPw, admin, email, lastUpdated, updatedBy)
+    UsersTQ.rows += UserRow(username, orgid, hashedPw, admin, hubAdmin, email, lastUpdated, updatedBy)
   }
 
   def upsertUser: DBIO[_] = {
     //val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
-    UsersTQ.rows.insertOrUpdate(UserRow(username, orgid, hashedPw, admin, email, lastUpdated, updatedBy))
+    UsersTQ.rows.insertOrUpdate(UserRow(username, orgid, hashedPw, admin, hubAdmin, email, lastUpdated, updatedBy))
   }
 
   def updateUser(): DBIO[_] = {
     //val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
-    return (for { u <- UsersTQ.rows if u.username === username } yield u).update(UserRow(username, orgid, hashedPw, admin, email, lastUpdated, updatedBy))
+    return (for { u <- UsersTQ.rows if u.username === username } yield u).update(UserRow(username, orgid, hashedPw, admin, hubAdmin, email, lastUpdated, updatedBy))
     /*
     // if password and/or email are blank, it means they should not be updated <- not supporting this anymore
     (pw, email) match {
@@ -38,11 +38,12 @@ class Users(tag: Tag) extends Table[UserRow](tag, "users") {
   def orgid = column[String]("orgid")
   def password = column[String]("password")
   def admin = column[Boolean]("admin")
+  def hubAdmin = column[Boolean]("hubadmin")
   def email = column[String]("email")
   // def lastUpdated = column[Timestamp]("lastupdated")    //someday: need this is UTC, not local time zone
   def lastUpdated = column[String]("lastupdated")
   def updatedBy = column[String]("updatedby")
-  def * = (username, orgid, password, admin, email, lastUpdated, updatedBy) <> (UserRow.tupled, UserRow.unapply)
+  def * = (username, orgid, password, admin, hubAdmin, email, lastUpdated, updatedBy) <> (UserRow.tupled, UserRow.unapply)
   //def primKey = primaryKey("pk_pk", (username, orgid))
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -53,14 +54,16 @@ object UsersTQ {
 
   //def getAllUsers(orgid: String) = rows.filter(_.username like orgid+"/%")
   def getAllUsers(orgid: String) = rows.filter(_.orgid === orgid)
+  def getAllAdmins(orgid: String) = rows.filter(_.orgid === orgid).filter(_.admin === true)
   def getUser(username: String) = rows.filter(_.username === username)
   def getPassword(username: String) = rows.filter(_.username === username).map(_.password)
   def getAdmin(username: String) = rows.filter(_.username === username).map(_.admin)
+  def getHubAdmin(username: String) = rows.filter(_.username === username).map(_.hubAdmin)
   //def getAdminAsString(username: String) = rows.filter(_.username === username).map(u => if (u.admin === Boolean(true)) "admin" else "")
   def getEmail(username: String) = rows.filter(_.username === username).map(_.email)
   def getUpdatedBy(username: String) = rows.filter(_.username === username).map(_.updatedBy)
 }
 
-final case class User(password: String, admin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
-  def hidePassword = User(StrConstants.hiddenPw, admin, email, lastUpdated, updatedBy)
+final case class User(password: String, admin: Boolean, hubAdmin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
+  def hidePassword = User(StrConstants.hiddenPw, admin, hubAdmin, email, lastUpdated, updatedBy)
 }

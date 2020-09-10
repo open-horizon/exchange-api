@@ -256,6 +256,14 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.42.0
+
+- Added Hub Admin Role and Permissions
+- Issue 395: `GET /v1/admin/orgstatus` route added for UI Hub Admin Dashboard
+- Limits field added to org resource
+- Issue 388: Fixed permissions settings of `/search/nodes/service`
+- Issue 392: Fixed issues with org PATCH route
+
 ## Changes in 2.41.0
 
 - Issue 383: Extended route to return node policy details as well.

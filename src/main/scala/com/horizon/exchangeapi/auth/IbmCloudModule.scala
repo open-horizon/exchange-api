@@ -44,6 +44,10 @@ final case class IamAccount(bss: String)
 // Response from /api/v1/config
 final case class ClusterConfigResponse(cluster_name: String, cluster_url: String, cluster_ca_domain: String, kube_url: String, helm_host: String)
 
+// Represents information from one IAM Account from the Multitenancy APIs - More information here: https://www.ibm.com/support/knowledgecenter/SSHKN6/iam/3.x.x/apis/mt_apis.html
+final case class IamAccountInfo(id: String, name: String, description: String, createdOn: String)
+// Formats the response from this IAM API: /idmgmt/identity/api/v1/users/<user_ID>/accounts
+final case class IamUserAccounts(accounts: List[IamAccountInfo])
 // Response from ICP IAM /identity/api/v1/account
 //case class TokenAccountResponse(id: String, name: String, description: String)
 //s"ICP IAM authentication succeeded, but the org specified in the request ($requestOrg) does not match the org associated with the ICP credentials ($userCredsOrg)"
@@ -311,6 +315,10 @@ object IbmCloudAuth {
     } else {
       Failure(new AuthInternalErrorException(ExchMsg.translate("no.valid.iam.keyword")))
     }
+  }
+
+  def getPotentialUserOrgs(token: IamToken, authInfo: IamAuthCredentials) = {
+
   }
 
   // Using the IAM token get the ibm cloud account id (which we'll use to verify the exchange org) and users email (which we'll use as the exchange user)

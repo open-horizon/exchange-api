@@ -136,16 +136,19 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                lastUpdated        = ApiTime.nowUTC,
                orgId              = "TestNodesGetDetails",
                orgType            = "",
-               tags               = None),
+               tags               = None,
+               limits             = ""),
         OrgRow(heartbeatIntervals = "",
                description        = "",
                label              = "",
                lastUpdated        = ApiTime.nowUTC,
                orgId              = "TestNodesGetDetails2",
                orgType            = "",
-               tags               = None))
+               tags               = None,
+               limits             = ""))
   private val TESTUSERS: Seq[UserRow] =
     Seq(UserRow(admin       = false,
+                hubAdmin    = false,
                 email       = "",
                 hashedPw    = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i", // TestNodesGetDetails/u1:u1pw
                 lastUpdated = ApiTime.nowUTC,
@@ -153,6 +156,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 updatedBy   = "",
                 username    = "TestNodesGetDetails/u1"),
         UserRow(admin       = false,
+                hubAdmin    = false,
                 email       = "",
                 hashedPw    = "$2a$10$0EOlHl1mb2THvz3f/AnyWOV6ivUMItcQKLTzltNLmrdiLn.VCgavy",
                 lastUpdated = ApiTime.nowUTC,
@@ -160,6 +164,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 updatedBy   = "",
                 username    = "TestNodesGetDetails/u2"),
         UserRow(admin       = false,
+                hubAdmin    = false,
                 email       = "",
                 hashedPw    = "",
                 lastUpdated = ApiTime.nowUTC,

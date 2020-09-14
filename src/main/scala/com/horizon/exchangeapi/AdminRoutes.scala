@@ -52,6 +52,13 @@ class AdminStatus() {
   def toGetAdminStatusResponse = GetAdminStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements, numberOfNodeMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs, dbSchemaVersion)
 }
 
+final case class GetAdminOrgStatusResponse(msg: String, nodes: Map[String, Int])
+class AdminOrgStatus(){
+  var msg: String = ""
+  var nodesByOrg : Map[String, Int] = null
+  def toGetAdminOrgStatusResponse = GetAdminOrgStatusResponse(msg, nodesByOrg)
+}
+
 /** Case class for request body for deleting some of the IBM changes route */
 final case class DeleteIBMChangesRequest(resources: List[String]) {
   def getAnyProblem: Option[String] = {
@@ -70,7 +77,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
 
-  def adminRoutes: Route = adminReloadRoute ~ adminHashPwRoute ~ adminGetDbTokenRoute ~ adminDropDbRoute ~ adminInitDbRoute ~ adminGetVersionRoute ~ adminGetStatusRoute ~ adminConfigRoute ~ adminClearCacheRoute ~ adminDeleteIbmChangesRoute
+  def adminRoutes: Route = adminReloadRoute ~ adminHashPwRoute ~ adminGetDbTokenRoute ~ adminDropDbRoute ~ adminInitDbRoute ~ adminGetVersionRoute ~ adminGetStatusRoute ~ adminGetOrgStatusRoute ~ adminConfigRoute ~ adminClearCacheRoute ~ adminDeleteIbmChangesRoute
 
   // =========== POST /admin/reload ===============================
   @POST
@@ -300,13 +307,48 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) => statusResp.dbSchemaVersion = v.head
-            statusResp.msg = "Exchange server operating normally"
+            statusResp.msg = ExchMsg.translate("exchange.server.operating.normally")
             (HttpCode.OK, statusResp.toGetAdminStatusResponse)
           case Failure(t: org.postgresql.util.PSQLException) =>
             if (t.getMessage.contains("An I/O error occurred while sending to the backend")) (HttpCode.BAD_GW, statusResp.toGetAdminStatusResponse)
             else (HttpCode.INTERNAL_ERROR, statusResp.toGetAdminStatusResponse)
           case Failure(t) => statusResp.msg = t.getMessage
             (HttpCode.INTERNAL_ERROR, statusResp.toGetAdminStatusResponse)
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
+
+  // =========== GET /admin/orgstatus ===============================
+  @GET
+  @Path("orgstatus")
+  @Operation(summary = "Returns the org-specific status of the Exchange server", description = """Returns a dictionary of statuses/statistics. Can be run by superuser, hub admins, and org admins.""",
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetAdminStatusResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+  def adminGetOrgStatusRoute: Route = (path("admin" / "orgstatus") & get) {
+    logger.debug("Doing GET /admin/orgstatus")
+    exchAuth(TAction(), Access.ORGSTATUS) { _ =>
+      complete({
+        val orgStatusResp = new AdminOrgStatus()
+        //perf: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
+        val q = for {
+          n <- NodesTQ.rows.groupBy(_.orgid)
+        } yield (n._1, n._2.length) // this should returin [orgid, num of nodes in that orgid]
+        db.run(q.result.asTry).map({
+          case Success(nodes) =>
+            // nodes : Seq[(String, Int)]
+            orgStatusResp.nodesByOrg = nodes.toMap
+            orgStatusResp.msg = ExchMsg.translate("exchange.server.operating.normally")
+            (HttpCode.OK, orgStatusResp.toGetAdminOrgStatusResponse)
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            orgStatusResp.msg = t.getMessage
+            if (t.getMessage.contains("An I/O error occurred while sending to the backend")) (HttpCode.BAD_GW, orgStatusResp.toGetAdminOrgStatusResponse)
+            else (HttpCode.INTERNAL_ERROR, orgStatusResp.toGetAdminOrgStatusResponse)
+          case Failure(t) => orgStatusResp.msg = t.getMessage
+            (HttpCode.INTERNAL_ERROR, orgStatusResp.toGetAdminOrgStatusResponse)
         })
       }) // end of complete
     } // end of exchAuth

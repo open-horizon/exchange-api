@@ -166,14 +166,17 @@ object SchemaTQ {
         sqlu"alter table nodes alter column lastheartbeat drop not null"
       )
       case 37 ⇒ DBIO.seq(SearchOffsetPolicyTQ.offsets.schema.create)
-
+      case 38 => DBIO.seq(   // v2.42.0
+        sqlu"alter table users add column hubadmin boolean default false",
+        sqlu"alter table orgs add column limits character varying not null default ''"
+      )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
 
-  val latestSchemaVersion = 37    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "remove not null constraint on nodes table column lastheartbeat"
+  val latestSchemaVersion = 38    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "adding hubadmin column to users table and limits column to org resource"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

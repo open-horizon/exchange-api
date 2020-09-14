@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations._
 import scala.concurrent.ExecutionContext
 import com.horizon.exchangeapi.tables._
 import org.json4s._
+import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.Serialization.{read, write}
 import slick.jdbc.PostgresProfile.api._
 
@@ -740,6 +741,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TNode(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
+          var orgLimitMaxNodes = 0
+          var fivePercentWarning = false
           val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
           val patValidateAction = if (reqBody.pattern != "") PatternsTQ.getPattern(reqBody.pattern).length.result else DBIO.successful(1)
           val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced in userInput exist
@@ -779,9 +782,29 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               if (v.nonEmpty) {
                 val (existingPattern, existingPublicKey) = v.head
                 if (reqBody.pattern != "" && existingPattern == "" && existingPublicKey != "") DBIO.failed(new Throwable(ExchMsg.translate("not.pattern.when.policy"))).asTry
-                else NodesTQ.getNumOwned(owner).result.asTry // they are not trying to switch from policy to pattern, so we can continue
+                else OrgsTQ.getLimits(orgid).result.asTry // they are not trying to switch from policy to pattern, so we can continue
               }
-              else NodesTQ.getNumOwned(owner).result.asTry // node doesn't exit yet, we can continue
+              else OrgsTQ.getLimits(orgid).result.asTry // node doesn't exit yet, we can continue
+            case Failure(t) => DBIO.failed(t).asTry
+          })
+          .flatMap({
+            case Success(orgLimits) =>
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " orgLimits: " + orgLimits)
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " orgLimits.head: " + orgLimits.head)
+              val limits : OrgLimits = OrgLimits.toOrgLimit(orgLimits.head)
+              orgLimitMaxNodes = limits.maxNodes
+              NodesTQ.getAllNodes(orgid).length.result.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })
+          .flatMap({
+            case Success(totalNodes) =>
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " total number of nodes in org: " + totalNodes)
+              if (orgLimitMaxNodes == 0) NodesTQ.getNumOwned(owner).result.asTry // no limit set
+              else if (totalNodes >= orgLimitMaxNodes) DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.org.max.limit.of.nodes", totalNodes, orgLimitMaxNodes))).asTry
+              else if ((orgLimitMaxNodes-totalNodes) <= orgLimitMaxNodes*.05) { // if we are within 5% of the limit
+                fivePercentWarning = true // used for warning later
+                NodesTQ.getNumOwned(owner).result.asTry
+              } else NodesTQ.getNumOwned(owner).result.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })
           .flatMap({
@@ -789,11 +812,11 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               // Check if num nodes owned is below limit, then create/update node
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " num owned: " + numOwned)
               val maxNodes = ExchConfig.getInt("api.limits.maxNodes")
-              if (maxNodes == 0 
-                  || numOwned <= maxNodes 
+              if (maxNodes == 0
+                  || numOwned <= maxNodes
                   || owner == "")  // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
                 NodesTQ.getLastHeartbeat(compositeId).result.asTry
-              else 
+              else
                 DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.nodes", maxNodes))).asTry
             case Failure(t) => DBIO.failed(t).asTry
           })
@@ -826,7 +849,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               AuthCache.putNodeAndOwner(compositeId, Password.hash(reqBody.token), reqBody.token, owner)
               //AuthCache.ids.putNode(id, hashedTok, node.token)
               //AuthCache.nodesOwner.putOne(id, owner)
-              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))
+              if (fivePercentWarning) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("num.nodes.near.org.limit")))
+              else (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))
             case Failure(t: DBProcessingError) =>
               t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>

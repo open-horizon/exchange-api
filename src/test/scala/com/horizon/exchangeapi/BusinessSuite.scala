@@ -97,7 +97,7 @@ class BusinessSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    var input = PostPutOrgRequest(None, "My Org", "desc", None, None)
+    var input = PostPutOrgRequest(None, "My Org", "desc", None, None, None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -107,7 +107,7 @@ class BusinessSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    input = PostPutOrgRequest(None, "My Org2", "desc", None, None)
+    input = PostPutOrgRequest(None, "My Org2", "desc", None, None, None)
     response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -120,17 +120,17 @@ class BusinessSuite extends AnyFunSuite {
   }
 
   test("Add users, node, agbot for future tests") {
-    var userInput = PostPutUsersRequest(pw, admin = false, user + "@hotmail.com")
+    var userInput = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
     var userResponse = Http(URL + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)
 
-    userInput = PostPutUsersRequest(pw2, admin = false, user2 + "@hotmail.com")
+    userInput = PostPutUsersRequest(pw2, admin = false, Some(false), user2 + "@hotmail.com")
     userResponse = Http(URL + "/users/" + user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)
 
-    userInput = PostPutUsersRequest(pw, admin = false, user + "@hotmail.com")
+    userInput = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
     userResponse = Http(URL2 + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)

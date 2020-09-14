@@ -45,7 +45,8 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
            lastUpdated        = ApiTime.nowUTC,
            orgId              = "TestPolicySearchPost",
            orgType            = "",
-           tags               = None)
+           tags               = None,
+           limits             = "")
   private val TESTPOLICIES: Seq[BusinessPolicyRow] =
     Seq(BusinessPolicyRow(businessPolicy = "TestPolicySearchPost/pol1",
                           constraints    = """["a == b"]""",
@@ -81,6 +82,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                    version                    = "1.0.0"))
   private val TESTUSER: UserRow =
     UserRow(admin       = false,
+            hubAdmin    = false,
             email       = "",
             hashedPw    = "",
             lastUpdated = ApiTime.nowUTC,
@@ -547,7 +549,8 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                  lastUpdated = "",
                  orgId = "TestPolicySearchPost2",
                  orgType = "",
-                 tags = None))
+                 tags = None,
+                 limits = ""))
     
     fixtureOrganizations(
       _ ⇒ {
@@ -589,7 +592,8 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                  lastUpdated = "",
                  orgId = "TestPolicySearchPost2",
                  orgType = "",
-                 tags = None))
+                 tags = None,
+                 limits = ""))
     
     fixtureOrganizations(
       _ ⇒ {

@@ -164,7 +164,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    val input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", None, None)
+    val input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", None, None, None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -177,7 +177,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    val input = PostPutOrgRequest(None, "My Second Org", "Org of orgType not IBM", None, None)
+    val input = PostPutOrgRequest(None, "My Second Org", "Org of orgType not IBM", None, None, None)
     response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -190,7 +190,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-    val input = PostPutOrgRequest(Some("IBM"), "My Second Org", "Org of orgType not IBM", None, None)
+    val input = PostPutOrgRequest(Some("IBM"), "My Second Org", "Org of orgType not IBM", None, None, None)
     response = Http(URL3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -204,12 +204,12 @@ class PatternsSuite extends AnyFunSuite {
 
   /** Add users, node, agbot for future tests */
   test("Add users, node, agbot for future tests") {
-    var userInput = PostPutUsersRequest(pw, admin = false, user + "@hotmail.com")
+    var userInput = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
     var userResponse = Http(URL + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)
 
-    userInput = PostPutUsersRequest(pw2, admin = false, user2 + "@hotmail.com")
+    userInput = PostPutUsersRequest(pw2, admin = false, Some(false), user2 + "@hotmail.com")
     userResponse = Http(URL + "/users/" + user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)
@@ -229,14 +229,14 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   test("Add users, node, agbot for future tests in non-IBM org") {
-    val userInput = PostPutUsersRequest(pw3, admin = false, user3 + "@hotmail.com")
+    val userInput = PostPutUsersRequest(pw3, admin = false, Some(false), user3 + "@hotmail.com")
     val userResponse = Http(URL2 + "/users/" + user3).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)
   }
 
   test("Add users, node, agbot for future tests in second IBM org") {
-    val userInput = PostPutUsersRequest(pw4, admin = false, user4 + "@hotmail.com")
+    val userInput = PostPutUsersRequest(pw4, admin = false, Some(false), user4 + "@hotmail.com")
     val userResponse = Http(URL3 + "/users/" + user4).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)

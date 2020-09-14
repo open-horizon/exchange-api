@@ -142,8 +142,33 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
 
-  def agbotsRoutes: Route = agbotsGetRoute ~ agbotGetRoute ~ agbotPutRoute ~ agbotPatchRoute ~ agbotDeleteRoute ~ agbotHeartbeatRoute ~ agbotGetPatternsRoute ~ agbotGetPatternRoute ~ agbotPostPatRoute ~ agbotDeletePatsRoute ~ agbotDeletePatRoute ~ agbotGetBusPolsRoute ~ agbotGetBusPolRoute ~ agbotPostBusPolRoute ~ agbotDeleteBusPolsRoute ~ agbotDeleteBusPolRoute ~ agbotGetAgreementsRoute ~ agbotGetAgreementRoute ~ agbotPutAgreementRoute ~ agbotDeleteAgreementsRoute ~ agbotDeleteAgreementRoute ~ agbotAgreementConfirmRoute ~ agbotPostMsgRoute ~ agbotGetMsgsRoute ~ agbotDeleteMsgRoute
-
+  def agbotsRoutes: Route = agbotAgreementConfirmRoute ~
+                            agbotDeleteAgreementRoute ~
+                            agbotDeleteAgreementsRoute ~
+                            agbotDeleteBusPolRoute ~
+                            agbotDeleteBusPolsRoute ~
+                            agbotDeleteMsgRoute ~
+                            agbotDeletePatRoute ~
+                            agbotDeletePatsRoute ~
+                            agbotDeleteRoute ~
+                            agbotGetAgreementRoute ~
+                            agbotGetAgreementsRoute ~
+                            agbotGetBusPolRoute ~
+                            agbotGetBusPolsRoute ~
+                            agbotGetMsgRoute ~
+                            agbotGetMsgsRoute ~
+                            agbotGetPatternRoute ~
+                            agbotGetPatternsRoute ~
+                            agbotGetRoute ~
+                            agbotHeartbeatRoute ~
+                            agbotPatchRoute ~
+                            agbotPostBusPolRoute ~
+                            agbotPostMsgRoute ~
+                            agbotPostPatRoute ~
+                            agbotPutAgreementRoute ~
+                            agbotPutRoute ~
+                            agbotsGetRoute
+  
   /* ====== GET /orgs/{orgid}/agbots ================================ */
   @GET
   @Path("")
@@ -1619,6 +1644,75 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
         })
       }) // end of complete
     } // end of exchAuth
+  }
+  
+  /* ====== GET /orgs/{orgid}/agbots/{id}/msgs/{msgid} ================================ */
+  @GET
+  @Path("{id}/msgs/{msgid}")
+  @Operation(description = "Returns A specific message that has been sent to this agreement-bot." +
+                           " Deleted/post-TTL (Time To Live) messages will not be returned." +
+                           " Can be run by a user or the agbot.",
+             parameters = Array(new Parameter(description = "Agreement-bot id.",
+                                              in = ParameterIn.PATH,
+                                              name = "id",
+                                              required = true),
+                                new Parameter(description = "Message id.",
+                                              in = ParameterIn.PATH,
+                                              name = "msgid",
+                                              required = true),
+                                new Parameter(description = "Organization id.",
+                                              in = ParameterIn.PATH,
+                                              name = "orgid",
+                                              required = true)),
+             responses = Array(new responses.ApiResponse(content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotMsgsResponse]))),
+                                                         description = "response body",
+                                                         responseCode = "200"),
+                               new responses.ApiResponse(description = "bad input",
+                                                         responseCode = "400"),
+                               new responses.ApiResponse(description = "invalid credentials",
+                                                         responseCode = "401"),
+                               new responses.ApiResponse(description = "access denied",
+                                                         responseCode = "403"),
+                               new responses.ApiResponse(description = "not found",
+                                                         responseCode = "404")),
+             summary = "Returns A specific message that has been sent to this agreement-bot.")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/message")
+  def agbotGetMsgRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "msgs" / Segment) & get) {
+    (orgid, id, msgid) ⇒
+      val compositeId = OrgAndId(orgid, id).toString
+      logger.debug("msgid.toInt: " + msgid.toInt)
+      
+      exchAuth(TAgbot(compositeId), Access.READ) {
+        _ ⇒
+          complete({
+            db.run(
+              AgbotMsgsTQ.getMsg(agbotId = compositeId,
+                                 msgId = msgid.toInt)
+                         .result
+                         .map(
+                           result ⇒
+                             GetAgbotMsgsResponse(lastIndex = 0,
+                                                  messages = result.map(
+                                                               message ⇒
+                                                                 AgbotMsg(message = message.message,
+                                                                          msgId = message.msgId,
+                                                                          nodeId = message.nodeId,
+                                                                          nodePubKey = message.nodePubKey,
+                                                                          timeExpires = message.timeExpires,
+                                                                          timeSent = message.timeSent)).toList))
+                         .asTry
+              )
+              .map({
+                case Success(message) ⇒
+                  if(message.messages.nonEmpty)
+                    (HttpCode.OK, message)
+                  else
+                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                case Failure(t) ⇒
+                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
+              })
+          }) // end of complete
+      } // end of exchAuth
   }
 
   // =========== DELETE /orgs/{orgid}/agbots/{id}/msgs/{msgid} ===============================

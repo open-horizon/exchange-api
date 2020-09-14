@@ -345,7 +345,31 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
 
-  def nodesRoutes: Route = nodesGetDetails ~ nodesGetRoute ~ nodeGetRoute ~ nodePutRoute ~ nodePatchRoute ~ nodePostConfigStateRoute ~ nodeDeleteRoute ~ nodeHeartbeatRoute ~ nodeGetErrorsRoute ~ nodePutErrorsRoute ~ nodeDeleteErrorsRoute ~ nodeGetStatusRoute ~ nodePutStatusRoute ~ nodeDeleteStatusRoute ~ nodeGetPolicyRoute ~ nodePutPolicyRoute ~ nodeDeletePolicyRoute ~ nodeGetAgreementsRoute ~ nodeGetAgreementRoute ~ nodePutAgreementRoute ~ nodeDeleteAgreementsRoute ~ nodeDeleteAgreementRoute ~ nodePostMsgRoute ~ nodeGetMsgsRoute ~ nodeDeleteMsgRoute
+  def nodesRoutes: Route = nodeDeleteAgreementRoute ~
+                           nodeDeleteAgreementsRoute ~
+                           nodeDeleteErrorsRoute ~
+                           nodeDeleteMsgRoute ~
+                           nodeDeletePolicyRoute ~
+                           nodeDeleteRoute ~
+                           nodeDeleteStatusRoute ~
+                           nodeGetAgreementRoute ~
+                           nodeGetAgreementsRoute ~
+                           nodeGetErrorsRoute ~
+                           nodeGetMsgRoute ~
+                           nodeGetMsgsRoute ~
+                           nodeGetPolicyRoute ~
+                           nodeGetRoute ~
+                           nodeGetStatusRoute ~
+                           nodeHeartbeatRoute ~
+                           nodePatchRoute ~
+                           nodePostConfigStateRoute ~
+                           nodePostMsgRoute ~
+                           nodePutAgreementRoute ~
+                           nodePutErrorsRoute ~
+                           nodePutPolicyRoute ~
+                           nodePutRoute ~
+                           nodesGetDetails ~
+                           nodesGetRoute
   
   // ====== GET /orgs/{orgid}/nodes ================================
   @GET
@@ -2189,6 +2213,74 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         })
       }) // end of complete
     } // end of exchAuth
+  }
+  
+  /* ====== GET /orgs/{orgid}/nodes/{id}/msgs/{msgid} ================================ */
+  @GET
+  @Path("nodes/{id}/msgs/{msgId}")
+  @Operation(description = "Returns A specific message that has been sent to this node." +
+                           " Deleted/post-TTL (Time To Live) messages will not be returned." +
+                           " Can be run by a user or the node.",
+             parameters = Array(new Parameter(description = "ID of the node.",
+                                              in = ParameterIn.PATH,
+                                              name = "id",
+                                              required = true),
+                                new Parameter(description = "Specific node message.",
+                                              in = ParameterIn.PATH,
+                                              name = "msgid",
+                                              required = true),
+                                new Parameter(description = "Organization id.",
+                                              in = ParameterIn.PATH,
+                                              name = "orgid",
+                                              required = true)),
+             responses = Array(new responses.ApiResponse(content = Array(new Content(schema = new Schema(implementation = classOf[GetNodeMsgsResponse]))),
+                                                         description = "response body",
+                                                         responseCode = "200"),
+                               new responses.ApiResponse(description = "bad input",
+                                                         responseCode = "400"),
+                               new responses.ApiResponse(description = "invalid credentials",
+                                                         responseCode = "401"),
+                               new responses.ApiResponse(description = "access denied",
+                                                         responseCode = "403"),
+                               new responses.ApiResponse(description = "not found",
+                                                         responseCode = "404")),
+             summary = "Returns A specific message that has been sent to this node.")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/message")
+  def nodeGetMsgRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs" / Segment) & get) {
+    (orgid, id, msgid) ⇒
+      val compositeId = OrgAndId(orgid,id).toString
+      
+      exchAuth(TNode(compositeId),Access.READ) {
+        _ ⇒
+          complete({
+            db.run(
+              NodeMsgsTQ.getMsg(nodeId = compositeId,
+                                msgId = msgid.toInt)
+                        .result
+                        .map(
+                          result ⇒
+                            GetNodeMsgsResponse(lastIndex = 0,
+                                                messages = result.map(
+                                                             message ⇒
+                                                               NodeMsg(agbotId = message.agbotId,
+                                                                       agbotPubKey = message.agbotPubKey,
+                                                                       message = message.message,
+                                                                       msgId = message.msgId,
+                                                                       timeExpires = message.timeExpires,
+                                                                       timeSent = message.timeSent)).toList))
+                        .asTry
+              )
+              .map({
+              case Success(message) ⇒
+                if(message.messages.nonEmpty)
+                  (HttpCode.OK, message)
+                else
+                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+              case Failure(t) ⇒
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
+            })
+          }) // end of complete
+      } // end of exchAuth
   }
 
   // =========== DELETE /orgs/{orgid}/nodes/{id}/msgs/{msgid} ===============================

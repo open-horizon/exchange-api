@@ -368,6 +368,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                            nodePutAgreementRoute ~
                            nodePutErrorsRoute ~
                            nodePutPolicyRoute ~
+                           nodePutStatusRoute ~
                            nodePutRoute ~
                            nodesGetDetails ~
                            nodesGetRoute

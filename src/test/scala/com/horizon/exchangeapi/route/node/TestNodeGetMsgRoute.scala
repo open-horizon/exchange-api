@@ -61,6 +61,7 @@ class TestNodeGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
                description        = "",
                label              = "",
                lastUpdated        = ApiTime.nowUTC,
+               limits             = "",
                orgId              = "TestNodeGetMsgRoute",
                orgType            = "",
                tags               = None))
@@ -68,6 +69,7 @@ class TestNodeGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
     Seq(UserRow(admin       = false,
                 email       = "",
                 hashedPw    = "",
+                hubAdmin    = false,
                 lastUpdated = ApiTime.nowUTC,
                 orgid       = "TestNodeGetMsgRoute",
                 updatedBy   = "",

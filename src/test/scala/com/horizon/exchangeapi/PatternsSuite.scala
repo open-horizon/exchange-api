@@ -139,6 +139,7 @@ class PatternsSuite extends AnyFunSuite {
   val svcversion5 = "1.0.0"
   val maxRecords = 10000
   val secondsAgo = 120
+  val orgsList = List(orgid, orgid2, orgid3)
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -1499,6 +1500,15 @@ class PatternsSuite extends AnyFunSuite {
     val response = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
+  }
+
+  test("Cleanup -- DELETE org changes") {
+    for (org <- orgsList){
+      val input = DeleteOrgChangesRequest(List())
+      val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED.intValue)
+    }
   }
 
 }

@@ -91,6 +91,7 @@ class UsersSuite extends AnyFunSuite {
   val hubadmin = "UsersSuiteHubAdmin"
   val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/"+hubadmin+":"+pw))
   val orgadmin = "orgadmin"
+  val orgsList = List(orgid, orgid2)
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -1006,6 +1007,15 @@ class UsersSuite extends AnyFunSuite {
     response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.DELETED.intValue)
+  }
+
+  test("Cleanup -- DELETE org changes") {
+    for (org <- orgsList){
+      val input = DeleteOrgChangesRequest(List())
+      val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED.intValue)
+    }
   }
 
 }

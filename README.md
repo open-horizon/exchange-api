@@ -258,6 +258,8 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 ## Changes in 2.44.0
 - Issue 395: `GET /v1/myorgs` route added for UI login
+- Issue 400: Exchange logs org deletions in `resourcechanges` table. Includes dropping orgid foreign key in `resourcechanges` table. 
+- Issue 400: Exchange always reports org creations to agbots
 
 ## Changes in 2.43.0
 - Issue 370: Updated messages.txt

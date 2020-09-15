@@ -122,6 +122,7 @@ class ServicesSuite extends AnyFunSuite {
   val dockAuthToken2 = "tok2"
   val maxRecords = 10000
   val secondsAgo = 120
+  val orgsList = List(orgid, orgid2)
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -1165,6 +1166,15 @@ class ServicesSuite extends AnyFunSuite {
     val response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
+  }
+
+  test("Cleanup -- DELETE org changes") {
+    for (org <- orgsList){
+      val input = DeleteOrgChangesRequest(List())
+      val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED.intValue)
+    }
   }
 
 }

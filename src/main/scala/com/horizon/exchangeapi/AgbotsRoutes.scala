@@ -1649,9 +1649,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   /* ====== GET /orgs/{orgid}/agbots/{id}/msgs/{msgid} ================================ */
   @GET
   @Path("{id}/msgs/{msgid}")
-  @Operation(description = "Returns A specific message that has been sent to this agreement-bot." +
-                           " Deleted/post-TTL (Time To Live) messages will not be returned." +
-                           " Can be run by a user or the agbot.",
+  @Operation(description = "Returns A specific message that has been sent to this agreement-bot. Deleted/post-TTL (Time To Live) messages will not be returned. Can be run by a user or the agbot.",
              parameters = Array(new Parameter(description = "Agreement-bot id.",
                                               in = ParameterIn.PATH,
                                               name = "id",

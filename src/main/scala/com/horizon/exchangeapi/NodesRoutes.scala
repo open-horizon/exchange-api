@@ -2243,9 +2243,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   /* ====== GET /orgs/{orgid}/nodes/{id}/msgs/{msgid} ================================ */
   @GET
   @Path("nodes/{id}/msgs/{msgId}")
-  @Operation(description = "Returns A specific message that has been sent to this node." +
-                           " Deleted/post-TTL (Time To Live) messages will not be returned." +
-                           " Can be run by a user or the node.",
+  @Operation(description = "Returns A specific message that has been sent to this node. Deleted/post-TTL (Time To Live) messages will not be returned. Can be run by a user or the node.",
              parameters = Array(new Parameter(description = "ID of the node.",
                                               in = ParameterIn.PATH,
                                               name = "id",

@@ -385,31 +385,6 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-//  /* ====== DELETE /orgs/IBM/changes/cleanup ================================ */
-//  // This route is just for unit testing as a way to clean up the changes table once testing has completed
-//  // Otherwise the changes table gets clogged with entries in the IBM org from testing
-//  def adminDeleteIbmChangesRoute: Route = (path("orgs" / "IBM" / "changes" / "cleanup") & delete & entity(as[DeleteIBMChangesRequest])) { reqBody =>
-//    logger.debug("Doing POST /orgs/IBM/changes/cleanup")
-//    exchAuth(TAction(), Access.ADMIN) { _ =>
-//      validateWithMsg(reqBody.getAnyProblem) {
-//        complete({
-//          val resourcesSet = reqBody.resources.toSet
-//          val action = ResourceChangesTQ.rows.filter(_.orgId === "IBM").filter(_.id inSet resourcesSet).delete
-//          db.run(action.transactionally.asTry).map({
-//            case Success(v) =>
-//              logger.debug(s"Deleted specified IBM org entries in changes table ONLY FOR UNIT TESTS: $v")
-//              if (v > 0) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, "IBM changes deleted"))
-//              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", "IBM")))
-//            case Failure(t: org.postgresql.util.PSQLException) =>
-//              ExchangePosgtresErrorHandling.ioProblemError(t, "IBM org changes not deleted: " + t.toString)
-//            case Failure(t) =>
-//              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, "IBM org changes not deleted: " + t.toString))
-//          })
-//        }) // end of complete
-//      } // end of validateWithMsg
-//    } // end of exchAuth
-//  }
-
   /* ====== DELETE /orgs/<orgid>/changes/cleanup ================================ */
   // This route is just for unit testing as a way to clean up the changes table once testing has completed
   // Otherwise the changes table gets clogged with entries in the orgs from testing

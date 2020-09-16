@@ -67,6 +67,11 @@ final case class DeleteIBMChangesRequest(resources: List[String]) {
   }
 }
 
+/** Case class for request body for deleting some of the org changes in the resourcechanges table */
+final case class DeleteOrgChangesRequest(resources: List[String]) {
+  def getAnyProblem: Option[String] = None
+}
+
 /** Implementation for all of the /admin routes */
 @Path("/v1/admin")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "administration")
@@ -77,7 +82,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
 
-  def adminRoutes: Route = adminReloadRoute ~ adminHashPwRoute ~ adminGetDbTokenRoute ~ adminDropDbRoute ~ adminInitDbRoute ~ adminGetVersionRoute ~ adminGetStatusRoute ~ adminGetOrgStatusRoute ~ adminConfigRoute ~ adminClearCacheRoute ~ adminDeleteIbmChangesRoute
+  def adminRoutes: Route = adminReloadRoute ~ adminHashPwRoute ~ adminGetDbTokenRoute ~ adminDropDbRoute ~ adminInitDbRoute ~ adminGetVersionRoute ~ adminGetStatusRoute ~ adminGetOrgStatusRoute ~ adminConfigRoute ~ adminClearCacheRoute ~ adminDeleteOrgChangesRoute
 
   // =========== POST /admin/reload ===============================
   @POST
@@ -380,25 +385,26 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== DELETE /orgs/IBM/changes/all ================================ */
+  /* ====== DELETE /orgs/<orgid>/changes/cleanup ================================ */
   // This route is just for unit testing as a way to clean up the changes table once testing has completed
-  // Otherwise the changes table gets clogged with entries in the IBM org from testing
-  def adminDeleteIbmChangesRoute: Route = (path("orgs" / "IBM" / "changes" / "cleanup") & delete & entity(as[DeleteIBMChangesRequest])) { reqBody =>
-    logger.debug("Doing POST /orgs/IBM/changes/cleanup")
+  // Otherwise the changes table gets clogged with entries in the orgs from testing
+  def adminDeleteOrgChangesRoute: Route = (path("orgs" / Segment / "changes" / "cleanup") & delete & entity(as[DeleteOrgChangesRequest])) { (orgId, reqBody) =>
+    logger.debug(s"Doing POST /orgs/$orgId/changes/cleanup")
     exchAuth(TAction(), Access.ADMIN) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val resourcesSet = reqBody.resources.toSet
-          val action = ResourceChangesTQ.rows.filter(_.orgId === "IBM").filter(_.id inSet resourcesSet).delete
+          var action = ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.id inSet resourcesSet).delete
+          if (reqBody.resources.isEmpty) action = ResourceChangesTQ.rows.filter(_.orgId === orgId).delete
           db.run(action.transactionally.asTry).map({
             case Success(v) =>
-              logger.debug(s"Deleted specified IBM org entries in changes table ONLY FOR UNIT TESTS: $v")
-              if (v > 0) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, "IBM changes deleted"))
-              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", "IBM")))
+              logger.debug(s"Deleted specified $orgId org entries in changes table ONLY FOR UNIT TESTS: $v")
+              if (v > 0) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, s"$orgId changes deleted"))
+              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
             case Failure(t: org.postgresql.util.PSQLException) =>
-              ExchangePosgtresErrorHandling.ioProblemError(t, "IBM org changes not deleted: " + t.toString)
+              ExchangePosgtresErrorHandling.ioProblemError(t, s"$orgId org changes not deleted: " + t.toString)
             case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, "IBM org changes not deleted: " + t.toString))
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, s"$orgId org changes not deleted: " + t.toString))
           })
         }) // end of complete
       } // end of validateWithMsg

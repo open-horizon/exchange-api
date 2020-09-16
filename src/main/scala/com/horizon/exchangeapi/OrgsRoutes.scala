@@ -587,11 +587,24 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug(s"Doing DELETE /orgs/$orgId")
     exchAuth(TOrg(orgId), Access.WRITE) { _ =>
       complete({
+        var orgFound = true
         // remove does *not* throw an exception if the key does not exist
-        db.run(OrgsTQ.getOrgid(orgId).delete.transactionally.asTry).map({
-          case Success(v) => // there were no db errors, but determine if it actually found it or not
+        db.run(OrgsTQ.getOrgid(orgId).delete.transactionally.asTry.flatMap({
+          case Success(v) =>
             logger.debug(s"DELETE /orgs/$orgId result: $v")
-            if (v > 0) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
+            if (v > 0) { // there were no db errors, but determine if it actually found it or not
+              val orgChange = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              orgChange.insert.asTry
+            } else {
+              orgFound = false
+              logger.debug("line 599")
+              DBIO.successful("no update in resourcechanges table").asTry // just give a success to get us to the next step, but notify that it wasn't added to the resourcechanges table
+            }
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) =>
+            logger.debug(s"DELETE /orgs/$orgId updated in changes table: $v")
+            if (orgFound) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
             else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
           case Failure(t: org.postgresql.util.PSQLException) =>
             ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.deleted", orgId, t.toString))
@@ -996,7 +1009,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case _: IAgbot =>
               val wildcard = orgSet.contains("*") || orgSet.contains("")
               if (ident.isMultiTenantAgbot && !wildcard) { // its an IBM Agbot with no wildcard sent in, get all changes from orgs the agbot covers
-                qFilter = qFilter.filter(_.orgId inSet orgSet).filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED).filterNot(u => u.resource === "agbotagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED)
+                qFilter = qFilter.filter(u => (u.orgId inSet orgSet) || ((u.resource === "org") && (u.operation === ResourceChangeConfig.CREATED))).filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED).filterNot(u => u.resource === "agbotagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED)
               } else if ( ident.isMultiTenantAgbot && wildcard) {
                 // if the IBM agbot sends in the wildcard case then we don't want to filter on orgId at all
                 qFilter = qFilter.filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED).filterNot(u => u.resource === "agbotagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED)

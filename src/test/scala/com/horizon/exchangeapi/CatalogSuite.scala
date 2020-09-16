@@ -12,6 +12,8 @@ import org.scalatestplus.junit.JUnitRunner
 import scala.collection.immutable._
 import scalaj.http._
 
+import scala.collection.mutable.ListBuffer
+
 // Tests the catalog APIs
 
 @RunWith(classOf[JUnitRunner])
@@ -77,6 +79,7 @@ class CatalogSuite extends AnyFunSuite {
   val orgpattern2 = orgid2+"/"+pattern2
   val pattern3 = "p3"
   val orgpattern3 = orgid3+"/"+pattern3
+  val orgsList = List(orgid, orgid2, orgid3)
 
   def deleteAllOrgs() = {
     for (url <- List(URL,URL2,URL3)) {
@@ -379,5 +382,14 @@ class CatalogSuite extends AnyFunSuite {
 
   test("DELETE all orgs to clean up") {
     deleteAllOrgs()
+  }
+
+  test("Cleanup -- DELETE org changes") {
+    for (org <- orgsList){
+      val input = DeleteOrgChangesRequest(List())
+      val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED.intValue)
+    }
   }
 }

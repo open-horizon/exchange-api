@@ -170,13 +170,16 @@ object SchemaTQ {
         sqlu"alter table users add column hubadmin boolean default false",
         sqlu"alter table orgs add column limits character varying not null default ''"
       )
+      case 39 => DBIO.seq(   // v2.44.0
+        sqlu"alter table resourcechanges drop constraint orgid_fk"
+      )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
 
-  val latestSchemaVersion = 38    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "adding hubadmin column to users table and limits column to org resource"
+  val latestSchemaVersion = 39    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "dropping orgid foreign key in resource changes table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion

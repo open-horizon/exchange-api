@@ -13,6 +13,7 @@ import org.scalatestplus.junit.JUnitRunner
 import scalaj.http._
 
 import scala.collection.immutable._
+import scala.collection.mutable.ListBuffer
 
 /**
  * Tests for the /business/policies routes. To run
@@ -77,6 +78,7 @@ class BusinessSuite extends AnyFunSuite {
   val NOORGURL = urlRoot+"/v1"
   val maxRecords = 10000
   val secondsAgo = 120
+  val orgsList = new ListBuffer[String]()
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -101,6 +103,7 @@ class BusinessSuite extends AnyFunSuite {
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
+    orgsList+=orgid
 
     // Try deleting it 1st, in case it is left over from previous test
     response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
@@ -110,6 +113,7 @@ class BusinessSuite extends AnyFunSuite {
     input = PostPutOrgRequest(None, "My Org2", "desc", None, None, None)
     response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
+    orgsList+=orgid2
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
@@ -751,4 +755,12 @@ class BusinessSuite extends AnyFunSuite {
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
+  test("Cleanup -- DELETE org changes") {
+    for (org <- orgsList){
+      val input = DeleteOrgChangesRequest(List())
+      val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED.intValue)
+    }
+  }
 }

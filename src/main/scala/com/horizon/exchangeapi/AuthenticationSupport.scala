@@ -160,6 +160,8 @@ trait AuthenticationSupport extends AuthorizationSupport {
   }
   */
 
+  // write getAuthHeader method here
+
   // Custom directive to extract the Authorization header creds and authenticate/authorize to the exchange
   //someday: this must be used as a separate directive, don't yet know how to combine it with the other directives using &
   def exchAuth(target: Target, access: Access, hint: String = ""): Directive1[Identity] = {

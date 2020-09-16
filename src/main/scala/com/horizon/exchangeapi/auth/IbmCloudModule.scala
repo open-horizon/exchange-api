@@ -31,6 +31,16 @@ final case class IamAuthCredentials(org: String, keyType: String, key: String) {
 }
 final case class IamToken(accessToken: String, tokenType: Option[String] = None)
 
+/*
+  Represents information from one IAM Account from the Multitenancy APIs - More information here: https://www.ibm.com/support/knowledgecenter/SSHKN6/iam/3.x.x/apis/mt_apis.html
+    "id": "id-account",
+    "name": "my Account",
+    "description": "Description for Account",
+    "createdOn": "2020-09-15T00:20:43.853Z"
+ */
+final case class IamAccountInfo(id: String, name: String, description: String, createdOn: String)
+
+
 // Info retrieved about the user from IAM (using the iam key or token).
 // For both IBM Cloud and ICP. All the rest apis that use this must be able to parse their results into this class.
 // The account field is set when using IBM Cloud, iss is set when using ICP.
@@ -78,6 +88,7 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
 
     val loginResult = for {
       reqInfo <- Try(reqCallback.request.get)   // reqInfo is of type RequestInfo
+      // reqInfo.hint
       user <- {
         //val RequestInfo(_, /*req, _,*/ isDbMigration /*, _*/ , _) = reqInfo
         //val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
@@ -313,6 +324,27 @@ object IbmCloudAuth {
     }
   }
 
+//  def getUserAccounts(token: IamToken, userInfo: IamUserInfo) : Try[List[IamAccountInfo]] = {
+//    if (isIcp){
+//      /*
+//        curl -k -X GET \
+//        -H 'Accept: application/json' \
+//        -H "Authorization: Bearer $FIFTH_TOKEN" \
+//        -H 'Content-Type: application/json' \
+//        "https://$CLUSTER_ADDRESS/idmgmt/identity/api/v1/users/admin/accounts"
+//       */
+//      val accountsURL = getIcpMgmtIngressUrl + "/idmgmt/identity/api/v1/"+userInfo.user+"/admin/accounts"
+//      val response = Http(accountsURL).method("get").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
+//        .header("Content-Type", "application/json")
+//        .header("Accept", "application/json")
+//        .header("Authorization", "Bearer " + token.accessToken)
+//        .asString
+//      if (response.code == HttpCode.OK.intValue) {
+//        Success(parse(response.body).extract[List[IamAccountInfo]])
+//      } else Failure(new InvalidCredentialsException(ExchMsg.translate("invalid.iam.token")))
+//    } else Failure(new InvalidCredentialsException(ExchMsg.translate("api.access.denied")))
+//  }
+
   // Using the IAM token get the ibm cloud account id (which we'll use to verify the exchange org) and users email (which we'll use as the exchange user)
   // For ICP IAM see: https://github.ibm.com/IBMPrivateCloud/roadmap/blob/master/feature-specs/security/security-services-apis.md
   private def getUserInfo(token: IamToken, authInfo: IamAuthCredentials): Try[IamUserInfo] = {
@@ -446,7 +478,9 @@ object IbmCloudAuth {
   // authInfo is the creds they passed in, userInfo is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db
   private def fetchVerifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo) = {
     if (isIcp) {
+      // replace this with checking against getUserAccounts that the org they're in matches the org they're trying to access
       logger.debug(s"Fetching and verifying ICP/OCP org: $authInfo, $userInfo, $getIcpClusterName")
+      // if hint is blahblahblah then don't check org
       OrgsTQ.getOrgid(authInfo.org).map(_.orgid).result.headOption.flatMap({
         case None =>
           DBIO.failed(OrgNotFound(authInfo.org))

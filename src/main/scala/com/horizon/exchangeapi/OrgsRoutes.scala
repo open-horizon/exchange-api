@@ -9,7 +9,7 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import com.horizon.exchangeapi.auth.DBProcessingError
+import com.horizon.exchangeapi.auth.{DBProcessingError, IamAccountInfo, IbmCloudAuth}
 
 import scala.concurrent.ExecutionContext
 
@@ -350,7 +350,8 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   "label": "My org",
   "description": "blah blah",
   "tags": {   // (optional)
-    "ibmcloud_id": "abc123def456"
+    "ibmcloud_id": "abc123def456",
+    "cloud_id" : "blahblah"
   },
   "limits": { // optional
     "maxNodes": 50
@@ -1072,6 +1073,70 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           logger.debug("GET /changes/maxchangeid result: " + changeIds)
           val changeId = if (changeIds.nonEmpty) changeIds.head else 0
           (StatusCodes.OK, MaxChangeIdResponse(changeId))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
+
+  // ====== GET /myorgs ================================
+  @GET
+  @Path("myorgs")
+  @Operation(summary = "Returns the orgs a user can view", description = "Returns all the org definitions in the exchange that match the accounts the caller has access too. Can be run by any user.",
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(
+          examples = Array(
+            new ExampleObject(
+              value ="""{
+  "orgs": {
+    "string" : {
+      "orgType": "",
+      "label": "",
+      "description": "",
+      "lastUpdated": "",
+      "tags": null,
+      "limits": {
+        "maxNodes": 0
+      },
+      "heartbeatIntervals": {
+        "minInterval": 0,
+        "maxInterval": 0,
+        "intervalAdjustment": 0
+      }
+    }.
+      ...
+  },
+  "lastIndex": 0
+}
+"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[GetOrgsResponse])
+        )
+        )),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+  def myOrgsGetRoute: Route = (path("myorgs") & get) {
+    logger.debug("Doing GET /myorgs")
+    // set hint here to some key that states that no org is ok
+    // UI should omit org at the beginning of credentials still have them put the slash in there
+    exchAuth(TOrg("#"), Access.READ_MY_ORG) { ident =>
+      complete({
+        // getting list of accounts in req body from UI
+        val accountsInfoList : List[IamAccountInfo] = null // IbmCloudAuth.getUserAccounts()
+        val accountsList = ListBuffer[String]()
+        for (account <- accountsInfoList) { accountsList += account.id }
+
+        // filter on the orgs for orgs with those account ids
+        // OrgsTQ.getOrgid(authInfo.org).map(_.tags.+>>("ibmcloud_id")).result.headOption
+        // val q = OrgsTQ.rows.filter(_.tags.+>>("cloud_id")) -- THIS DOESN'T WORK, ASK BRUCE HOW DO I DO THIS
+        db.run(OrgsTQ.rows.result).map({ list =>
+          logger.debug("GET /myorgs result size: " + list.size)
+          val orgs = list.map(a => a.orgId -> a.toOrg).toMap
+          val code = if (orgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          (code, GetOrgsResponse(orgs, 0))
         })
       }) // end of complete
     } // end of exchAuth

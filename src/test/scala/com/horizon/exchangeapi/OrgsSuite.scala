@@ -10,6 +10,8 @@ import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import com.horizon.exchangeapi._
 
+import scala.collection.immutable.List
+
 
 /**
   * Tests for the org resource. To run
@@ -39,6 +41,7 @@ class OrgsSuite extends AnyFunSuite {
   val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/"+hubadmin+":"+pw))
   val orgid2 = "OrgSuitesTests2"
   val exchangeMaxNodes = ExchConfig.getInt("api.limits.maxNodes")
+  val orgsList = List(orgid, orgid2)
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -246,5 +249,25 @@ class OrgsSuite extends AnyFunSuite {
     val response = Http(URL+"/"+orgid).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
+  }
+
+  test("POST /orgs/"+orgid+"/changes - verify " + orgid + " was DELETED and stored") {
+    val time = ApiTime.pastUTC(secondsAgo)
+    val input = ResourceChangesRequest(0, Some(time), maxRecords, None)
+    val response = Http(URL+"/"+orgid+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(!response.body.isEmpty)
+    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    assert(parsedBody.changes.exists(y => {(y.id == orgid) && (y.operation == ResourceChangeConfig.DELETED)}))
+  }
+
+  test("Cleanup -- DELETE org changes") {
+    for (org <- orgsList){
+      val input = DeleteOrgChangesRequest(List())
+      val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED.intValue)
+    }
   }
 }

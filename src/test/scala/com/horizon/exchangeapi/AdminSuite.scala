@@ -1,8 +1,10 @@
 package com.horizon.exchangeapi
 
 import scala.util.matching.Regex
-
 import org.json4s.DefaultFormats
+
+import scala.collection.immutable.List
+import scala.collection.mutable.ListBuffer
 //import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.jvalue2extractable
@@ -62,6 +64,8 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
   private val urlRootOrg          =  URL + "/orgs/root"
   private val pw                  = "password"
   private val HUBADMINAUTH        = ("Authorization", "Basic " + ApiUtils.encode("root/"+hubadmin+":"+pw))
+  private val orgsList            = List(ORGS.head)
+  private var resources           = new ListBuffer[String]()
 
   implicit val FORMATS            = DefaultFormats // Brings in default date formats etc.
 
@@ -343,5 +347,20 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("http status code: " + response.code)
     info("version: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
+  }
+
+  test("DELETE root org changes") {
+    val res = List(USERS.head, USERS(1), AGBOT, PATTERN, NODE, ("/".r.replaceAllIn(("""(http[sS]{0,1}://(www.){0,1}){0,1}""".r.replaceFirstIn(URL, "")), "-")) + "-orgs-" + ORGS(1) + "-services-" + SERVICE + "_0.0.1_test-arch", hubadmin)
+    val input = DeleteOrgChangesRequest(res)
+    val response = Http(URL+"/orgs/root/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
+  }
+
+  test("DELETE org changes") {
+    val input = DeleteOrgChangesRequest(List())
+    val response = Http(URL+"/orgs/"+ORGS.head+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
   }
 }

@@ -128,7 +128,6 @@ class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcec
   def catIndex = index("cat_index", category)
   def pubIndex = index("pub_index", public)
   def luIndex = index("lu_index", lastUpdated)
-  def orgidKey = foreignKey("orgid_fk", orgId, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 
 }
 

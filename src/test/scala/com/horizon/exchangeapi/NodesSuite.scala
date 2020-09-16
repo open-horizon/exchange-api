@@ -120,6 +120,8 @@ class NodesSuite extends AnyFunSuite {
   val svcArch = "arm"
   val service = svcBase + "_" + svcVersion + "_" + svcArch
   val orgservice = authpref+service
+  val orgid3 = "NodeSuitTestsOrgMaxNodes"
+  val orgsList = List(orgid, orgid2, orgid3)
 
   implicit val formats = DefaultFormats.withLong // Brings in default date formats etc.
 
@@ -2921,7 +2923,6 @@ class NodesSuite extends AnyFunSuite {
   val hubadmin = "NodeSuitTestsHubAdmin"
   val urlRootOrg = urlRoot + "/v1/orgs/root"
   val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/"+hubadmin+":"+pw))
-  val orgid3 = "NodeSuitTestsOrgMaxNodes"
   val ORG3USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(orgid3+"/"+user+":"+pw))
 
   // make a hubadmin
@@ -3070,5 +3071,14 @@ class NodesSuite extends AnyFunSuite {
     deleteAllOrgs()
     
     assert(true)
+  }
+
+  test("Cleanup -- DELETE org changes") {
+    for (org <- orgsList){
+      val input = DeleteOrgChangesRequest(List())
+      val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.DELETED.intValue)
+    }
   }
 }

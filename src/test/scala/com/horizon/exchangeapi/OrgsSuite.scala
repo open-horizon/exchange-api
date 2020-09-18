@@ -9,8 +9,10 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import com.horizon.exchangeapi._
+import com.horizon.exchangeapi.auth.IamAccountInfo
 
 import scala.collection.immutable.List
+import scala.collection.mutable.ListBuffer
 
 
 /**
@@ -26,6 +28,7 @@ class OrgsSuite extends AnyFunSuite {
 
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080")
   val URL = urlRoot+"/v1/orgs"
+  val MYORGSURL = urlRoot+"/v1/myorgs"
   val urlRootOrg = urlRoot + "/v1/orgs/root"
   val ACCEPT = ("Accept","application/json")
   val ACCEPTTEXT = ("Accept","text/plain")
@@ -40,8 +43,17 @@ class OrgsSuite extends AnyFunSuite {
   val pw = "password"
   val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/"+hubadmin+":"+pw))
   val orgid2 = "OrgSuitesTests2"
+  val orgid3 = "OrgSuitesTests3"
+  val orgid4 = "OrgSuitesTests4"
+  val orgid5 = "OrgSuitesTests5"
   val exchangeMaxNodes = ExchConfig.getInt("api.limits.maxNodes")
-  val orgsList = List(orgid, orgid2)
+  val orgsList = ListBuffer(orgid, orgid2)
+  val iamKey = sys.env.getOrElse("EXCHANGE_IAM_KEY", "")
+  val iamUser = sys.env.getOrElse("EXCHANGE_IAM_EMAIL", "")
+  val cloudorg = sys.env.getOrElse("ICP_CLUSTER_NAME", "")
+  val CLOUDAUTH = ("Authorization", "Basic " + ApiUtils.encode(s"$cloudorg/iamapikey:$iamKey"))
+  val CLOUDAUTHNOORG = ("Authorization","Basic " + ApiUtils.encode(s"/iamapikey:$iamKey"))
+
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -260,6 +272,147 @@ class OrgsSuite extends AnyFunSuite {
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == orgid) && (y.operation == ResourceChangeConfig.DELETED)}))
+  }
+
+  test("IAM Creds - POST /myorgs route") {
+    if (iamKey.nonEmpty && iamUser.nonEmpty && cloudorg.nonEmpty) {
+      info("Try deleting test orgs first in case they stuck around")
+      var responseOrg = Http(URL+"/"+orgid3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+responseOrg.code+", response.body: "+responseOrg.body)
+      assert(responseOrg.code === HttpCode.DELETED.intValue || responseOrg.code === HttpCode.NOT_FOUND.intValue)
+
+      responseOrg = Http(URL+"/"+orgid4).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+responseOrg.code+", response.body: "+responseOrg.body)
+      assert(responseOrg.code === HttpCode.DELETED.intValue || responseOrg.code === HttpCode.NOT_FOUND.intValue)
+
+      info("Hitting POST /myOrgs before any orgs with the right account ids have been added with cloud auth")
+      val input = List(IamAccountInfo("UserSuiteTestsAccID1", "mycluster Account", "Description for mycluster Account", "2020-09-15T00:20:43.853Z"),
+        IamAccountInfo("UserSuiteTestsAccID2", "mycluster Account", "Description for mycluster Account", "2020-09-15T00:20:43.853Z"))
+      val response = Http(MYORGSURL)
+        .method("post")
+        .postData(write(input))
+        .headers(ACCEPT)
+        .headers(CONTENT)
+        .headers(CLOUDAUTH)
+        .asString
+
+      info("code: "+response.code+", response.body: "+response.body)
+      assert(response.code === HttpCode.NOT_FOUND.intValue)
+
+      info("Hitting POST /myOrgs before any orgs with the right account ids have been added with cloud auth no org")
+      val responseNoOrg = Http(MYORGSURL)
+        .method("post")
+        .postData(write(input))
+        .headers(ACCEPT)
+        .headers(CONTENT)
+        .headers(CLOUDAUTHNOORG)
+        .asString
+
+      info("code: "+responseNoOrg.code+", response.body: "+responseNoOrg.body)
+      assert(responseNoOrg.code === HttpCode.NOT_FOUND.intValue)
+
+      info("Adding first org with the correct account IDs")
+      val input2 = PostPutOrgRequest(None, "My Org", "desc", Some(Map("cloud_id" -> "UserSuiteTestsAccID1")), None, None)
+      val response2 = Http(URL+"/"+orgid3).postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response2.code+", response.body: "+response2.body)
+      assert(response2.code === HttpCode.POST_OK.intValue)
+      orgsList+=orgid3
+
+      info("Adding second org with the correct account IDs")
+      val input3 = PostPutOrgRequest(None, "My Org", "desc", Some(Map("cloud_id" -> "UserSuiteTestsAccID2")), None, None)
+      val response3 = Http(URL+"/"+orgid4).postData(write(input3)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response3.code+", response.body: "+response3.body)
+      assert(response3.code === HttpCode.POST_OK.intValue)
+      orgsList+=orgid4
+
+      info("Hitting POST /myOrgs after orgs with the right account ids have been added")
+      val response4 = Http(MYORGSURL)
+        .method("post")
+        .postData(write(input))
+        .headers(ACCEPT)
+        .headers(CONTENT)
+        .headers(CLOUDAUTHNOORG)
+        .asString
+      info("code: "+response4.code+", response.body: "+response4.body)
+      assert(response4.code === HttpCode.OK.intValue)
+      val orgList = parse(response4.body).extract[GetOrgsResponse]
+      assert(orgList.orgs.size >= 2)
+      assert(orgList.orgs.contains(orgid3))
+      assert(orgList.orgs.contains(orgid4))
+
+      info("CLEANUP -- delete " +orgid3)
+      var response5 = Http(URL+"/"+orgid3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response5.code+", response.body: "+response5.body)
+      assert(response5.code === HttpCode.DELETED.intValue || response5.code === HttpCode.NOT_FOUND.intValue)
+
+      info("CLEANUP -- delete " +orgid4)
+      response5 = Http(URL+"/"+orgid4).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+response5.code+", response.body: "+response5.body)
+      assert(response5.code === HttpCode.DELETED.intValue || response5.code === HttpCode.NOT_FOUND.intValue)
+
+    } else info("Skipping IAM login - POST /myorgs route tests")
+  }
+
+  test("Exchange Creds - POST /myorgs route") {
+    info("Try deleting test orgs first in case they stuck around")
+    val responseOrg = Http(URL+"/"+orgid5).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+responseOrg.code+", response.body: "+responseOrg.body)
+    assert(responseOrg.code === HttpCode.DELETED.intValue || responseOrg.code === HttpCode.NOT_FOUND.intValue)
+
+    info("Adding first org without an account ID")
+    var input2 = PostPutOrgRequest(None, "My Org", "desc", None, None, None)
+    var response2 = Http(URL+"/"+orgid5).postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response2.code+", response.body: "+response2.body)
+    assert(response2.code === HttpCode.POST_OK.intValue)
+    orgsList+=orgid5
+
+    info("Add a normal exchange user to hit these routes")
+    val user = "user1"
+    val inputUser = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
+    val responseUser = Http(URL+"/"+orgid5 + "/users/" + user).postData(write(inputUser)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + responseUser.code + ", response.body: " + responseUser.body)
+    assert(responseUser.code === HttpCode.POST_OK.intValue)
+
+    val userAuth = ("Authorization","Basic " + ApiUtils.encode(orgid5+"/"+user+":"+pw))
+
+    info("Hitting POST /myOrgs before any orgs with the right account ids have been added")
+    val input = List(IamAccountInfo("UserSuiteTestsAccID1", "mycluster Account", "Description for mycluster Account", "2020-09-15T00:20:43.853Z"),
+      IamAccountInfo("UserSuiteTestsAccID2", "mycluster Account", "Description for mycluster Account", "2020-09-15T00:20:43.853Z"))
+    val response = Http(MYORGSURL)
+      .method("post")
+      .postData(write(input))
+      .headers(ACCEPT)
+      .headers(CONTENT)
+      .headers(userAuth)
+      .asString
+
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+
+    info("Updating the org with the correct account ID")
+    input2 = PostPutOrgRequest(None, "My Org", "desc", Some(Map("cloud_id" -> "UserSuiteTestsAccID1")), None, None)
+    response2 = Http(URL+"/"+orgid5).postData(write(input2)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+ response2.code +", response.body: "+response2.body)
+    assert(response2.code === HttpCode.POST_OK.intValue)
+
+    info("Hitting POST /myOrgs after orgs with the right account ids have been added")
+    val response4 = Http(MYORGSURL)
+      .method("post")
+      .postData(write(input))
+      .headers(ACCEPT)
+      .headers(CONTENT)
+      .headers(ROOTAUTH)
+      .asString
+    info("code: "+response4.code+", response.body: "+response4.body)
+    assert(response4.code === HttpCode.OK.intValue)
+    val orgList = parse(response4.body).extract[GetOrgsResponse]
+    assert(orgList.orgs.size >= 1)
+    assert(orgList.orgs.contains(orgid5))
+
+    info("CLEANUP -- delete " +orgid5)
+    val response5 = Http(URL+"/"+orgid5).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response5.code === HttpCode.DELETED.intValue || response5.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("Cleanup -- DELETE org changes") {

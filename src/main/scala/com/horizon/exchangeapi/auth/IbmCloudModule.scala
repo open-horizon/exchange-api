@@ -247,7 +247,7 @@ object IbmCloudAuth {
     }
   }
 
-  private def getIcpCertFile = "/etc/horizon/exchange/icp/ca2.crt" // our ICP provisioning creates this file
+  private def getIcpCertFile = "/etc/horizon/exchange/icp/ca.crt" // our ICP provisioning creates this file
   private def iamRetryNum = 5
 
   // Get the ICP cluster name as a Try[String] and cache it in member var icpClusterNameTry.

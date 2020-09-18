@@ -326,27 +326,6 @@ object IbmCloudAuth {
     }
   }
 
-//  def getUserAccounts(token: IamToken, userInfo: IamUserInfo) : Try[List[IamAccountInfo]] = {
-//    if (isIcp){
-//      /*
-//        curl -k -X GET \
-//        -H 'Accept: application/json' \
-//        -H "Authorization: Bearer $FIFTH_TOKEN" \
-//        -H 'Content-Type: application/json' \
-//        "https://$CLUSTER_ADDRESS/idmgmt/identity/api/v1/users/admin/accounts"
-//       */
-//      val accountsURL = getIcpMgmtIngressUrl + "/idmgmt/identity/api/v1/"+userInfo.user+"/admin/accounts"
-//      val response = Http(accountsURL).method("get").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
-//        .header("Content-Type", "application/json")
-//        .header("Accept", "application/json")
-//        .header("Authorization", "Bearer " + token.accessToken)
-//        .asString
-//      if (response.code == HttpCode.OK.intValue) {
-//        Success(parse(response.body).extract[List[IamAccountInfo]])
-//      } else Failure(new InvalidCredentialsException(ExchMsg.translate("invalid.iam.token")))
-//    } else Failure(new InvalidCredentialsException(ExchMsg.translate("api.access.denied")))
-//  }
-
   // Using the IAM token get the ibm cloud account id (which we'll use to verify the exchange org) and users email (which we'll use as the exchange user)
   // For ICP IAM see: https://github.ibm.com/IBMPrivateCloud/roadmap/blob/master/feature-specs/security/security-services-apis.md
   private def getUserInfo(token: IamToken, authInfo: IamAuthCredentials): Try[IamUserInfo] = {

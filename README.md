@@ -256,6 +256,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.46.0
+- Issue 395: `POST /myorgs` route added
+- Updated translations
+
 ## Changes in 2.45.0
 - Issue 400: Exchange logs org deletions in `resourcechanges` table. Includes dropping orgid foreign key in `resourcechanges` table. 
 - Issue 400: Exchange always reports org creations to agbots

@@ -133,6 +133,10 @@ final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecen
 
 final case class MaxChangeIdResponse(maxChangeId: Long)
 
+final case class GetMyOrgsRequest(accounts: List[IamAccountInfo]){
+  def getAnyProblem: Option[String] = None
+}
+
 /** Routes for /orgs */
 @Path("/v1")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "organization")
@@ -164,7 +168,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   */
 
   // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
-  def orgsRoutes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ nodeGetAllErrorsRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute ~ orgsGetMaxChangeIdRoute
+  def orgsRoutes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ nodeGetAllErrorsRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute ~ orgsGetMaxChangeIdRoute ~ myOrgsPostRoute
 
   // ====== GET /orgs ================================
 
@@ -1091,10 +1095,37 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // ====== GET /myorgs ================================
-  @GET
+  // ====== POST /myorgs ================================
+  @POST
   @Path("myorgs")
-  @Operation(summary = "Returns the orgs a user can view", description = "Returns all the org definitions in the exchange that match the accounts the caller has access too. Can be run by any user.",
+  @Operation(summary = "Returns the orgs a user can view", description = "Returns all the org definitions in the exchange that match the accounts the caller has access too. Can be run by any user. Request body is the response from /idmgmt/identity/api/v1/users/<user_ID>/accounts API.",
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """[
+  {
+    "id": "<string-id-here>",
+    "name": "<string-account-name>",
+    "description": "String Description for Account",
+    "createdOn": "2020-09-15T00:20:43.853Z"
+  },
+  {
+    "id": "<string-id-here>",
+    "name": "<string-account-name>",
+    "description": "String Description for Account",
+    "createdOn": "2020-09-15T00:20:43.853Z"
+  }
+]"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[List[IamAccountInfo]])
+        )
+      ),
+      required = true
+    ),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(
@@ -1131,22 +1162,19 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def myOrgsGetRoute: Route = (path("myorgs") & get) {
-    logger.debug("Doing GET /myorgs")
+  def myOrgsPostRoute: Route = (path("myorgs") & post & entity(as[List[IamAccountInfo]])) { reqBody =>
+    logger.debug("Doing POST /myorgs")
     // set hint here to some key that states that no org is ok
     // UI should omit org at the beginning of credentials still have them put the slash in there
-    exchAuth(TOrg("#"), Access.READ_MY_ORG) { ident =>
+    exchAuth(TOrg("#"), Access.READ_MY_ORG, hint = "exchangeNoOrgForMultLogin") { _ =>
       complete({
         // getting list of accounts in req body from UI
-        val accountsInfoList : List[IamAccountInfo] = null // IbmCloudAuth.getUserAccounts()
         val accountsList = ListBuffer[String]()
-        for (account <- accountsInfoList) { accountsList += account.id }
-
+        for (account <- reqBody) {accountsList += account.id}
         // filter on the orgs for orgs with those account ids
-        // OrgsTQ.getOrgid(authInfo.org).map(_.tags.+>>("ibmcloud_id")).result.headOption
-        // val q = OrgsTQ.rows.filter(_.tags.+>>("cloud_id")) -- THIS DOESN'T WORK, ASK BRUCE HOW DO I DO THIS
-        db.run(OrgsTQ.rows.result).map({ list =>
-          logger.debug("GET /myorgs result size: " + list.size)
+        val q = OrgsTQ.rows.filter(_.tags.map(tag => tag +>> "cloud_id") inSet accountsList.toSet)
+        db.run(q.result).map({ list =>
+          logger.debug("POST /myorgs result size: " + list.size)
           val orgs = list.map(a => a.orgId -> a.toOrg).toMap
           val code = if (orgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetOrgsResponse(orgs, 0))

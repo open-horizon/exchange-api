@@ -7,6 +7,7 @@ import java.security.KeyStore
 
 import com.google.common.cache.CacheBuilder
 import com.horizon.exchangeapi._
+import com.horizon.exchangeapi.auth.IbmCloudAuth.logger
 import com.horizon.exchangeapi.tables.{OrgsTQ, UserRow, UsersTQ}
 import javax.net.ssl.{SSLContext, SSLSocketFactory, TrustManagerFactory}
 import javax.security.auth._
@@ -23,23 +24,13 @@ import scalaj.http._
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 // Credentials specified in the client request
 final case class IamAuthCredentials(org: String, keyType: String, key: String) {
   def cacheKey = org + "/" + keyType + ":" + key
 }
 final case class IamToken(accessToken: String, tokenType: Option[String] = None)
-
-/*
-  Represents information from one IAM Account from the Multitenancy APIs - More information here: https://www.ibm.com/support/knowledgecenter/SSHKN6/iam/3.x.x/apis/mt_apis.html
-    "id": "id-account",
-    "name": "my Account",
-    "description": "Description for Account",
-    "createdOn": "2020-09-15T00:20:43.853Z"
- */
-final case class IamAccountInfo(id: String, name: String, description: String, createdOn: String)
-
 
 // Info retrieved about the user from IAM (using the iam key or token).
 // For both IBM Cloud and ICP. All the rest apis that use this must be able to parse their results into this class.
@@ -54,11 +45,15 @@ final case class IamAccount(bss: String)
 // Response from /api/v1/config
 final case class ClusterConfigResponse(cluster_name: String, cluster_url: String, cluster_ca_domain: String, kube_url: String, helm_host: String)
 
-// Represents information from one IAM Account from the Multitenancy APIs - More information here: https://www.ibm.com/support/knowledgecenter/SSHKN6/iam/3.x.x/apis/mt_apis.html
+/*
+  Represents information from one IAM Account from the Multitenancy APIs - More information here: https://www.ibm.com/support/knowledgecenter/SSHKN6/iam/3.x.x/apis/mt_apis.html
+    "id": "id-account",
+    "name": "my Account",
+    "description": "Description for Account",
+    "createdOn": "2020-09-15T00:20:43.853Z"
+ */
 final case class IamAccountInfo(id: String, name: String, description: String, createdOn: String)
-// Formats the response from this IAM API: /idmgmt/identity/api/v1/users/<user_ID>/accounts
-final case class IamUserAccounts(accounts: List[IamAccountInfo])
-// Response from ICP IAM /identity/api/v1/account
+
 //case class TokenAccountResponse(id: String, name: String, description: String)
 //s"ICP IAM authentication succeeded, but the org specified in the request ($requestOrg) does not match the org associated with the ICP credentials ($userCredsOrg)"
 
@@ -92,14 +87,13 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
 
     val loginResult = for {
       reqInfo <- Try(reqCallback.request.get)   // reqInfo is of type RequestInfo
-      // reqInfo.hint
       user <- {
         //val RequestInfo(_, /*req, _,*/ isDbMigration /*, _*/ , _) = reqInfo
         //val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
 
         for {
-          key <- extractApiKey(reqInfo) // this will bail out of the outer for loop if the user isn't iamapikey or iamapitoken
-          username <- IbmCloudAuth.authenticateUser(key)
+          key <- extractApiKey(reqInfo, Some(reqInfo.hint)) // this will bail out of the outer for loop if the user isn't iamapikey or iamapitoken
+          username <- IbmCloudAuth.authenticateUser(key, Some(reqInfo.hint))
         } yield {
           val user = IUser(Creds(username, ""))
           //logger.info("IBM User " + user.creds.id + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
@@ -141,11 +135,14 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
     succeeded
   }
 
-  private def extractApiKey(reqInfo: RequestInfo): Try[IamAuthCredentials] = {
+  private def extractApiKey(reqInfo: RequestInfo, hint: Option[String]): Try[IamAuthCredentials] = {
     //val creds = credentials(reqInfo)
     val creds = reqInfo.creds
     val (org, id) = IbmCloudAuth.compositeIdSplit(creds.id)
-    if (org == "") Failure(new OrgNotSpecifiedException)
+    if (org == "") {
+      if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") Success(IamAuthCredentials(null, id, creds.token))
+      else Failure(new OrgNotSpecifiedException)
+    }
     else if ((id == "iamapikey" || id == "iamtoken") && creds.token.nonEmpty) Success(IamAuthCredentials(org, id, creds.token))
     else Failure(new NotIbmCredsException)
   }
@@ -184,8 +181,9 @@ object IbmCloudAuth {
     }
   }
 
-  def authenticateUser(authInfo: IamAuthCredentials): Try[String] = {
+  def authenticateUser(authInfo: IamAuthCredentials, hint: Option[String]): Try[String] = {
     logger.debug("authenticateUser(): attempting to authenticate with IBM Cloud with " + authInfo.org + "/" + authInfo.keyType)
+
     /*
      * The caching library provides several functions that work on the cache defined above. The caching function takes a key and tries
      * to retrieve from the cache, and if it is not there runs the block of code provided, adds the result to the cache, and then returns it.
@@ -197,7 +195,7 @@ object IbmCloudAuth {
         else if (isIcp && authInfo.keyType == "iamapikey") Success(IamToken(authInfo.key, Some(authInfo.keyType))) // this is an apikey we are putting in IamToken, but it can be used like a token in the next step
         else getIamToken(authInfo)
         userInfo <- getUserInfo(token, authInfo)
-        user <- getOrCreateUser(authInfo, userInfo)
+        user <- getOrCreateUser(authInfo, userInfo, Some(hint.getOrElse("")))
       } yield user.username // this is the composite org/username
     }
   }
@@ -249,7 +247,7 @@ object IbmCloudAuth {
     }
   }
 
-  private def getIcpCertFile = "/etc/horizon/exchange/icp/ca.crt" // our ICP provisioning creates this file
+  private def getIcpCertFile = "/etc/horizon/exchange/icp/ca2.crt" // our ICP provisioning creates this file
   private def iamRetryNum = 5
 
   // Get the ICP cluster name as a Try[String] and cache it in member var icpClusterNameTry.
@@ -326,10 +324,6 @@ object IbmCloudAuth {
     } else {
       Failure(new AuthInternalErrorException(ExchMsg.translate("no.valid.iam.keyword")))
     }
-  }
-
-  def getPotentialUserOrgs(token: IamToken, authInfo: IamAuthCredentials) = {
-
   }
 
 //  def getUserAccounts(token: IamToken, userInfo: IamUserInfo) : Try[List[IamAccountInfo]] = {
@@ -430,7 +424,7 @@ object IbmCloudAuth {
     }
   }
 
-  private def getOrCreateUser(authInfo: IamAuthCredentials, userInfo: IamUserInfo): Try[UserRow] = {
+  private def getOrCreateUser(authInfo: IamAuthCredentials, userInfo: IamUserInfo, hint: Option[String]): Try[UserRow] = {
     logger.debug("Getting or creating exchange user from DB using IAM userinfo: " + userInfo)
     // Form a DB query with the right logic to verify the org and either get or create the user.
     // This can throw exceptions OrgNotFound or IncorrectOrgFound
@@ -438,7 +432,7 @@ object IbmCloudAuth {
       for {
         //orgAcctId <- fetchOrg(authInfo.org)
         //orgId <- verifyOrg(authInfo, userInfo, orgAcctId) // verify the org exists in the db, and in the public cloud case the cloud acct id of the apikey and the org entry match
-        orgId <- fetchVerifyOrg(authInfo, userInfo) // verify the org exists in the db, and in the public cloud case the cloud acct id of the apikey and the org entry match
+        orgId <- fetchVerifyOrg(authInfo, userInfo, Some(hint.getOrElse(""))) // verify the org exists in the db, and in the public cloud case the cloud acct id of the apikey and the org entry match
         userRow <- fetchUser(orgId, userInfo)
         userAction <- {
           logger.debug(s"userRow: $userRow")
@@ -464,7 +458,9 @@ object IbmCloudAuth {
     val awaitResult =
       try {
         //logger.debug("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.user+"...")
-        Await.result(db.run(userQuery.transactionally), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
+        if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") {
+          Success(UserRow(userInfo.user, "", "", admin = false, hubAdmin = false, "", "", ""))
+        } else Await.result(db.run(userQuery.transactionally), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
         //logger.debug("...back from awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.user+".")
       } catch {
         // Handle any exceptions, including db problems. Note: exceptions from this get caught in login() above
@@ -484,26 +480,30 @@ object IbmCloudAuth {
 
   // Verify that the cloud acct id of the cloud api key and the exchange org entry match
   // authInfo is the creds they passed in, userInfo is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db
-  private def fetchVerifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo) = {
+  private def fetchVerifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, hint: Option[String]) = {
     if (isIcp) {
-      // replace this with checking against getUserAccounts that the org they're in matches the org they're trying to access
-      logger.debug(s"Fetching and verifying ICP/OCP org: $authInfo, $userInfo, $getIcpClusterName")
-      // if hint is blahblahblah then don't check org
-      OrgsTQ.getOrgid(authInfo.org).map(_.orgid).result.headOption.flatMap({
-        case None =>
-          DBIO.failed(OrgNotFound(authInfo.org))
-        case Some(result) =>
-          // We are here because the client creds (authInfo) were either an icp iamtoken or iamapikey. Those are only valid in the cluster name org (not the IBM org).
-          // So confirm that authInfo.org equals the cluster name
-          logger.debug(s"fetch org result: $result")
-          getIcpClusterName match {
-            case Success(clusterName) =>
-              if (authInfo.org == clusterName) DBIO.successful(authInfo.org)
-              else DBIO.failed(IncorrectIcpOrgFound(authInfo.org, clusterName))
-            case Failure(t) =>
-              DBIO.failed(t)
-          }
-      })
+      if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") {
+        DBIO.successful(null)
+      }
+      else {
+        // replace this with checking against getUserAccounts that the org they're in matches the org they're trying to access
+        logger.debug(s"Fetching and verifying ICP/OCP org: $authInfo, $userInfo, $getIcpClusterName")
+        OrgsTQ.getOrgid(authInfo.org).map(_.orgid).result.headOption.flatMap({
+          case None =>
+            DBIO.failed(OrgNotFound(authInfo.org))
+          case Some(result) =>
+            // We are here because the client creds (authInfo) were either an icp iamtoken or iamapikey. Those are only valid in the cluster name org (not the IBM org).
+            // So confirm that authInfo.org equals the cluster name
+            logger.debug(s"fetch org result: $result")
+            getIcpClusterName match {
+              case Success(clusterName) =>
+                if (authInfo.org == clusterName) DBIO.successful(authInfo.org)
+                else DBIO.failed(IncorrectIcpOrgFound(authInfo.org, clusterName))
+              case Failure(t) =>
+                DBIO.failed(t)
+            }
+        })
+      }
     } else {
       // IBM Cloud - we already have the account id from iam from the creds, and the account id of the exchange org
       logger.debug(s"Fetching and verifying IBM public cloud org: $authInfo, $userInfo")
@@ -538,17 +538,22 @@ object IbmCloudAuth {
   }
 
   private def createUser(org: String, userInfo: IamUserInfo) = {
-    logger.debug("Creating user: org=" + org + ", " + userInfo)
-    val user = UserRow(
-      s"$org/${userInfo.user}",
-      org,
-      "",
-      admin = false,
-      hubAdmin = false,
-      userInfo.user,
-      ApiTime.nowUTC,
-      s"$org/${userInfo.user}")
-    (UsersTQ.rows += user).asTry.map(count => count.map(_ => user))
+    if(org != null) {
+      logger.debug("Creating user: org=" + org + ", " + userInfo)
+      val user = UserRow(
+        s"$org/${userInfo.user}",
+        org,
+        "",
+        admin = false,
+        hubAdmin = false,
+        userInfo.user,
+        ApiTime.nowUTC,
+        s"$org/${userInfo.user}")
+      (UsersTQ.rows += user).asTry.map(count => count.map(_ => user))
+    } else {
+      logger.debug("ibmcloudmodule not creating user")
+      null
+    }
   }
 
   /* private def extractICPTokenOrg(id: String) = {

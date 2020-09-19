@@ -412,7 +412,7 @@ object IbmCloudAuth {
     /*
     curl -k -X POST -H "Content-Type: application/x-www-form-urlencoded" -H "Accept: application/json"
     -d 'grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=<api-key>&response_type=cloud_iam'
-    "https://cp-console.ieam-roks-stg-70ea81cdef68a2eb78ece6d890b7dad3-0000.us-south.containers.appdomain.cloud/iam-token/oidc/token"
+    "$CLUSTER_ADDRESS/iam-token/oidc/token"
      */
     logger.debug("getOIDCToken")
     val oidcTokenURL = getIcpMgmtIngressUrl + "/iam-token/oidc/token"

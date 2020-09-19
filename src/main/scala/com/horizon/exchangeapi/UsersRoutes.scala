@@ -34,7 +34,7 @@ final case class GetUsersResponse(users: Map[String, User], lastIndex: Int)
 final case class PostPutUsersRequest(password: String, admin: Boolean, hubAdmin: Option[Boolean], email: String) {
   require(password!=null && email!=null)
   def getAnyProblem(identIsAdmin: Boolean, identisHubAdmin: Boolean, identisSuperUser: Boolean, orgid: String): Option[String] = {
-    if (password == "" || email == "") Some(ExchMsg.translate("password.and.email.must.be.non.blank.when.creating.user"))
+    if ((password == "" || email == "") && !identisHubAdmin) Some(ExchMsg.translate("password.and.email.must.be.non.blank.when.creating.user"))
     else if (admin && !identIsAdmin && !identisHubAdmin && !identisSuperUser) Some(ExchMsg.translate("non.admin.user.cannot.make.admin.user")) // ensure that a user can't elevate himself to an admin user
     else if (hubAdmin.isDefined && hubAdmin.get && !identisSuperUser) Some(ExchMsg.translate("only.super.users.make.hub.admins"))
     else if (hubAdmin.isDefined && hubAdmin.get && orgid != "root") Some(ExchMsg.translate("hub.admins.in.root.org"))

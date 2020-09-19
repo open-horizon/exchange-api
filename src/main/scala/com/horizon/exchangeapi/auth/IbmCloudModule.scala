@@ -22,6 +22,7 @@ import scalacache.guava.GuavaCache
 import scalacache.modes.try_._
 import scalaj.http._
 
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
@@ -53,6 +54,9 @@ final case class ClusterConfigResponse(cluster_name: String, cluster_url: String
     "createdOn": "2020-09-15T00:20:43.853Z"
  */
 final case class IamAccountInfo(id: String, name: String, description: String, createdOn: String)
+
+// Response from iam-token/oidc/token API
+final case class IamOIDCToken(access_token: String, refresh_token: String, token_type: String, expires_in: String, expiration: String)
 
 //case class TokenAccountResponse(id: String, name: String, description: String)
 //s"ICP IAM authentication succeeded, but the org specified in the request ($requestOrg) does not match the org associated with the ICP credentials ($userCredsOrg)"
@@ -195,7 +199,8 @@ object IbmCloudAuth {
         else if (isIcp && authInfo.keyType == "iamapikey") Success(IamToken(authInfo.key, Some(authInfo.keyType))) // this is an apikey we are putting in IamToken, but it can be used like a token in the next step
         else getIamToken(authInfo)
         userInfo <- getUserInfo(token, authInfo)
-        user <- getOrCreateUser(authInfo, userInfo, Some(hint.getOrElse("")))
+        oidcToken <- if (isIcp && authInfo.keyType == "iamapikey") getOIDCToken(token) else Success(IamToken(authInfo.key, Some(authInfo.keyType)))
+        user <- getOrCreateUser(authInfo, userInfo, Some(hint.getOrElse("")), Some(oidcToken))
       } yield user.username // this is the composite org/username
     }
   }
@@ -403,7 +408,47 @@ object IbmCloudAuth {
     }
   }
 
-  private def getOrCreateUser(authInfo: IamAuthCredentials, userInfo: IamUserInfo, hint: Option[String]): Try[UserRow] = {
+  def getOIDCToken(icpapikey: IamToken) : Try[IamToken]  = {
+    /*
+    curl -k -X POST -H "Content-Type: application/x-www-form-urlencoded" -H "Accept: application/json"
+    -d 'grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=<api-key>&response_type=cloud_iam'
+    "$CLUSTER_ADDRESS/iam-token/oidc/token"
+     */
+    logger.debug("getOIDCToken")
+    val oidcTokenURL = getIcpMgmtIngressUrl + "/iam-token/oidc/token"
+    val response = Http(oidcTokenURL).method("post").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
+      .header("Content-Type", "application/x-www-form-urlencoded")
+      .header("Accept", "application/json")
+      .postData(s"grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=${icpapikey.accessToken}&response_type=cloud_iam")
+      .asString
+    if (response.code == HttpCode.OK.intValue){
+      val respToken = parse(response.body).extract[IamOIDCToken]
+      Success(IamToken(accessToken = respToken.access_token, tokenType = Some("OIDC_access_token")))
+    } else Failure(new InvalidCredentialsException(ExchMsg.translate("invalid.iam.token")))
+  }
+
+  def getUserAccounts(token: IamToken, userInfo: IamUserInfo) : Try[List[IamAccountInfo]] = {
+    if (isIcp){
+      /*
+        curl -k -X GET \
+        -H 'Accept: application/json' \
+        -H "Authorization: Bearer $TOKEN" \
+        -H 'Content-Type: application/json' \
+        "https://$CLUSTER_ADDRESS/idmgmt/identity/api/v1/users/$USERID/accounts"
+       */
+      logger.debug("getUserAccounts: " + userInfo)
+      val accountsURL = getIcpMgmtIngressUrl + "/idmgmt/identity/api/v1/users/"+userInfo.user+"/accounts"
+      val response = Http(accountsURL).method("get").option(HttpOptions.sslSocketFactory(this.sslSocketFactory))
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .header("Authorization", "Bearer " + token.accessToken)
+        .asString
+      if (response.code == HttpCode.OK.intValue) Success(parse(response.body).extract[List[IamAccountInfo]])
+      else Failure(new InvalidCredentialsException(ExchMsg.translate("invalid.iam.token")))
+    } else Failure(new InvalidCredentialsException(ExchMsg.translate("api.access.denied")))
+  }
+
+  private def getOrCreateUser(authInfo: IamAuthCredentials, userInfo: IamUserInfo, hint: Option[String], oidcToken: Option[IamToken]): Try[UserRow] = {
     logger.debug("Getting or creating exchange user from DB using IAM userinfo: " + userInfo)
     // Form a DB query with the right logic to verify the org and either get or create the user.
     // This can throw exceptions OrgNotFound or IncorrectOrgFound
@@ -411,11 +456,12 @@ object IbmCloudAuth {
       for {
         //orgAcctId <- fetchOrg(authInfo.org)
         //orgId <- verifyOrg(authInfo, userInfo, orgAcctId) // verify the org exists in the db, and in the public cloud case the cloud acct id of the apikey and the org entry match
-        orgId <- fetchVerifyOrg(authInfo, userInfo, Some(hint.getOrElse(""))) // verify the org exists in the db, and in the public cloud case the cloud acct id of the apikey and the org entry match
+        orgId <- fetchVerifyOrg(authInfo, userInfo, Some(hint.getOrElse("")), Some(oidcToken.getOrElse(IamToken(null)))) // verify the org exists in the db, and in the public cloud case the cloud acct id of the apikey and the org entry match
         userRow <- fetchUser(orgId, userInfo)
         userAction <- {
           logger.debug(s"userRow: $userRow")
           if (userRow.isEmpty) createUser(orgId, userInfo)
+          else if(userRow.get.orgid == "root" && !userRow.get.hubAdmin) DBIO.failed(new InvalidCredentialsException(ExchMsg.translate("user.cannot.be.in.root.org"))) // only need to check hubadmin field because the root user is by default a hubadmin and org admins are not in the root org
           else DBIO.successful(Success(userRow.get)) // to produce error case below, instead use: createUser(orgId, userInfo)
         }
         // This is to just handle errors from createUser
@@ -459,29 +505,36 @@ object IbmCloudAuth {
 
   // Verify that the cloud acct id of the cloud api key and the exchange org entry match
   // authInfo is the creds they passed in, userInfo is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db
-  private def fetchVerifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, hint: Option[String]) = {
+  private def fetchVerifyOrg(authInfo: IamAuthCredentials, userInfo: IamUserInfo, hint: Option[String], oidcToken: Option[IamToken]) = {
     if (isIcp) {
       if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") {
         DBIO.successful(null)
       }
       else {
         // replace this with checking against getUserAccounts that the org they're in matches the org they're trying to access
-        logger.debug(s"Fetching and verifying ICP/OCP org: $authInfo, $userInfo, $getIcpClusterName")
-        OrgsTQ.getOrgid(authInfo.org).map(_.orgid).result.headOption.flatMap({
-          case None =>
-            DBIO.failed(OrgNotFound(authInfo.org))
-          case Some(result) =>
-            // We are here because the client creds (authInfo) were either an icp iamtoken or iamapikey. Those are only valid in the cluster name org (not the IBM org).
-            // So confirm that authInfo.org equals the cluster name
-            logger.debug(s"fetch org result: $result")
-            getIcpClusterName match {
-              case Success(clusterName) =>
-                if (authInfo.org == clusterName) DBIO.successful(authInfo.org)
-                else DBIO.failed(IncorrectIcpOrgFound(authInfo.org, clusterName))
-              case Failure(t) =>
-                DBIO.failed(t)
-            }
-        })
+        logger.debug(s"Fetching and verifying ICP/OCP org: $authInfo, $userInfo")
+        //if (authInfo.keyType == "iamtoken")
+        if (authInfo.org == "root") DBIO.successful(authInfo.org)
+        else {
+          val tokentoUse = if (authInfo.keyType == "iamtoken") IamToken(authInfo.key) else oidcToken.getOrElse(IamToken(null))
+          getUserAccounts(tokentoUse, userInfo) match {
+            case Success(allAccounts) =>
+              val accountsIDs = ListBuffer[String]()
+              for (account <- allAccounts) {
+                accountsIDs += account.id
+              } // building a list of just the account Ids to search on in the query
+              OrgsTQ.getOrgid(authInfo.org).map(_.tags.+>>("cloud_id")).result.headOption.flatMap({
+                case None =>
+                  DBIO.failed(OrgNotFound(authInfo.org))
+                case Some(orgAccountID) =>
+                  logger.debug(s"fetch org acctId: $orgAccountID")
+                  if (accountsIDs.contains(orgAccountID.getOrElse(""))) DBIO.successful(authInfo.org)
+                  else DBIO.failed(IncorrectOrgFoundMult(authInfo.org))
+              })
+            case Failure(t) =>
+              DBIO.failed(t)
+          }
+        }
       }
     } else {
       // IBM Cloud - we already have the account id from iam from the creds, and the account id of the exchange org

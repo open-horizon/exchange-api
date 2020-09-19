@@ -8,6 +8,9 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import com.horizon.exchangeapi._
+import com.horizon.exchangeapi.auth.{IamToken, IamUserInfo, IbmCloudAuth}
+
+import scala.collection.mutable.ListBuffer
 //import com.horizon.exchangeapi.tables.NodeHeartbeatIntervals
 import com.horizon.exchangeapi.tables._
 import scala.collection.immutable._
@@ -28,8 +31,12 @@ class UsersSuite extends AnyFunSuite {
   val CONTENT = ("Content-Type", "application/json")
   val orgid = "UsersSuiteTests"
   val orgid2 = "UsersSuiteTests2"
+  val orgid3 = "UsersSuiteTests3"
+  val orgid4 = "UsersSuiteTests4"
   val URL = urlRoot + "/v1/orgs/" + orgid
   val URL2 = urlRoot + "/v1/orgs/" + orgid2
+  val URL3 = urlRoot + "/v1/orgs/" + orgid3
+  val URL4 = urlRoot + "/v1/orgs/" + orgid4
   val urlRootOrg = urlRoot + "/v1/orgs/root"
   val cloudorg = sys.env.get("EXCHANGE_IAM_ACCOUNT_ID") match {
     case Some(_) => orgid   // we are allowed to use our org as a public cloud org
@@ -81,17 +88,21 @@ class UsersSuite extends AnyFunSuite {
   val agbotId = "a1"
   val agbotToken = agbotId + "tok"
   val iamKey = sys.env.getOrElse("EXCHANGE_IAM_KEY", "")
+  val iamUIToken = sys.env.getOrElse("EXCHANGE_IAM_UI_TOKEN", "")
   val iamUser = sys.env.getOrElse("EXCHANGE_IAM_EMAIL", "")
   val iamAccountId = sys.env.getOrElse("EXCHANGE_IAM_ACCOUNT_ID", "") // this indicates it is ibm cloud instead of ICP
+  val ocpAccountId = sys.env.getOrElse("EXCHANGE_MULT_ACCOUNT_ID", "") // this indicates it is Multitenancy
   val iamOtherKey = sys.env.getOrElse("EXCHANGE_IAM_OTHER_KEY", "")
   val iamOtherAccountId = sys.env.getOrElse("EXCHANGE_IAM_OTHER_ACCOUNT_ID", "")
+  val iamUserUIId = sys.env.getOrElse("EXCHANGE_IAM_UI_ID", "")
   val IAMAUTH = { org: String => ("Authorization", "Basic " + ApiUtils.encode(s"$org/iamapikey:$iamKey")) }
+  val IAMUITOKENAUTH = { org: String => ("Authorization", "Basic " + ApiUtils.encode(s"$org/iamtoken:$iamUIToken")) }
   val IAMBADAUTH = { org: String => ("Authorization", "Basic " + ApiUtils.encode(s"$org/iamapikey:${iamKey}bad")) }
   val IAMOTHERAUTH = { org: String => ("Authorization", "Basic " + ApiUtils.encode(s"$org/iamapikey:$iamOtherKey")) }
   val hubadmin = "UsersSuiteHubAdmin"
   val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/"+hubadmin+":"+pw))
   val orgadmin = "orgadmin"
-  val orgsList = List(orgid, orgid2)
+  val orgsList = ListBuffer(orgid, orgid2)
 
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
@@ -243,12 +254,13 @@ class UsersSuite extends AnyFunSuite {
     assert(response.code === HttpCode.BAD_INPUT.intValue) // for now this is what is returned when the json-to-scala conversion fails
   }
 
-  test("POST /orgs/" + orgid + "/users/" + user + " - no email - should fail") {
-    val input = PostPutUsersRequest(pw, admin = true, Some(false), "")
-    val response = Http(URL + "/users/" + user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-  }
+  // this check was removed to facilitate creation of hubadmins in multitenancy
+//  test("POST /orgs/" + orgid + "/users/" + user + " - no email - should fail") {
+//    val input = PostPutUsersRequest(pw, admin = true, Some(false), "")
+//    val response = Http(URL + "/users/" + user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+//    info("code: " + response.code + ", response.body: " + response.body)
+//    assert(response.code === HttpCode.BAD_INPUT.intValue)
+//  }
 
   /** Add a normal user */
   test("POST /orgs/" + orgid + "/users/" + user + " - normal") {
@@ -865,6 +877,15 @@ class UsersSuite extends AnyFunSuite {
         info("code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.PUT_OK.intValue)
       }
+      if(ocpAccountId.nonEmpty) {
+        // add accountID to OCP org
+        info("Add cloud_id to org. For OCP multitenancy")
+        val tagInput = s"""{ "tags": {"cloud_id": "$ocpAccountId"} }"""
+        info(tagInput)
+        val response = Http(CLOUDURL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        info("code: " + response.code + ", response.body: " + response.body)
+        assert(response.code === HttpCode.PUT_OK.intValue)
+      }
 
       info("authenticating to cloud with iam api key and GETing " + CLOUDURL)
       var response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
@@ -875,6 +896,18 @@ class UsersSuite extends AnyFunSuite {
       response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
       assert(response.code === HttpCode.OK.intValue)
+
+      if (iamUIToken.nonEmpty) {
+        info("authenticating to cloud with UI iam token and GETing " + CLOUDURL)
+        response = Http(CLOUDURL).headers(ACCEPT).headers(IAMUITOKENAUTH(cloudorg)).asString
+        info("GET " + CLOUDURL + " code: " + response.code)
+        assert(response.code === HttpCode.OK.intValue)
+
+        info("ensuring cached user works: authenticating to cloud with UI iam token and GETing " + CLOUDURL)
+        response = Http(CLOUDURL).headers(ACCEPT).headers(IAMUITOKENAUTH(cloudorg)).asString
+        info("GET " + CLOUDURL + " code: " + response.code)
+        assert(response.code === HttpCode.OK.intValue)
+      } else info("Skipping UI token login test")
 
       info("authenticate as a cloud user and view this user")
       response = Http(CLOUDURL + "/users/" + iamUser).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
@@ -986,6 +1019,108 @@ class UsersSuite extends AnyFunSuite {
     } else {
       info("Skipping all IAM login tests")
     }
+  }
+
+  test("Multitenancy Pathway") {
+    if((sys.env.getOrElse("ICP_EXTERNAL_MGMT_INGRESS", "") != "") && (sys.env.getOrElse("ICP_CLUSTER_NAME", "")!="") && ocpAccountId.nonEmpty && iamKey.nonEmpty && iamUser.nonEmpty){
+      info("Try deleting the test org first in case it stuck around")
+      val responseOrg = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+responseOrg.code+", response.body: "+responseOrg.body)
+      assert(responseOrg.code === HttpCode.DELETED.intValue || responseOrg.code === HttpCode.NOT_FOUND.intValue)
+
+      info("Creating new org with cloud_id")
+      val input = PostPutOrgRequest(None, "", "Desc", Some(Map("cloud_id" -> ocpAccountId)), None, None)
+      var response = Http(URL3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: " + response.code + ", response.body: " + response.body)
+      assert(response.code === HttpCode.PUT_OK.intValue)
+      orgsList+=orgid3
+
+      info("Cloud user with apikey should be able to access the org")
+      response = Http(URL3).headers(ACCEPT).headers(IAMAUTH(orgid3)).asString
+      info("GET " + URL3 + " code: " + response.code)
+      assert(response.code === HttpCode.OK.intValue)
+
+      if (iamUIToken.nonEmpty){
+        // we can authenticate as a UI user
+        info("Cloud (UI) user with token should be able to access the org")
+        response = Http(URL3).headers(ACCEPT).headers(IAMUITOKENAUTH(orgid3)).asString
+        info("GET " + URL3 + " code: " + response.code)
+        assert(response.code === HttpCode.OK.intValue)
+      } else info ("Skipping UI login tests 1")
+
+      info("Cloud user with apikey should not be able to access org without accountID")
+      response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      info("GET " + URL + " code: " + response.code)
+      info("GET " + URL + " body: " + response.body)
+      assert(response.code === HttpCode.BADCREDS.intValue)
+
+      if (iamUIToken.nonEmpty){
+        // we can authenticate as a UI user
+        info("Cloud user with token should not be able to access org without accountID")
+        response = Http(URL).headers(ACCEPT).headers(IAMUITOKENAUTH(orgid)).asString
+        info("GET " + URL + " code: " + response.code)
+        info("GET " + URL + " body: " + response.body)
+        assert(response.code === HttpCode.BADCREDS.intValue)
+      } else info ("Skipping UI login tests 2")
+
+      info("Try deleting the second test org first in case it stuck around")
+      val responseOrg2 = Http(URL4).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: "+responseOrg2.code+", response.body: "+responseOrg2.body)
+      assert(responseOrg2.code === HttpCode.DELETED.intValue || responseOrg2.code === HttpCode.NOT_FOUND.intValue)
+
+      info("Creating new org with the same cloud_id")
+      response = Http(URL4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: " + response.code + ", response.body: " + response.body)
+      assert(response.code === HttpCode.PUT_OK.intValue)
+      orgsList+=orgid4
+
+      info("Creating basic user in root org with hubAdmin=true and same userid as cloud user")
+      val userInput = PostPutUsersRequest("", admin=false, hubAdmin=Some(true), "")
+      response = Http(urlRootOrg+ "/users/" + iamUser).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: " + response.code + ", response.body: " + response.body)
+      assert(response.code === HttpCode.PUT_OK.intValue)
+
+      info("Cloud user who is now hubadmin should be able to access all orgs with apikey")
+      response = Http(urlRoot + "/v1/orgs").headers(ACCEPT).headers(IAMAUTH("root")).asString
+      info("GET " + urlRoot + "/v1/orgs" + " code: " + response.code)
+      assert(response.code === HttpCode.OK.intValue)
+
+      if (iamUIToken.nonEmpty && iamUserUIId.nonEmpty){
+        // we can authenticate as a UI user
+        info("Creating basic user in root org with hubAdmin=true and same userid as cloud user")
+        response = Http(urlRootOrg+ "/users/" + iamUserUIId).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        info("code: " + response.code + ", response.body: " + response.body)
+        assert(response.code === HttpCode.PUT_OK.intValue)
+
+        info("Cloud user who is now hubadmin should be able to access all orgs with token")
+        response = Http(urlRoot + "/v1/orgs").headers(ACCEPT).headers(IAMUITOKENAUTH("root")).asString
+        info("GET " + urlRoot + "/v1/orgs" + " code: " + response.code)
+        assert(response.code === HttpCode.OK.intValue)
+      } else info ("Skipping UI login tests 2")
+
+      info("CLEANUP -- delete the test org")
+      response = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: " + response.code + ", response.body: " + response.body)
+      assert(response.code === HttpCode.DELETED.intValue)
+
+      info("CLEANUP -- delete the second test org")
+      response = Http(URL4).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: " + response.code + ", response.body: " + response.body)
+      assert(response.code === HttpCode.DELETED.intValue)
+
+      info("CLEANUP -- delete the first hub admin")
+      response = Http(urlRootOrg+ "/users/" + iamUser).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: " + response.code + ", response.body: " + response.body)
+      assert(response.code === HttpCode.DELETED.intValue)
+
+      if (iamUIToken.nonEmpty && iamUserUIId.nonEmpty){
+        info("CLEANUP -- delete the second hub admin if we made it")
+        response = Http(urlRootOrg+ "/users/" + iamUserUIId).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        info("code: " + response.code + ", response.body: " + response.body)
+        assert(response.code === HttpCode.DELETED.intValue)
+      }
+
+    } else info("Skipping multitenancy pathway tests")
   }
 
   /** Clean up, delete all the test users */

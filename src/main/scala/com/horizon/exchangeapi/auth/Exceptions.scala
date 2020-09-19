@@ -14,6 +14,7 @@ class AuthException(var httpCode: StatusCode, var apiResponse: String, msg: Stri
 // These error msgs are matched by UsersSuite.scala, so change them there if you change them here
 final case class OrgNotFound(authInfoOrg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("org.not.found.user.facing.error", authInfoOrg))
 final case class IncorrectOrgFound(authInfoOrg: String, userInfoAcctId: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error", authInfoOrg, userInfoAcctId))
+final case class IncorrectOrgFoundMult(authInfoOrg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error.mult", authInfoOrg))
 final case class IncorrectIcpOrgFound(requestOrg: String, clusterName: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error.ICP", requestOrg, clusterName))
 
 // Error class to use to define specific error responses from problems happening in DB threads

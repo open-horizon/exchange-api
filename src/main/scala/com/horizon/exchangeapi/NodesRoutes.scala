@@ -852,7 +852,6 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               AuthCache.putNodeAndOwner(compositeId, Password.hash(reqBody.token), reqBody.token, owner)
               //AuthCache.ids.putNode(id, hashedTok, node.token)
               //AuthCache.nodesOwner.putOne(id, owner)
-              // need orgid, and orgMaxNodes
               if (fivePercentWarning) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("num.nodes.near.org.limit", orgid, orgMaxNodes)))
               else (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))
             case Failure(t: DBProcessingError) =>

@@ -739,6 +739,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   def nodePutRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & put & entity(as[PutNodesRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgid/nodes/$id")
     val compositeId = OrgAndId(orgid, id).toString
+    var orgMaxNodes = 0
     exchAuth(TNode(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
@@ -794,6 +795,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " orgLimits.head: " + orgLimits.head)
               val limits : OrgLimits = OrgLimits.toOrgLimit(orgLimits.head)
               orgLimitMaxNodes = limits.maxNodes
+              orgMaxNodes = orgLimitMaxNodes
               NodesTQ.getAllNodes(orgid).length.result.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })
@@ -850,7 +852,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               AuthCache.putNodeAndOwner(compositeId, Password.hash(reqBody.token), reqBody.token, owner)
               //AuthCache.ids.putNode(id, hashedTok, node.token)
               //AuthCache.nodesOwner.putOne(id, owner)
-              if (fivePercentWarning) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("num.nodes.near.org.limit")))
+              // need orgid, and orgMaxNodes
+              if (fivePercentWarning) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("num.nodes.near.org.limit", orgid, orgMaxNodes)))
               else (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))
             case Failure(t: DBProcessingError) =>
               t.toComplete

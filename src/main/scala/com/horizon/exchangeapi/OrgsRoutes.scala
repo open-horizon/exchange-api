@@ -279,7 +279,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       "description": "No",
       "lastUpdated": "2020-08-25T14:04:21.707Z[UTC]",
       "tags": {
-        "ibmcloud_id": ""
+        "cloud_id": ""
       },
       "limits": {
         "maxNodes": 0
@@ -355,7 +355,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   "description": "blah blah",
   "tags": {   // (optional)
     "ibmcloud_id": "abc123def456",
-    "cloud_id" : "blahblah"
+    "cloud_id": "<account-id-here>"
   },
   "limits": { // optional
     "maxNodes": 50
@@ -443,7 +443,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   "label": "My org",
   "description": "blah blah",
   "tags": {   // (optional)
-    "ibmcloud_id": "abc123def456"
+    "cloud_id": "<account-id-here>"
   },
   "limits": { // optional
     "maxNodes": 50
@@ -515,7 +515,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   "label": "My org",
   "description": "blah blah",
   "tags": {
-    "ibmcloud_id": "abc123def456"
+    "cloud_id": "<account-id-here>"
   },
   "limits": {
     "maxNodes": 0

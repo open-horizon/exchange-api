@@ -2968,7 +2968,7 @@ class NodesSuite extends AnyFunSuite {
     info("code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
-    assert(response.body.contains("Warning: you are within 5%"))
+    assert(response.body.contains("has reached 95% of the node limit"))
   }
 
   // make another node so you're now over limit and it should fail

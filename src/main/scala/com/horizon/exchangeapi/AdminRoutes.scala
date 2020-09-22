@@ -330,7 +330,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Returns the org-specific status of the Exchange server", description = """Returns a dictionary of statuses/statistics. Can be run by superuser, hub admins, and org admins.""",
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetAdminStatusResponse])))),
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetAdminOrgStatusResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def adminGetOrgStatusRoute: Route = (path("admin" / "orgstatus") & get) {

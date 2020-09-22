@@ -2493,6 +2493,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(description = "invalid credentials", responseCode = "401"),
       new responses.ApiResponse(description = "access denied", responseCode = "403"),
       new responses.ApiResponse(description = "not found", responseCode = "404")))
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodesGetDetails: Route =
     (path("orgs" / Segment / "node-details") & get & parameter(('arch.?, 'id.?, 'name.?, 'type.?, 'owner.?))) {
       (orgid: String, arch: Option[String], id: Option[String], name: Option[String], nodeType: Option[String], owner: Option[String]) =>

@@ -48,39 +48,39 @@ object ExchangeApiTables {
   //val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
   val dropDB = DBIO.seq(
     /* these are no longer used, but just in case they are still here */ sqlu"drop table if exists resourcekeys", sqlu"drop table if exists resourceauths", sqlu"drop table if exists resources",
-    sqlu"drop table if exists businesspolicies",
-    sqlu"drop table if exists patternkeys",
-    sqlu"drop table if exists patterns",
-    sqlu"drop table if exists servicepolicies",
-    sqlu"drop table if exists servicedockauths",
-    sqlu"drop table if exists servicekeys",
-    sqlu"drop table if exists services", // no table depends on these
-    sqlu"drop table if exists nodemsgs",
-    sqlu"drop table if exists agbotmsgs", // these depend on both nodes and agbots
-    sqlu"drop table if exists agbotbusinesspols",
-    sqlu"drop table if exists agbotpatterns",
-    sqlu"drop table if exists agbotagreements",
-    sqlu"drop table if exists agbots",
-    sqlu"drop table if exists nodeagreements",
-    sqlu"drop table if exists nodestatus",
-    sqlu"drop table if exists nodeerror",
-    sqlu"drop table if exists nodepolicies",
+    sqlu"drop table if exists search_offset_policy cascade",
+    sqlu"drop table if exists businesspolicies cascade",
+    sqlu"drop table if exists patternkeys cascade",
+    sqlu"drop table if exists patterns cascade",
+    sqlu"drop table if exists servicepolicies cascade",
+    sqlu"drop table if exists servicedockauths cascade",
+    sqlu"drop table if exists servicekeys cascade",
+    sqlu"drop table if exists services cascade", // no table depends on these
+    sqlu"drop table if exists nodemsgs cascade",
+    sqlu"drop table if exists agbotmsgs cascade", // these depend on both nodes and agbots
+    sqlu"drop table if exists agbotbusinesspols cascade",
+    sqlu"drop table if exists agbotpatterns cascade",
+    sqlu"drop table if exists agbotagreements cascade",
+    sqlu"drop table if exists agbots cascade",
+    sqlu"drop table if exists nodeagreements cascade",
+    sqlu"drop table if exists nodestatus cascade",
+    sqlu"drop table if exists nodeerror cascade",
+    sqlu"drop table if exists nodepolicies cascade",
     /* these are no longer used, but just in case they are still there */
-    sqlu"drop table if exists properties",
-    sqlu"drop table if exists nodemicros",
-    sqlu"drop table if exists nodes",
-    sqlu"drop table if exists resourcechanges",
-    sqlu"drop table if exists users",
-    sqlu"drop table if exists orgs",
-    sqlu"drop table if exists schema",
+    sqlu"drop table if exists properties cascade",
+    sqlu"drop table if exists nodemicros cascade",
+    sqlu"drop table if exists nodes cascade",
+    sqlu"drop table if exists resourcechanges cascade",
+    sqlu"drop table if exists users cascade",
+    sqlu"drop table if exists orgs cascade",
+    sqlu"drop table if exists schema cascade",
     // these are no longer used, but here just in case they are still hanging around
-    sqlu"drop table if exists microservicekeys",
-    sqlu"drop table if exists microservices",
-    sqlu"drop table if exists workloadkeys",
-    sqlu"drop table if exists workloads",
-    sqlu"drop table if exists blockchains",
-    sqlu"drop table if exists bctypes",
-    sqlu"drop table if exists search_offset_policy")
+    sqlu"drop table if exists microservicekeys cascade",
+    sqlu"drop table if exists microservices cascade",
+    sqlu"drop table if exists workloadkeys cascade",
+    sqlu"drop table if exists workloads cascade",
+    sqlu"drop table if exists blockchains cascade",
+    sqlu"drop table if exists bctypes cascade")
 
   /** Upgrades the db schema, or inits the db if necessary. Called every start up. */
   def upgradeDb(db: Database)(implicit logger: LoggingAdapter, executionContext: ExecutionContext): Unit = {

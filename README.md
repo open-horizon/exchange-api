@@ -256,6 +256,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.51.0
+
+- Issue 387: Removed delay in cleanup of node and agbot msgs. Changed default interval to 30 minutes.
+
 ## Changes in 2.50.0
 
 - Translation Update

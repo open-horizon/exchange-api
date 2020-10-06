@@ -303,7 +303,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       println(s"Server online at http://${bound.localAddress.getHostString}:${bound.localAddress.getPort}/")
       // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
       changesCleanup = system.scheduler.schedule(cleanupInterval.seconds, cleanupInterval.seconds, changesCleanupActor, Cleanup)
-      msgsCleanup = system.scheduler.schedule(msgsCleanupInterval.seconds, msgsCleanupInterval.seconds, msgsCleanupActor, CleanupExpiredMessages)
+      msgsCleanup = system.scheduler.schedule(0.seconds, msgsCleanupInterval.seconds, msgsCleanupActor, CleanupExpiredMessages)
     case Failure(e) =>
       Console.err.println(s"Server could not start!")
       e.printStackTrace()

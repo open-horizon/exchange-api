@@ -22,7 +22,7 @@
 				"check_agreement_status": 1800
 			},
 			"msgs": {
-				"expired_msgs_removal_interval": 3600	// number of seconds between deletions of expired node and agbot messages
+				"expired_msgs_removal_interval": 1800	// number of seconds between deletions of expired node and agbot messages
 			}
 		},
 		"cache": {

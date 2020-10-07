@@ -901,7 +901,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 publicKey = "key",
                 arch = "arm",
                 heartbeatIntervals = "",
-                lastUpdated = ApiTime.nowUTC))
+                lastUpdated = ApiTime.futureUTC(60)))
     //val TESTPAGINATION: Seq[SearchOffsetPolicyAttributes] =
       //Seq(SearchOffsetPolicyAttributes(agbot = "TestPolicySearchPost/a1",
         //offset = Some(ApiTime.beginningUTC),
@@ -926,7 +926,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 
                 val offset: Seq[(Option[String], Option[String])] = Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
                 assert(offset.nonEmpty)
-                assert(offset.head._1 === TESTNODE.head.lastHeartbeat)
+                assert(offset.head._1 === Some(TESTNODE.head.lastUpdated))
                 assert(offset.head._2 === Some("token"))
               }, TESTNODE)
           //}, TESTPAGINATION)
@@ -966,7 +966,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   publicKey = "key",
                   arch = "arm",
                   heartbeatIntervals = "",
-                  lastUpdated = ApiTime.nowUTC))
+                  lastUpdated = ApiTime.futureUTC(60)))
     val TESTPAGINATION: Seq[SearchOffsetPolicyAttributes] =
       Seq(SearchOffsetPolicyAttributes(agbot = "TestPolicySearchPost/a1",
                                        offset = Some(ApiTime.beginningUTC),
@@ -991,7 +991,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 
                 val offset: Seq[(Option[String], Option[String])] = Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
                 assert(offset.nonEmpty)
-                assert(offset.head._1 === TESTNODE.head.lastHeartbeat)
+                assert(offset.head._1 === Some(TESTNODE.head.lastUpdated))
                 assert(offset.head._2 === Some("token"))
               }, TESTNODE)
           }, TESTPAGINATION)

@@ -256,6 +256,12 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.52.0
+
+- Issue 421 - Added two OpenAPI 3.0 specification artifacts to `/doc/` project directory. One is for general users and the other is for developers.
+- The Exchange's API version number is now properly specified in the default `swagger.json` file the Exchange generates.
+- Corrected two test case errors in the `TestBusPolPostSearchRoute` test suite.
+
 ## Changes in 2.51.0
 
 - Issue 387: Removed delay in cleanup of node and agbot msgs. Changed default interval to 30 minutes.

@@ -30,8 +30,8 @@ object SwaggerDocService extends SwaggerHttpService {
   override def apiDocsPath = "api-docs" //where you want the swagger-json endpoint exposed
 
   override def info = Info(
-    description = "<b>Note:</b> Test the API with curl:<br><br><code>curl -sS -u &lt;org&gt;/iamapikey:&lt;key&gt; https://&lt;host&gt;:&lt;port&gt;/ec-exchange/v1/orgs/... | jq</code>",
-    version = "1.0",
+    description = "<b>Note:</b> Test the API with curl:<br><br><code>curl -sS -u &lt;org&gt;/iamapikey:&lt;key&gt; https://&lt;host&gt;:&lt;port&gt;/edge-exchange/v1/orgs/... | jq</code></br></br>This API specification is intended to be used by developers",
+    version = ExchangeApi.versionText,
     title = "Exchange API",
     license = Some(License("Apache License Version 2.0", "https://www.apache.org/licenses/LICENSE-2.0")))
 

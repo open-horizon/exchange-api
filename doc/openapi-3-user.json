@@ -2,13 +2,13 @@
   "openapi" : "3.0.1",
   "info" : {
     "title" : "Exchange API",
-    "description" : "<b>Note:</b> Test the API with curl:<br><br><code>curl -sS -u &lt;org&gt;/iamapikey:&lt;key&gt; http://&lt;host&gt;:&lt;port&gt;/&lt;edge-exchange&gt;/v1/orgs/... | jq</code></br></br>This API specification is intended to be used by general users",
+    "description" : "<b>Note:</b> Test the API with curl:<br><br><code>curl -sS -u &lt;org&gt;/iamapikey:&lt;key&gt; http://&lt;host&gt;:&lt;port&gt;/edge-exchange/v1/orgs/... | jq</code></br></br>This API specification is intended to be used by general users",
     "termsOfService" : "",
     "license" : {
       "name" : "Apache License Version 2.0",
       "url" : "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version" : "2.52.0"
+    "version" : "2.53.0"
   },
   "externalDocs" : {
     "description" : "Open-horizon ExchangeAPI",

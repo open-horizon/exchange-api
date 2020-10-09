@@ -32,7 +32,7 @@ class SchemaTable(tag: Tag) extends Table[SchemaRow](tag, "schema") {
   def description = column[String]("description")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (id, schemaversion, description, lastUpdated) <> (SchemaRow.tupled, SchemaRow.unapply)
+  def * = (id, schemaversion, description, lastUpdated).<>(SchemaRow.tupled, SchemaRow.unapply)
 }
 
 // Instance to access the schemas table
@@ -222,6 +222,6 @@ final case class FooRow(bar: String, description: String)
 class FooTable(tag: Tag) extends Table[FooRow](tag, "foo") {
   def bar = column[String]("bar", O.PrimaryKey)
   def description = column[String]("description")
-  def * = (bar, description) <> (FooRow.tupled, FooRow.unapply)
+  def * = (bar, description).<>(FooRow.tupled, FooRow.unapply)
 }
 object FooTQ { val rows = TableQuery[FooTable] }

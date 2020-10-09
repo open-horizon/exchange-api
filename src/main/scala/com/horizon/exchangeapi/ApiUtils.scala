@@ -2,17 +2,20 @@
 package com.horizon.exchangeapi
 
 import java.io.File
-import java.lang.management.ManagementFactory
+import java.lang.management.{ManagementFactory, RuntimeMXBean}
 import java.time._
+import java.util
 
-//import akka.event.LoggingAdapter
+import akka.event.LoggingAdapter
+
+import scala.jdk.CollectionConverters.{CollectionHasAsScala, MapHasAsJava, MapHasAsScala}
+import scala.util.matching.Regex
+
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server._
 import com.horizon.exchangeapi.tables.{OrgRow, UserRow}
 import com.osinka.i18n.{Lang, Messages}
 import com.typesafe.config._
-//import collection.JavaConversions._  deprecated
-//import scala.collection.JavaConverters._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
@@ -21,14 +24,9 @@ import java.util.{Base64, Properties}
 
 import scala.concurrent.ExecutionContext
 
-//import ch.qos.logback.classic.Level
 import com.horizon.exchangeapi.auth.AuthException
 
-import scala.collection.JavaConverters._
-//import scala.concurrent.ExecutionContext.Implicits.global
 import org.json4s._
-//import org.json4s.{DefaultFormats, JValue}
-//import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
@@ -50,39 +48,39 @@ object HttpCode {
   val NOT_IMPLEMENTED = 501
   val BAD_GW = 502 // bad gateway, which for us means db connection error or jetty refused connection
   val GW_TIMEOUT = 504 */ // gateway timeout, which for us means db timeout
-  val OK = StatusCodes.OK
-  val PUT_OK = StatusCodes.Created
-  val POST_OK = StatusCodes.Created
-  val DELETED = StatusCodes.NoContent // technically means no content, but usually used for DELETE
-  val BAD_INPUT = StatusCodes.BadRequest // invalid user input, usually in the params or json body
-  val BADCREDS = StatusCodes.Unauthorized // user/pw or id/token is wrong (they call it unauthorized, but it is really unauthenticated)
-  val ACCESS_DENIED = StatusCodes.Forbidden // do not have authorization to access this resource
-  val ALREADY_EXISTS = StatusCodes.Forbidden // trying to create a resource that already exists. For now using 403 (forbidden), but could also use 409 (conflict)
-  val ALREADY_EXISTS2 = StatusCodes.Conflict // trying to create a resource that already exists (409 means conflict)
-  val NOT_FOUND = StatusCodes.NotFound // resource not found
-  val INTERNAL_ERROR = StatusCodes.InternalServerError
-  val NOT_IMPLEMENTED = StatusCodes.NotImplemented
-  val BAD_GW = StatusCodes.BadGateway // bad gateway, which for us means db connection error or IAM API problem
-  val GW_TIMEOUT = StatusCodes.GatewayTimeout // gateway timeout, which for us means db timeout
+  val OK: StatusCodes.Success = StatusCodes.OK
+  val PUT_OK: StatusCodes.Success = StatusCodes.Created
+  val POST_OK: StatusCodes.Success = StatusCodes.Created
+  val DELETED: StatusCodes.Success = StatusCodes.NoContent // technically means no content, but usually used for DELETE
+  val BAD_INPUT: StatusCodes.ClientError = StatusCodes.BadRequest // invalid user input, usually in the params or json body
+  val BADCREDS: StatusCodes.ClientError = StatusCodes.Unauthorized // user/pw or id/token is wrong (they call it unauthorized, but it is really unauthenticated)
+  val ACCESS_DENIED: StatusCodes.ClientError = StatusCodes.Forbidden // do not have authorization to access this resource
+  val ALREADY_EXISTS: StatusCodes.ClientError = StatusCodes.Forbidden // trying to create a resource that already exists. For now using 403 (forbidden), but could also use 409 (conflict)
+  val ALREADY_EXISTS2: StatusCodes.ClientError = StatusCodes.Conflict // trying to create a resource that already exists (409 means conflict)
+  val NOT_FOUND: StatusCodes.ClientError = StatusCodes.NotFound // resource not found
+  val INTERNAL_ERROR: StatusCodes.ServerError = StatusCodes.InternalServerError
+  val NOT_IMPLEMENTED: StatusCodes.ServerError = StatusCodes.NotImplemented
+  val BAD_GW: StatusCodes.ServerError = StatusCodes.BadGateway // bad gateway, which for us means db connection error or IAM API problem
+  val GW_TIMEOUT: StatusCodes.ServerError = StatusCodes.GatewayTimeout // gateway timeout, which for us means db timeout
 }
 
 /** These are used as the response structure for most PUTs, POSTs, and DELETEs. */
 final case class ApiResponse(code: String, msg: String)
 object ApiRespType {
-  val BADCREDS = ExchMsg.translate("api.bad.creds")
-  val ACCESS_DENIED = ExchMsg.translate("api.access.denied")
-  val ALREADY_EXISTS = ExchMsg.translate("api.already.exists")
-  val BAD_INPUT = ExchMsg.translate("api.invalid.input")
-  val NOT_FOUND = ExchMsg.translate("api.not.found")
-  val INTERNAL_ERROR = ExchMsg.translate("api.internal.error")
-  val NOT_IMPLEMENTED = ExchMsg.translate("api.not.implemented")
-  val BAD_GW = ExchMsg.translate("api.db.connection.error")
-  val GW_TIMEOUT = ExchMsg.translate("api.db.timeout")
-  val ERROR = ExchMsg.translate("error")
-  val WARNING = ExchMsg.translate("warning")
-  val INFO = ExchMsg.translate("info")
-  val OK = ExchMsg.translate("ok")
-  val TOO_BUSY = ExchMsg.translate("too.busy")
+  val BADCREDS: String = ExchMsg.translate("api.bad.creds")
+  val ACCESS_DENIED: String = ExchMsg.translate("api.access.denied")
+  val ALREADY_EXISTS: String = ExchMsg.translate("api.already.exists")
+  val BAD_INPUT: String = ExchMsg.translate("api.invalid.input")
+  val NOT_FOUND: String = ExchMsg.translate("api.not.found")
+  val INTERNAL_ERROR: String = ExchMsg.translate("api.internal.error")
+  val NOT_IMPLEMENTED: String = ExchMsg.translate("api.not.implemented")
+  val BAD_GW: String = ExchMsg.translate("api.db.connection.error")
+  val GW_TIMEOUT: String = ExchMsg.translate("api.db.timeout")
+  val ERROR: String = ExchMsg.translate("error")
+  val WARNING: String = ExchMsg.translate("warning")
+  val INFO: String = ExchMsg.translate("info")
+  val OK: String = ExchMsg.translate("ok")
+  val TOO_BUSY: String = ExchMsg.translate("too.busy")
 }
 
 object ResourceChangeConfig {
@@ -93,78 +91,78 @@ object ResourceChangeConfig {
 }
 
 trait ExchangeRejection extends Rejection {
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
 
   def httpCode: StatusCode
   def apiRespCode: String
   def apiRespMsg: String
-  def toApiResp = ApiResponse(apiRespCode, apiRespMsg)
-  def toJsonStr = write(ApiResponse(apiRespCode, apiRespMsg))
+  def toApiResp: ApiResponse = ApiResponse(apiRespCode, apiRespMsg)
+  def toJsonStr: String = write(ApiResponse(apiRespCode, apiRespMsg))
   override def toString : String = s"Rejection http code: $httpCode, message: $apiRespMsg"
 }
 
 // Converts an exception into an auth rejection
 final case class AuthRejection(t: Throwable) extends ExchangeRejection {
   //todo: if a generic Throwable is passed in, maybe use something other than invalid creds
-  def httpCode = t match {
+  def httpCode: StatusCode = t match {
     case e: AuthException => e.httpCode
     case _ => StatusCodes.Unauthorized // should never get here
   }
-  def apiRespCode = t match {
+  def apiRespCode: String = t match {
     case e: AuthException => e.apiResponse
     case _ => "invalid-credentials" // should never get here
   }
-  def apiRespMsg = t match {
+  def apiRespMsg: String = t match {
     case e: AuthException => e.getMessage
     case _ => "invalid credentials" // should never get here
   }
 }
 
 final case class NotFoundRejection(apiRespMsg: String) extends ExchangeRejection {
-  def httpCode = StatusCodes.NotFound
-  def apiRespCode = ApiRespType.NOT_FOUND
+  def httpCode: StatusCodes.ClientError = StatusCodes.NotFound
+  def apiRespCode: String = ApiRespType.NOT_FOUND
 }
 
 //someday: the rest of these rejections are not currently used. Instead the route implementations either do the complete() directly,
 //  or turn an AuthException into a complete() using its toComplete method. But maybe it is better for the akka framework to know it is a rejection.
 final case class BadCredsRejection(apiRespMsg: String) extends ExchangeRejection {
-  def httpCode = StatusCodes.Unauthorized
-  def apiRespCode = ApiRespType.BADCREDS
+  def httpCode: StatusCodes.ClientError = StatusCodes.Unauthorized
+  def apiRespCode: String = ApiRespType.BADCREDS
 }
 
 final case class BadInputRejection(apiRespMsg: String) extends ExchangeRejection {
-  def httpCode = StatusCodes.BadRequest
-  def apiRespCode = ApiRespType.BAD_INPUT
+  def httpCode: StatusCodes.ClientError = StatusCodes.BadRequest
+  def apiRespCode: String = ApiRespType.BAD_INPUT
 }
 
 final case class AccessDeniedRejection(apiRespMsg: String) extends ExchangeRejection {
-  def httpCode = StatusCodes.Forbidden
-  def apiRespCode = ApiRespType.ACCESS_DENIED
+  def httpCode: StatusCodes.ClientError = StatusCodes.Forbidden
+  def apiRespCode: String = ApiRespType.ACCESS_DENIED
 }
 
 final case class AlreadyExistsRejection(apiRespMsg: String) extends ExchangeRejection {
-  def httpCode = StatusCodes.Forbidden
-  def apiRespCode = ApiRespType.ALREADY_EXISTS
+  def httpCode: StatusCodes.ClientError = StatusCodes.Forbidden
+  def apiRespCode: String = ApiRespType.ALREADY_EXISTS
 }
 
 final case class AlreadyExists2Rejection(apiRespMsg: String) extends ExchangeRejection {
-  def httpCode = StatusCodes.Conflict
-  def apiRespCode = ApiRespType.ALREADY_EXISTS
+  def httpCode: StatusCodes.ClientError = StatusCodes.Conflict
+  def apiRespCode: String = ApiRespType.ALREADY_EXISTS
 }
 
 final case class BadGwRejection(apiRespMsg: String) extends ExchangeRejection {
-  def httpCode = StatusCodes.BadGateway
-  def apiRespCode = ApiRespType.BAD_GW
+  def httpCode: StatusCodes.ServerError = StatusCodes.BadGateway
+  def apiRespCode: String = ApiRespType.BAD_GW
 }
 
 final case class GwTimeoutRejection(apiRespMsg: String) extends ExchangeRejection {
-  def httpCode = StatusCodes.GatewayTimeout
-  def apiRespCode = ApiRespType.GW_TIMEOUT
+  def httpCode: StatusCodes.ServerError = StatusCodes.GatewayTimeout
+  def apiRespCode: String = ApiRespType.GW_TIMEOUT
 }
 
 final case class InternalErrorRejection(apiRespMsg: String) extends ExchangeRejection {
-  def httpCode = HttpCode.INTERNAL_ERROR
-  def apiRespCode = ApiRespType.INTERNAL_ERROR
+  def httpCode: StatusCodes.ServerError = HttpCode.INTERNAL_ERROR
+  def apiRespCode: String = ApiRespType.INTERNAL_ERROR
 }
 
 object ExchangePosgtresErrorHandling {
@@ -182,7 +180,7 @@ object ExchangePosgtresErrorHandling {
 object ExchMsg {
   def translate(key: String, args: Any*): String = {
     try {
-      implicit val userLang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en")))
+      implicit val userLang: Lang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en")))
       if (args.nonEmpty) {
         return Messages(key, args: _*)
       }
@@ -199,20 +197,20 @@ object LogLevel {
   val WARN = "WARN"
   val INFO = "INFO"
   val DEBUG = "DEBUG"
-  val validLevels = Set(OFF, ERROR, WARN, INFO, DEBUG)
+  val validLevels: Set[String] = Set(OFF, ERROR, WARN, INFO, DEBUG)
 }
 
 /** Global config parameters for the exchange. See typesafe config classes: http://typesafehub.github.io/config/latest/api/ */
 object ExchConfig {
   val configResourceName = "config.json"
-  val configFileName = "/etc/horizon/exchange/" + configResourceName
+  val configFileName: String = "/etc/horizon/exchange/" + configResourceName
   // The syntax called CONF is typesafe's superset of json that allows comments, etc. See https://github.com/typesafehub/config#using-hocon-the-json-superset. Strict json would be ConfigSyntax.JSON.
-  val configOpts = ConfigParseOptions.defaults().setSyntax(ConfigSyntax.CONF).setAllowMissing(false)
-  var config = ConfigFactory.parseResources(configResourceName, configOpts) // these are the default values, this file is bundled in the jar
+  val configOpts: ConfigParseOptions = ConfigParseOptions.defaults().setSyntax(ConfigSyntax.CONF).setAllowMissing(false)
+  var config: Config = ConfigFactory.parseResources(configResourceName, configOpts) // these are the default values, this file is bundled in the jar
 
   //var defaultExecutionContext: ExecutionContext = _ // this gets set early by ExchangeApiApp
   implicit def executionContext: ExecutionContext = ExchangeApi.defaultExecutionContext
-  def logger = ExchangeApi.defaultLogger
+  def logger: LoggingAdapter = ExchangeApi.defaultLogger
 
   var rootHashedPw = "" // so we can remember the hashed pw between load() and createRoot()
 
@@ -228,9 +226,9 @@ object ExchConfig {
     }
 
     // Read the ACLs and set them in our Role object
-    val roles = config.getObject("api.acls").asScala.toMap
+    val roles: Map[String, ConfigValue] = config.getObject("api.acls").asScala.toMap
     for ((role, _) <- roles) {
-      val accessSet = getStringList("api.acls." + role).toSet
+      val accessSet: Set[String] = getStringList("api.acls." + role).toSet
       if (!Role.isValidAcessValues(accessSet)) println("Error: invalid value in ACLs in config file for role " + role)
       else Role.setRole(role, accessSet)
     }
@@ -241,8 +239,8 @@ object ExchConfig {
     AuthCache.cacheType = config.getString("api.cache.type") // need to do this before using the cache in the next step
   }
 
-  def getLogLevel = {
-    val loglev = config.getString("api.logging.level")
+  def getLogLevel: String = {
+    val loglev: String = config.getString("api.logging.level")
     if (loglev == "") LogLevel.INFO // default
     else if (LogLevel.validLevels.contains(loglev)) loglev
     else {
@@ -251,18 +249,18 @@ object ExchConfig {
     }
   }
 
-  def getHostAndPort = {
-    var host = config.getString("api.service.host")
+  def getHostAndPort: (String, Int) = {
+    var host: String = config.getString("api.service.host")
     if (host == "") host = "0.0.0.0"
-    val port = try { config.getInt("api.service.port") } catch { case _: Exception => 8080 }
+    val port: Int = try {config.getInt("api.service.port") } catch { case _: Exception => 8080 }
     (host, port)
   }
 
   // Get relevant values from our config file to create the akka config
   def getAkkaConfig: Config = {
-    var akkaConfig = config.getObject("api.akka").asScala.toMap
+    var akkaConfig: Map[String, ConfigValue] = config.getObject("api.akka").asScala.toMap
     akkaConfig = akkaConfig ++ Map[scala.Predef.String,ConfigValue]("akka.loglevel" -> ConfigValueFactory.fromAnyRef(ExchConfig.getLogLevel))
-    val secondsToWait = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete")
+    val secondsToWait: Int = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete")
     akkaConfig = akkaConfig ++ Map[scala.Predef.String,ConfigValue]("akka.coordinated-shutdown.phases.service-unbind.timeout" -> ConfigValueFactory.fromAnyRef(s"${secondsToWait}s"))
     printf("Running with akka config: %s\n", akkaConfig.toString())
     //ConfigFactory.parseMap(Map("akka.loglevel" -> ExchConfig.getLogLevel).asJava, "akka overrides")
@@ -271,8 +269,8 @@ object ExchConfig {
 
   // Put the root user in the auth cache in case the db has not been inited yet and they need to be able to run POST /admin/initdb
   def createRootInCache(): Unit = {
-    val rootpw = config.getString("api.root.password")
-    val rootIsEnabled = config.getBoolean("api.root.enabled")
+    val rootpw: String = config.getString("api.root.password")
+    val rootIsEnabled: Boolean = config.getBoolean("api.root.enabled")
     if (rootpw == "" || !rootIsEnabled) {
       logger.warning("Root password is not specified in config.json or is not enabled. You will not be able to do exchange operations that require root privilege.")
       return
@@ -281,7 +279,7 @@ object ExchConfig {
       // this is the 1st time, we need to hash and save it
       rootHashedPw = Password.hashIfNot(rootpw)
     }
-    val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw // this is the 1 case in which an id cache entry could end up with a blank unhashed pw/tok
+    val rootUnhashedPw: String = if (Password.isHashed(rootpw)) "" else rootpw // this is the 1 case in which an id cache entry could end up with a blank unhashed pw/tok
     AuthCache.putUser(Role.superUser, rootHashedPw, rootUnhashedPw)
     logger.info("Root user from config.json added to the in-memory authentication cache")
   }
@@ -298,14 +296,14 @@ object ExchConfig {
   /** Create the root user in the DB. This is done separately from load() because we need the db execution context */
   def createRoot(db: Database): Unit = {
     // If the root pw is set in the config file, create or update the root user in the db to match
-    val rootpw = config.getString("api.root.password")
-    val rootIsEnabled = config.getBoolean("api.root.enabled")
+    val rootpw: String = config.getString("api.root.password")
+    val rootIsEnabled: Boolean = config.getBoolean("api.root.enabled")
     if (rootpw == "" || !rootIsEnabled) {
       rootHashedPw = "" // this should already be true, but just make sure
     } else { // there is a real, enabled root pw
       //val hashedPw = Password.hashIfNot(rootpw)  <- can't hash this again, because it would be different
       if (rootHashedPw == "") logger.error("Internal Error: rootHashedPw not already set")
-      val rootUnhashedPw = if (Password.isHashed(rootpw)) "" else rootpw // this is the 1 case in which an id cache entry could not have an unhashed pw/tok
+      val rootUnhashedPw: String = if (Password.isHashed(rootpw)) "" else rootpw // this is the 1 case in which an id cache entry could not have an unhashed pw/tok
       AuthCache.putUser(Role.superUser, rootHashedPw, rootUnhashedPw) // put it in AuthCache even if it does not get successfully written to the db, so we have a chance to fix it
     }
     // Put the root org and user in the db, even if root is disabled (because in that case we want all exchange instances to know the root pw is blank
@@ -335,16 +333,16 @@ object ExchConfig {
 
   //someday: we should catch ConfigException.Missing and ConfigException.WrongType, but they are always set by the built-in config.json
   /** Returns the value of the specified config variable. Throws com.typesafe.config.ConfigException.* if not found. */
-  def getString(key: String): String = { return config.getString(key) }
+  def getString(key: String): String = { config.getString(key) }
 
   /** Returns the value of the specified config variable. Throws com.typesafe.config.ConfigException.* if not found. */
-  def getStringList(key: String): List[String] = { return config.getStringList(key).asScala.toList }
+  def getStringList(key: String): List[String] = { config.getStringList(key).asScala.toList }
 
   /** Returns the value of the specified config variable. Throws com.typesafe.config.ConfigException.* if not found. */
-  def getInt(key: String): Int = { return config.getInt(key) }
+  def getInt(key: String): Int = { config.getInt(key) }
 
   /** Returns the value of the specified config variable. Throws com.typesafe.config.ConfigException.* if not found. */
-  def getBoolean(key: String): Boolean = { return config.getBoolean(key) }
+  def getBoolean(key: String): Boolean = { config.getBoolean(key) }
 }
 
 object StrConstants {
@@ -360,19 +358,19 @@ object ApiTime {
   def nowUTCTimestamp: java.sql.Timestamp = java.sql.Timestamp.from(ZonedDateTime.now.withZoneSameInstant(ZoneId.of("UTC")).toInstant)
 
   /** Return UTC format of the time specified in seconds */
-  def thenUTC(seconds: Long) = ZonedDateTime.ofInstant(Instant.ofEpochSecond(seconds), ZoneId.of("UTC")).toString
+  def thenUTC(seconds: Long): String = ZonedDateTime.ofInstant(Instant.ofEpochSecond(seconds), ZoneId.of("UTC")).toString
 
   /** Return UTC format of the time n seconds ago */
-  def pastUTC(secondsAgo: Int) = ZonedDateTime.now.minusSeconds(secondsAgo).withZoneSameInstant(ZoneId.of("UTC")).toString
+  def pastUTC(secondsAgo: Int): String = ZonedDateTime.now.minusSeconds(secondsAgo).withZoneSameInstant(ZoneId.of("UTC")).toString
 
   /** Return UTC format of the time n seconds ago in java.sql.Timestamp type */
   def pastUTCTimestamp(secondsAgo: Int): java.sql.Timestamp = java.sql.Timestamp.from(ZonedDateTime.now.minusSeconds(secondsAgo).withZoneSameInstant(ZoneId.of("UTC")).toInstant)
 
   /** Return UTC format of the time n seconds from now */
-  def futureUTC(secondsFromNow: Int) = ZonedDateTime.now.plusSeconds(secondsFromNow).withZoneSameInstant(ZoneId.of("UTC")).toString
+  def futureUTC(secondsFromNow: Int): String = ZonedDateTime.now.plusSeconds(secondsFromNow).withZoneSameInstant(ZoneId.of("UTC")).toString
 
   /** Return UTC format of unix begin time */
-  def beginningUTC = ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.of("UTC")).toString
+  def beginningUTC: String = ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.of("UTC")).toString
 
   /** Returns now in epoch seconds */
   def nowSeconds: Long = System.currentTimeMillis / 1000 // seconds since 1/1/1970
@@ -385,20 +383,20 @@ object ApiTime {
     if (daysStale <= 0) return false // they did not specify what was too stale
     if (UTC == "") return true // assume an empty UTC is the beginning of time
     val secondsInDay = 86400
-    val thenTime = ZonedDateTime.parse(UTC).toEpochSecond
-    return (nowSeconds - thenTime >= daysStale * secondsInDay)
+    val thenTime: Long = ZonedDateTime.parse(UTC).toEpochSecond
+    (nowSeconds - thenTime >= daysStale * secondsInDay)
   }
 
   /** Determines if the given UTC time is more than secondsStale old */
   def isSecondsStale(UTC: String, secondsStale: Int): Boolean = {
     if (secondsStale <= 0) return false // they did not specify what was too stale
     if (UTC == "") return true // assume an empty UTC is the beginning of time
-    val thenTime = ZonedDateTime.parse(UTC).toEpochSecond
-    return (nowSeconds - thenTime >= secondsStale)
+    val thenTime: Long = ZonedDateTime.parse(UTC).toEpochSecond
+    (nowSeconds - thenTime >= secondsStale)
   }
 
   def fixFormatting(time: String): String ={
-    val timeLength = time.length
+    val timeLength: Int = time.length
     /*
     This implementation uses length of the string instead of a regex to make it as fast as possible
     The problem that was happening is described here: https://bugs.openjdk.java.net/browse/JDK-8193307
@@ -425,9 +423,9 @@ object ApiTime {
 
 /** Parse a version string like 1.2.3 into its parts and define >(), in(), etc. */
 final case class Version(version: String) {
-  val R3 = """(\d+)\.(\d+)\.(\d+)""".r
-  val R2 = """(\d+)\.(\d+)""".r
-  val R1 = """(\d+)""".r
+  val R3: Regex = """(\d+)\.(\d+)\.(\d+)""".r
+  val R2: Regex = """(\d+)\.(\d+)""".r
+  val R1: Regex = """(\d+)""".r
   val (major, minor, mod, isInfinity) = version.trim().toLowerCase match {
     case "infinity" => (0, 0, 0, true)
     case R3(maj, min, mo) => (maj.toInt, min.toInt, mo.toInt, false)
@@ -440,11 +438,11 @@ final case class Version(version: String) {
 
   // the == operator calls equals()
   override def equals(that: Any): Boolean = that match {
-    case that: Version => if (!isValid || !that.isValid) return false
-    else if (that.isInfinity && isInfinity) return true
-    else if (that.isInfinity || isInfinity) return false
-    else return that.major == major && that.minor == minor && that.mod == mod
-    case _ => return false
+    case that: Version => if (!isValid || !that.isValid) false
+    else if (that.isInfinity && isInfinity) true
+    else if (that.isInfinity || isInfinity) false
+    else that.major == major && that.minor == minor && that.mod == mod
+    case _ => false
   }
 
   def >(that: Version): Boolean = {
@@ -460,9 +458,9 @@ final case class Version(version: String) {
 
   def >=(that: Version): Boolean = (this > that || this == that)
 
-  def in(range: VersionRange): Boolean = if (!isValid || !range.isValid) return false else range includes this
+  def in(range: VersionRange): Boolean = if (!isValid || !range.isValid) false else range includes this
 
-  def notIn(range: VersionRange): Boolean = if (!isValid || !range.isValid) return true else !(range includes this)
+  def notIn(range: VersionRange): Boolean = if (!isValid || !range.isValid) true else !(range includes this)
 
   override def toString: String = {
     if (isInfinity) "infinity"
@@ -487,15 +485,15 @@ final case class VersionRange(range: String) {
     case _ => ("x", "x")
   }
   // split the leading [ or ( from the version number
-  val R1 = """([\[(]?)(\d.*)""".r
+  val R1: Regex = """([\[(]?)(\d.*)""".r
   val (floorInclusive, floor) = firstPart match {
     case "" => (true, Version("0.0.0"))
     case R1(i, f) => ((i != "("), Version(f))
     case _ => (false, Version("x")) // Version("x") is just an invalid version object
   }
   // separate the version number from the trailing ] or )
-  val R2 = """(.*\d)([\])]?)""".r
-  val R3 = """(infinity)([\])]?)""".r
+  val R2: Regex = """(.*\d)([\])]?)""".r
+  val R3: Regex = """(infinity)([\])]?)""".r
   val (ceiling, ceilingInclusive) = secondPart match {
     // case "" => (Version("infinity"), false)
     case R2(c, i) => (Version(c), (i == "]"))
@@ -510,7 +508,7 @@ final case class VersionRange(range: String) {
     else { if (floor >= version) return false }
     if (ceilingInclusive) { if (version > ceiling) return false }
     else { if (version >= ceiling) return false }
-    return true
+    true
   }
 
   // If this range is a single version (e.g. [1.2.3,1.2.3] ) return that version, otherwise None
@@ -528,16 +526,16 @@ final case class VersionRange(range: String) {
 final case class Nth(n: Int) {
   override def toString: String = {
     n match {
-      case 1 => return n + "st"
-      case 2 => return n + "nd"
-      case 3 => return n + "rd"
-      case _ => return n + "th"
+      case 1 => s"${n}st"
+      case 2 => s"${n}nd"
+      case 3 => s"${n}rd"
+      case _ => s"${n}th"
     }
   }
 }
 
 object ApiUtils {
-  def encode(unencodedCredStr: String) = Base64.getEncoder.encodeToString(unencodedCredStr.getBytes("utf-8"))
+  def encode(unencodedCredStr: String): String = Base64.getEncoder.encodeToString(unencodedCredStr.getBytes("utf-8"))
 
   // Convert an AnyRef to JValue
   def asJValue(src: AnyRef): JValue = {
@@ -549,9 +547,9 @@ object ApiUtils {
   }
 
   // Get the JVM arguments that were passed to it
-  def getJvmArgs = {
-    val runtimeMXBean = ManagementFactory.getRuntimeMXBean
-    val jvmArgs = runtimeMXBean.getInputArguments
+  def getJvmArgs: util.List[String] = {
+    val runtimeMXBean: RuntimeMXBean = ManagementFactory.getRuntimeMXBean
+    val jvmArgs: util.List[String] = runtimeMXBean.getInputArguments
     jvmArgs
   }
 
@@ -583,7 +581,7 @@ object RouteUtils {
         }
       }
     }
-    return nodeHash.toMap
+    nodeHash.toMap
   }
 
 }

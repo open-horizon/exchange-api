@@ -93,7 +93,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   implicit private val formats: Formats = DefaultFormats.withLong
   
   // Begin building testing harness.
-  override def beforeAll() {
+  override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run((OrgsTQ.rows += TESTORGANIZATION) andThen
                                        (UsersTQ.rows += TESTUSER) andThen
                                        (AgbotsTQ.rows += TESTAGBOT) andThen
@@ -114,7 +114,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   // Node Agreements that are dynamically needed, specific to the test case.
-  def fixtureNodeAgreements(testCode: Seq[NodeAgreementRow] ⇒ Any, testData: Seq[NodeAgreementRow]): Any = {
+  def fixtureNodeAgreements(testCode: Seq[NodeAgreementRow] => Any, testData: Seq[NodeAgreementRow]): Any = {
     // Create resources and continue.
     try {
       Await.result(DBCONNECTION.getDb.run(NodeAgreementsTQ.rows ++= testData), AWAITDURATION)
@@ -126,7 +126,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   // Nodes that are dynamically needed, specific to the test case.
-  def fixtureNodes(testCode: Seq[NodeRow] ⇒ Any, testData: Seq[NodeRow]): Any = {
+  def fixtureNodes(testCode: Seq[NodeRow] => Any, testData: Seq[NodeRow]): Any = {
     try {
       Await.result(DBCONNECTION.getDb.run(NodesTQ.rows ++= testData), AWAITDURATION)
       testCode(testData)
@@ -136,7 +136,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   // Organizations that are dynamically needed, specific to the test case.
-  def fixtureOrganizations(testCode: Seq[OrgRow] ⇒ Any, testData: Seq[OrgRow]): Any = {
+  def fixtureOrganizations(testCode: Seq[OrgRow] => Any, testData: Seq[OrgRow]): Any = {
     try {
       Await.result(DBCONNECTION.getDb.run(OrgsTQ.rows ++= testData), AWAITDURATION)
       testCode(testData)
@@ -146,7 +146,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   // Offsets/Sessions that are dynamically needed, specific to the test case.
-  def fixturePagination(testCode: Seq[SearchOffsetPolicyAttributes] ⇒ Any, testData: Seq[SearchOffsetPolicyAttributes]): Any = {
+  def fixturePagination(testCode: Seq[SearchOffsetPolicyAttributes] => Any, testData: Seq[SearchOffsetPolicyAttributes]): Any = {
     try{
       Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.offsets ++= testData), AWAITDURATION)
       testCode(testData)
@@ -156,7 +156,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   // Policies that are dynamically needed, specific to the test case.
-  def fixturePolicies(testCode: Seq[BusinessPolicyRow] ⇒ Any, testData: Seq[BusinessPolicyRow]): Any = {
+  def fixturePolicies(testCode: Seq[BusinessPolicyRow] => Any, testData: Seq[BusinessPolicyRow]): Any = {
     try {
       Await.result(DBCONNECTION.getDb.run(BusinessPoliciesTQ.rows ++= testData), AWAITDURATION)
       testCode(testData)
@@ -182,7 +182,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   
   test("POST /orgs/" + "TestPolicySearchPost" + "/business/policies/" + "pol1" + "/search -- No Nodes") {
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
         info("code: " + response.code)
         info("body: " + response.body)
@@ -207,9 +207,9 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                                        session = Some("token2")))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixturePagination(
-          _ ⇒ {
+          _ => {
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("body: " + response.body)
@@ -247,9 +247,9 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixtureNodes(
-          _ ⇒ {
+          _ => {
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
@@ -284,9 +284,9 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixtureNodes(
-          _ ⇒ {
+          _ => {
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
@@ -327,9 +327,9 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                             userInput      = ""))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixtureNodes(
-          _ ⇒ {
+          _ => {
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
@@ -376,9 +376,9 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                             userInput      = ""))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixtureNodes(
-          _ ⇒ {
+          _ => {
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
@@ -413,9 +413,9 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixtureNodes(
-          _ ⇒ {
+          _ => {
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
@@ -449,9 +449,9 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixtureNodes(
-          _ ⇒ {
+          _ => {
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
@@ -480,9 +480,9 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixtureNodes(
-          _ ⇒ {
+          _ => {
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
@@ -510,8 +510,8 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   heartbeatIntervals = "",
                   lastUpdated = ApiTime.nowUTC))
     
-    fixturePolicies(_ ⇒ {
-      fixtureNodes(_ ⇒ {
+    fixturePolicies(_ => {
+      fixtureNodes(_ => {
         val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(ApiTime.nowSeconds, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
         info("code: " + response.code)
         info("body: " + response.body)
@@ -553,11 +553,11 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                  limits = ""))
     
     fixtureOrganizations(
-      _ ⇒ {
+      _ => {
         fixturePolicies(
-          _ ⇒ {
+          _ => {
             fixtureNodes(
-              _ ⇒ {
+              _ => {
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("code: " + response.code)
                 info("Body: " + response.body)
@@ -596,11 +596,11 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                  limits = ""))
     
     fixtureOrganizations(
-      _ ⇒ {
+      _ => {
         fixturePolicies(
-          _ ⇒ {
+          _ => {
             fixtureNodes(
-              _ ⇒ {
+              _ => {
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, Some(List("TestPolicySearchPost2")), None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("code: " + response.code)
                 info("Body: " + response.body)
@@ -644,11 +644,11 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                            lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixtureNodes(
-          _ ⇒ {
+          _ => {
             fixtureNodeAgreements(
-              _ ⇒ {
+              _ => {
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("Code: " + response.code)
                 info("Body: " + response.body)
@@ -703,11 +703,11 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                            lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixtureNodes(
-          _ ⇒ {
+          _ => {
             fixtureNodeAgreements(
-              _ ⇒ {
+              _ => {
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("Code: " + response.code)
                 info("Body: " + response.body)
@@ -753,11 +753,11 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                            lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixtureNodes(
-          _ ⇒ {
+          _ => {
             fixtureNodeAgreements(
-              _ ⇒ {
+              _ => {
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("Code: " + response.code)
                 info("Body: " + response.body)
@@ -801,11 +801,11 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                            lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixtureNodes(
-          _ ⇒ {
+          _ => {
             fixtureNodeAgreements(
-              _ ⇒ {
+              _ => {
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("Code: " + response.code)
                 info("Body: " + response.body)
@@ -849,11 +849,11 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                            lastUpdated = ApiTime.nowUTC))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixtureNodes(
-          _ ⇒ {
+          _ => {
             fixtureNodeAgreements(
-              _ ⇒ {
+              _ => {
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("Code: " + response.code)
                 info("Body: " + response.body)
@@ -909,11 +909,11 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
         //session = Some("token")))
     
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         //fixturePagination(
-          //_ ⇒ {
+          //_ => {
             fixtureNodes(
-              _ ⇒ {
+              _ => {
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, Some(1), Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("code: " + response.code)
                 info("body: " + response.body)
@@ -974,11 +974,11 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                                        session = Some("token")))
   
     fixturePolicies(
-      _ ⇒ {
+      _ => {
         fixturePagination(
-          _ ⇒ {
+          _ => {
             fixtureNodes(
-              _ ⇒ {
+              _ => {
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, Some(1), Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("code: " + response.code)
                 info("body: " + response.body)

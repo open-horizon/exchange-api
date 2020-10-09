@@ -1,10 +1,14 @@
 package com.horizon.exchangeapi.tables
 
+import java.sql.Timestamp
+
 import com.horizon.exchangeapi.ApiUtils
 import org.json4s._
 import org.json4s.jackson.Serialization.read
 import org.json4s.jackson.Serialization.write
-import ExchangePostgresProfile.api._
+import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
+import slick.dbio.Effect
+import slick.sql.FixedSqlAction
 
 
 /** Contains the object representations of the DB tables related to orgs. */
@@ -19,8 +23,8 @@ final case class OrgRow(orgId: String, orgType: String, label: String, descripti
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toOrg: Org = {
-    val hbInterval = if (heartbeatIntervals != "") read[NodeHeartbeatIntervals](heartbeatIntervals) else NodeHeartbeatIntervals(0, 0, 0)
-    val orgLimits = if (limits != "") read[OrgLimits](limits) else OrgLimits(0)
+    val hbInterval: NodeHeartbeatIntervals = if (heartbeatIntervals != "") read[NodeHeartbeatIntervals](heartbeatIntervals) else NodeHeartbeatIntervals(0, 0, 0)
+    val orgLimits: OrgLimits = if (limits != "") read[OrgLimits](limits) else OrgLimits(0)
     Org(orgType, label, description, lastUpdated, tags.flatMap(_.extractOpt[Map[String, String]]), orgLimits, hbInterval)
   }
 
@@ -45,7 +49,7 @@ class Orgs(tag: Tag) extends Table[OrgRow](tag, "orgs") {
   def limits = column[String]("limits")
   def heartbeatIntervals = column[String]("heartbeatintervals")
   // this describes what you get back when you return rows from a query
-  def * = (orgid, orgType, label, description, lastUpdated, tags, limits, heartbeatIntervals) <> (OrgRow.tupled, OrgRow.unapply)
+  def * = (orgid, orgType, label, description, lastUpdated, tags, limits, heartbeatIntervals).<>(OrgRow.tupled, OrgRow.unapply)
 }
 
 // Instance to access the orgs table
@@ -53,21 +57,21 @@ object OrgsTQ {
   protected implicit val jsonFormats: Formats = DefaultFormats
   val rows = TableQuery[Orgs]
 
-  def getOrgid(orgid: String) = rows.filter(_.orgid === orgid)
-  def getOrgType(orgid: String) = rows.filter(_.orgid === orgid).map(_.orgType)
-  def getLabel(orgid: String) = rows.filter(_.orgid === orgid).map(_.label)
-  def getDescription(orgid: String) = rows.filter(_.orgid === orgid).map(_.description)
-  def getLastUpdated(orgid: String) = rows.filter(_.orgid === orgid).map(_.lastUpdated)
-  def getTag(orgid: String, tag: String) = rows.filter(_.orgid === orgid).map(_.tags.map(tags => tags +>> tag))
-  def getLimits(orgid: String) = rows.filter(_.orgid === orgid).map(_.limits)
-  def getHeartbeatIntervals(orgid: String) = rows.filter(_.orgid === orgid).map(_.heartbeatIntervals)
-  def getOrgidsOfType(orgType: String) = rows.filter(_.orgType === orgType).map(_.orgid)
+  def getOrgid(orgid: String): Query[Orgs, OrgRow, Seq] = rows.filter(_.orgid === orgid)
+  def getOrgType(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.orgType)
+  def getLabel(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.label)
+  def getDescription(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.description)
+  def getLastUpdated(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.lastUpdated)
+  def getTag(orgid: String, tag: String): Query[Rep[Option[String]], Option[String], Seq] = rows.filter(_.orgid === orgid).map(_.tags.map(tags => tags +>> tag))
+  def getLimits(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.limits)
+  def getHeartbeatIntervals(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.heartbeatIntervals)
+  def getOrgidsOfType(orgType: String): Query[Rep[String], String, Seq] = rows.filter(_.orgType === orgType).map(_.orgid)
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(orgid: String, attrName: String): Query[_,_,Seq] = {
     val filter = rows.filter(_.orgid === orgid)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
-    return attrName match {
+    attrName match {
       case "orgType" => filter.map(_.orgType)
       case "label" => filter.map(_.label)
       case "description" => filter.map(_.description)
@@ -122,7 +126,7 @@ class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcec
   def operation = column[String]("operation")
   def lastUpdated = column[java.sql.Timestamp]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (changeId, orgId, id, category, public, resource, operation, lastUpdated) <> (ResourceChangeRow.tupled, ResourceChangeRow.unapply)
+  def * = (changeId, orgId, id, category, public, resource, operation, lastUpdated).<>(ResourceChangeRow.tupled, ResourceChangeRow.unapply)
   def orgIndex = index("org_index", orgId)
   def idIndex = index("id_index", id)
   def catIndex = index("cat_index", category)
@@ -135,21 +139,21 @@ class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcec
 object ResourceChangesTQ {
   val rows = TableQuery[ResourceChanges]
 
-  def getChangeId(changeid: Long) = rows.filter(_.changeId === changeid).map(_.changeId)
-  def getOrgid(changeid: Long) = rows.filter(_.changeId === changeid).map(_.orgId)
-  def getId(changeid: Long) = rows.filter(_.changeId === changeid).map(_.id)
-  def getCategory(changeid: Long) = rows.filter(_.changeId === changeid).map(_.category)
-  def getPublic(changeid: Long) = rows.filter(_.changeId === changeid).map(_.public)
-  def getResource(changeid: Long) = rows.filter(_.changeId === changeid).map(_.resource)
-  def getOperation(changeid: Long) = rows.filter(_.changeId === changeid).map(_.operation)
-  def getLastUpdated(changeid: Long) = rows.filter(_.changeId === changeid).map(_.lastUpdated)
-  def getRowsExpired(timeExpired: java.sql.Timestamp) = rows.filter(_.lastUpdated < timeExpired)
+  def getChangeId(changeid: Long): Query[Rep[Long], Long, Seq] = rows.filter(_.changeId === changeid).map(_.changeId)
+  def getOrgid(changeid: Long): Query[Rep[String], String, Seq] = rows.filter(_.changeId === changeid).map(_.orgId)
+  def getId(changeid: Long): Query[Rep[String], String, Seq] = rows.filter(_.changeId === changeid).map(_.id)
+  def getCategory(changeid: Long): Query[Rep[String], String, Seq] = rows.filter(_.changeId === changeid).map(_.category)
+  def getPublic(changeid: Long): Query[Rep[String], String, Seq] = rows.filter(_.changeId === changeid).map(_.public)
+  def getResource(changeid: Long): Query[Rep[String], String, Seq] = rows.filter(_.changeId === changeid).map(_.resource)
+  def getOperation(changeid: Long): Query[Rep[String], String, Seq] = rows.filter(_.changeId === changeid).map(_.operation)
+  def getLastUpdated(changeid: Long): Query[Rep[Timestamp], Timestamp, Seq] = rows.filter(_.changeId === changeid).map(_.lastUpdated)
+  def getRowsExpired(timeExpired: java.sql.Timestamp): Query[ResourceChanges, ResourceChangeRow, Seq] = rows.filter(_.lastUpdated < timeExpired)
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(changeid: Long, attrName: String): Query[_,_,Seq] = {
     val filter = rows.filter(_.changeId === changeid)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
-    return attrName match {
+    attrName match {
       case "changeId" => filter.map(_.changeId)
       case "orgId" => filter.map(_.orgId)
       case "id" => filter.map(_.id)
@@ -162,7 +166,7 @@ object ResourceChangesTQ {
     }
   }
   
-  def dropAllChanges() =
+  def dropAllChanges(): FixedSqlAction[Int, NoStream, Effect.Write] =
     rows.delete
 }
 

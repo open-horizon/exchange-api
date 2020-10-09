@@ -16,12 +16,14 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
-
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import java.net.{MalformedURLException, URL}
 
+import com.horizon.exchangeapi
 import org.json4s.jackson.Serialization.write
+import slick.jdbc
+import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
@@ -40,16 +42,16 @@ object GetServicesUtils {
     if (public.isDefined && !(public.get.toLowerCase == "true" || public.get.toLowerCase == "false")) return Some(ExchMsg.translate("bad.public.param"))
     if (version.isDefined && !Version(version.get).isValid) return Some(ExchMsg.translate("version.not.valid.format", version.get))
     if (nodetype.isDefined && !NodeType.containsString(nodetype.get.toLowerCase)) return Some(ExchMsg.translate("invalid.node.type2", NodeType.valuesAsString))
-    return None
+    None
   }
 }
 
 object SharableVals extends Enumeration {
   type SharableVals = Value
-  val EXCLUSIVE = Value("exclusive")
-  val SINGLE = Value("single")    // this is being replaced by singleton
-  val SINGLETON = Value("singleton")
-  val MULTIPLE = Value("multiple")
+  val EXCLUSIVE: exchangeapi.SharableVals.Value = Value("exclusive")
+  val SINGLE: exchangeapi.SharableVals.Value = Value("single")    // this is being replaced by singleton
+  val SINGLETON: exchangeapi.SharableVals.Value = Value("singleton")
+  val MULTIPLE: exchangeapi.SharableVals.Value = Value("multiple")
 }
 
 /** Input format for POST /orgs/{orgid}/services or PUT /orgs/{orgid}/services/<service-id> */
@@ -70,7 +72,7 @@ final case class PostPutServiceRequest(label: String, description: Option[String
     // We enforce that the attributes equal the existing id for PUT, because even if they change the attribute, the id would not get updated correctly
     if (serviceId != null && serviceId != "" && formId(orgid) != serviceId) return Some(ExchMsg.translate("service.id.does.not.match"))
 
-    val allSharableVals = SharableVals.values.map(_.toString)
+    val allSharableVals: Set[String] = SharableVals.values.map(_.toString)
     if (sharable == "" || !allSharableVals.contains(sharable)) return Some(ExchMsg.translate("invalid.sharable.value", sharable))
 
     // Check for requiring a service that is a different arch than this service
@@ -83,24 +85,24 @@ final case class PostPutServiceRequest(label: String, description: Option[String
     //if (deployment.getOrElse("") == "" && clusterDeployment.getOrElse("") == "") return Some(ExchMsg.translate("service.no.deployment"))  // <- not forcing this
     if (deployment.getOrElse("") != "" && deploymentSignature.getOrElse("") == "") return Some(ExchMsg.translate("service.def.not.signed"))
     if (clusterDeployment.getOrElse("") != "" && clusterDeploymentSignature.getOrElse("") == "") return Some(ExchMsg.translate("service.def.not.signed"))
-    return None
+    None
   }
 
   // Build a list of db actions to verify that the referenced services exist
   def validateServiceIds: DBIO[Vector[Int]] = {
     if (requiredServices.isEmpty || requiredServices.get.isEmpty) return DBIO.successful(Vector())
-    val actions = ListBuffer[DBIO[Int]]()
+    val actions: ListBuffer[jdbc.PostgresProfile.api.DBIO[Int]] = ListBuffer[DBIO[Int]]()
     for (m <- requiredServices.get) {
-      val finalVersionRange = if(m.versionRange.isEmpty) m.version.getOrElse("") else m.versionRange.getOrElse("")
-      val svcId = ServicesTQ.formId(m.org, m.url, finalVersionRange, m.arch)     // need to wildcard version, because it is an osgi version range
+      val finalVersionRange: String = if(m.versionRange.isEmpty) m.version.getOrElse("") else m.versionRange.getOrElse("")
+      val svcId: String = ServicesTQ.formId(m.org, m.url, finalVersionRange, m.arch)     // need to wildcard version, because it is an osgi version range
       actions += ServicesTQ.getService(svcId).length.result
     }
-    return DBIO.sequence(actions.toVector)      // convert the list of actions to a DBIO sequence because that returns query values
+    DBIO.sequence(actions.toVector)      // convert the list of actions to a DBIO sequence because that returns query values
   }
 
-  def formId(orgid: String) = ServicesTQ.formId(orgid, url, version, arch)
+  def formId(orgid: String): String = ServicesTQ.formId(orgid, url, version, arch)
 
-  def toServiceRow(service: String, orgid: String, owner: String) = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, documentation.getOrElse(""), url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment.getOrElse(""), deploymentSignature.getOrElse(""), clusterDeployment.getOrElse(""), clusterDeploymentSignature.getOrElse(""), write(imageStore), ApiTime.nowUTC)
+  def toServiceRow(service: String, orgid: String, owner: String): ServiceRow = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, documentation.getOrElse(""), url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment.getOrElse(""), deploymentSignature.getOrElse(""), clusterDeployment.getOrElse(""), clusterDeploymentSignature.getOrElse(""), write(imageStore), ApiTime.nowUTC)
 }
 
 final case class PatchServiceRequest(label: Option[String], description: Option[String], public: Option[Boolean], documentation: Option[String], url: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], clusterDeployment: Option[String], clusterDeploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
@@ -113,7 +115,7 @@ final case class PatchServiceRequest(label: Option[String], description: Option[
 
   /** Returns a tuple of the db action to update parts of the service, and the attribute name being updated. */
   def getDbUpdate(service: String, orgid: String): (DBIO[_],String) = {
-    val lastUpdated = ApiTime.nowUTC
+    val lastUpdated: String = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this service
     label match { case Some(lab) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.label,d.lastUpdated)).update((service, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.description,d.lastUpdated)).update((service, desc, lastUpdated)), "description"); case _ => ; }
@@ -129,7 +131,7 @@ final case class PatchServiceRequest(label: Option[String], description: Option[
     deployment match { case Some(dep) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.deployment,d.lastUpdated)).update((service, dep, lastUpdated)), "deployment"); case _ => ; }
     deploymentSignature match { case Some(depsig) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.deploymentSignature,d.lastUpdated)).update((service, depsig, lastUpdated)), "deploymentSignature"); case _ => ; }
     imageStore match { case Some(p) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.imageStore,d.lastUpdated)).update((service, write(p), lastUpdated)), "imageStore"); case _ => ; }
-    return (null, null)
+    (null, null)
   }
 }
 
@@ -143,18 +145,18 @@ final case class PutServicePolicyRequest(properties: Option[List[OneProperty]], 
         return Some(ExchMsg.translate("property.type.must.be", p.`type`.get, validTypes.mkString(", ")))
       }
     }
-    return None
+    None
   }
 
-  def toServicePolicyRow(serviceId: String) = ServicePolicyRow(serviceId, write(properties), write(constraints), ApiTime.nowUTC)
+  def toServicePolicyRow(serviceId: String): ServicePolicyRow = ServicePolicyRow(serviceId, write(properties), write(constraints), ApiTime.nowUTC)
 }
 
 
 /** Input format for PUT /orgs/{orgid}/services/{service}/keys/<key-id> */
 final case class PutServiceKeyRequest(key: String) {
   require(key!=null)
-  def toServiceKey = ServiceKey(key, ApiTime.nowUTC)
-  def toServiceKeyRow(serviceId: String, keyId: String) = ServiceKeyRow(keyId, serviceId, key, ApiTime.nowUTC)
+  def toServiceKey: ServiceKey = ServiceKey(key, ApiTime.nowUTC)
+  def toServiceKeyRow(serviceId: String, keyId: String): ServiceKeyRow = ServiceKeyRow(keyId, serviceId, key, ApiTime.nowUTC)
   def getAnyProblem: Option[String] = None
 }
 
@@ -164,7 +166,7 @@ final case class PutServiceKeyRequest(key: String) {
 
 /** Input format for POST /orgs/{orgid}/services/{service}/dockauths or PUT /orgs/{orgid}/services/{service}/dockauths/{dockauthid} */
 final case class PostPutServiceDockAuthRequest(registry: String, username: Option[String], token: String) {
-  def toServiceDockAuthRow(serviceId: String, dockAuthId: Int) = ServiceDockAuthRow(dockAuthId, serviceId, registry, username.getOrElse("token"), token, ApiTime.nowUTC)
+  def toServiceDockAuthRow(serviceId: String, dockAuthId: Int): ServiceDockAuthRow = ServiceDockAuthRow(dockAuthId, serviceId, registry, username.getOrElse("token"), token, ApiTime.nowUTC)
   def getAnyProblem(dockauthIdAsStr: Option[String]): Option[String] = {
     if (dockauthIdAsStr.isEmpty) None
     else Try(dockauthIdAsStr.get.toInt) match {
@@ -172,7 +174,7 @@ final case class PostPutServiceDockAuthRequest(registry: String, username: Optio
       case Failure(t) => Some("dockauthid must be an integer: " + t.getMessage)
     }
   }
-  def getDupDockAuth(serviceId: String) = ServiceDockAuthsTQ.getDupDockAuth(serviceId, registry, username.getOrElse("token"), token)
+  def getDupDockAuth(serviceId: String): Query[ServiceDockAuths, ServiceDockAuthRow, Seq] = ServiceDockAuthsTQ.getDupDockAuth(serviceId, registry, username.getOrElse("token"), token)
 }
 
 
@@ -298,7 +300,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
-  def servicesGetRoute: Route = (path("orgs" / Segment / "services") & get & parameter(('owner.?, 'public.?, 'url.?, 'version.?, 'arch.?, 'nodetype.?, 'requiredurl.?))) { (orgid, owner, public, url, version, arch, nodetype, requiredurl) =>
+  def servicesGetRoute: Route = (path("orgs" / Segment / "services") & get & parameter((Symbol("owner").?, Symbol("public").?, Symbol("url").?, Symbol("version").?, Symbol("arch").?, Symbol("nodetype").?, Symbol("requiredurl").?))) { (orgid, owner, public, url, version, arch, nodetype, requiredurl) =>
     exchAuth(TService(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validateWithMsg(GetServicesUtils.getServicesProblem(public, version, nodetype)) {
         complete({
@@ -315,14 +317,14 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           // We are cheating a little on this one because the whole requiredServices structure is serialized into a json string when put in the db, so it has a string value like
           // [{"url":"mydomain.com.rtlsdr","version":"1.0.0","arch":"amd64"}]. But we can still match on the url.
           requiredurl.foreach(requrl => {
-            val requrl2 = "%\"url\":\"" + requrl + "\"%"
+            val requrl2: String = "%\"url\":\"" + requrl + "\"%"
             q = q.filter(_.requiredServices like requrl2)
           })
 
           db.run(q.result).map({ list =>
             logger.debug("GET /orgs/"+orgid+"/services result size: "+list.size)
-            val services = list.filter(e => ident.getOrg == e.orgid || e.public || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.service -> e.toService).toMap
-            val code = if (services.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            val services: Map[String, Service] = list.filter(e => ident.getOrg == e.orgid || e.public || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.service -> e.toService).toMap
+            val code: StatusCode with Serializable = if (services.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
             (code, GetServicesResponse(services, 0))
           })
         }) // end of complete
@@ -434,8 +436,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
-  def serviceGetRoute: Route = (path("orgs" / Segment / "services" / Segment) & get & parameter(('attribute.?))) { (orgid, service, attribute) =>
-    val compositeId = OrgAndId(orgid,service).toString
+  def serviceGetRoute: Route = (path("orgs" / Segment / "services" / Segment) & get & parameter((Symbol("attribute").?))) { (orgid, service, attribute) =>
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.READ) { _ =>
       complete({
         attribute match {
@@ -454,8 +456,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           case None =>  // Return the whole service resource
             db.run(ServicesTQ.getService(compositeId).result).map({ list =>
               logger.debug("GET /orgs/" + orgid + "/services result size: " + list.size)
-              val services = list.map(e => e.service -> e.toService).toMap
-              val code = if (services.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+              val services: Map[String, Service] = list.map(e => e.service -> e.toService).toMap
+              val code: StatusCode with Serializable = if (services.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
               (code, GetServicesResponse(services, 0))
             })
         }
@@ -555,12 +557,12 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TService(OrgAndId(orgid,"").toString), Access.CREATE) { ident =>
       validateWithMsg(reqBody.getAnyProblem(orgid, null)) {
         complete({
-          val service = reqBody.formId(orgid)
-          val owner = ident match { case IUser(creds) => creds.id; case _ => "" }   // currently only users are allowed to create/update services, so owner will never be blank
+          val service: String = reqBody.formId(orgid)
+          val owner: String = ident match { case IUser(creds) => creds.id; case _ => "" }   // currently only users are allowed to create/update services, so owner will never be blank
 
           // Make a list of service searches for the required services. This can match more services than we need, because it wildcards the version.
           // We'll look for versions within the required ranges in the db access routine below.
-          val svcIds = reqBody.requiredServices.getOrElse(List()).map( s => ServicesTQ.formId(s.org, s.url, "%", s.arch) )
+          val svcIds: Seq[String] = reqBody.requiredServices.getOrElse(List()).map(s => ServicesTQ.formId(s.org, s.url, "%", s.arch) )
           val svcAction = if (svcIds.isEmpty) DBIO.successful(Vector())   // no services to look for
           else {
             // The inner map() and reduceLeft() OR together all of the likes to give to filter()
@@ -570,8 +572,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           db.run(svcAction.asTry.flatMap({
             case Success(rows) =>
               logger.debug("POST /orgs/" + orgid + "/services requiredServices validation: " + rows)
-              var invalidIndex = -1
-              var invalidSvcRef = ServiceRef("", "", Some(""), Some(""), "")
+              var invalidIndex: Int = -1
+              var invalidSvcRef: ServiceRef = ServiceRef("", "", Some(""), Some(""), "")
               // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
               // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
               breakable {
@@ -579,27 +581,27 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                   breakable {
                     for ((orgid, url, version, arch) <- rows) {
                       //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                      val finalVersionRange = if (svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
-                      if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange))) break // we satisfied this requiredService so move on to the next
+                      val finalVersionRange: String = if (svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
+                      if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange))) break() // we satisfied this requiredService so move on to the next
                     }
                     invalidIndex = index // we finished the inner loop but did not find a service that satisfied the requirement
                     invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.versionRange, svcRef.arch)
                   } //  if we found a service that satisfies the requirement, it breaks to this line
-                  if (invalidIndex >= 0) break // a requiredService was not satisfied, so break out of the outer loop and return an error
+                  if (invalidIndex >= 0) break() // a requiredService was not satisfied, so break out of the outer loop and return an error
                 }
               }
               if (invalidIndex < 0) ServicesTQ.getNumOwned(owner).result.asTry // we are good, move on to the next step
               else {
                 //else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced service in requiredServices does not exist in the exchange")).asTry
-                val errStr = ExchMsg.translate("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
+                val errStr: String = ExchMsg.translate("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
                 DBIO.failed(new Throwable(errStr)).asTry
               }
             case Failure(t) => DBIO.failed(t).asTry
           }).flatMap({
             case Success(num) =>
               logger.debug("POST /orgs/" + orgid + "/services num owned by " + owner + ": " + num)
-              val numOwned = num
-              val maxServices = ExchConfig.getInt("api.limits.maxServices")
+              val numOwned: Int = num
+              val maxServices: Int = ExchConfig.getInt("api.limits.maxServices")
               if (maxServices == 0 || maxServices >= numOwned) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
                 reqBody.toServiceRow(service, orgid, owner).insert.asTry
               }
@@ -609,8 +611,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + orgid + "/services result: " + v)
-              val serviceId = service.substring(service.indexOf("/") + 1, service.length)
-              val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", reqBody.public.toString, "service", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
+              val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
+              val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", reqBody.public.toString, "service", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
               serviceChange.insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
@@ -695,15 +697,15 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
   def servicePutRoute: Route = (path("orgs" / Segment / "services" / Segment) & put & entity(as[PostPutServiceRequest])) { (orgid, service, reqBody) =>
-    val compositeId = OrgAndId(orgid,service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem(orgid, compositeId)) {
         complete({
-          val owner = ident match { case IUser(creds) => creds.id; case _ => "" }   // currently only users are allowed to create/update services, so owner will never be blank
+          val owner: String = ident match { case IUser(creds) => creds.id; case _ => "" }   // currently only users are allowed to create/update services, so owner will never be blank
 
           // Make a list of service searches for the required services. This can match more services than we need, because it wildcards the version.
           // We'll look for versions within the required ranges in the db access routine below.
-          val svcIds = reqBody.requiredServices.getOrElse(List()).map( s => ServicesTQ.formId(s.org, s.url, "%", s.arch) )
+          val svcIds: Seq[String] = reqBody.requiredServices.getOrElse(List()).map(s => ServicesTQ.formId(s.org, s.url, "%", s.arch) )
           val svcAction = if (svcIds.isEmpty) DBIO.successful(Vector())   // no services to look for
           else {
             // The inner map() and reduceLeft() OR together all of the likes to give to filter()
@@ -713,8 +715,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           db.run(svcAction.asTry.flatMap({
             case Success(rows) =>
               logger.debug("POST /orgs/" + orgid + "/services requiredServices validation: " + rows)
-              var invalidIndex = -1
-              var invalidSvcRef = ServiceRef("", "", Some(""), Some(""), "")
+              var invalidIndex: Int = -1
+              var invalidSvcRef: ServiceRef = ServiceRef("", "", Some(""), Some(""), "")
               // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
               // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
               breakable {
@@ -722,18 +724,18 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                   breakable {
                     for ((orgid, specRef, version, arch) <- rows) {
                       //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                      val finalVersionRange = if (svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
-                      if (specRef == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange))) break // we satisfied this apiSpec requirement so move on to the next
+                      val finalVersionRange: String = if (svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
+                      if (specRef == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange))) break() // we satisfied this apiSpec requirement so move on to the next
                     }
                     invalidIndex = index // we finished the inner loop but did not find a service that satisfied the requirement
                     invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.versionRange, svcRef.arch)
                   } //  if we found a service that satisfies the requirment, it breaks to this line
-                  if (invalidIndex >= 0) break // an requiredService was not satisfied, so break out and return an error
+                  if (invalidIndex >= 0) break() // an requiredService was not satisfied, so break out and return an error
                 }
               }
               if (invalidIndex < 0) reqBody.toServiceRow(compositeId, orgid, owner).update.asTry // we are good, move on to the next step
               else {
-                val errStr = ExchMsg.translate("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
+                val errStr: String = ExchMsg.translate("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
                 DBIO.failed(new Throwable(errStr)).asTry
               }
             case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -741,12 +743,12 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(n) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/services/" + service + " result: " + n)
-              val numUpdated = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
+              val numUpdated: Int = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
               if (numUpdated > 0) {
                 if (owner != "") AuthCache.putServiceOwner(compositeId, owner) // currently only users are allowed to update service resources, so owner should never be blank
                 AuthCache.putServiceIsPublic(compositeId, reqBody.public)
-                val serviceId = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
-                val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", reqBody.public.toString, "service", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
+                val serviceId: String = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
+                val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", reqBody.public.toString, "service", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
                 serviceChange.insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
@@ -834,7 +836,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
   def servicePatchRoute: Route = (path("orgs" / Segment / "services" / Segment) & patch & entity(as[PatchServiceRequest])) { (orgid, service, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/services/$service")
-    val compositeId = OrgAndId(orgid, service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
@@ -845,7 +847,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           else {
             // Make a list of service searches for the required services. This can match more services than we need, because it wildcards the version.
             // We'll look for versions within the required ranges in the db access routine below.
-            val svcIds = if (attrName == "requiredServices") reqBody.requiredServices.getOrElse(List()).map(s => ServicesTQ.formId(s.org, s.url, "%", s.arch)) else List()
+            val svcIds: Seq[String] = if (attrName == "requiredServices") reqBody.requiredServices.getOrElse(List()).map(s => ServicesTQ.formId(s.org, s.url, "%", s.arch)) else List()
             val svcAction = if (svcIds.isEmpty) DBIO.successful(Vector()) // no services to look for
             else {
               // The inner map() and reduceLeft() OR together all of the likes to give to filter()
@@ -859,8 +861,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             db.run(svcAction.transactionally.asTry.flatMap({
               case Success(rows) =>
                 logger.debug("PATCH /orgs/" + orgid + "/services requiredServices validation: " + rows)
-                var invalidIndex = -1
-                var invalidSvcRef = ServiceRef("", "", Some(""), Some(""), "")
+                var invalidIndex: Int = -1
+                var invalidSvcRef: ServiceRef = ServiceRef("", "", Some(""), Some(""), "")
                 // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
                 // sure there is an service that matches the version range specified. If the requiredServices list is empty, this will fall thru and succeed.
                 breakable {
@@ -868,18 +870,18 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                     breakable {
                       for ((orgid, url, version, arch) <- rows) {
                         //logger.debug("orgid: "+orgid+", url: "+url+", version: "+version+", arch: "+arch)
-                        val finalVersionRange = if (svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
-                        if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange))) break // we satisfied this requiredService so move on to the next
+                        val finalVersionRange: String = if (svcRef.versionRange.isEmpty) svcRef.version.getOrElse("") else svcRef.versionRange.getOrElse("")
+                        if (url == svcRef.url && orgid == svcRef.org && arch == svcRef.arch && (Version(version) in VersionRange(finalVersionRange))) break() // we satisfied this requiredService so move on to the next
                       }
                       invalidIndex = index // we finished the inner loop but did not find a service that satisfied the requirement
                       invalidSvcRef = ServiceRef(svcRef.url, svcRef.org, svcRef.version, svcRef.versionRange, svcRef.arch)
                     } //  if we found a service that satisfies the requirement, it breaks to this line
-                    if (invalidIndex >= 0) break // a requiredService was not satisfied, so break out of the outer loop and return an error
+                    if (invalidIndex >= 0) break() // a requiredService was not satisfied, so break out of the outer loop and return an error
                   }
                 }
                 if (invalidIndex < 0) action.transactionally.asTry // we are good, move on to the real patch action
                 else {
-                  val errStr = ExchMsg.translate("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
+                  val errStr: String = ExchMsg.translate("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
                   DBIO.failed(new Throwable(errStr)).asTry
                 }
               case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -887,7 +889,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               case Success(v) =>
                 // Get the value of the public field
                 logger.debug("PUT /orgs/" + orgid + "/services/" + service + " result: " + v)
-                val numUpdated = v.asInstanceOf[Int] // v comes to us as type Any
+                val numUpdated: Int = v.asInstanceOf[Int] // v comes to us as type Any
                 if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
                   if (attrName == "public") AuthCache.putServiceIsPublic(compositeId, reqBody.public.getOrElse(false))
                   ServicesTQ.getPublic(compositeId).result.asTry
@@ -900,7 +902,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                 // Add the resource to the resourcechanges table
                 logger.debug("PUT /orgs/" + orgid + "/services/" + service + " public field: " + public)
                 if (public.nonEmpty) {
-                  val serviceId = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
+                  val serviceId: String = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
                   var publicField = false
                   if (reqBody.public.isDefined) {
                     publicField = reqBody.public.getOrElse(false)
@@ -908,7 +910,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                   else {
                     publicField = public.head
                   }
-                  val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", publicField.toString, "service", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
+                  val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", publicField.toString, "service", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
                   serviceChange.insert.asTry
                 } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
               case Failure(t) => DBIO.failed(t).asTry
@@ -946,7 +948,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
   def serviceDeleteRoute: Route = (path("orgs" / Segment / "services" / Segment) & delete) { (orgid, service) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/services/$service")
-    val compositeId = OrgAndId(orgid,service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
       complete({
         // remove does *not* throw an exception if the key does not exist
@@ -967,8 +969,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               AuthCache.removeServiceOwner(compositeId)
               AuthCache.removeServiceIsPublic(compositeId)
-              val serviceId = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
-              val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", storedPublicField.toString, "service", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              val serviceId: String = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
+              val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", storedPublicField.toString, "service", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               serviceChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
@@ -1007,7 +1009,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/policy")
   def serviceGetPolicyRoute: Route = (path("orgs" / Segment / "services" / Segment / "policy") & get) { (orgid, service) =>
-    val compositeId = OrgAndId(orgid,service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.READ) { _ =>
       complete({
         db.run(ServicePolicyTQ.getServicePolicy(compositeId).result).map({ list =>
@@ -1085,7 +1087,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/policy")
   def servicePutPolicyRoute: Route = (path("orgs" / Segment / "services" / Segment / "policy") & put & entity(as[PutServicePolicyRequest])) { (orgid, service, reqBody) =>
-    val compositeId = OrgAndId(orgid, service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
@@ -1100,8 +1102,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/policy public field: " + public)
               if (public.nonEmpty) {
-                val serviceId = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
-                val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", public.head.toString, "servicepolicies", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
+                val serviceId: String = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
+                val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", public.head.toString, "servicepolicies", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
                 serviceChange.insert.asTry
               } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
             case Failure(t) => DBIO.failed(t).asTry
@@ -1135,7 +1137,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/policy")
   def serviceDeletePolicyRoute: Route = (path("orgs" / Segment / "services" / Segment / "policy") & delete) { (orgid, service) =>
-    val compositeId = OrgAndId(orgid,service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
       complete({
         var storedPublicField = false
@@ -1153,8 +1155,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + orgid + "/services/" + service + "/policy result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              val serviceId = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
-              val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", storedPublicField.toString, "servicepolicies", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              val serviceId: String = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
+              val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", storedPublicField.toString, "servicepolicies", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               serviceChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.policy.not.found", compositeId))).asTry
@@ -1207,12 +1209,12 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
   def serviceGetKeysRoute: Route = (path("orgs" / Segment / "services" / Segment / "keys") & get) { (orgid, service) =>
-    val compositeId = OrgAndId(orgid,service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.READ) { _ =>
       complete({
         db.run(ServiceKeysTQ.getKeys(compositeId).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/services/$service/keys result size: ${list.size}")
-          val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val code: StatusCode with Serializable = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, list.map(_.keyId))
         })
       }) // end of complete
@@ -1236,7 +1238,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
   def serviceGetKeyRoute: Route = (path("orgs" / Segment / "services" / Segment / "keys" / Segment) & get) { (orgid, service, keyId) =>
-    val compositeId = OrgAndId(orgid,service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.READ) { _ =>
       complete({
         db.run(ServiceKeysTQ.getKey(compositeId, keyId).result).map({ list =>
@@ -1279,10 +1281,10 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
   def servicePutKeyRoute: Route = (path("orgs" / Segment / "services" / Segment / "keys" / Segment) & put) { (orgid, service, keyId) =>
-    val compositeId = OrgAndId(orgid, service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
       extractRawBodyAsStr { reqBodyAsStr =>
-        val reqBody = PutServiceKeyRequest(reqBodyAsStr)
+        val reqBody: PutServiceKeyRequest = PutServiceKeyRequest(reqBodyAsStr)
         validateWithMsg(reqBody.getAnyProblem) {
           complete({
             db.run(reqBody.toServiceKeyRow(compositeId, keyId).upsert.asTry.flatMap({
@@ -1296,8 +1298,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                 // Add the resource to the resourcechanges table
                 logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/keys/" + keyId + " public field: " + public)
                 if (public.nonEmpty) {
-                  val serviceId = service.substring(service.indexOf("/") + 1, service.length)
-                  val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", public.head.toString, "servicekeys", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
+                  val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
+                  val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", public.head.toString, "servicekeys", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
                   serviceChange.insert.asTry
                 } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
               case Failure(t) => DBIO.failed(t).asTry
@@ -1332,7 +1334,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
   def serviceDeleteKeysRoute: Route = (path("orgs" / Segment / "services" / Segment / "keys") & delete) { (orgid, service) =>
-    val compositeId = OrgAndId(orgid,service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
       complete({
         var storedPublicField = false
@@ -1350,8 +1352,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /services/" + service + "/keys result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              val serviceId = service.substring(service.indexOf("/") + 1, service.length)
-              val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", storedPublicField.toString, "servicekeys", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
+              val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", storedPublicField.toString, "servicekeys", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               serviceChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.service.keys.found", compositeId))).asTry
@@ -1387,7 +1389,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
   def serviceDeleteKeyRoute: Route = (path("orgs" / Segment / "services" / Segment / "keys" / Segment) & delete) { (orgid, service, keyId) =>
-    val compositeId = OrgAndId(orgid,service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
       complete({
         var storedPublicField = false
@@ -1405,8 +1407,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /services/" + service + "/keys/" + keyId + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              val serviceId = service.substring(service.indexOf("/") + 1, service.length)
-              val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", storedPublicField.toString, "servicekeys", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
+              val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", storedPublicField.toString, "servicekeys", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               serviceChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.key.not.found", keyId, compositeId))).asTry
@@ -1466,12 +1468,12 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
   def serviceGetDockauthsRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths") & get) { (orgid, service) =>
-    val compositeId = OrgAndId(orgid,service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.READ) { _ =>
       complete({
         db.run(ServiceDockAuthsTQ.getDockAuths(compositeId).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/services/$service/dockauths result size: ${list.size}")
-          val code = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val code: StatusCode with Serializable = if (list.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, list.sortWith(_.dockAuthId < _.dockAuthId).map(_.toServiceDockAuth))
         })
       }) // end of complete
@@ -1495,7 +1497,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
   def serviceGetDockauthRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths" / Segment) & get) { (orgid, service, dockauthIdAsStr) =>
-    val compositeId = OrgAndId(orgid,service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.READ) { _ =>
       complete({
         Try(dockauthIdAsStr.toInt) match {
@@ -1573,12 +1575,12 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
   def servicePostDockauthRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths") & post & entity(as[PostPutServiceDockAuthRequest])) { (orgid, service, reqBody) =>
-    val compositeId = OrgAndId(orgid, service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem(None)) {
         complete({
           val dockAuthId = 0      // the db will choose a new id on insert
-          var resultNum = -1
+          var resultNum: Int = -1
           db.run(reqBody.getDupDockAuth(compositeId).result.asTry.flatMap({
             case Success(v) =>
               logger.debug("POST /orgs/" + orgid + "/services" + service + "/dockauths find duplicate: " + v)
@@ -1597,8 +1599,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + orgid + "/services/" + service + "/dockauths public field: " + public)
               if (public.nonEmpty) {
-                val serviceId = service.substring(service.indexOf("/") + 1, service.length)
-                val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", public.head.toString, "servicedockauths", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
+                val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
+                val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", public.head.toString, "servicedockauths", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
                 serviceChange.insert.asTry
               } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
             case Failure(t) => DBIO.failed(t).asTry
@@ -1640,16 +1642,16 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
   def servicePutDockauthRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths" / Segment) & put & entity(as[PostPutServiceDockAuthRequest])) { (orgid, service, dockauthIdAsStr, reqBody) =>
-    val compositeId = OrgAndId(orgid, service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem(Some(dockauthIdAsStr))) {
         complete({
-          val dockAuthId = dockauthIdAsStr.toInt  // already checked that it is a valid int in validateWithMsg()
+          val dockAuthId: Int = dockauthIdAsStr.toInt  // already checked that it is a valid int in validateWithMsg()
           db.run(reqBody.toServiceDockAuthRow(compositeId, dockAuthId).update.asTry.flatMap({
             case Success(n) =>
               // Get the value of the public field
               logger.debug("POST /orgs/" + orgid + "/services/" + service + "/dockauths result: " + n)
-              val numUpdated = n.asInstanceOf[Int] // n is an AnyRef so we have to do this to get it to an int
+              val numUpdated: Int = n.asInstanceOf[Int] // n is an AnyRef so we have to do this to get it to an int
               if (numUpdated > 0) ServicesTQ.getPublic(compositeId).result.asTry
               else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.OK, ExchMsg.translate("dockauth.not.found", dockAuthId))).asTry
             case Failure(t) => DBIO.failed(t).asTry
@@ -1658,8 +1660,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/dockauths/" + dockAuthId + " public field: " + public)
               if (public.nonEmpty) {
-                val serviceId = service.substring(service.indexOf("/") + 1, service.length)
-                val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", public.head.toString, "servicedockauths", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
+                val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
+                val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", public.head.toString, "servicedockauths", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
                 serviceChange.insert.asTry
               } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
             case Failure(t) => DBIO.failed(t).asTry
@@ -1695,7 +1697,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
   def serviceDeleteDockauthsRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths") & delete) { (orgid, service) =>
-    val compositeId = OrgAndId(orgid,service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
       complete({
         var storedPublicField = false
@@ -1713,8 +1715,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("POST /orgs/" + orgid + "/services result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              val serviceId = service.substring(service.indexOf("/") + 1, service.length)
-              val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", storedPublicField.toString, "servicedockauths", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
+              val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", storedPublicField.toString, "servicedockauths", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               serviceChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.dockauths.found.for.service", compositeId))).asTry
@@ -1750,7 +1752,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
   def serviceDeleteDockauthRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths" / Segment) & delete) { (orgid, service, dockauthIdAsStr) =>
-    val compositeId = OrgAndId(orgid,service).toString
+    val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
       complete({
         Try(dockauthIdAsStr.toInt) match {
@@ -1770,8 +1772,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                 // Add the resource to the resourcechanges table
                 logger.debug("DELETE /services/" + service + "/dockauths/" + dockauthId + " result: " + v)
                 if (v > 0) { // there were no db errors, but determine if it actually found it or not
-                  val serviceId = service.substring(service.indexOf("/") + 1, service.length)
-                  val serviceChange = ResourceChangeRow(0L, orgid, serviceId, "service", storedPublicField.toString, "servicedockauths", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+                  val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
+                  val serviceChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, serviceId, "service", storedPublicField.toString, "servicedockauths", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
                   serviceChange.insert.asTry
                 } else {
                   DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.dockauths.not.found", dockauthId, compositeId))).asTry

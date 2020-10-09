@@ -88,11 +88,11 @@ object ExchangeApiTables {
     val upgradeNotNeededMsg = "DB schema does not need upgrading, it is already at the latest schema version: "
 
     // The timeout exception that this can throw is handled by the caller of upgradeDb()
-    val upgradeResult = Await.result(db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
+    val upgradeResult: ApiResponse = Await.result(db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
       logger.debug("ExchangeApiTables.upgradeDb current schema result: " + xs.toString)
       xs match {
         case Success(v) => if (v.nonEmpty) {
-          val schemaRow = v.head
+          val schemaRow: SchemaRow = v.head
           if (SchemaTQ.isLatestSchemaVersion(schemaRow.schemaVersion)) DBIO.failed(new Throwable(upgradeNotNeededMsg + schemaRow.schemaVersion)).asTry // db already at latest schema. I do not think there is a way to pass a msg thru the Success path
           else {
             logger.info("DB exists, but not at the current schema version. Upgrading the DB schema...")

@@ -2513,7 +2513,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                 
                 val getNodes =
                   for {
-                    nodes ← NodesTQ.rows
+                    nodes <- NodesTQ.rows
                                    .filterOpt(arch)((node, arch) => node.arch like arch)
                                    .filterOpt(id)((node, id) => node.id like id)
                                    .filterOpt(name)((node, name) => node.name like name)

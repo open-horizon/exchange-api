@@ -69,7 +69,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   implicit val FORMATS            = DefaultFormats // Brings in default date formats etc.
 
-  override def beforeAll() {
+  override def beforeAll(): Unit = {
     Http(URL + "/orgs/" + ORGS(0)).postData(write(PostPutOrgRequest(None, (ORGS(0)), "AdminSuite Test Organization", None, None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
 
     for (org <- ORGS) {
@@ -84,7 +84,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
     }
   }
 
-  override def afterAll() {
+  override def afterAll(): Unit = {
     for (org <- ORGS) {
       for (user <- USERS) {
         Http(URL + "/orgs/" + org + "/users/" + user).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString

@@ -173,7 +173,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 username    = "TestNodesGetDetails2/u3"))
   
   // Build test harness.
-  override def beforeAll {
+  override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run((OrgsTQ.rows ++= TESTORGANIZATIONS) andThen
                                        (UsersTQ.rows ++= TESTUSERS) andThen
                                        (AgbotsTQ.rows += TESTAGBOT) andThen
@@ -184,7 +184,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   // Teardown test harness.
-  override def afterAll {
+  override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.rows.filter(_.orgId startsWith "TestNodesGetDetails").delete andThen
                                        OrgsTQ.rows.filter(_.orgid startsWith "TestNodesGetDetails").delete), AWAITDURATION)
   

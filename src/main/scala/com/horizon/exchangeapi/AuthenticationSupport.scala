@@ -9,12 +9,14 @@ import javax.security.auth.login.{AppConfigurationEntry, Configuration}
 import scala.util.matching.Regex
 import akka.http.scaladsl.server.Directives._
 import com.horizon.exchangeapi.auth._
+import javax.security.auth.Subject
 import javax.security.auth.login.LoginContext
 import org.mindrot.jbcrypt.BCrypt
-import pdi.jwt.{ Jwt, JwtAlgorithm, JwtClaim }
+import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim}
 import slick.jdbc.PostgresProfile.api._
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters.CollectionHasAsScala
+
 import scala.util._
 import scala.concurrent.duration._
 import java.util.Base64
@@ -33,7 +35,7 @@ The main authenticate/authorization flow is:
     - determines if the Identity has the specific access required
 */
 object AuthenticationSupport {
-  def logger = ExchangeApi.defaultLogger
+  def logger: LoggingAdapter = ExchangeApi.defaultLogger
   val decodedAuthRegex = new Regex("""^(.+):(.+)\s?$""")
 
   // Decodes the basic auth and parses it to return Some(Creds) or None if the creds aren't there or aren't parsable
@@ -58,8 +60,8 @@ object AuthenticationSupport {
       };
     But i had trouble getting it loaded from the docker image that the sbt-native-packager builds. So just putting the config in our code for now.
   */
-  val loginConfig = new Configuration {
-    override def getAppConfigurationEntry(name: String) = {
+  val loginConfig: Configuration = new Configuration {
+    override def getAppConfigurationEntry(name: String): Array[AppConfigurationEntry] = {
       Array[AppConfigurationEntry](
         new AppConfigurationEntry("com.horizon.exchangeapi.auth.IbmCloudModule", AppConfigurationEntry.LoginModuleControlFlag.SUFFICIENT, new util.HashMap[String, String]()),
         new AppConfigurationEntry("com.horizon.exchangeapi.auth.Module", AppConfigurationEntry.LoginModuleControlFlag.SUFFICIENT, new util.HashMap[String, String]()))
@@ -68,7 +70,7 @@ object AuthenticationSupport {
 
   // Note: not currently ever set to true, because db migrations happen during startup, before we start server requests
   var migratingDb = false // used to lock everyone out during db migration
-  def isDbMigration = migratingDb
+  def isDbMigration: Boolean = migratingDb
   // def setDbMigration(dbMigration: Boolean): Unit = { migratingDb = dbMigration }
 }
 
@@ -94,7 +96,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
   // an Option[String] (instead of a boolean) so if invalid input is found, it can return an error msg specific to the problem.
   def validateWithMsg(check: => Option[String]): Directive0 =
     Directive {
-      val errorMsg = check
+      val errorMsg: Option[String] = check
       inner => if (errorMsg.isEmpty) inner(()) else reject(ValidationRejection(errorMsg.get))
     }
 
@@ -165,8 +167,8 @@ trait AuthenticationSupport extends AuthorizationSupport {
   def exchAuth(target: Target, access: Access, hint: String = ""): Directive1[Identity] = {
     // val optEncodedAuth = ctx.request.getHeader("Authorization")
     extract(_.request.getHeader("Authorization")).flatMap { optEncodedAuth =>
-      val encodedAuth = if (optEncodedAuth.isPresent) optEncodedAuth.get().value() else ""
-      val optCreds = encodedAuth match {
+      val encodedAuth: String = if (optEncodedAuth.isPresent) optEncodedAuth.get().value() else ""
+      val optCreds: Option[Creds] = encodedAuth match {
         case ExchangeApiApp.basicAuthRegex(basicAuthEncoded) =>
           AuthenticationSupport.parseCreds(basicAuthEncoded)
         case _ => None
@@ -198,8 +200,8 @@ trait AuthenticationSupport extends AuthorizationSupport {
     for (err <- Try(loginCtx.login()).failed) {
       return Failure(err)
     }
-    val subject = loginCtx.getSubject // if we authenticated an api key, the subject contains the associated username
-    return Success(AuthenticatedIdentity(subject.getPrivateCredentials(classOf[Identity]).asScala.head, subject))
+    val subject: Subject = loginCtx.getSubject // if we authenticated an api key, the subject contains the associated username
+    Success(AuthenticatedIdentity(subject.getPrivateCredentials(classOf[Identity]).asScala.head, subject))
   }
 
   /** Returns a temporary pw reset token. */
@@ -237,7 +239,7 @@ object Password {
   def isHashed(password: String): Boolean = {
     //password.startsWith("""$2a$10$""")
     // bcrypt puts $2a$10$ at the beginning of encrypted values, where the 10 is the logRounds used (it will always be a 2 digit number)
-    val regex = raw"""^\$$2a\$$\d\d\$$""".r
+    val regex: Regex = raw"""^\$$2a\$$\d\d\$$""".r
     regex.findFirstIn(password).isDefined
   }
 
@@ -249,7 +251,7 @@ object Password {
 object Token {
   // From: https://github.com/pauldijou/jwt-scala
   val defaultExpiration = 600 // seconds
-  val algorithm = JwtAlgorithm.HS256
+  val algorithm: JwtAlgorithm.HS256.type = JwtAlgorithm.HS256
 
   /** Returns a temporary pw reset token. */
   def create(secret: String, expiration: Int = defaultExpiration): String = {

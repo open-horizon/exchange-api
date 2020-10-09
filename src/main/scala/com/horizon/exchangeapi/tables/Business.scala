@@ -150,7 +150,7 @@ object SearchOffsetPolicyTQ {
     offsets
       .filter(_.agbot === agbot)
       .filter(_.policy === policy)
-      .map(offset ⇒ (offset.offset, offset.session))
+      .map(offset => (offset.offset, offset.session))
       
   def setOffsetSession(agbot: String, offset: Option[String], policy: String, session: Option[String]) =
     offsets.insertOrUpdate(SearchOffsetPolicyAttributes(agbot, offset, policy, session))

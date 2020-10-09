@@ -30,12 +30,12 @@ lazy val root = (project in file("."))
         organization                  := "com.horizon",
         release                       := versionFunc(),
         resolvers                     += Classpaths.typesafeReleases,
-        scalaVersion                  := "2.12.10",     // tried updating to scala 2.13.1, but got many compile errors in intellij related to JavaConverters being deprecated
+        scalaVersion                  := "2.13.3",
         summary                       := "'Open Horizon exchange-api image'",
         vendor                        := "'Open Horizon'",
         version                       := versionFunc(),
-        scapegoatVersion in ThisBuild := "1.4.4", 
-        coverageEnabled               := false,
+        //scapegoatVersion in ThisBuild := "1.4.4",
+        //coverageEnabled               := false,
         
 
         // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision

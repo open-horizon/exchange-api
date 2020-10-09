@@ -256,6 +256,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.54.0
+
+- Issue 425 - Upgraded the Exchange to Scala 2.13.3
+
 ## Changes in 2.53.0
 
 - Issue 267 - Upgraded the Exchange to Java 11 and SBT 1.4.0. Upgraded Dockerfile to OpenJDK 11. Upgraded Travis CI specification to OpenJDK 11 and Ubuntu 20.04.

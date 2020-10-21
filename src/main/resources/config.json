@@ -39,14 +39,23 @@
 			"cleanupInterval": 86400	 // number of seconds between pruning the resourcechanges table in the db of expired changes - 86400 is 24 hours
 		},
 		"db": {
-			"driverClass": "org.postgresql.Driver",
-			"jdbcUrl": "",		// the back-end db the exchange uses
-			"user": "",
-			"password": "",
-			"minPoolSize": 1,
-			"acquireIncrement": 1,
-			"maxPoolSize": 50,
-			"upgradeTimeoutSeconds": 180
+      "acquireIncrement": 1,
+      "driverClass": "org.postgresql.Driver",
+      "idleConnectionTestPeriod": 0,           // in seconds; 0 disables
+      "initialPoolSize": 1,
+      "jdbcUrl": "",                           // the back-end db the exchange uses
+      "maxConnectionAge": 0,                   // in seconds; 0 is infinite
+      "maxIdleTime": 0,                        // in seconds; 0 is infinite
+      "maxIdleTimeExcessConnections": 0,       // in seconds; 0 is infinite; culls connections down to the minPoolSize
+      "maxPoolSize": 50,
+      "maxStatementsPerConnection": 0,         // 0 disables; prepared statement caching per connection
+      "minPoolSize": 1,
+      "numHelperThreads": 50,
+      "password": "",
+      "queueSize": 1000,                       // -1 for unlimited, 0 to disable
+      "testConnectionOnCheckin": false,
+      "upgradeTimeoutSeconds": 180,
+      "user": ""
 		},
 		"logging": {
 			"level": "INFO"		// For possible values, see http://logback.qos.ch/apidocs/ch/qos/logback/classic/Level.html

@@ -256,6 +256,19 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.53.0
+
+- Issue 427 - Added the following connection/thread pool manager settings to the Exchange's configuration json:
+    - idleConnectionTestPeriod
+    - initialPoolSize
+    - maxConnectionAge
+    - maxIdleTime
+    - maxIdleTimeExcessConnections
+    - maxStatementsPerConnection
+    - numHelperThreads
+    - queueSize
+    - testConnectionOnCheckin
+
 ## Changes in 2.52.0
 
 - Issue 421 - Added two OpenAPI 3.0 specification artifacts to `/doc/` project directory. One is for general users and the other is for developers.

@@ -165,27 +165,35 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   lazy val routes: Route = DebuggingDirectives.logRequestResult(requestResponseLogging _) { pathPrefix("v1") { testRoute ~ orgsRoutes ~ usersRoutes ~ nodesRoutes ~ agbotsRoutes ~ servicesRoutes ~ patternsRoutes ~ businessRoutes ~ catalogRoutes ~ adminRoutes ~ SwaggerDocService.routes ~ swaggerUiRoutes } }
 
   // Load the db backend. The db access info must be in config.json
-  var cpds: ComboPooledDataSource = _
-  cpds = new ComboPooledDataSource
-  cpds.setDriverClass(ExchConfig.getString("api.db.driverClass")) //loads the jdbc driver
-  cpds.setJdbcUrl(ExchConfig.getString("api.db.jdbcUrl"))
-  cpds.setUser(ExchConfig.getString("api.db.user"))
-  cpds.setPassword(ExchConfig.getString("api.db.password"))
-  // the settings below are optional -- c3p0 can work with defaults
-  cpds.setMinPoolSize(ExchConfig.getInt("api.db.minPoolSize"))
+  // https://www.mchange.com/projects/c3p0/#configuration_properties
+  var cpds: ComboPooledDataSource = new ComboPooledDataSource()
   cpds.setAcquireIncrement(ExchConfig.getInt("api.db.acquireIncrement"))
+  cpds.setDriverClass(ExchConfig.getString("api.db.driverClass")) //loads the jdbc driver
+  cpds.setIdleConnectionTestPeriod(ExchConfig.getInt("api.db.idleConnectionTestPeriod"))
+  cpds.setInitialPoolSize(ExchConfig.getInt("api.db.initialPoolSize"))
+  cpds.setJdbcUrl(ExchConfig.getString("api.db.jdbcUrl"))
+  cpds.setMaxConnectionAge(ExchConfig.getInt("api.db.maxConnectionAge"))
+  cpds.setMaxIdleTimeExcessConnections(ExchConfig.getInt("api.db.maxIdleTimeExcessConnections"))
   cpds.setMaxPoolSize(ExchConfig.getInt("api.db.maxPoolSize"))
-  logger.info("Created c3p0 connection pool")
+  cpds.setMaxStatementsPerConnection(ExchConfig.getInt("api.db.maxStatementsPerConnection"))
+  cpds.setMinPoolSize(ExchConfig.getInt("api.db.minPoolSize"))
+  cpds.setNumHelperThreads(ExchConfig.getInt("api.db.numHelperThreads"))
+  cpds.setPassword(ExchConfig.getString("api.db.password"))
+  cpds.setTestConnectionOnCheckin(ExchConfig.getBoolean("api.db.testConnectionOnCheckin"))
+  cpds.setUser(ExchConfig.getString("api.db.user"))
 
-  val maxConns = ExchConfig.getInt("api.db.maxPoolSize")
+  // maxConnections, maxThreads, and minThreads should all be the same size.
   val db: Database =
     if (cpds != null) {
-      Database.forDataSource(
-        cpds,
-        Some(maxConns),
-        AsyncExecutor("ExchangeExecutor", maxConns, maxConns, 1000, maxConns))
-    } else null
-  logger.info("Set up DB connection with maxPoolSize=" + maxConns)
+      Database.forDataSource(ds = cpds,
+                             executor = AsyncExecutor(name = "ExchangeExecutor",
+                                                      numThreads = ExchConfig.getInt("api.db.maxPoolSize"),
+                                                      queueSize = ExchConfig.getInt("api.db.queueSize")),
+                             maxConnections = Option(ExchConfig.getInt("api.db.maxPoolSize")))
+        
+    }
+    else
+      null
 
   def getDb: Database = db
 

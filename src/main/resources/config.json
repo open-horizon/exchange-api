@@ -50,7 +50,7 @@
       "maxPoolSize": 50,
       "maxStatementsPerConnection": 0,         // 0 disables; prepared statement caching per connection
       "minPoolSize": 1,
-      "numHelperThreads": 50,
+      "numHelperThreads": 3,
       "password": "",
       "queueSize": 1000,                       // -1 for unlimited, 0 to disable
       "testConnectionOnCheckin": false,

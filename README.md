@@ -256,6 +256,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.54.0
+
+- Issue 427 - Reverting some thread pool changes to version 2.51.0
+
 ## Changes in 2.53.0
 
 - Issue 427 - Added the following connection/thread pool manager settings to the Exchange's configuration json:

@@ -166,6 +166,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
 
   // Load the db backend. The db access info must be in config.json
   // https://www.mchange.com/projects/c3p0/#configuration_properties
+  
   var cpds: ComboPooledDataSource = new ComboPooledDataSource()
   cpds.setAcquireIncrement(ExchConfig.getInt("api.db.acquireIncrement"))
   cpds.setDriverClass(ExchConfig.getString("api.db.driverClass")) //loads the jdbc driver
@@ -183,17 +184,14 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   cpds.setUser(ExchConfig.getString("api.db.user"))
 
   // maxConnections, maxThreads, and minThreads should all be the same size.
+  val maxConns = ExchConfig.getInt("api.db.maxPoolSize")
   val db: Database =
     if (cpds != null) {
-      Database.forDataSource(ds = cpds,
-                             executor = AsyncExecutor(name = "ExchangeExecutor",
-                                                      numThreads = ExchConfig.getInt("api.db.maxPoolSize"),
-                                                      queueSize = ExchConfig.getInt("api.db.queueSize")),
-                             maxConnections = Option(ExchConfig.getInt("api.db.maxPoolSize")))
-        
-    }
-    else
-      null
+      Database.forDataSource(
+        cpds,
+        Some(maxConns),
+        AsyncExecutor("ExchangeExecutor", maxConns, maxConns, ExchConfig.getInt("api.db.queueSize"), maxConns))
+    } else null
 
   def getDb: Database = db
 

@@ -12,9 +12,9 @@ class TestDBConnection {
       ExchangeApi.servicePort = p
   }
   
-  // Load the db backend. The db access info must be in config.json
-  var cpds: ComboPooledDataSource = _
-  cpds = new ComboPooledDataSource
+  val maxPoolSizeConfig: Int = ExchConfig.getInt("api.db.maxPoolSize")
+  
+  var cpds: ComboPooledDataSource = new ComboPooledDataSource()
   cpds.setAcquireIncrement(ExchConfig.getInt("api.db.acquireIncrement"))
   cpds.setDriverClass(ExchConfig.getString("api.db.driverClass")) //loads the jdbc driver
   cpds.setIdleConnectionTestPeriod(ExchConfig.getInt("api.db.idleConnectionTestPeriod"))
@@ -22,7 +22,7 @@ class TestDBConnection {
   cpds.setJdbcUrl(ExchConfig.getString("api.db.jdbcUrl"))
   cpds.setMaxConnectionAge(ExchConfig.getInt("api.db.maxConnectionAge"))
   cpds.setMaxIdleTimeExcessConnections(ExchConfig.getInt("api.db.maxIdleTimeExcessConnections"))
-  cpds.setMaxPoolSize(ExchConfig.getInt("api.db.maxPoolSize"))
+  cpds.setMaxPoolSize(maxPoolSizeConfig)
   cpds.setMaxStatementsPerConnection(ExchConfig.getInt("api.db.maxStatementsPerConnection"))
   cpds.setMinPoolSize(ExchConfig.getInt("api.db.minPoolSize"))
   cpds.setNumHelperThreads(ExchConfig.getInt("api.db.numHelperThreads"))
@@ -35,10 +35,11 @@ class TestDBConnection {
     if (cpds != null) {
       Database.forDataSource(ds = cpds,
                              executor = AsyncExecutor(name = "ExchangeExecutor",
-                                                      numThreads = ExchConfig.getInt("api.db.maxPoolSize"),
+                                                      maxConnections = maxPoolSizeConfig,
+                                                      maxThreads = maxPoolSizeConfig,
+                                                      minThreads = maxPoolSizeConfig,
                                                       queueSize = ExchConfig.getInt("api.db.queueSize")),
-                             maxConnections = Option(ExchConfig.getInt("api.db.maxPoolSize")))
-      
+                             maxConnections = Option(maxPoolSizeConfig))
     }
     else
       null

@@ -1,8 +1,5 @@
 // For the syntax of this file, see: https://www.scala-sbt.org/1.x/docs/Basic-Def.html
 
-// Note: i tried updating sbt to 1.3.5, but got "java.lang.NoClassDefFoundError: org/scalacheck/Test$TestCallback" when running the automated tests, and couldn't solve it.
-//   Looking at https://github.com/sbt/sbt/releases , it's clear there are significant changes in 1.3.x, including with the class loader.
-
 // This plugin is for building the docker image of our exchange svr
 import scala.io.Source
 import scala.sys.process._
@@ -125,7 +122,7 @@ lazy val root = (project in file("."))
                                         Cmd("LABEL", "summary=" ++ summary.value), 
                                         Cmd("LABEL", "vendor=" ++ vendor.value), 
                                         Cmd("LABEL", "version=" ++ version.value), 
-                                        Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs && microdnf install -y --nodocs shadow-utils gettext java-1.8.0-openjdk && microdnf clean all"), 
+                                        Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs && microdnf install -y --nodocs shadow-utils gettext java-11-openjdk && microdnf clean all"),
                                         Cmd("USER", "root"), 
                                         Cmd("RUN", "id -u " ++ (daemonUser in Docker).value ++ " 1>/dev/null 2>&1 || ((getent group 1001 1>/dev/null 2>&1 || (type groupadd 1>/dev/null 2>&1 && groupadd -g 1001 " ++ (daemonGroup in Docker).value ++ " || addgroup -g 1001 -S " ++ (daemonGroup in Docker).value ++ ")) && (type useradd 1>/dev/null 2>&1 && useradd --system --create-home --uid 1001 --gid 1001 " ++ (daemonUser in Docker).value ++ " || adduser -S -u 1001 -G " ++ (daemonGroup in Docker).value ++ " " ++ (daemonUser in Docker).value ++ "))"), 
                                         Cmd("WORKDIR", "/etc/horizon/exchange"), 

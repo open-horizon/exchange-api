@@ -1,5 +1,5 @@
 // Builds docker image of our exchange svr
-addSbtPlugin("com.typesafe.sbt"        % "sbt-native-packager"     % "[1.7.1,)")
+addSbtPlugin("com.typesafe.sbt"        % "sbt-native-packager"     % "[1.7.4,)")
 
 addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin"       % "[5.2.4,)")
 

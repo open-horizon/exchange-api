@@ -20,7 +20,6 @@ import io.swagger.v3.oas.annotations._
 import scala.concurrent.ExecutionContext
 import com.horizon.exchangeapi.tables._
 import org.json4s.{DefaultFormats, Formats}
-//import org.json4s._
 import org.json4s.jackson.Serialization.write
 import slick.jdbc.PostgresProfile.api._
 
@@ -43,7 +42,7 @@ object BusinessUtils {
     for (sv <- service.serviceVersions) {
       if (!Version(sv.version).isValid) return Some(ExchMsg.translate("version.not.valid.format", sv.version))
     }
-    return None
+    None
   }
 }
 
@@ -60,10 +59,10 @@ final case class PostPutBusinessPolicyRequest(label: String, description: Option
   // The nodeHealth field is optional, so fill in a default in service if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
   def defaultNodeHealth(service: BService): BService = {
     if (service.nodeHealth.nonEmpty) return service
-    val hbDefault = ExchConfig.getInt("api.defaults.businessPolicy.missing_heartbeat_interval")
-    val agrChkDefault = ExchConfig.getInt("api.defaults.businessPolicy.check_agreement_status")
-    val nodeHealth2 = Some(Map("missing_heartbeat_interval" -> hbDefault, "check_agreement_status" -> agrChkDefault)) // provide defaults for node health
-    return BService(service.name, service.org, service.arch, service.serviceVersions, nodeHealth2)
+    val hbDefault: Int = ExchConfig.getInt("api.defaults.businessPolicy.missing_heartbeat_interval")
+    val agrChkDefault: Int = ExchConfig.getInt("api.defaults.businessPolicy.check_agreement_status")
+    val nodeHealth2: Option[Map[String, Int]] = Some(Map("missing_heartbeat_interval" -> hbDefault, "check_agreement_status" -> agrChkDefault)) // provide defaults for node health
+    BService(service.name, service.org, service.arch, service.serviceVersions, nodeHealth2)
   }
 
   // Note: write() handles correctly the case where the optional fields are None.
@@ -87,7 +86,7 @@ final case class PatchBusinessPolicyRequest(label: Option[String], description: 
 
   /** Returns a tuple of the db action to update parts of the businessPolicy, and the attribute name being updated. */
   def getDbUpdate(businessPolicy: String, orgid: String): (DBIO[_],String) = {
-    val lastUpdated = ApiTime.nowUTC
+    val lastUpdated: String = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this businessPolicy
     label match { case Some(lab) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.label,d.lastUpdated)).update((businessPolicy, lab, lastUpdated)), "label"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.description,d.lastUpdated)).update((businessPolicy, desc, lastUpdated)), "description"); case _ => ; }
@@ -95,7 +94,7 @@ final case class PatchBusinessPolicyRequest(label: Option[String], description: 
     userInput match { case Some(input) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.userInput,d.lastUpdated)).update((businessPolicy, write(input), lastUpdated)), "userInput"); case _ => ; }
     properties match { case Some(prop) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.properties,d.lastUpdated)).update((businessPolicy, write(prop), lastUpdated)), "properties"); case _ => ; }
     constraints match { case Some(con) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.constraints,d.lastUpdated)).update((businessPolicy, write(con), lastUpdated)), "constraints"); case _ => ; }
-    return (null, null)
+    (null, null)
   }
 }
 
@@ -194,7 +193,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "policy")
-  def busPolsGetRoute: Route = (path("orgs" / Segment / "business" / "policies") & get & parameter(('idfilter.?, 'owner.?, 'label.?, 'description.?))) { (orgid, idfilter, owner, label, description) =>
+  def busPolsGetRoute: Route = (path("orgs" / Segment / "business" / "policies") & get & parameter((Symbol("idfilter").?, Symbol("owner").?, Symbol("label").?, Symbol("description").?))) { (orgid, idfilter, owner, label, description) =>
     exchAuth(TBusiness(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       complete({
         var q = BusinessPoliciesTQ.getAllBusinessPolicies(orgid)
@@ -206,8 +205,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
 
         db.run(q.result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/business/policies result size: "+list.size)
-          val businessPolicy = list.filter(e => ident.getOrg == e.orgid || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.businessPolicy -> e.toBusinessPolicy).toMap
-          val code = if (businessPolicy.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val businessPolicy: Map[String, BusinessPolicy] = list.filter(e => ident.getOrg == e.orgid || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.businessPolicy -> e.toBusinessPolicy).toMap
+          val code: StatusCode with Serializable = if (businessPolicy.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetBusinessPoliciesResponse(businessPolicy, 0))
         })
       }) // end of complete
@@ -278,8 +277,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "policy")
-  def busPolGetRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & get & parameter(('attribute.?))) { (orgid, policy, attribute) =>
-    val compositeId = OrgAndId(orgid,policy).toString
+  def busPolGetRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & get & parameter((Symbol("attribute").?))) { (orgid, policy, attribute) =>
+    val compositeId: String = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.READ) { _ =>
       complete({
         attribute match {
@@ -298,8 +297,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
           case None =>  // Return the whole business policy resource
             db.run(BusinessPoliciesTQ.getBusinessPolicy(compositeId).result).map({ list =>
               logger.debug("GET /orgs/" + orgid + "/business/policies result size: " + list.size)
-              val businessPolicies = list.map(e => e.businessPolicy -> e.toBusinessPolicy).toMap
-              val code = if (businessPolicies.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+              val businessPolicies: Map[String, BusinessPolicy] = list.map(e => e.businessPolicy -> e.toBusinessPolicy).toMap
+              val code: StatusCode with Serializable = if (businessPolicies.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
               (code, GetBusinessPoliciesResponse(businessPolicies, 0))
             })
         }
@@ -423,27 +422,27 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "policy")
   def busPolPostRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & post & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
-    val compositeId = OrgAndId(orgid, policy).toString
+    val compositeId: String = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.CREATE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
+          val owner: String = ident match { case IUser(creds) => creds.id; case _ => "" }
           val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
           db.run(valServiceIdActions.asTry.flatMap({
             case Success(v) =>
               logger.debug("POST /orgs/" + orgid + "/business/policies" + policy + " service validation: " + v)
-              var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+              var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
               breakable {
                 for ((len, index) <- v.zipWithIndex) {
                   if (len <= 0) {
                     invalidIndex = index
-                    break
+                    break()
                   }
                 }
               }
               if (invalidIndex < 0) BusinessPoliciesTQ.getNumOwned(owner).result.asTry
               else {
-                val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                val errStr: String = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
                 else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
                 DBIO.failed(new Throwable(errStr)).asTry
               }
@@ -451,8 +450,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
           }).flatMap({
             case Success(num) =>
               logger.debug("POST /orgs/" + orgid + "/business/policies" + policy + " num owned by " + owner + ": " + num)
-              val numOwned = num
-              val maxBusinessPolicies = ExchConfig.getInt("api.limits.maxBusinessPolicies")
+              val numOwned: Int = num
+              val maxBusinessPolicies: Int = ExchConfig.getInt("api.limits.maxBusinessPolicies")
               if (maxBusinessPolicies == 0 || numOwned <= maxBusinessPolicies) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
                 reqBody.getDbInsert(compositeId, orgid, owner).asTry
               }
@@ -462,7 +461,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + " result: " + v)
-              val policyChange = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
+              val policyChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
               policyChange.insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
@@ -569,27 +568,27 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "policy")
   def busPolPutRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & put & entity(as[PostPutBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
-    val compositeId = OrgAndId(orgid, policy).toString
+    val compositeId: String = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
+          val owner: String = ident match { case IUser(creds) => creds.id; case _ => "" }
           val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
           db.run(valServiceIdActions.asTry.flatMap({
             case Success(v) =>
               logger.debug("POST /orgs/" + orgid + "/business/policies" + policy + " service validation: " + v)
-              var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+              var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
               breakable {
                 for ((len, index) <- v.zipWithIndex) {
                   if (len <= 0) {
                     invalidIndex = index
-                    break
+                    break()
                   }
                 }
               }
               if (invalidIndex < 0) reqBody.getDbUpdate(compositeId, orgid, owner).asTry
               else {
-                val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                val errStr: String = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
                 else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
                 DBIO.failed(new Throwable(errStr)).asTry
               }
@@ -598,11 +597,11 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(n) =>
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + " result: " + n)
-              val numUpdated = n.asInstanceOf[Int]     // i think n is an AnyRef so we have to do this to get it to an int
+              val numUpdated: Int = n.asInstanceOf[Int]     // i think n is an AnyRef so we have to do this to get it to an int
               if (numUpdated > 0) {
                 if (owner != "") AuthCache.putBusinessOwner(compositeId, owner) // currently only users are allowed to update business policy resources, so owner should never be blank
                 AuthCache.putBusinessIsPublic(compositeId, isPublic = false)
-                val policyChange = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
+                val policyChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
                 policyChange.insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
@@ -710,7 +709,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "policy")
   def busPolPatchRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & patch & entity(as[PatchBusinessPolicyRequest])) { (orgid, policy, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/business/policies/$policy")
-    val compositeId = OrgAndId(orgid, policy).toString
+    val compositeId: String = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
@@ -724,18 +723,18 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
             db.run(valServiceIdActions.asTry.flatMap({
               case Success(v) =>
                 logger.debug("PUT /orgs/" + orgid + "/business/policies" + policy + " service validation: " + v)
-                var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+                var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
                 breakable {
                   for ((len, index) <- v.zipWithIndex) {
                     if (len <= 0) {
                       invalidIndex = index
-                      break
+                      break()
                     }
                   }
                 }
                 if (invalidIndex < 0) action.transactionally.asTry
                 else {
-                  val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                  val errStr: String = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
                   else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
                   DBIO.failed(new Throwable(errStr)).asTry
                 }
@@ -744,9 +743,9 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               case Success(n) =>
                 // Add the resource to the resourcechanges table
                 logger.debug("PATCH /orgs/" + orgid + "/business/policies/" + policy + " result: " + n)
-                val numUpdated = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
+                val numUpdated: Int = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
                 if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-                  val policyChange = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
+                  val policyChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
                   policyChange.insert.asTry
                 } else {
                   DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
@@ -784,7 +783,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "policy")
   def busPolDeleteRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & delete) { (orgid, policy) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/business/policies/$policy")
-    val compositeId = OrgAndId(orgid,policy).toString
+    val compositeId: String = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.WRITE) { _ =>
       complete({
         db.run(BusinessPoliciesTQ.getBusinessPolicy(compositeId).delete.transactionally.asTry.flatMap({
@@ -794,7 +793,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               AuthCache.removeBusinessOwner(compositeId)
               AuthCache.removeBusinessIsPublic(compositeId)
-              val policyChange = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              val policyChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               policyChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
@@ -957,30 +956,30 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                   // Result set includes all nodes without agreements as-well-as non-valid agreements.
                   // Live-lock will occur if the resulting number of nodes with the same lastUpdated is greater than the size of the page between the agbots and the Exchange!
                   nodes = NodesTQ.rows
-                                 .filterOpt(optArch)((node, arch) ⇒ node.arch === arch)
+                                 .filterOpt(optArch)((node, arch) => node.arch === arch)
                                  .filter(_.lastHeartbeat.isDefined)
-                                 .filterOpt(offset)((node, changedSince) ⇒ !(node.lastUpdated < changedSince))
+                                 .filterOpt(offset)((node, changedSince) => !(node.lastUpdated < changedSince))
                                  .filter(_.orgid inSet nodeOrgids)
                                  .filter(_.pattern === "")
                                  .filter(_.publicKey =!= "")
-                                 .filterOpt(desynchronization)((node, _) ⇒ node.id === "")
-                                 .map(node ⇒ (node.id, node.lastUpdated, node.nodeType, node.publicKey))
+                                 .filterOpt(desynchronization)((node, _) => node.id === "")
+                                 .map(node => (node.id, node.lastUpdated, node.nodeType, node.publicKey))
                                  .joinLeft(NodeAgreementsTQ.rows
                                                            .filter(_.agrSvcUrl === searchSvcUrl)
                                                            .map(agreement => (agreement.agrSvcUrl, agreement.nodeId, agreement.state)))
-                                 .on((node, agreement) ⇒ node._1 === agreement._2) // (node.id === agreements.nodeId)
+                                 .on((node, agreement) => node._1 === agreement._2) // (node.id === agreements.nodeId)
                                  .filter ({
                                    // No/non-valid agreements
-                                   case (_, agreement) ⇒
+                                   case (_, agreement) =>
                                      agreement.map(_._2).isEmpty ||                        // agreement.nodeId
                                      agreement.map(_._1).getOrElse("") === "" ||  // agreement.agrSvcUrl
                                      agreement.map(_._3).getOrElse("") === ""     // agreement.state
                                  })
-                                 .sortBy(r ⇒ (r._1._2.asc, r._1._1.asc, r._2.getOrElse(("", "", ""))._1.asc.nullsFirst)) // (node.lastUpdated ASC, node.id ASC, agreements.agrSvcUrl ASC NULLS FIRST)
-                                 .map(r ⇒ (r._1._1, r._1._2, r._1._3, r._1._4))                                          // (node.id, node.lastUpdated, node.nodeType, node.publicKey)
+                                 .sortBy(r => (r._1._2.asc, r._1._1.asc, r._2.getOrElse(("", "", ""))._1.asc.nullsFirst)) // (node.lastUpdated ASC, node.id ASC, agreements.agrSvcUrl ASC NULLS FIRST)
+                                 .map(r => (r._1._1, r._1._2, r._1._3, r._1._4))                                          // (node.id, node.lastUpdated, node.nodeType, node.publicKey)
                   
                   // If paginating then create page else return everything.
-                  nodesWoAgreements ← {
+                  nodesWoAgreements <- {
                     if (reqBody.numEntries.isDefined)
                       nodes.take(reqBody.numEntries.getOrElse(0))
                     else
@@ -1038,7 +1037,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                       None
                     
                     // Clear/continue/set/update offset and session for the next call.
-                    _ ← SearchOffsetPolicyTQ.setOffsetSession(ident.identityString, updateOffset, compositeId, updateSession)
+                    _ <- SearchOffsetPolicyTQ.setOffsetSession(ident.identityString, updateOffset, compositeId, updateSession)
                 } yield (desynchronization, nodesWoAgreements, isOffsetUpdated)
               
               // Prevent dirty reads/writes.

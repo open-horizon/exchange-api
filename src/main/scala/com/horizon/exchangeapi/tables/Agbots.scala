@@ -10,7 +10,7 @@ final case class AgbotRow(id: String, orgid: String, token: String, name: String
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toAgbot(superUser: Boolean): Agbot = {
-    val tok = if (superUser) token else StrConstants.hiddenPw
+    val tok: String = if (superUser) token else StrConstants.hiddenPw
     //val pat = if (patterns != "") read[List[APattern]](patterns) else List[APattern]()
     new Agbot(tok, name, owner, /*pat,*/ msgEndPoint, lastHeartbeat, publicKey)
   }
@@ -41,7 +41,7 @@ class Agbots(tag: Tag) extends Table[AgbotRow](tag, "agbots") {
   def lastHeartbeat = column[String]("lastheartbeat")
   def publicKey = column[String]("publickey")
   // this describes what you get back when you return rows from a query
-  def * = (id, orgid, token, name, owner, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey) <> (AgbotRow.tupled, AgbotRow.unapply)
+  def * = (id, orgid, token, name, owner, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey).<>(AgbotRow.tupled, AgbotRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -50,19 +50,19 @@ class Agbots(tag: Tag) extends Table[AgbotRow](tag, "agbots") {
 object AgbotsTQ {
   val rows = TableQuery[Agbots]
 
-  def getAllAgbots(orgid: String) = rows.filter(_.orgid === orgid)
-  def getAgbot(id: String) = rows.filter(_.id === id)
-  def getToken(id: String) = rows.filter(_.id === id).map(_.token)
-  def getOwner(id: String) = rows.filter(_.id === id).map(_.owner)
-  def getNumOwned(owner: String) = rows.filter(_.owner === owner).length
-  def getLastHeartbeat(id: String) = rows.filter(_.id === id).map(_.lastHeartbeat)
-  def getPublicKey(id: String) = rows.filter(_.id === id).map(_.publicKey)
+  def getAllAgbots(orgid: String): Query[Agbots, AgbotRow, Seq] = rows.filter(_.orgid === orgid)
+  def getAgbot(id: String): Query[Agbots, AgbotRow, Seq] = rows.filter(_.id === id)
+  def getToken(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.token)
+  def getOwner(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.owner)
+  def getNumOwned(owner: String): Rep[Int] = rows.filter(_.owner === owner).length
+  def getLastHeartbeat(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.lastHeartbeat)
+  def getPublicKey(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.publicKey)
 
   /** Returns a query for the specified agbot attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(id: String, attrName: String): Query[_,_,Seq] = {
     val filter = rows.filter(_.id === id)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
-    return attrName match {
+    attrName match {
       case "token" => filter.map(_.token)
       case "name" => filter.map(_.name)
       case "owner" => filter.map(_.owner)
@@ -81,7 +81,7 @@ class Agbot(var token: String, var name: String, var owner: String, /*var patter
 
 
 final case class AgbotPatternRow(patId: String, agbotId: String, patternOrgid: String, pattern: String, nodeOrgid: String, lastUpdated: String) {
-  def toAgbotPattern = AgbotPattern(patternOrgid, pattern, nodeOrgid, lastUpdated)
+  def toAgbotPattern: AgbotPattern = AgbotPattern(patternOrgid, pattern, nodeOrgid, lastUpdated)
 
   def upsert: DBIO[_] = AgbotPatternsTQ.rows.insertOrUpdate(this)
   def insert: DBIO[_] = AgbotPatternsTQ.rows += this
@@ -94,7 +94,7 @@ class AgbotPatterns(tag: Tag) extends Table[AgbotPatternRow](tag, "agbotpatterns
   def pattern = column[String]("pattern")
   def nodeOrgid = column[String]("nodeorgid")
   def lastUpdated = column[String]("lastupdated")
-  def * = (patId, agbotId, patternOrgid, pattern, nodeOrgid, lastUpdated) <> (AgbotPatternRow.tupled, AgbotPatternRow.unapply)
+  def * = (patId, agbotId, patternOrgid, pattern, nodeOrgid, lastUpdated).<>(AgbotPatternRow.tupled, AgbotPatternRow.unapply)
   def primKey = primaryKey("pk_agp", (patId, agbotId))
   def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -102,15 +102,15 @@ class AgbotPatterns(tag: Tag) extends Table[AgbotPatternRow](tag, "agbotpatterns
 object AgbotPatternsTQ {
   val rows = TableQuery[AgbotPatterns]
 
-  def getPatterns(agbotId: String) = rows.filter(_.agbotId === agbotId)
-  def getPattern(agbotId: String, patId: String) = rows.filter( r => {r.agbotId === agbotId && r.patId === patId} )
+  def getPatterns(agbotId: String): Query[AgbotPatterns, AgbotPatternRow, Seq] = rows.filter(_.agbotId === agbotId)
+  def getPattern(agbotId: String, patId: String): Query[AgbotPatterns, AgbotPatternRow, Seq] = rows.filter(r => {r.agbotId === agbotId && r.patId === patId} )
 }
 
 final case class AgbotPattern(patternOrgid: String, pattern: String, nodeOrgid: String, lastUpdated: String)
 
 
 final case class AgbotBusinessPolRow(busPolId: String, agbotId: String, businessPolOrgid: String, businessPol: String, nodeOrgid: String, lastUpdated: String) {
-  def toAgbotBusinessPol = AgbotBusinessPol(businessPolOrgid, businessPol, nodeOrgid, lastUpdated)
+  def toAgbotBusinessPol: AgbotBusinessPol = AgbotBusinessPol(businessPolOrgid, businessPol, nodeOrgid, lastUpdated)
 
   def upsert: DBIO[_] = AgbotBusinessPolsTQ.rows.insertOrUpdate(this)
   def insert: DBIO[_] = AgbotBusinessPolsTQ.rows += this
@@ -123,7 +123,7 @@ class AgbotBusinessPols(tag: Tag) extends Table[AgbotBusinessPolRow](tag, "agbot
   def businessPol = column[String]("businesspol")
   def nodeOrgid = column[String]("nodeorgid")
   def lastUpdated = column[String]("lastupdated")
-  def * = (busPolId, agbotId, businessPolOrgid, businessPol, nodeOrgid, lastUpdated) <> (AgbotBusinessPolRow.tupled, AgbotBusinessPolRow.unapply)
+  def * = (busPolId, agbotId, businessPolOrgid, businessPol, nodeOrgid, lastUpdated).<>(AgbotBusinessPolRow.tupled, AgbotBusinessPolRow.unapply)
   def primKey = primaryKey("pk_agbp", (busPolId, agbotId))
   def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -131,8 +131,8 @@ class AgbotBusinessPols(tag: Tag) extends Table[AgbotBusinessPolRow](tag, "agbot
 object AgbotBusinessPolsTQ {
   val rows = TableQuery[AgbotBusinessPols]
 
-  def getBusinessPols(agbotId: String) = rows.filter(_.agbotId === agbotId)
-  def getBusinessPol(agbotId: String, busPolId: String) = rows.filter( r => {r.agbotId === agbotId && r.busPolId === busPolId} )
+  def getBusinessPols(agbotId: String): Query[AgbotBusinessPols, AgbotBusinessPolRow, Seq] = rows.filter(_.agbotId === agbotId)
+  def getBusinessPol(agbotId: String, busPolId: String): Query[AgbotBusinessPols, AgbotBusinessPolRow, Seq] = rows.filter(r => {r.agbotId === agbotId && r.busPolId === busPolId} )
 }
 
 final case class AgbotBusinessPol(businessPolOrgid: String, businessPol: String, nodeOrgid: String, lastUpdated: String)
@@ -142,7 +142,7 @@ final case class AAWorkload(orgid: String, pattern: String, url: String)
 final case class AAService(orgid: String, pattern: String, url: String)
 
 final case class AgbotAgreementRow(agrId: String, agbotId: String, serviceOrgid: String, servicePattern: String, serviceUrl: String, state: String, lastUpdated: String, dataLastReceived: String) {
-  def toAgbotAgreement = AgbotAgreement(AAService(serviceOrgid, servicePattern, serviceUrl), state, lastUpdated, dataLastReceived)
+  def toAgbotAgreement: AgbotAgreement = AgbotAgreement(AAService(serviceOrgid, servicePattern, serviceUrl), state, lastUpdated, dataLastReceived)
 
   def upsert: DBIO[_] = AgbotAgreementsTQ.rows.insertOrUpdate(this)
 }
@@ -156,16 +156,16 @@ class AgbotAgreements(tag: Tag) extends Table[AgbotAgreementRow](tag, "agbotagre
   def state = column[String]("state")
   def lastUpdated = column[String]("lastUpdated")
   def dataLastReceived = column[String]("dataLastReceived")
-  def * = (agrId, agbotId, serviceOrgid, servicePattern, serviceUrl, state, lastUpdated, dataLastReceived) <> (AgbotAgreementRow.tupled, AgbotAgreementRow.unapply)
+  def * = (agrId, agbotId, serviceOrgid, servicePattern, serviceUrl, state, lastUpdated, dataLastReceived).<>(AgbotAgreementRow.tupled, AgbotAgreementRow.unapply)
   def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 object AgbotAgreementsTQ {
   val rows = TableQuery[AgbotAgreements]
 
-  def getAgreements(agbotId: String) = rows.filter(_.agbotId === agbotId)
-  def getAgreement(agbotId: String, agrId: String) = rows.filter( r => {r.agbotId === agbotId && r.agrId === agrId} )
-  def getNumOwned(agbotId: String) = rows.filter(_.agbotId === agbotId).length
+  def getAgreements(agbotId: String): Query[AgbotAgreements, AgbotAgreementRow, Seq] = rows.filter(_.agbotId === agbotId)
+  def getAgreement(agbotId: String, agrId: String): Query[AgbotAgreements, AgbotAgreementRow, Seq] = rows.filter(r => {r.agbotId === agbotId && r.agrId === agrId} )
+  def getNumOwned(agbotId: String): Rep[Int] = rows.filter(_.agbotId === agbotId).length
   def getAgreementsWithState = rows.filter(_.state =!= "")
 }
 
@@ -174,7 +174,7 @@ final case class AgbotAgreement(service: AAService, state: String, lastUpdated: 
 
 /** The agbotmsgs table holds the msgs sent to agbots by nodes */
 final case class AgbotMsgRow(msgId: Int, agbotId: String, nodeId: String, nodePubKey: String, message: String, timeSent: String, timeExpires: String) {
-  def toAgbotMsg = AgbotMsg(msgId, nodeId, nodePubKey, message, timeSent, timeExpires)
+  def toAgbotMsg: AgbotMsg = AgbotMsg(msgId, nodeId, nodePubKey, message, timeSent, timeExpires)
 
   def insert: DBIO[_] = ((AgbotMsgsTQ.rows returning AgbotMsgsTQ.rows.map(_.msgId)) += this)  // inserts the row and returns the msgId of the new row
   def upsert: DBIO[_] = AgbotMsgsTQ.rows.insertOrUpdate(this)    // do not think we need this
@@ -188,7 +188,7 @@ class AgbotMsgs(tag: Tag) extends Table[AgbotMsgRow](tag, "agbotmsgs") {
   def message = column[String]("message")
   def timeSent = column[String]("timesent")
   def timeExpires = column[String]("timeexpires")
-  def * = (msgId, agbotId, nodeId, nodePubKey, message, timeSent, timeExpires) <> (AgbotMsgRow.tupled, AgbotMsgRow.unapply)
+  def * = (msgId, agbotId, nodeId, nodePubKey, message, timeSent, timeExpires).<>(AgbotMsgRow.tupled, AgbotMsgRow.unapply)
   def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   // Can't keep a node foreign key because if a node is deleted during un-registration, the agbot needs to have a chance to process the agreement cancellation msg and with the node foreign key the message is deleted when the node is deleted
   // def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
@@ -197,10 +197,10 @@ class AgbotMsgs(tag: Tag) extends Table[AgbotMsgRow](tag, "agbotmsgs") {
 object AgbotMsgsTQ {
   val rows = TableQuery[AgbotMsgs]
 
-  def getMsgs(agbotId: String) = rows.filter(_.agbotId === agbotId)  // this is that agbots msg mailbox
-  def getMsg(agbotId: String, msgId: Int) = rows.filter( r => {r.agbotId === agbotId && r.msgId === msgId} )
+  def getMsgs(agbotId: String): Query[AgbotMsgs, AgbotMsgRow, Seq] = rows.filter(_.agbotId === agbotId)  // this is that agbots msg mailbox
+  def getMsg(agbotId: String, msgId: Int): Query[AgbotMsgs, AgbotMsgRow, Seq] = rows.filter(r => {r.agbotId === agbotId && r.msgId === msgId} )
   def getMsgsExpired = rows.filter(_.timeExpires < ApiTime.nowUTC)
-  def getNumOwned(agbotId: String) = rows.filter(_.agbotId === agbotId).length
+  def getNumOwned(agbotId: String): Rep[Int] = rows.filter(_.agbotId === agbotId).length
 }
 
 final case class AgbotMsg(msgId: Int, nodeId: String, nodePubKey: String, message: String, timeSent: String, timeExpires: String)

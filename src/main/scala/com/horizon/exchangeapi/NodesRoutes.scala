@@ -25,6 +25,7 @@ import slick.jdbc.PostgresProfile.api._
 import scala.collection.immutable._
 import scala.util._
 import scala.util.control.Breaks._
+import scala.util.matching.Regex
 
 //====== These are the input and output structures for /orgs/{orgid}/nodes routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -35,7 +36,7 @@ final case class GetNodeAttributeResponse(attribute: String, value: String)
 object GetNodesUtils {
   def getNodesProblem(nodetype: Option[String]): Option[String] = {
     if (nodetype.isDefined && !NodeType.containsString(nodetype.get.toLowerCase)) return Some(ExchMsg.translate("invalid.node.type2", NodeType.valuesAsString))
-    return None
+    None
   }
 }
 
@@ -115,7 +116,7 @@ final case class PutNodesRequest(token: String,
         case None => ;
       }
     }
-    return None
+    None
   }
 
   // Build a list of db actions to verify that the referenced services exist
@@ -124,7 +125,7 @@ final case class PutNodesRequest(token: String,
   /** Get the db actions to insert or update all parts of the node */
   def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String, lastHeartbeat: Option[String] = Some(ApiTime.nowUTC)): DBIO[_] = {
     // default new field configState in registeredServices
-    val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
+    val rsvc2: Seq[RegService] = registeredServices.getOrElse(List()).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
     NodeRow(id,
             orgid,
             hashedTok,
@@ -147,7 +148,7 @@ final case class PutNodesRequest(token: String,
    * because we can't let a node create new nodes. */
   def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String, lastHeartbeat: Option[String] = Some(ApiTime.nowUTC)): DBIO[_] = {
     // default new field configState in registeredServices
-    val rsvc2 = registeredServices.getOrElse(List()).map(rs => RegService(rs.url,rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
+    val rsvc2: Seq[RegService] = registeredServices.getOrElse(List()).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
     NodeRow(id,
             orgid,
             hashedTok,
@@ -177,7 +178,7 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
   }
     /** Returns a tuple of the db action to update parts of the node, and the attribute name being updated. */
   def getDbUpdate(id: String, hashedPw: String): (DBIO[_],String) = {
-    val currentTime = ApiTime.nowUTC
+    val currentTime: String = ApiTime.nowUTC
     //someday: support updating more than 1 attribute, but i think slick does not support dynamic db field names
     // find the 1st non-blank attribute and create a db action to update it for this node
     var dbAction: (DBIO[_], String) = (null, null)
@@ -187,10 +188,10 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
     } else if (token.isDefined){
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat, d.lastUpdated)).update((id, hashedPw, Some(currentTime), currentTime)), "token")
     } else if (softwareVersions.isDefined){
-      val swVersions = if (softwareVersions.nonEmpty) write(softwareVersions) else ""
+      val swVersions: String = if (softwareVersions.nonEmpty) write(softwareVersions) else ""
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat, d.lastUpdated)).update((id, swVersions, Some(currentTime), currentTime)), "softwareVersions")
     } else if (registeredServices.isDefined){
-      val regSvc = if (registeredServices.nonEmpty) write(registeredServices) else ""
+      val regSvc: String = if (registeredServices.nonEmpty) write(registeredServices) else ""
       dbAction =  ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat, d.lastUpdated)).update((id, regSvc, Some(currentTime), currentTime)), "registeredServices")
     } else if (name.isDefined){
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat, d.lastUpdated)).update((id, name.get, Some(currentTime), currentTime)), "name")
@@ -209,7 +210,7 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
     } else if (heartbeatIntervals.isDefined){
       dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.heartbeatIntervals,d.lastHeartbeat, d.lastUpdated)).update((id, write(heartbeatIntervals), Some(currentTime), currentTime)), "heartbeatIntervals")
     }
-    return dbAction
+    dbAction
   }
 }
 
@@ -226,28 +227,28 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
 
   // Match registered service urls (which are org/url) to the input org and url
   def isMatch(compositeUrl: String): Boolean = {
-    val reg = """^(\S+?)/(\S+)$""".r
+    val reg: Regex = """^(\S+?)/(\S+)$""".r
     val (comporg, compurl) = compositeUrl match {
       case reg(o,u) => (o, u)
       case _ => return false   //todo: halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("configstate.must.be.suspended.or.active", compositeUrl)))
     }
     (org, url) match {
-      case ("","") => return true
-      case ("",u) => return compurl == u
-      case (o,"") => return comporg == o
-      case (o,u) => return comporg == o && compurl == u
+      case ("","") => true
+      case ("",u) => compurl == u
+      case (o,"") => comporg == o
+      case (o,u) => comporg == o && compurl == u
     }
   }
 
   // Given the existing list of registered svcs in the db for this node, determine the db update necessary to apply the new configState
   def getDbUpdate(regServices: String, id: String): DBIO[_] = {
     if (regServices == "") return DBIO.failed(new ResourceNotFoundException(ExchMsg.translate("node.has.no.services")))
-    val regSvcs = read[List[RegService]](regServices)
+    val regSvcs: Seq[RegService] = read[List[RegService]](regServices)
     if (regSvcs.isEmpty) return DBIO.failed(new ResourceNotFoundException(ExchMsg.translate("node.has.no.services")))
 
     // Copy the list of required svcs, changing configState wherever it applies
     var matchingSvcFound = false
-    val newRegSvcs = regSvcs.map({ rs =>
+    val newRegSvcs: Seq[RegService] = regSvcs.map({ rs =>
       if (isMatch(rs.url)) {
         matchingSvcFound = true   // warning: intentional side effect (didnt know how else to do it)
         if (configState != rs.configState.getOrElse("")) RegService(rs.url,rs.numAgreements, Some(configState), rs.policy, rs.properties)
@@ -265,8 +266,8 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
     }
 
     // Convert from struct back to string and return db action to update that
-    val newRegSvcsString = write(newRegSvcs)
-    return (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat)).update((id, newRegSvcsString, Some(ApiTime.nowUTC)))
+    val newRegSvcsString: String = write(newRegSvcs)
+    (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat)).update((id, newRegSvcsString, Some(ApiTime.nowUTC)))
   }
 }
 
@@ -279,7 +280,7 @@ final case class PutNodeStatusRequest(connectivity: Option[Map[String,Boolean]],
   for(s <- services){
     runningServices = runningServices + s.orgid + "/" + s.serviceUrl + "_" + s.version + "_" + s.arch + "|"
   }
-  def toNodeStatusRow(nodeId: String) = NodeStatusRow(nodeId, write(connectivity), write(services), runningServices, ApiTime.nowUTC)
+  def toNodeStatusRow(nodeId: String): NodeStatusRow = NodeStatusRow(nodeId, write(connectivity), write(services), runningServices, ApiTime.nowUTC)
 }
 
 /** Input body for PUT /orgs/{orgid}/nodes/{id}/errors */
@@ -288,7 +289,7 @@ final case class PutNodeErrorRequest(errors: List[Any]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = None
 
-  def toNodeErrorRow(nodeId: String) = NodeErrorRow(nodeId, write(errors), ApiTime.nowUTC)
+  def toNodeErrorRow(nodeId: String): NodeErrorRow = NodeErrorRow(nodeId, write(errors), ApiTime.nowUTC)
 }
 
 final case class PutNodePolicyRequest(properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
@@ -300,10 +301,10 @@ final case class PutNodePolicyRequest(properties: Option[List[OneProperty]], con
         return Some(ExchMsg.translate("property.type.must.be", p.`type`.get, validTypes.mkString(", ")))
       }
     }
-    return None
+    None
   }
 
-  def toNodePolicyRow(nodeId: String) = NodePolicyRow(nodeId, write(properties), write(constraints), ApiTime.nowUTC)
+  def toNodePolicyRow(nodeId: String): NodePolicyRow = NodePolicyRow(nodeId, write(properties), write(constraints), ApiTime.nowUTC)
 }
 
 
@@ -318,10 +319,10 @@ final case class PutNodeAgreementRequest(services: Option[List[NAService]], agre
     if (services.isEmpty && agreementService.isEmpty) {
       return Some(ExchMsg.translate("must.specify.service.or.agreementservice"))
     }
-    return None
+    None
   }
 
-  def toNodeAgreementRow(nodeId: String, agId: String) = {
+  def toNodeAgreementRow(nodeId: String, agId: String): NodeAgreementRow = {
     if (agreementService.isDefined) NodeAgreementRow(agId, nodeId, write(services), agreementService.get.orgid, agreementService.get.pattern, agreementService.get.url, state, ApiTime.nowUTC)
     else NodeAgreementRow(agId, nodeId, write(services), "", "", "", state, ApiTime.nowUTC)
   }
@@ -469,7 +470,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def nodesGetRoute: Route = (path("orgs" / Segment / "nodes") & get & parameter(('idfilter.?, 'name.?, 'owner.?, 'arch.?, 'nodetype.?))) { (orgid, idfilter, name, owner, arch, nodetype) =>
+  def nodesGetRoute: Route = (path("orgs" / Segment / "nodes") & get & parameter((Symbol("idfilter").?, Symbol("name").?, Symbol("owner").?, Symbol("arch").?, Symbol("nodetype").?))) { (orgid, idfilter, name, owner, arch, nodetype) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes")
     exchAuth(TNode(OrgAndId(orgid,"#").toString), Access.READ) { ident =>
       validateWithMsg(GetNodesUtils.getNodesProblem(nodetype)) {
@@ -487,7 +488,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
 
           if (nodetype.isDefined) {
-            val nt = nodetype.get.toLowerCase
+            val nt: String = nodetype.get.toLowerCase
             if (NodeType.isDevice(nt)) q = q.filter(r => {r.nodeType === nt || r.nodeType === ""})
             else if (NodeType.isCluster(nt)) q = q.filter(_.nodeType === nt)
           }
@@ -495,8 +496,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           db.run(q.result).map({ list =>
             logger.debug(s"GET /orgs/$orgid/nodes result size: ${list.size}")
             //val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
-            val nodes = list.map(e => e.id -> e.toNode(ident.isSuperUser)).toMap
-            val code = if (nodes.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            val nodes: Map[String, Node] = list.map(e => e.id -> e.toNode(ident.isSuperUser)).toMap
+            val code: StatusCode with Serializable = if (nodes.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
             (code, GetNodesResponse(nodes, 0))
           })
         }) // end of complete
@@ -597,9 +598,9 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def nodeGetRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & get & parameter(('attribute.?))) { (orgid, id, attribute) =>
+  def nodeGetRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & get & parameter((Symbol("attribute").?))) { (orgid, id, attribute) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes/$id")
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.READ) { ident =>
       val q = if (attribute.isDefined) NodesTQ.getAttribute(compositeId, attribute.get) else null
       validate(attribute.isEmpty || q!= null, ExchMsg.translate("node.name.not.in.resource")) {
@@ -620,7 +621,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                 logger.debug("GET /orgs/"+orgid+"/nodes/"+id+" result: "+list.size)
                 if (list.nonEmpty) {
                   //val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
-                  val nodes = list.map(e => e.id -> e.toNode(ident.isSuperUser)).toMap
+                  val nodes: Map[String, Node] = list.map(e => e.id -> e.toNode(ident.isSuperUser)).toMap
                   (HttpCode.OK, GetNodesResponse(nodes, 0))
                 } else {
                   (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))     // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
@@ -738,14 +739,14 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodePutRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & put & entity(as[PutNodesRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgid/nodes/$id")
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     var orgMaxNodes = 0
     exchAuth(TNode(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
           var orgLimitMaxNodes = 0
           var fivePercentWarning = false
-          val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
+          val owner: String = ident match { case IUser(creds) => creds.id; case _ => "" }
           val patValidateAction = if (reqBody.pattern != "") PatternsTQ.getPattern(reqBody.pattern).length.result else DBIO.successful(1)
           val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced in userInput exist
           db.run(patValidateAction.asTry.flatMap({
@@ -760,18 +761,18 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Check if referenced services exist, then get whether node is using policy
               logger.debug("PUT /orgs/" + orgid + "/nodes" + id + " service validation: " + v)
-              var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+              var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
               breakable {
                 for ((len, index) <- v.zipWithIndex) {
                   if (len <= 0) {
                     invalidIndex = index
-                    break
+                    break()
                   }
                 }
               }
               if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(compositeId).result.asTry
               else {
-                val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                val errStr: String = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
                 else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
                 DBIO.failed(new Throwable(errStr)).asTry
               }
@@ -814,7 +815,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(numOwned) =>
               // Check if num nodes owned is below limit, then create/update node
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " num owned: " + numOwned)
-              val maxNodes = ExchConfig.getInt("api.limits.maxNodes")
+              val maxNodes: Int = ExchConfig.getInt("api.limits.maxNodes")
               if (maxNodes == 0
                   || numOwned <= maxNodes
                   || owner == "")  // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
@@ -842,7 +843,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " result: " + v)
-              val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "node", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
+              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "node", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
               nodeChange.insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
@@ -939,11 +940,11 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodePatchRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & patch & entity(as[PatchNodesRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/nodes/$id")
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          val hashedPw = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
+          val hashedPw: String = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
           val (action, attrName) = reqBody.getDbUpdate(compositeId, hashedPw)
           if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.note.attr.specified")))
           else {
@@ -960,18 +961,18 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               case Success(v) =>
                 // Check if referenced services exist, then get whether node is using policy
                 logger.debug("PATCH /orgs/" + orgid + "/nodes" + id + " service validation: " + v)
-                var invalidIndex = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
+                var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
                 breakable {
                   for ((len, index) <- v.zipWithIndex) {
                     if (len <= 0) {
                       invalidIndex = index
-                      break
+                      break()
                     }
                   }
                 }
                 if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(compositeId).result.asTry
                 else {
-                  val errStr = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
+                  val errStr: String = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
                   else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
                   DBIO.failed(new Throwable(errStr)).asTry
                 }
@@ -991,14 +992,14 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               case Success(v) =>
                 // Add the resource to the resourcechanges table
                 logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " result: " + v)
-                val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "node", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
+                val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "node", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
                 nodeChange.insert.asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
               case Success(v) =>
                 logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
                 try {
-                  val numUpdated = v.toString.toInt // v comes to us as type Any
+                  val numUpdated: Int = v.toString.toInt // v comes to us as type Any
                   if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
                     if (reqBody.token.isDefined) AuthCache.putNode(compositeId, hashedPw, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
                     //AuthCache.ids.putNode(id, hashedPw, node.token.get)
@@ -1082,7 +1083,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodePostConfigStateRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "services_configstate") & post & entity(as[PostNodeConfigStateRequest])) { (orgid, id, reqBody) =>
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
@@ -1096,7 +1097,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + orgid + "/nodes/" + id + "/configstate write row result: " + v)
-              val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "services_configstate", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
+              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "services_configstate", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
               nodeChange.insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
@@ -1130,7 +1131,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodeDeleteRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & delete) { (orgid, id) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/nodes/$id")
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
         // remove does *not* throw an exception if the key does not exist
@@ -1139,7 +1140,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               logger.debug(s"DELETE /orgs/$orgid/nodes/$id result: $v")
               AuthCache.removeNodeAndOwner(compositeId)
-              val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "node", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "node", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               nodeChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId))).asTry
@@ -1178,7 +1179,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodeHeartbeatRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "heartbeat") & post) { (orgid, id) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$id/heartbeat")
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       complete({
         db.run(NodesTQ.getLastHeartbeat(compositeId).update(Some(ApiTime.nowUTC)).asTry).map({
@@ -1213,7 +1214,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/error")
   def nodeGetErrorsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "errors") & get) { (orgid, id) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
         db.run(NodeErrorTQ.getNodeError(compositeId).result).map({ list =>
@@ -1292,7 +1293,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/error")
   def nodePutErrorsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "errors") & put & entity(as[PutNodeErrorRequest])) { (orgid, id, reqBody) =>
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
@@ -1300,7 +1301,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/errors result: " + v)
-              val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeerrors", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
+              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeerrors", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
               nodeChange.insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
@@ -1333,7 +1334,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/error")
   def nodeDeleteErrorsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "errors") & delete) { (orgid, id) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
         db.run(NodeErrorTQ.getNodeError(compositeId).delete.asTry.flatMap({
@@ -1341,7 +1342,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/errors result: " + v)
             if (v > 0) {
-              val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeerrors", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeerrors", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               nodeChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId))).asTry
@@ -1407,7 +1408,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/status")
   def nodeGetStatusRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "status") & get) { (orgid, id) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
         db.run(NodeStatusTQ.getNodeStatus(compositeId).result).map({ list =>
@@ -1499,7 +1500,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/status")
   def nodePutStatusRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "status") & put & entity(as[PutNodeStatusRequest])) { (orgid, id, reqBody) =>
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
@@ -1507,7 +1508,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/status result: " + v)
-              val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "nodestatus", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
+              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodestatus", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
               nodeChange.insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
@@ -1540,7 +1541,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/status")
   def nodeDeleteStatusRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "status") & delete) { (orgid, id) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
         db.run(NodeStatusTQ.getNodeStatus(compositeId).delete.asTry.flatMap({
@@ -1548,7 +1549,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/status result: " + v)
             if (v > 0) {
-              val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "nodestatus", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodestatus", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               nodeChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.status.not.found", compositeId))).asTry
@@ -1585,7 +1586,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/policy")
   def nodeGetPolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & get) { (orgid, id) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
         db.run(NodePolicyTQ.getNodePolicy(compositeId).result).map({ list =>
@@ -1665,7 +1666,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/policy")
   def nodePutPolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & put & entity(as[PutNodePolicyRequest])) { (orgid, id, reqBody) =>
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
@@ -1684,9 +1685,9 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               // Add the resource to the resourcechanges table
               logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastHeartbeat result: " + n)
               try {
-                val numUpdated = n.toString.toInt // i think n is an AnyRef so we have to do this to get it to an int
+                val numUpdated: Int = n.toString.toInt // i think n is an AnyRef so we have to do this to get it to an int
                 if (numUpdated > 0) {
-                  val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "nodepolicies", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
+                  val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodepolicies", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
                   nodeChange.insert.asTry
                 } else {
                   DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId))).asTry
@@ -1727,7 +1728,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/policy")
   def nodeDeletePolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & delete) { (orgid, id) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
         db.run(NodePolicyTQ.getNodePolicy(compositeId).delete.asTry.flatMap({
@@ -1735,7 +1736,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/policy result: " + v)
             if (v > 0) {
-              val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "nodepolicies", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodepolicies", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               nodeChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.policy.not.found", compositeId))).asTry
@@ -1806,13 +1807,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/agreement")
   def nodeGetAgreementsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements") & get) { (orgid, id) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
         db.run(NodeAgreementsTQ.getAgreements(compositeId).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/nodes/$id/agreements result size: ${list.size}")
-          val agreements = list.map(e => e.agId -> e.toNodeAgreement).toMap
-          val code = if (agreements.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val agreements: Map[String, NodeAgreement] = list.map(e => e.agId -> e.toNodeAgreement).toMap
+          val code: StatusCode with Serializable = if (agreements.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetNodeAgreementsResponse(agreements, 0))
         })
       }) // end of complete
@@ -1863,13 +1864,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/agreement")
   def nodeGetAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & get) { (orgid, id, agrId) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
         db.run(NodeAgreementsTQ.getAgreement(compositeId, agrId).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/nodes/$id/agreements/$agrId result size: ${list.size}")
-          val agreements = list.map(e => e.agId -> e.toNodeAgreement).toMap
-          val code = if (agreements.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val agreements: Map[String, NodeAgreement] = list.map(e => e.agId -> e.toNodeAgreement).toMap
+          val code: StatusCode with Serializable = if (agreements.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetNodeAgreementsResponse(agreements, 0))
         })
       }) // end of complete
@@ -1952,14 +1953,14 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/agreement")
   def nodePutAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & put & entity(as[PutNodeAgreementRequest])) { (orgid, id, agrId, reqBody) =>
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(NodeAgreementsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
             logger.debug("PUT /orgs/"+orgid+"/nodes/"+id+"/agreements/"+agrId+" num owned: "+xs)
-            val numOwned = xs
-            val maxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
+            val numOwned: Int = xs
+            val maxAgreements: Int = ExchConfig.getInt("api.limits.maxAgreements")
             if (maxAgreements == 0 || numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
               reqBody.toNodeAgreementRow(compositeId, agrId).upsert.asTry
             }
@@ -1978,14 +1979,14 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastHeartbeat result: " + v)
-              val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
+              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
               nodeChange.insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(n) =>
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/agreements/" + agrId + " updated in changes table: " + n)
               try {
-                val numUpdated = n.toString.toInt // i think n is an AnyRef so we have to do this to get it to an int
+                val numUpdated: Int = n.toString.toInt // i think n is an AnyRef so we have to do this to get it to an int
                 if (numUpdated > 0) {
                   (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.added.or.updated")))
                 } else {
@@ -2020,7 +2021,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/agreement")
   def nodeDeleteAgreementsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements") & delete) { (orgid, id) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
         // remove does *not* throw an exception if the key does not exist
@@ -2029,7 +2030,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               // Add the resource to the resourcechanges table
               logger.debug("DELETE /nodes/" + id + "/agreements result: " + v)
-              val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               nodeChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.node.agreements.found", compositeId))).asTry
@@ -2070,7 +2071,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/agreement")
   def nodeDeleteAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & delete) { (orgid, id, agrId) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
         db.run(NodeAgreementsTQ.getAgreement(compositeId,agrId).delete.asTry.flatMap({
@@ -2078,7 +2079,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /nodes/" + id + "/agreements/" + agrId + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
               nodeChange.insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.agreement.not.found", agrId, compositeId))).asTry
@@ -2164,23 +2165,23 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/message")
   def nodePostMsgRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs") & post & entity(as[PostNodesMsgsRequest])) { (orgid, id, reqBody) =>
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.SEND_MSG_TO_NODE) { ident =>
       complete({
-        val agbotId = ident.creds.id      //someday: handle the case where the acls allow users to send msgs
+        val agbotId: String = ident.creds.id      //someday: handle the case where the acls allow users to send msgs
         var msgNum = ""
         // Remove msgs whose TTL is past, then check the mailbox is not full, then get the agbot publicKey, then write the nodemsgs row, all in the same db.run thread
         db.run(NodeMsgsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
           logger.debug("POST /orgs/"+orgid+"/nodes/"+id+"/msgs mailbox size: "+xs)
-          val mailboxSize = xs
-          val maxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
+          val mailboxSize: Int = xs
+          val maxMessagesInMailbox: Int = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
           if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) AgbotsTQ.getPublicKey(agbotId).result.asTry
           else DBIO.failed(new DBProcessingError(HttpCode.BAD_GW, ApiRespType.BAD_GW, ExchMsg.translate("node.mailbox.full", compositeId, maxMessagesInMailbox) )).asTry
         }).flatMap({
           case Success(v) =>
             logger.debug("POST /orgs/" + orgid + "/nodes/" + id + "/msgs agbot publickey result: " + v)
             if (v.nonEmpty) { // it seems this returns success even when the agbot is not found
-              val agbotPubKey = v.head
+              val agbotPubKey: String = v.head
               if (agbotPubKey != "") NodeMsgRow(0, compositeId, agbotId, agbotPubKey, reqBody.message, ApiTime.nowUTC, ApiTime.futureUTC(reqBody.ttl)).insert.asTry
               else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, ExchMsg.translate("message.sender.public.key.not.in.exchange"))).asTry
             }
@@ -2191,7 +2192,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/msgs write row result: " + v)
             msgNum = v.toString
-            val nodeChange = ResourceChangeRow(0L, orgid, id, "node", "false", "nodemsgs", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
+            val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodemsgs", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
             nodeChange.insert.asTry
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
@@ -2226,16 +2227,16 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/message")
   def nodeGetMsgsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs") & get) { (orgid, id) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
         // Remove msgs whose TTL is past, and then get the msgs for this node
         db.run(NodeMsgsTQ.getMsgs(compositeId).result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs result size: "+list.size)
           //logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs result: "+list.toString)
-          val listSorted = list.sortWith(_.msgId < _.msgId)
-          val msgs = listSorted.map(_.toNodeMsg).toList
-          val code = if (msgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val listSorted: Seq[NodeMsgRow] = list.sortWith(_.msgId < _.msgId)
+          val msgs: List[NodeMsg] = listSorted.map(_.toNodeMsg).toList
+          val code: StatusCode with Serializable = if (msgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetNodeMsgsResponse(msgs, 0))
         })
       }) // end of complete
@@ -2272,21 +2273,21 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
              summary = "Returns A specific message that has been sent to this node.")
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/message")
   def nodeGetMsgRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs" / Segment) & get) {
-    (orgid, id, msgid) ⇒
-      val compositeId = OrgAndId(orgid,id).toString
+    (orgid, id, msgid) =>
+      val compositeId: String = OrgAndId(orgid, id).toString
       
       exchAuth(TNode(compositeId),Access.READ) {
-        _ ⇒
+        _ =>
           complete({
             db.run(
               NodeMsgsTQ.getMsg(nodeId = compositeId,
                                 msgId = msgid.toInt)
                         .result
                         .map(
-                          result ⇒
+                          result =>
                             GetNodeMsgsResponse(lastIndex = 0,
                                                 messages = result.map(
-                                                             message ⇒
+                                                             message =>
                                                                NodeMsg(agbotId = message.agbotId,
                                                                        agbotPubKey = message.agbotPubKey,
                                                                        message = message.message,
@@ -2296,12 +2297,12 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                         .asTry
               )
               .map({
-              case Success(message) ⇒
+              case Success(message) =>
                 if(message.messages.nonEmpty)
                   (HttpCode.OK, message)
                 else
                   (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
-              case Failure(t) ⇒
+              case Failure(t) =>
                 (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
             })
           }) // end of complete
@@ -2323,11 +2324,11 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/message")
   def nodeDeleteMsgRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs" / Segment) & delete) { (orgid, id, msgIdStr) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
         try {
-          val msgId =  msgIdStr.toInt   // this can throw an exception, that's why this whole section is in a try/catch
+          val msgId: Int = msgIdStr.toInt   // this can throw an exception, that's why this whole section is in a try/catch
           db.run(NodeMsgsTQ.getMsg(compositeId,msgId).delete.asTry).map({
             case Success(v) =>
               logger.debug("DELETE /nodes/" + id + "/msgs/" + msgId + " updated in changes table: " + v)
@@ -2495,7 +2496,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(description = "not found", responseCode = "404")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodesGetDetails: Route =
-    (path("orgs" / Segment / "node-details") & get & parameter(('arch.?, 'id.?, 'name.?, 'type.?, 'owner.?))) {
+    (path("orgs" / Segment / "node-details") & get & parameter((Symbol("arch").?, Symbol("id").?, Symbol("name").?, Symbol("type").?, Symbol("owner").?))) {
       (orgid: String, arch: Option[String], id: Option[String], name: Option[String], nodeType: Option[String], owner: Option[String]) =>
         exchAuth(TNode(OrgAndId(orgid,"#").toString), Access.READ) {
           ident =>
@@ -2512,27 +2513,28 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                 
                 val getNodes =
                   for {
-                    nodes ← NodesTQ.rows
-                                   .filterOpt(arch)((node, arch) ⇒ node.arch like arch)
-                                   .filterOpt(id)((node, id) ⇒ node.id like id)
-                                   .filterOpt(name)((node, name) ⇒ node.name like name)
+                    nodes <- NodesTQ.rows
+                                   .filterOpt(arch)((node, arch) => node.arch like arch)
+                                   .filterOpt(id)((node, id) => node.id like id)
+                                   .filterOpt(name)((node, name) => node.name like name)
                                    .filterOpt(nodeType)(
-                                     (node, nodeType) ⇒ {
-                                       (node.nodeType === nodeType.toLowerCase ||
-                                        node.nodeType === nodeType.toLowerCase.replace("device", ""))}) // "" === ""
+                                     (node, nodeType) => {
+                                       node.nodeType === nodeType.toLowerCase ||
+                                        node.nodeType === nodeType.toLowerCase.replace("device", "")
+                                     }) // "" === ""
                                    .filter(_.orgid === orgid)
-                                   .filterOpt(ownerFilter)((node, ownerFilter) ⇒ node.owner like ownerFilter)
-                                   .joinLeft(NodeErrorTQ.rows.filterOpt(id)((nodeErrors, id) ⇒ nodeErrors.nodeId like id))
+                                   .filterOpt(ownerFilter)((node, ownerFilter) => node.owner like ownerFilter)
+                                   .joinLeft(NodeErrorTQ.rows.filterOpt(id)((nodeErrors, id) => nodeErrors.nodeId like id))
                                      .on(_.id === _.nodeId)
-                                   .joinLeft(NodePolicyTQ.rows.filterOpt(id)((nodePolicy, id) ⇒ nodePolicy.nodeId like id))
+                                   .joinLeft(NodePolicyTQ.rows.filterOpt(id)((nodePolicy, id) => nodePolicy.nodeId like id))
                                      .on(_._1.id === _.nodeId)
-                                   .joinLeft(NodeStatusTQ.rows.filterOpt(id)((nodeStatuses, id) ⇒ nodeStatuses.nodeId like id))
+                                   .joinLeft(NodeStatusTQ.rows.filterOpt(id)((nodeStatuses, id) => nodeStatuses.nodeId like id))
                                      .on(_._1._1.id === _.nodeId) // node.id === nodeStatus.nodeid
                                    .sortBy(_._1._1._1.id.asc)     // node.id ASC
                                    // (((Nodes, Node Errors), Node Policy), Node Statuses)
                                    // Flatten the tupled structure, lexically sort columns.
                                    .map(
-                                     node ⇒
+                                     node =>
                                        (node._1._1._1.arch,
                                          node._1._1._1.id,
                                          node._1._1._1.heartbeatIntervals,
@@ -2559,9 +2561,9 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                    .result
                                    // Complete type conversion to something more usable.
                                    .map(
-                                     results ⇒
+                                     results =>
                                        results.map(
-                                         node ⇒
+                                         node =>
                                            NodeDetails(arch =
                                              if(node._1.isEmpty)
                                                None
@@ -2677,12 +2679,12 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                   } yield(nodes)
                 
                 db.run(getNodes.asTry).map({
-                  case Success(nodes) ⇒
+                  case Success(nodes) =>
                     if(nodes.nonEmpty)
                       (HttpCode.OK, nodes)
                     else
                       (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
-                  case Failure(t) ⇒
+                  case Failure(t) =>
                     (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
                 })
               }) // end of complete

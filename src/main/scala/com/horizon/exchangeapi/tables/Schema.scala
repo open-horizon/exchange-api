@@ -2,8 +2,10 @@ package com.horizon.exchangeapi.tables
 
 import com.horizon.exchangeapi.ApiTime
 import slick.jdbc.PostgresProfile.api._
+
 import scala.collection.mutable.ListBuffer
 import akka.event.LoggingAdapter
+import slick.jdbc
 
 
 /** Stores the current DB schema version, and includes methods to upgrade to the latest schema. */
@@ -30,7 +32,7 @@ class SchemaTable(tag: Tag) extends Table[SchemaRow](tag, "schema") {
   def description = column[String]("description")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (id, schemaversion, description, lastUpdated) <> (SchemaRow.tupled, SchemaRow.unapply)
+  def * = (id, schemaversion, description, lastUpdated).<>(SchemaRow.tupled, SchemaRow.unapply)
 }
 
 // Instance to access the schemas table
@@ -53,13 +55,10 @@ object SchemaTQ {
           sqlu"alter table nodeagreements add column agrsvcpattern character varying not null default ''",
           sqlu"alter table nodeagreements add column agrsvcurl character varying not null default ''"
         )
-      case 8 => val actions = ListBuffer[DBIO[_]]()        // v1.48.0
-        actions += sqlu"alter table agbotagreements add column serviceOrgid character varying not null default ''"
-        actions += sqlu"alter table agbotagreements add column servicePattern character varying not null default ''"
-        actions += sqlu"alter table agbotagreements add column serviceUrl character varying not null default ''"
-        actions += sqlu"alter table nodestatus add column services character varying not null default ''"
+      case 8 => val actions: List[DBIO[_]] = // v1.48.0
+        List(sqlu"alter table agbotagreements add column serviceOrgid character varying not null default ''", sqlu"alter table agbotagreements add column servicePattern character varying not null default ''", sqlu"alter table agbotagreements add column serviceUrl character varying not null default ''", sqlu"alter table nodestatus add column services character varying not null default ''")
         // If in this current level of code we started upgrading from 2 or less, that means we created the services table with the correct schema, so no need to modify it
-        if (fromSchemaVersion >= 3) actions += sqlu"alter table services rename column pkg to imagestore"
+        if (fromSchemaVersion >= 3) actions ++ List(sqlu"alter table services rename column pkg to imagestore")
         DBIO.seq(actions: _*)      // convert the list of actions to a DBIO seq
       case 9 => DBIO.seq(ServiceDockAuthsTQ.rows.schema.create)   // v1.52.0
       case 10 => DBIO.seq(   // v1.56.0
@@ -165,7 +164,7 @@ object SchemaTQ {
       case 36 => DBIO.seq(   // v2.35.0
         sqlu"alter table nodes alter column lastheartbeat drop not null"
       )
-      case 37 ⇒ DBIO.seq(SearchOffsetPolicyTQ.offsets.schema.create)
+      case 37 => DBIO.seq(SearchOffsetPolicyTQ.offsets.schema.create)
       case 38 => DBIO.seq(   // v2.42.0
         sqlu"alter table users add column hubadmin boolean default false",
         sqlu"alter table orgs add column limits character varying not null default ''"
@@ -182,7 +181,7 @@ object SchemaTQ {
   val latestSchemaDescription = "dropping orgid foreign key in resource changes table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
-  def isLatestSchemaVersion(fromSchemaVersion: Int) = fromSchemaVersion >= latestSchemaVersion
+  def isLatestSchemaVersion(fromSchemaVersion: Int): Boolean = fromSchemaVersion >= latestSchemaVersion
 
   val rows = TableQuery[SchemaTable]
 
@@ -196,14 +195,13 @@ object SchemaTQ {
       logger.debug("Already at latest DB schema version - nothing to do")
       return DBIO.seq()
     }
-    val actions = ListBuffer[DBIO[_]]()
+    val actions: ListBuffer[jdbc.PostgresProfile.api.DBIO[_]] = ListBuffer[DBIO[_]]()
     for (i <- (fromSchemaVersion+1) to latestSchemaVersion) {
       logger.debug("Adding DB schema upgrade actions to get from schema version "+(i-1)+" to "+i)
       //actions += upgradeSchemaVector(i)
       actions += getUpgradeSchemaStep(fromSchemaVersion, i)
-    }
-    actions += getSetVersionAction    // record that we are at the latest schema version now
-    return DBIO.seq(actions: _*)      // convert the list of actions to a DBIO seq
+    } += getSetVersionAction // record that we are at the latest schema version now
+    DBIO.seq(actions.toList: _*)      // convert the list of actions to a DBIO seq
   }
 
   def getSetVersionAction: DBIO[_] = SchemaRow(0, latestSchemaVersion, latestSchemaDescription, ApiTime.nowUTC).upsert
@@ -224,6 +222,6 @@ final case class FooRow(bar: String, description: String)
 class FooTable(tag: Tag) extends Table[FooRow](tag, "foo") {
   def bar = column[String]("bar", O.PrimaryKey)
   def description = column[String]("description")
-  def * = (bar, description) <> (FooRow.tupled, FooRow.unapply)
+  def * = (bar, description).<>(FooRow.tupled, FooRow.unapply)
 }
 object FooTQ { val rows = TableQuery[FooTable] }

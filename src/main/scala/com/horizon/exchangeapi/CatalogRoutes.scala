@@ -136,7 +136,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def catalogGetServicesRoute: Route = (path("catalog" / "services") & get & parameter(('orgtype.?))) { (orgType) =>
+  def catalogGetServicesRoute: Route = (path("catalog" / "services") & get & parameter((Symbol("orgtype").?))) { (orgType) =>
     exchAuth(TService(OrgAndId("*","*").toString),Access.READ_ALL_SERVICES) { _ =>
         complete({
           val svcQuery = for {
@@ -145,8 +145,8 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
 
           db.run(svcQuery.result).map({ list =>
             logger.debug("GET /catalog/services result size: "+list.size)
-            val services = list.map(a => a.service -> a.toService).toMap
-            val code = if (services.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            val services: Map[String, Service] = list.map(a => a.service -> a.toService).toMap
+            val code: StatusCode with Serializable = if (services.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
             (code, GetServicesResponse(services, 0))
           })
         }) // end of complete
@@ -237,7 +237,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def catalogGetPatternsRoute: Route = (path("catalog" / "patterns") & get & parameter(('orgtype.?))) { (orgType) =>
+  def catalogGetPatternsRoute: Route = (path("catalog" / "patterns") & get & parameter((Symbol("orgtype").?))) { (orgType) =>
     exchAuth(TPattern(OrgAndId("*","*").toString),Access.READ_ALL_PATTERNS) { _ =>
       complete({
         val svcQuery = for {
@@ -246,8 +246,8 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
 
         db.run(svcQuery.result).map({ list =>
           logger.debug("GET /catalog/patterns result size: "+list.size)
-          val patterns = list.map(a => a.pattern -> a.toPattern).toMap
-          val code = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val patterns: Map[String, Pattern] = list.map(a => a.pattern -> a.toPattern).toMap
+          val code: StatusCode with Serializable = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetPatternsResponse(patterns, 0))
         })
       }) // end of complete
@@ -363,7 +363,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def catalogGetServicesAll: Route = (path("catalog" / Segment / "services") & get & parameter(('owner.?, 'public.?, 'url.?, 'version.?, 'arch.?, 'nodetype.?, 'requiredurl.?))) { (orgid, owner, public, url, version, arch, nodetype, requiredurl) =>
+  def catalogGetServicesAll: Route = (path("catalog" / Segment / "services") & get & parameter((Symbol("owner").?, Symbol("public").?, Symbol("url").?, Symbol("version").?, Symbol("arch").?, Symbol("nodetype").?, Symbol("requiredurl").?))) { (orgid, owner, public, url, version, arch, nodetype, requiredurl) =>
     exchAuth(TService(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validateWithMsg(GetServicesUtils.getServicesProblem(public, version, nodetype)) {
         complete({
@@ -379,7 +379,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
           // We are cheating a little on this one because the whole requiredServices structure is serialized into a json string when put in the db, so it has a string value like
           // [{"url":"mydomain.com.rtlsdr","version":"1.0.0","arch":"amd64"}]. But we can still match on the url.
           requiredurl.foreach(requrl => {
-            val requrl2 = "%\"url\":\"" + requrl + "\"%"
+            val requrl2: String = "%\"url\":\"" + requrl + "\"%"
             q = q.filter(_.requiredServices like requrl2)
           })
 
@@ -390,14 +390,14 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
           var allServices : Map[String, Service] = null
           db.run(q.result.flatMap({ list =>
             logger.debug("GET /catalog/"+orgid+"/services org result size: "+list.size)
-            val services = list.filter(e => ident.getOrg == e.orgid || e.public || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.service -> e.toService).toMap
+            val services: Map[String, Service] = list.filter(e => ident.getOrg == e.orgid || e.public || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.service -> e.toService).toMap
             allServices = services
             svcQuery.result
           })).map({ list =>
             logger.debug("GET /catalog/"+orgid+"/services IBM result size: "+list.size)
-            val services = list.map(a => a.service -> a.toService).toMap
+            val services: Map[String, Service] = list.map(a => a.service -> a.toService).toMap
             allServices = allServices ++ services
-            val code = if (allServices.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            val code: StatusCode with Serializable = if (allServices.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
             (code, GetServicesResponse(allServices, 0))
           })
         }) // end of complete
@@ -492,7 +492,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def catalogGetPatternsAll: Route = (path("catalog" / Segment / "patterns") & get & parameter(('idfilter.?, 'owner.?, 'public.?, 'label.?, 'description.?))) { (orgid, idfilter, owner, public, label, description) =>
+  def catalogGetPatternsAll: Route = (path("catalog" / Segment / "patterns") & get & parameter((Symbol("idfilter").?, Symbol("owner").?, Symbol("public").?, Symbol("label").?, Symbol("description").?))) { (orgid, idfilter, owner, public, label, description) =>
     exchAuth(TPattern(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
         complete({
@@ -513,14 +513,14 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
           var allPatterns : Map[String, Pattern] = null
           db.run(q.result.flatMap({ list =>
             logger.debug("GET /catalog/"+orgid+"/patterns org result size: "+list.size)
-            val patterns = list.filter(e => ident.getOrg == e.orgid || e.public || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.pattern -> e.toPattern).toMap
+            val patterns: Map[String, Pattern] = list.filter(e => ident.getOrg == e.orgid || e.public || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.pattern -> e.toPattern).toMap
             allPatterns = patterns
             svcQuery.result
           })).map({ list =>
             logger.debug("GET /orgs/"+orgid+"/patterns IBM result size: "+list.size)
-            val patterns = list.map(a => a.pattern -> a.toPattern).toMap
+            val patterns: Map[String, Pattern] = list.map(a => a.pattern -> a.toPattern).toMap
             allPatterns = allPatterns ++ patterns
-            val code = if (allPatterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            val code: StatusCode with Serializable = if (allPatterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
             (code, GetPatternsResponse(allPatterns, 0))
           })
         }) // end of complete

@@ -6,9 +6,13 @@
 
 package com.horizon.exchangeapi
 
+import java.sql.Timestamp
+import java.util.Optional
+
 import akka.Done
 import akka.actor.{Actor, ActorSystem, Cancellable, CoordinatedShutdown, Props}
 import akka.event.{Logging, LoggingAdapter}
+import akka.http.javadsl.model
 
 import scala.util.matching.Regex
 import akka.http.scaladsl.server.RouteResult.Rejected
@@ -27,7 +31,7 @@ import com.horizon.exchangeapi.tables.{AgbotMsgsTQ, NodeMsgsTQ, ResourceChangesT
 import org.json4s._
 import slick.jdbc.TransactionIsolation.Serializable
 
-import scala.io.Source
+import scala.io.{BufferedSource, Source}
 import scala.concurrent.duration._
 
 // Global vals and methods
@@ -40,8 +44,8 @@ object ExchangeApi {
   var defaultLogger: LoggingAdapter = _
 
   // Returns the exchange's version. Loading version.txt only once and then storing the value
-  val versionSource = Source.fromResource("version.txt")      // returns BufferedSource
-  val versionText : String = versionSource.getLines.next()
+  val versionSource: BufferedSource = Source.fromResource("version.txt")      // returns BufferedSource
+  val versionText : String = versionSource.getLines().next()
   versionSource.close()
   def adminVersion(): String = versionText
 }
@@ -66,7 +70,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   //implicit val apiRespJsonFormat = jsonFormat2(ApiResponse)
 
   // Using jackson json (un)marshalling instead of sprayjson: https://github.com/hseeberger/akka-http-json
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
 
   // Set up ActorSystem and other dependencies here
   println(s"Running with java arguments: ${ApiUtils.getJvmArgs}")
@@ -89,16 +93,16 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       case e: java.util.concurrent.RejectedExecutionException => // this is the exception if any of the routes have trouble reaching the db during a db.run()
         //extractUri { uri =>   // in case we need the url for some reason
         //}
-        val msg = if (e.getMessage != null) e.getMessage else e.toString
+        val msg: String = if (e.getMessage != null) e.getMessage else e.toString
         complete((StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, msg)))
       case e: Exception =>
-        val msg = if (e.getMessage != null) e.getMessage else e.toString
+        val msg: String = if (e.getMessage != null) e.getMessage else e.toString
         // for now we return bad gw for any unknown exception, since that is what most of them have been
         complete((StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, msg)))
     }
 
   // Set a custom rejection handler. See https://doc.akka.io/docs/akka-http/current/routing-dsl/rejections.html#customizing-rejection-handling
-  implicit def myRejectionHandler =
+  implicit def myRejectionHandler: RejectionHandler =
     RejectionHandler.newBuilder()
       // this handles all of our rejections
       .handle {
@@ -121,7 +125,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       }
       // do not know when this is run
       .handleAll[MethodRejection] { methodRejections =>
-        val names = methodRejections.map(_.supported.name)
+        val names: Seq[String] = methodRejections.map(_.supported.name)
         complete((StatusCodes.MethodNotAllowed, s"method not supported: ${names mkString " or "}"))
       }
       // this seems to be called when the route requested does not exist
@@ -133,9 +137,9 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   def requestResponseLogging(req: HttpRequest): RouteResult => Option[LogEntry] = {
     case RouteResult.Complete(res) =>
       // First decode the auth and get the org/id
-      val optionalEncodedAuth = req.getHeader("Authorization") // this is type: com.typesafe.config.Optional[akka.http.scaladsl.model.HttpHeader]
-      val encodedAuth = if (optionalEncodedAuth.isPresent) optionalEncodedAuth.get().value() else ""
-      val authId = encodedAuth match {
+      val optionalEncodedAuth: Optional[model.HttpHeader] = req.getHeader("Authorization") // this is type: com.typesafe.config.Optional[akka.http.scaladsl.model.HttpHeader]
+      val encodedAuth: String = if (optionalEncodedAuth.isPresent) optionalEncodedAuth.get().value() else ""
+      val authId: String = encodedAuth match {
         case "" => "<no-auth>"
         case basicAuthRegex(basicAuthEncoded) =>
           AuthenticationSupport.parseCreds(basicAuthEncoded).map(_.id).getOrElse("<invalid-auth-format>")
@@ -147,7 +151,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
     case Rejected(rejections) =>
       // Sometimes akka produces a bunch of MethodRejection objects (for http methods in the routes that didn't match) and then
       // TransformationRejection objects to cancel out those rejections. Filter all of these out.
-      var interestingRejections = rejections.filter({
+      var interestingRejections: Seq[Rejection] = rejections.filter({
         case _: TransformationRejection => false
         case _: MethodRejection => false
         case _ => true
@@ -237,7 +241,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   /** Task for trimming `resourcechanges` table */
   def trimResourceChanges(): Unit ={
     // Get the time for trimming rows from the table
-    val timeExpires = ApiTime.pastUTCTimestamp(ExchConfig.getInt("api.resourceChanges.ttl"))
+    val timeExpires: Timestamp = ApiTime.pastUTCTimestamp(ExchConfig.getInt("api.resourceChanges.ttl"))
     db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.asTry).map({
       case Success(v) =>
         if (v <= 0) logger.debug("nothing to delete")
@@ -249,7 +253,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   /** Variables and Akka Actor for trimming `resourcechanges` table */
   val Cleanup = "cleanup"
   class ChangesCleanupActor extends Actor {
-    def receive = {
+    def receive: Receive = {
       case Cleanup => trimResourceChanges()
       case _ => logger.debug("invalid case sent to ChangesCleanupActor")
     }
@@ -273,7 +277,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   /** Variables and Akka Actor for removing expired nodemsgs and agbotmsgs */
   val CleanupExpiredMessages = "cleanupExpiredMessages"
   class MsgsCleanupActor extends Actor {
-    def receive = {
+    def receive: Receive = {
       case CleanupExpiredMessages => removeExpiredMsgs()
       case _ => logger.debug("invalid case sent to MsgsCleanupActor")
     }

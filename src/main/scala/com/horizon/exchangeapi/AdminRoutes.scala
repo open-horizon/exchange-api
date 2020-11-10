@@ -49,14 +49,14 @@ class AdminStatus() {
   var numberOfAgbotAgreements: Int = 0
   var numberOfAgbotMsgs: Int = 0
   var dbSchemaVersion: Int = 0
-  def toGetAdminStatusResponse = GetAdminStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements, numberOfNodeMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs, dbSchemaVersion)
+  def toGetAdminStatusResponse: GetAdminStatusResponse = GetAdminStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements, numberOfNodeMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs, dbSchemaVersion)
 }
 
 final case class GetAdminOrgStatusResponse(msg: String, nodes: Map[String, Int])
 class AdminOrgStatus(){
   var msg: String = ""
   var nodesByOrg : Map[String, Int] = null
-  def toGetAdminOrgStatusResponse = GetAdminOrgStatusResponse(msg, nodesByOrg)
+  def toGetAdminOrgStatusResponse: GetAdminOrgStatusResponse = GetAdminOrgStatusResponse(msg, nodesByOrg)
 }
 
 /** Case class for request body for deleting some of the IBM changes route */
@@ -262,7 +262,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
         content = Array(new Content(schema = new Schema(implementation = classOf[String]))))))
   def adminGetVersionRoute: Route = (path("admin" / "version") & get) {
     logger.debug("Doing POST /admin/version")
-    val version = ExchangeApi.adminVersion() + "\n"
+    val version: String = ExchangeApi.adminVersion() + "\n"
     //complete({ (HttpCode.POST_OK, version) }) // <- this sends it as json, so with double quotes around it and \n explicitly in the string
     complete(HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, version)))
   }
@@ -393,7 +393,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TAction(), Access.ADMIN) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          val resourcesSet = reqBody.resources.toSet
+          val resourcesSet: Set[String] = reqBody.resources.toSet
           var action = ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.id inSet resourcesSet).delete
           if (reqBody.resources.isEmpty) action = ResourceChangesTQ.rows.filter(_.orgId === orgId).delete
           db.run(action.transactionally.asTry).map({

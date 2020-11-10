@@ -1,9 +1,11 @@
 package com.horizon.exchangeapi.tables
 
-import com.horizon.exchangeapi.VersionRange
+import com.horizon.exchangeapi.{Version, VersionRange}
 import org.json4s._
 import org.json4s.jackson.Serialization.read
+import slick.dbio.Effect
 import slick.jdbc.PostgresProfile.api._
+import slick.sql.FixedSqlAction
 
 import scala.collection.mutable.ListBuffer
 
@@ -23,9 +25,9 @@ final case class BusinessPolicyRow(businessPolicy: String, orgid: String, owner:
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toBusinessPolicy: BusinessPolicy = {
-    val input = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
-    val prop = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
-    val con = if (constraints != "") read[List[String]](constraints) else List[String]()
+    val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
+    val prop: List[OneProperty] = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
+    val con: List[String] = if (constraints != "") read[List[String]](constraints) else List[String]()
     new BusinessPolicy(owner, label, description, read[BService](service), input, prop, con, lastUpdated, created)
   }
 
@@ -51,7 +53,7 @@ class BusinessPolicies(tag: Tag) extends Table[BusinessPolicyRow](tag, "business
   def lastUpdated = column[String]("lastupdated")
   def created = column[String]("created")
   // this describes what you get back when you return rows from a query
-  def * = (businessPolicy, orgid, owner, label, description, service, userInput, properties, constraints, lastUpdated, created) <> (BusinessPolicyRow.tupled, BusinessPolicyRow.unapply)
+  def * = (businessPolicy, orgid, owner, label, description, service, userInput, properties, constraints, lastUpdated, created).<>(BusinessPolicyRow.tupled, BusinessPolicyRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -63,48 +65,48 @@ object BusinessPoliciesTQ {
 
   // Build a list of db actions to verify that the referenced services exist
   def validateServiceIds(service: BService, userInput: List[OneUserInputService]): (DBIO[Vector[Int]], Vector[ServiceRef2]) = {
-    val actions = ListBuffer[DBIO[Int]]()
-    val svcRefs = ListBuffer[ServiceRef2]()
+    val actions: ListBuffer[DBIO[Int]] = ListBuffer[DBIO[Int]]()
+    val svcRefs: ListBuffer[ServiceRef2] = ListBuffer[ServiceRef2]()
     // First go thru the services the business policy refers to. We only support the case in which the service isn't specified for patch
     for (sv <- service.serviceVersions) {
       svcRefs += ServiceRef2(service.name, service.org, sv.version, service.arch)
-      val arch = if (service.arch == "*" || service.arch == "") "%" else service.arch   // handle arch=* so we can do a like on the resulting svcId
-      val svcId = ServicesTQ.formId(service.org, service.name, sv.version, arch)
+      val arch: String = if (service.arch == "*" || service.arch == "") "%" else service.arch   // handle arch=* so we can do a like on the resulting svcId
+      val svcId: String = ServicesTQ.formId(service.org, service.name, sv.version, arch)
       actions += ServicesTQ.getService(svcId).length.result
     }
     // Now go thru the services referenced in the userInput section
     for (s <- userInput) {
       svcRefs += ServiceRef2(s.serviceUrl, s.serviceOrgid, s.serviceVersionRange.getOrElse("[0.0.0,INFINITY)"), s.serviceArch.getOrElse(""))  // the service ref is just for reporting bad input errors
-      val arch = if (s.serviceArch.isEmpty || s.serviceArch.get == "") "%" else s.serviceArch.get
+      val arch: String = if (s.serviceArch.isEmpty || s.serviceArch.get == "") "%" else s.serviceArch.get
       //someday: the best we can do is use the version if the range is a single version, otherwise use %
-      val svc = if (s.serviceVersionRange.getOrElse("") == "") "%"
+      val svc: String = if (s.serviceVersionRange.getOrElse("") == "") "%"
       else {
-        val singleVer = VersionRange(s.serviceVersionRange.get).singleVersion
+        val singleVer: Option[Version] = VersionRange(s.serviceVersionRange.get).singleVersion
         if (singleVer.isDefined) singleVer.toString
         else "%"
       }
-      val svcId = ServicesTQ.formId(s.serviceOrgid, s.serviceUrl, svc, arch)
+      val svcId: String = ServicesTQ.formId(s.serviceOrgid, s.serviceUrl, svc, arch)
       actions += ServicesTQ.getService(svcId).length.result
     }
-    return (DBIO.sequence(actions.toVector), svcRefs.toVector)      // convert the list of actions to a DBIO sequence
+    (DBIO.sequence(actions.toVector), svcRefs.toVector)      // convert the list of actions to a DBIO sequence
   }
 
-  def getAllBusinessPolicies(orgid: String) = rows.filter(_.orgid === orgid)
-  def getBusinessPolicy(businessPolicy: String) = if (businessPolicy.contains("%")) rows.filter(_.businessPolicy like businessPolicy) else rows.filter(_.businessPolicy === businessPolicy)
-  def getOwner(businessPolicy: String) = rows.filter(_.businessPolicy === businessPolicy).map(_.owner)
-  def getNumOwned(owner: String) = rows.filter(_.owner === owner).length
-  def getLabel(businessPolicy: String) = rows.filter(_.businessPolicy === businessPolicy).map(_.label)
-  def getDescription(businessPolicy: String) = rows.filter(_.businessPolicy === businessPolicy).map(_.description)
-  def getService(businessPolicy: String) = rows.filter(_.businessPolicy === businessPolicy).map(_.service)
-  def getServiceFromString(service: String) = read[BService](service)
-  def getUserInput(businessPolicy: String) = rows.filter(_.businessPolicy === businessPolicy).map(_.userInput)
-  def getLastUpdated(businessPolicy: String) = rows.filter(_.businessPolicy === businessPolicy).map(_.lastUpdated)
+  def getAllBusinessPolicies(orgid: String): Query[BusinessPolicies, BusinessPolicyRow, Seq] = rows.filter(_.orgid === orgid)
+  def getBusinessPolicy(businessPolicy: String): Query[BusinessPolicies, BusinessPolicyRow, Seq] = if (businessPolicy.contains("%")) rows.filter(_.businessPolicy like businessPolicy) else rows.filter(_.businessPolicy === businessPolicy)
+  def getOwner(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.owner)
+  def getNumOwned(owner: String): Rep[Int] = rows.filter(_.owner === owner).length
+  def getLabel(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.label)
+  def getDescription(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.description)
+  def getService(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.service)
+  def getServiceFromString(service: String): BService = read[BService](service)
+  def getUserInput(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.userInput)
+  def getLastUpdated(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.lastUpdated)
 
   /** Returns a query for the specified businessPolicy attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(businessPolicy: String, attrName: String): Query[_,_,Seq] = {
     val filter = rows.filter(_.businessPolicy === businessPolicy)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
-    return attrName match {
+    attrName match {
       case "owner" => filter.map(_.owner)
       case "label" => filter.map(_.label)
       case "description" => filter.map(_.description)
@@ -143,15 +145,15 @@ class SearchOffsetPolicy(tag: Tag) extends Table[SearchOffsetPolicyAttributes](t
 object SearchOffsetPolicyTQ {
   val offsets = TableQuery[SearchOffsetPolicy]
   
-  def dropAllOffsets() =
+  def dropAllOffsets(): FixedSqlAction[Int, NoStream, Effect.Write] =
     offsets.delete
   
-  def getOffsetSession(agbot: String, policy: String) =
+  def getOffsetSession(agbot: String, policy: String): Query[(Rep[Option[String]], Rep[Option[String]]), (Option[String], Option[String]), Seq] =
     offsets
       .filter(_.agbot === agbot)
       .filter(_.policy === policy)
-      .map(offset ⇒ (offset.offset, offset.session))
+      .map(offset => (offset.offset, offset.session))
       
-  def setOffsetSession(agbot: String, offset: Option[String], policy: String, session: Option[String]) =
+  def setOffsetSession(agbot: String, offset: Option[String], policy: String, session: Option[String]): FixedSqlAction[Int, NoStream, Effect.Write] =
     offsets.insertOrUpdate(SearchOffsetPolicyAttributes(agbot, offset, policy, session))
 }

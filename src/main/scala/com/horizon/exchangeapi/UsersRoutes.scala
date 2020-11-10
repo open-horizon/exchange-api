@@ -38,7 +38,7 @@ final case class PostPutUsersRequest(password: String, admin: Boolean, hubAdmin:
     else if (admin && !identIsAdmin && !identisHubAdmin && !identisSuperUser) Some(ExchMsg.translate("non.admin.user.cannot.make.admin.user")) // ensure that a user can't elevate himself to an admin user
     else if (hubAdmin.isDefined && hubAdmin.get && !identisSuperUser) Some(ExchMsg.translate("only.super.users.make.hub.admins"))
     else if (hubAdmin.isDefined && hubAdmin.get && orgid != "root") Some(ExchMsg.translate("hub.admins.in.root.org"))
-    else if (identisHubAdmin && (!hubAdmin.isDefined || !hubAdmin.get) && !identisSuperUser && !admin) Some(ExchMsg.translate("hub.admins.only.write.admins")) // a hub admin is trying to edit a non-admin, non-hub admin user
+    else if (identisHubAdmin && (hubAdmin.isEmpty || !hubAdmin.get) && !identisSuperUser && !admin) Some(ExchMsg.translate("hub.admins.only.write.admins")) // a hub admin is trying to edit a non-admin, non-hub admin user
     else None // None means no problems with input
   }
 }
@@ -53,7 +53,7 @@ final case class PatchUsersRequest(password: Option[String], admin: Option[Boole
 
   /** Returns a tuple of the db action to update parts of the user, and the attribute name being updated. */
   def getDbUpdate(username: String, orgid: String, updatedBy: String, hashedPw: String): (DBIO[_], String) = {
-    val lastUpdated = ApiTime.nowUTC
+    val lastUpdated: String = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
     password match {
       case Some(_) =>
@@ -63,7 +63,7 @@ final case class PatchUsersRequest(password: Option[String], admin: Option[Boole
     }
     admin match { case Some(admin2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username, u.admin, u.lastUpdated, u.updatedBy)).update((username, admin2, lastUpdated, updatedBy)), "admin"); case _ => ; }
     email match { case Some(email2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username, u.email, u.lastUpdated, u.updatedBy)).update((username, email2, lastUpdated, updatedBy)), "email"); case _ => ; }
-    return (null, null)
+    (null, null)
   }
 }
 
@@ -76,9 +76,9 @@ final case class ChangePwRequest(newPassword: String) {
   }
 
   def getDbUpdate(username: String, orgid: String, hashedPw: String): DBIO[_] = {
-    val lastUpdated = ApiTime.nowUTC
+    val lastUpdated: String = ApiTime.nowUTC
     //val pw = if (Password.isHashed(newPassword)) newPassword else Password.hash(newPassword)
-    return (for { u <- UsersTQ.rows if u.username === username } yield (u.username, u.password, u.lastUpdated)).update((username, hashedPw, lastUpdated))
+    (for { u <- UsersTQ.rows if u.username === username } yield (u.username, u.password, u.lastUpdated)).update((username, hashedPw, lastUpdated))
   }
 }
 
@@ -145,8 +145,8 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
         if (ident.isHubAdmin && !ident.isSuperUser) query = UsersTQ.getAllAdmins(orgid)
         db.run(query.result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/users result size: ${list.size}")
-          val users = list.map(e => e.username -> User(if (ident.isSuperUser || ident.isHubAdmin) e.hashedPw else StrConstants.hiddenPw, e.admin, e.hubAdmin, e.email, e.lastUpdated, e.updatedBy)).toMap
-          val code = if (users.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val users: Map[String, User] = list.map(e => e.username -> User(if (ident.isSuperUser || ident.isHubAdmin) e.hashedPw else StrConstants.hiddenPw, e.admin, e.hubAdmin, e.email, e.lastUpdated, e.updatedBy)).toMap
+          val code: StatusCode with Serializable = if (users.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetUsersResponse(users, 0))
         })
       }) // end of complete
@@ -191,11 +191,11 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def userGetRoute: Route = (path("orgs" / Segment / "users" / Segment) & get) { (orgid, username) =>
     logger.debug(s"Doing GET /orgs/$orgid/users/$username")
-    var compositeId = OrgAndId(orgid, username).toString
+    var compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.READ) { ident =>
       complete({
         logger.debug(s"GET /orgs/$orgid/users/$username identity: $ident")
-        var realUsername = username
+        var realUsername: String = username
         if (username == "iamapikey" || username == "iamtoken") {
           // Need to change the target into the username that the key resolved to
           realUsername = ident.getIdentity
@@ -204,8 +204,8 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
         if (ident.isHubAdmin && !AuthCache.getUserIsAdmin(compositeId).getOrElse(false)) (HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("hub.admins.only.view.admins"))
         db.run(UsersTQ.getUser(compositeId).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/users/$realUsername result size: ${list.size}")
-          val users = list.map(e => e.username -> User(if (ident.isSuperUser || ident.isHubAdmin) e.hashedPw else StrConstants.hiddenPw, e.admin, e.hubAdmin, e.email, e.lastUpdated, e.updatedBy)).toMap
-          val code = if (users.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val users: Map[String, User] = list.map(e => e.username -> User(if (ident.isSuperUser || ident.isHubAdmin) e.hashedPw else StrConstants.hiddenPw, e.admin, e.hubAdmin, e.email, e.lastUpdated, e.updatedBy)).toMap
+          val code: StatusCode with Serializable = if (users.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetUsersResponse(users, 0))
         })
       }) // end of complete
@@ -275,13 +275,13 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
   )
   def userPostRoute: Route = (path("orgs" / Segment / "users" / Segment) & post & entity(as[PostPutUsersRequest])) { (orgid, username, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
-    val compositeId = OrgAndId(orgid, username).toString
+    val compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.CREATE) { ident =>
       logger.debug("isAdmin: " + ident.isAdmin + ", isHubAdmin: " + ident.isHubAdmin + ", isSuperUser: " + ident.isSuperUser)
       validateWithMsg(reqBody.getAnyProblem(ident.isAdmin, ident.isHubAdmin, ident.isSuperUser, orgid)) {
         complete({
-          val updatedBy = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
-          val hashedPw = Password.hash(reqBody.password)
+          val updatedBy: String = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
+          val hashedPw: String = Password.hash(reqBody.password)
           db.run(UserRow(compositeId, orgid, hashedPw, reqBody.admin, reqBody.hubAdmin.getOrElse(false), reqBody.email, ApiTime.nowUTC, updatedBy).insertUser().asTry).map({
             case Success(v) =>
               logger.debug("POST /orgs/" + orgid + "/users/" + username + " result: " + v)
@@ -331,12 +331,12 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def userPutRoute: Route = (path("orgs" / Segment / "users" / Segment) & put & entity(as[PostPutUsersRequest])) { (orgid, username, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgid/users/$username")
-    val compositeId = OrgAndId(orgid, username).toString
+    val compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem(ident.isAdmin, ident.isHubAdmin, ident.isSuperUser, orgid)) {
         complete({
-          val updatedBy = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
-          val hashedPw = Password.hash(reqBody.password)
+          val updatedBy: String = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
+          val hashedPw: String = Password.hash(reqBody.password)
           db.run(UserRow(compositeId, orgid, hashedPw, reqBody.admin, reqBody.hubAdmin.getOrElse(false), reqBody.email, ApiTime.nowUTC, updatedBy).updateUser().asTry).map({
             case Success(n) =>
               logger.debug("PUT /orgs/" + orgid + "/users/" + username + " result: " + n)
@@ -388,12 +388,12 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def userPatchRoute: Route = (path("orgs" / Segment / "users" / Segment) & patch & entity(as[PatchUsersRequest])) { (orgid, username, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
-    val compositeId = OrgAndId(orgid, username).toString
+    val compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem(ident.isAdmin, ident.isHubAdmin, ident.isSuperUser)) {
         complete({
-          val updatedBy = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
-          val hashedPw = if (reqBody.password.isDefined) Password.hash(reqBody.password.get) else "" // hash the pw if that is what is being updated
+          val updatedBy: String = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
+          val hashedPw: String = if (reqBody.password.isDefined) Password.hash(reqBody.password.get) else "" // hash the pw if that is what is being updated
           val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid, updatedBy, hashedPw)
           if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attr.specified")))
           // if the user is not an admin, and the caller is a hubadmin, and we know the caller isn't editing themselves, and they aren't root
@@ -432,7 +432,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def userDeleteRoute: Route = (path("orgs" / Segment / "users" / Segment) & delete) { (orgid, username) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/users/$username")
-    val compositeId = OrgAndId(orgid, username).toString
+    val compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.WRITE) { ident =>
       complete({
         // remove does *not* throw an exception if the key does not exist
@@ -469,7 +469,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def userConfirmRoute: Route = (path("orgs" / Segment / "users" / Segment / "confirm") & post) { (orgid, username) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$username/confirm")
-    val compositeId = OrgAndId(orgid, username).toString
+    val compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.READ) { _ =>
       complete({
         // if we get here, the user/pw has been confirmed
@@ -538,11 +538,11 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
   )
   def userChangePwRoute: Route = (path("orgs" / Segment / "users" / Segment / "changepw") & post & entity(as[ChangePwRequest])) { (orgid, username, reqBody) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
-    val compositeId = OrgAndId(orgid, username).toString
+    val compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          val hashedPw = Password.hash(reqBody.newPassword)
+          val hashedPw: String = Password.hash(reqBody.newPassword)
           val action = reqBody.getDbUpdate(compositeId, orgid, hashedPw)
           db.run(action.transactionally.asTry).map({
             case Success(n) =>

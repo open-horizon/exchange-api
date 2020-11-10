@@ -4,7 +4,7 @@ addSbtPlugin("com.typesafe.sbt"        % "sbt-native-packager"     % "[1.7.4,)")
 addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin"       % "[5.2.4,)")
 
 // Linter
-addSbtPlugin("com.sksamuel.scapegoat" %% "sbt-scapegoat"           % "[1.1.0,)")
+//addSbtPlugin("com.sksamuel.scapegoat" %% "sbt-scapegoat"           % "[1.1.0,)")
 
 // A fast restart of our rest api svr in sbt. Does NOT require use of spray
 addSbtPlugin("io.spray"                % "sbt-revolver"            % "[0.9.1,)")

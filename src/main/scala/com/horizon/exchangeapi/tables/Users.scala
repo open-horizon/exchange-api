@@ -19,7 +19,7 @@ final case class UserRow(username: String, orgid: String, hashedPw: String, admi
 
   def updateUser(): DBIO[_] = {
     //val pw = if (password == "") "" else if (Password.isHashed(password)) password else Password.hash(password)
-    return (for { u <- UsersTQ.rows if u.username === username } yield u).update(UserRow(username, orgid, hashedPw, admin, hubAdmin, email, lastUpdated, updatedBy))
+    (for { u <- UsersTQ.rows if u.username === username } yield u).update(UserRow(username, orgid, hashedPw, admin, hubAdmin, email, lastUpdated, updatedBy))
     /*
     // if password and/or email are blank, it means they should not be updated <- not supporting this anymore
     (pw, email) match {
@@ -43,7 +43,7 @@ class Users(tag: Tag) extends Table[UserRow](tag, "users") {
   // def lastUpdated = column[Timestamp]("lastupdated")    //someday: need this is UTC, not local time zone
   def lastUpdated = column[String]("lastupdated")
   def updatedBy = column[String]("updatedby")
-  def * = (username, orgid, password, admin, hubAdmin, email, lastUpdated, updatedBy) <> (UserRow.tupled, UserRow.unapply)
+  def * = (username, orgid, password, admin, hubAdmin, email, lastUpdated, updatedBy).<>(UserRow.tupled, UserRow.unapply)
   //def primKey = primaryKey("pk_pk", (username, orgid))
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -53,17 +53,17 @@ object UsersTQ {
   val rows = TableQuery[Users]
 
   //def getAllUsers(orgid: String) = rows.filter(_.username like orgid+"/%")
-  def getAllUsers(orgid: String) = rows.filter(_.orgid === orgid)
-  def getAllAdmins(orgid: String) = rows.filter(_.orgid === orgid).filter(_.admin === true)
-  def getUser(username: String) = rows.filter(_.username === username)
-  def getPassword(username: String) = rows.filter(_.username === username).map(_.password)
-  def getAdmin(username: String) = rows.filter(_.username === username).map(_.admin)
-  def getHubAdmin(username: String) = rows.filter(_.username === username).map(_.hubAdmin)
+  def getAllUsers(orgid: String): Query[Users, UserRow, Seq] = rows.filter(_.orgid === orgid)
+  def getAllAdmins(orgid: String): Query[Users, UserRow, Seq] = rows.filter(_.orgid === orgid).filter(_.admin === true)
+  def getUser(username: String): Query[Users, UserRow, Seq] = rows.filter(_.username === username)
+  def getPassword(username: String): Query[Rep[String], String, Seq] = rows.filter(_.username === username).map(_.password)
+  def getAdmin(username: String): Query[Rep[Boolean], Boolean, Seq] = rows.filter(_.username === username).map(_.admin)
+  def getHubAdmin(username: String): Query[Rep[Boolean], Boolean, Seq] = rows.filter(_.username === username).map(_.hubAdmin)
   //def getAdminAsString(username: String) = rows.filter(_.username === username).map(u => if (u.admin === Boolean(true)) "admin" else "")
-  def getEmail(username: String) = rows.filter(_.username === username).map(_.email)
-  def getUpdatedBy(username: String) = rows.filter(_.username === username).map(_.updatedBy)
+  def getEmail(username: String): Query[Rep[String], String, Seq] = rows.filter(_.username === username).map(_.email)
+  def getUpdatedBy(username: String): Query[Rep[String], String, Seq] = rows.filter(_.username === username).map(_.updatedBy)
 }
 
 final case class User(password: String, admin: Boolean, hubAdmin: Boolean, email: String, lastUpdated: String, updatedBy: String) {
-  def hidePassword = User(StrConstants.hiddenPw, admin, hubAdmin, email, lastUpdated, updatedBy)
+  def hidePassword: User = User(StrConstants.hiddenPw, admin, hubAdmin, email, lastUpdated, updatedBy)
 }

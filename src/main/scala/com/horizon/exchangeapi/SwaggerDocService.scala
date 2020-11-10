@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi
 
-import akka.http.scaladsl.server.Directives
+import akka.http.scaladsl.server.{Directives, Route}
 import com.github.swagger.akka.SwaggerHttpService
 import com.github.swagger.akka.model.{Info, License}
 import io.swagger.v3.oas.models.ExternalDocumentation
@@ -29,13 +29,13 @@ object SwaggerDocService extends SwaggerHttpService {
   override def host = s"${ExchangeApi.serviceHost}:${ExchangeApi.servicePort}" //the url of your api, not swagger's json endpoint
   override def apiDocsPath = "api-docs" //where you want the swagger-json endpoint exposed
 
-  override def info = Info(
+  override def info: Info = Info(
     description = "<b>Note:</b> Test the API with curl:<br><br><code>curl -sS -u &lt;org&gt;/iamapikey:&lt;key&gt; https://&lt;host&gt;:&lt;port&gt;/edge-exchange/v1/orgs/... | jq</code></br></br>This API specification is intended to be used by developers",
     version = ExchangeApi.versionText,
     title = "Exchange API",
     license = Some(License("Apache License Version 2.0", "https://www.apache.org/licenses/LICENSE-2.0")))
 
-  override def externalDocs = Some(new ExternalDocumentation().description("Open-horizon ExchangeAPI").url("https://github.com/open-horizon/exchange-api"))
+  override def externalDocs: Option[ExternalDocumentation] = Some(new ExternalDocumentation().description("Open-horizon ExchangeAPI").url("https://github.com/open-horizon/exchange-api"))
   //override val securitySchemeDefinitions = Map("basicAuth" -> new BasicAuthDefinition())
   override def unwantedDefinitions = Seq("Function1", "Function1RequestContextFutureRouteResult")
 }
@@ -47,7 +47,7 @@ object SwaggerDocService extends SwaggerHttpService {
   - Maybe explore using https://github.com/pragmatico/swagger-ui-akka-http to run the swagger ui
  */
 trait SwaggerUiService extends Directives {
-  val swaggerUiRoutes = path("swagger") { getFromResource("swagger/index.html") } ~ getFromResourceDirectory("swagger")
+  val swaggerUiRoutes: Route = path("swagger") {getFromResource("swagger/index.html") } ~ getFromResourceDirectory("swagger")
 }
 
 /* this didn't work because swagger annotations need to be constants

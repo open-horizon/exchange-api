@@ -13,9 +13,9 @@ if [[ -z $EXCHANGE_ROOTPW ]]; then
 fi
 namebase=""
 
-isPublicCloud() {
-	if [[ -n "$EXCHANGE_IAM_ACCOUNT_ID" ]]; then
-		return 0   # means yes it is the ibm public cloud
+isCloud() {
+	if [[ -n "$EXCHANGE_MULT_ACCOUNT_ID" ]]; then
+		return 0   # means yes it is the ibm cloud
 	else
 		return 1
 	fi
@@ -29,9 +29,11 @@ EXCHANGE_EMAIL="${EXCHANGE_EMAIL:-me@email.com}"
 EXCHANGE_NODEAUTH="${EXCHANGE_NODEAUTH:-n1:abc123}"
 EXCHANGE_AGBOTAUTH="${EXCHANGE_AGBOTAUTH:-a1:abcdef}"
 
-: ${EXCHANGE_IAM_ORG:?} : ${EXCHANGE_IAM_KEY:?}
+# For OCP
+: ${EXCHANGE_IAM_ORG:?} ${EXCHANGE_IAM_KEY:?} ${EXCHANGE_MULT_ACCOUNT_ID:?}
 orgidcloud="$EXCHANGE_IAM_ORG"
-orgcloudid="$EXCHANGE_IAM_ACCOUNT_ID"
+# these are also used with org2
+orgcloudid="$EXCHANGE_MULT_ACCOUNT_ID"
 cloudapikey="$EXCHANGE_IAM_KEY"
 
 #export EXCHANGE_CLIENT_CERT=../../../keys/etc/exchangecert.pem
@@ -52,7 +54,7 @@ content="-H Content-Type:$appjson"
 contenttext="-H Content-Type:text/plain"
 
 orgid="IBM"
-orgid2="org2"  # can only use with the public cloud
+orgid2="org2"  # can only use with the cloud
 # now orgidcloud is used instead of these
 #orgicp="major-peacock-icp-cluster"
 #orgicp2="mycluster"   # this is the mcm-321 test cluster
@@ -207,20 +209,20 @@ function curlputpost {
 #    echo "orgs/$orgid exists"
 #fi
 
-# Create the cloud org
-rc=$(curlfind "$rootauth" "orgs/$orgidcloud")
-checkrc "$rc" 200 404
-if [[ $rc == 404 ]]; then
-    curlcreate "POST" "$rootauth" "orgs/$orgidcloud" '{"label": "BPs org", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
-else
-    echo "orgs/$orgidcloud exists"
-fi
+# Create the cloud orgs
+if isCloud; then
+  rc=$(curlfind "$rootauth" "orgs/$orgidcloud")
+  checkrc "$rc" 200 404
+  if [[ $rc == 404 ]]; then
+      curlcreate "POST" "$rootauth" "orgs/$orgidcloud" '{"label": "my cloud org", "description": "blah blah", "tags": {"cloud_id":"'$orgcloudid'"} }'
+  else
+      echo "orgs/$orgidcloud exists"
+  fi
 
-if isPublicCloud; then
   rc=$(curlfind "$rootauth" "orgs/$orgid2")
   checkrc "$rc" 200 404
   if [[ $rc == 404 ]]; then
-      curlcreate "POST" "$rootauth" "orgs/$orgid2" '{"label": "Another org under BPs ibm cloud acct", "description": "blah blah", "tags": {"ibmcloud_id":"'$orgcloudid'"} }'
+      curlcreate "POST" "$rootauth" "orgs/$orgid2" '{"label": "Another org for my cloud acct", "description": "blah blah", "tags": {"cloud_id":"'$orgcloudid'"} }'
   else
       echo "orgs/$orgid2 exists"
   fi
@@ -319,7 +321,7 @@ else
     echo "orgs/$orgid/services/$svc2id exists"
 fi
 
-if isPublicCloud; then
+if isCloud; then
   rc=$(curlfind $userauthorg2 "orgs/$orgid2/services/$svcid")
   checkrc "$rc" 200 404
   if [[ $rc != 200 ]]; then
@@ -388,7 +390,7 @@ else
     echo "orgs/$orgid/patterns/$patid/keys/$ptKeyId exists"
 fi
 
-if isPublicCloud; then
+if isCloud; then
   rc=$(curlfind $userauthorg2 "orgs/$orgid2/patterns/$patid2")
   checkrc "$rc" 200 404
   if [[ $rc != 200 ]]; then
@@ -494,7 +496,7 @@ else
     echo "orgs/$orgid/nodes/$nodeid2 exists"
 fi
 
-if isPublicCloud; then
+if isCloud; then
   rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid")
   checkrc "$rc" 200 404
   if [[ $rc != 200 ]]; then
@@ -520,7 +522,7 @@ else
     echo "orgs/$orgid/nodes/$nodeid/policy exists"
 fi
 
-if isPublicCloud; then
+if isCloud; then
   rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid2")
   checkrc "$rc" 200 404
   if [[ $rc != 200 ]]; then
@@ -538,7 +540,7 @@ else
     echo "orgs/$orgid/agbots/$agbotid exists"
 fi
 
-if isPublicCloud; then
+if isCloud; then
   rc=$(curlfind $userauthorg2 "orgs/$orgid2/agbots/$agbotid")
   checkrc "$rc" 200 404
   if [[ $rc != 200 ]]; then
@@ -556,7 +558,7 @@ else
     echo "orgs/$orgid/agbots/$agbotid/patterns/${orgid}_${patid}_${orgid} exists"
 fi
 
-if isPublicCloud; then
+if isCloud; then
   rc=$(curlfind $userauth "orgs/$orgid/agbots/$agbotid/patterns/${orgid2}_*_${orgid}")
   checkrc "$rc" 200 404
   if [[ $rc != 200 ]]; then
@@ -590,7 +592,7 @@ else
     echo "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2 exists"
 fi
 
-if isPublicCloud; then
+if isCloud; then
   rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3")
   checkrc "$rc" 200 404
   if [[ $rc != 200 ]]; then

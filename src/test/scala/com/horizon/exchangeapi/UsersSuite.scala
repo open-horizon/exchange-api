@@ -7,11 +7,7 @@ import scalaj.http._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
-import com.horizon.exchangeapi._
-import com.horizon.exchangeapi.auth.{IamToken, IamUserInfo, IbmCloudAuth}
-
 import scala.collection.mutable.ListBuffer
-//import com.horizon.exchangeapi.tables.NodeHeartbeatIntervals
 import com.horizon.exchangeapi.tables._
 import scala.collection.immutable._
 
@@ -38,10 +34,7 @@ class UsersSuite extends AnyFunSuite {
   val URL3 = urlRoot + "/v1/orgs/" + orgid3
   val URL4 = urlRoot + "/v1/orgs/" + orgid4
   val urlRootOrg = urlRoot + "/v1/orgs/root"
-  val cloudorg = sys.env.get("EXCHANGE_IAM_ACCOUNT_ID") match {
-    case Some(_) => orgid   // we are allowed to use our org as a public cloud org
-    case None => sys.env.getOrElse("ICP_CLUSTER_NAME", "")  // for icp we have to point to the real org
-  }
+  val cloudorg = "UsersSuiteTestsCloud"
   val CLOUDURL = urlRoot + "/v1/orgs/" + cloudorg
   val NOORGURL = urlRoot + "/v1"
   val user = "u1" // this is an admin user
@@ -90,8 +83,9 @@ class UsersSuite extends AnyFunSuite {
   val iamKey = sys.env.getOrElse("EXCHANGE_IAM_KEY", "")
   val iamUIToken = sys.env.getOrElse("EXCHANGE_IAM_UI_TOKEN", "")
   val iamUser = sys.env.getOrElse("EXCHANGE_IAM_EMAIL", "")
-  val iamAccountId = sys.env.getOrElse("EXCHANGE_IAM_ACCOUNT_ID", "") // this indicates it is ibm cloud instead of ICP
-  val ocpAccountId = sys.env.getOrElse("EXCHANGE_MULT_ACCOUNT_ID", "") // this indicates it is Multitenancy
+  // specify only 1 of these 2 env vars (only 1 case can be tested at a time)
+  val ocpAccountId = sys.env.getOrElse("EXCHANGE_MULT_ACCOUNT_ID", "") // indicates we should test OCP Multitenancy
+  val iamAccountId = sys.env.getOrElse("EXCHANGE_IAM_ACCOUNT_ID", "") // indicates we should test ibm public cloud instead of OCP
   val iamOtherKey = sys.env.getOrElse("EXCHANGE_IAM_OTHER_KEY", "")
   val iamOtherAccountId = sys.env.getOrElse("EXCHANGE_IAM_OTHER_ACCOUNT_ID", "")
   val iamUserUIId = sys.env.getOrElse("EXCHANGE_IAM_UI_ID", "")
@@ -116,6 +110,9 @@ class UsersSuite extends AnyFunSuite {
     response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+    response = Http(CLOUDURL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   /** Delete all the test users in both orgs */
@@ -138,12 +135,18 @@ class UsersSuite extends AnyFunSuite {
     if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
     deleteAllOrgs()
 
+    // Clear auth cache because we deleted orgs and the cloud users won't automatically get recreated in the db if they are still in the cache.
+    // This won't be necessary when https://github.com/open-horizon/exchange-api/issues/176 is fixed.
+    var response = Http(NOORGURL+"/admin/clearauthcaches").method("post").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("CLEAR CACHE code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+
     // Try adding an invalid org body
     val badJsonInput = """{
       "labelx": "foo",
       "description": "desc"
     }"""
-    var response = Http(URL).postData(badJsonInput).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    response = Http(URL).postData(badJsonInput).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code)
     assert(response.code === HttpCode.BAD_INPUT.intValue) // for now this is what is returned when the json-to-scala conversion fails
 
@@ -560,7 +563,7 @@ class UsersSuite extends AnyFunSuite {
     assert(getUserResp.users.contains(orguser4))
     val u = getUserResp.users(orguser4) // the 2nd get turns the Some(val) into val
     assert(u.email === user4 + "@hotmail.com")
-    assert(!u.updatedBy.isEmpty)
+    assert(u.updatedBy.nonEmpty)
     assert(u.updatedBy.contentEquals("root/root"))
   }
 
@@ -601,7 +604,7 @@ class UsersSuite extends AnyFunSuite {
     assert(getUserResp.users.contains(orguser4))
     val u = getUserResp.users(orguser4) // the 2nd get turns the Some(val) into val
     assert(u.email === user4 + "@hotmail.com")
-    assert(!u.updatedBy.isEmpty)
+    assert(u.updatedBy.nonEmpty)
     assert(!u.updatedBy.contentEquals("UsersSuiteTests/u4"))
     assert(u.updatedBy.contentEquals("UsersSuiteTests/u1"))
   }
@@ -644,7 +647,7 @@ class UsersSuite extends AnyFunSuite {
     assert(getUserResp.users.contains(orguser4))
     val u = getUserResp.users(orguser4) // the 2nd get turns the Some(val) into val
     assert(u.email === user4 + "@hotmail.com")
-    assert(!u.updatedBy.isEmpty)
+    assert(u.updatedBy.nonEmpty)
     assert(!u.updatedBy.contentEquals("UsersSuiteTests/u4"))
     assert(u.updatedBy.contentEquals("UsersSuiteTests/u1"))
   }
@@ -817,7 +820,7 @@ class UsersSuite extends AnyFunSuite {
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val getUserResp = parse(response.body).extract[GetUsersResponse]
-    assert(getUserResp.users.size >= 1)
+    assert(getUserResp.users.nonEmpty)
     assert(getUserResp.users.contains(orgid + "/" + orgadmin))
     assert(getUserResp.users(orgid + "/" + orgadmin).admin)
   }
@@ -868,28 +871,20 @@ class UsersSuite extends AnyFunSuite {
 
   test("IAM login") {
     // these tests will perform authentication with IBM cloud and will only run
-    // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY, EXCHANGE_IAM_EMAIL, and EXCHANGE_IAM_ACCOUNT_ID
-    if (iamKey.nonEmpty && iamUser.nonEmpty) {
-      if (iamAccountId.nonEmpty) {
-        info("Add ibmcloud_id to org. Not needed for ICP")
-        val tagInput = s"""{ "tags": {"ibmcloud_id": "$iamAccountId"} }"""
-        val response = Http(CLOUDURL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-        info("code: " + response.code + ", response.body: " + response.body)
-        assert(response.code === HttpCode.PUT_OK.intValue)
-      }
-      if(ocpAccountId.nonEmpty) {
-        // add accountID to OCP org
-        info("Add cloud_id to org. For OCP multitenancy")
-        val tagInput = s"""{ "tags": {"cloud_id": "$ocpAccountId"} }"""
-        info(tagInput)
-        val response = Http(CLOUDURL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-        info("code: " + response.code + ", response.body: " + response.body)
-        assert(response.code === HttpCode.PUT_OK.intValue)
-      }
+    // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY (iamKey), EXCHANGE_IAM_EMAIL (iamUser), and EXCHANGE_MULT_ACCOUNT_ID (ocpAccountId) or EXCHANGE_IAM_ACCOUNT_ID (iamAccountId)
+    if (iamKey.nonEmpty && iamUser.nonEmpty && (ocpAccountId.nonEmpty || iamAccountId.nonEmpty)) {
+      assert(!(ocpAccountId.nonEmpty && iamAccountId.nonEmpty)) // can't test both at the same time
+
+      val tagMap = if (ocpAccountId.nonEmpty) Map("cloud_id" -> ocpAccountId) else Map("ibmcloud_id" -> iamAccountId)
+      info("Add cloud org with tag: " + tagMap)
+      val input = PostPutOrgRequest(None, "Cloud Org", "desc", Some(tagMap), None, None)
+      var response = Http(CLOUDURL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: " + response.code + ", response.body: " + response.body)
+      assert(response.code === HttpCode.POST_OK.intValue)
 
       info("authenticating to cloud with iam api key and GETing " + CLOUDURL)
-      var response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
-      info("GET " + CLOUDURL + " code: " + response.code)
+      response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
+      info("GET " + CLOUDURL + " code: " + response.code + ", response.body: " + response.body)
       assert(response.code === HttpCode.OK.intValue)
 
       info("authenticate as a cloud user and view org, ensuring cached user works")
@@ -964,7 +959,8 @@ class UsersSuite extends AnyFunSuite {
         assert(response.code === HttpCode.PUT_OK.intValue)
       } else {
         // ICP case - ensure using the cloud creds with a different org prepended fails
-        response = Http(CLOUDURL + "/patterns").headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+        //response = Http(CLOUDURL + "/patterns").headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+        response = Http(CLOUDURL + "/patterns").headers(ACCEPT).headers(IAMAUTH(orgid2)).asString
         info("code: " + response.code)
         assert(response.code === HttpCode.BADCREDS.intValue)
       }
@@ -1022,7 +1018,8 @@ class UsersSuite extends AnyFunSuite {
   }
 
   test("Multitenancy Pathway") {
-    if((sys.env.getOrElse("ICP_EXTERNAL_MGMT_INGRESS", "") != "") && (sys.env.getOrElse("ICP_CLUSTER_NAME", "")!="") && ocpAccountId.nonEmpty && iamKey.nonEmpty && iamUser.nonEmpty){
+    //todo: ICP_EXTERNAL_MGMT_INGRESS is not used in these tests, so we should not require it be set
+    if((sys.env.getOrElse("ICP_EXTERNAL_MGMT_INGRESS", "") != "") && ocpAccountId.nonEmpty && iamKey.nonEmpty && iamUser.nonEmpty){
       info("Try deleting the test org first in case it stuck around")
       val responseOrg = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+responseOrg.code+", response.body: "+responseOrg.body)
@@ -1049,7 +1046,8 @@ class UsersSuite extends AnyFunSuite {
       } else info ("Skipping UI login tests 1")
 
       info("Cloud user with apikey should not be able to access org without accountID")
-      response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      //response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid)).asString
+      response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid2)).asString
       info("GET " + URL + " code: " + response.code)
       info("GET " + URL + " body: " + response.body)
       assert(response.code === HttpCode.BADCREDS.intValue)
@@ -1140,6 +1138,9 @@ class UsersSuite extends AnyFunSuite {
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.DELETED.intValue)
     response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.DELETED.intValue)
+    response = Http(CLOUDURL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }

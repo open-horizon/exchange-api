@@ -11,6 +11,8 @@ target/
 
 # IntelliJ IDEA
 .idea/
+/exchange-api.iml
+/.bsp/
 
 # Eclipse?
 .classpath

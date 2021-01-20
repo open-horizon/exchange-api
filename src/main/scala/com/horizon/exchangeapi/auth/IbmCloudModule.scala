@@ -7,7 +7,6 @@ import java.security.KeyStore
 
 import com.google.common.cache.CacheBuilder
 import com.horizon.exchangeapi._
-import com.horizon.exchangeapi.auth.IbmCloudAuth.logger
 import com.horizon.exchangeapi.tables.{OrgsTQ, UserRow, UsersTQ}
 import javax.net.ssl.{SSLContext, SSLSocketFactory, TrustManagerFactory}
 import javax.security.auth._
@@ -161,7 +160,7 @@ object IbmCloudAuth {
 
   private var db: Database = _
   private var sslSocketFactory: SSLSocketFactory = _
-  private var icpClusterNameTry: Try[String] = _
+  private var icpClusterNameTry: Try[String] = _  // Note: we don't currently use this value
   private var icpClusterNameNumRetries = 0
 
   private implicit val formats = DefaultFormats
@@ -256,6 +255,7 @@ object IbmCloudAuth {
   private def iamRetryNum = 5
 
   // Get the ICP cluster name as a Try[String] and cache it in member var icpClusterNameTry.
+  // Note: we currently call this, but don't use the value for anything
   private def getIcpClusterName: Try[String] = {
     icpClusterNameTry match {
       case null =>
@@ -292,13 +292,13 @@ object IbmCloudAuth {
           return Success(clusterName)
         } else {
           logger.debug("Cluster name retrieval http code: " + response.code)
-          return Failure(new IamApiErrorException(response.body.toString))
+          return Failure(new IamApiErrorException(response.body))
         }
       } catch {
         case e: Exception => return Failure(new IamApiErrorException(ExchMsg.translate("error.getting.cluster.name", e.getMessage)))
       }
     }
-    return Failure(new IamApiTimeoutException(ExchMsg.translate("iam.return.value.not.set", "GET config", iamRetryNum)))
+    Failure(new IamApiTimeoutException(ExchMsg.translate("iam.return.value.not.set", "GET config", iamRetryNum)))
   }
 
   // Use the IBM IAM API to authenticate the iamapikey and get an IAM token. See: https://cloud.ibm.com/apidocs/iam-identity-token-api
@@ -319,8 +319,8 @@ object IbmCloudAuth {
           if (response.code == HttpCode.OK.intValue) return Success(parse(response.body).camelizeKeys.extract[IamToken])
           else if (response.code == HttpCode.BAD_INPUT.intValue || response.code == HttpCode.BADCREDS.intValue || response.code == HttpCode.ACCESS_DENIED.intValue || response.code == HttpCode.NOT_FOUND.intValue) {
             // This IAM API returns BAD_INPUT (400) when the mechanics of the api call were successful, but the api key was invalid
-            return Failure(new InvalidCredentialsException(response.body.toString))
-          } else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
+            return Failure(new InvalidCredentialsException(response.body))
+          } else delayedReturn = Failure(new IamApiErrorException(response.body))
         } catch {
           case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchMsg.translate("error.getting.iam.token.from.api.key", e.getMessage)))
         }
@@ -353,7 +353,7 @@ object IbmCloudAuth {
             val userInfo = parse(response.body).extract[IamUserInfo]
             if (userInfo.isActive && userInfo.user != "") return Success(userInfo)
             else return Failure(new InvalidCredentialsException(ExchMsg.translate("invalid.iam.api.key")))
-          } else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
+          } else delayedReturn = Failure(new IamApiErrorException(response.body))
         } catch {
           case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchMsg.translate("error.authenticating.icp.iam.key", e.getMessage)))
         }
@@ -375,8 +375,8 @@ object IbmCloudAuth {
           if (response.code == HttpCode.OK.intValue) return Success(parse(response.body).extract[IamUserInfo])
           else if (response.code == HttpCode.BAD_INPUT.intValue || response.code == HttpCode.BADCREDS.intValue || response.code == HttpCode.ACCESS_DENIED.intValue || response.code == HttpCode.NOT_FOUND.intValue) {
             // This IAM API returns BAD_INPUT (400) when the mechanics of the api call were successful, but the token was invalid
-            return Failure(new InvalidCredentialsException(response.body.toString))
-          } else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
+            return Failure(new InvalidCredentialsException(response.body))
+          } else delayedReturn = Failure(new IamApiErrorException(response.body))
         } catch {
           case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchMsg.translate("error.authenticating.icp.iam.token", e.getMessage)))
         }
@@ -399,7 +399,7 @@ object IbmCloudAuth {
             val userInfo = parse(response.body).extract[IamUserInfo]
             if (userInfo.isActive && userInfo.user != "") return Success(userInfo)
             else return Failure(new InvalidCredentialsException(ExchMsg.translate("invalid.iam.token")))
-          } else delayedReturn = Failure(new IamApiErrorException(response.body.toString))
+          } else delayedReturn = Failure(new IamApiErrorException(response.body))
         } catch {
           case e: Exception => delayedReturn = Failure(new IamApiErrorException(ExchMsg.translate("error.authenticating.iam.token", e.getMessage)))
         }
@@ -611,11 +611,11 @@ object IbmCloudAuth {
   def compositeIdSplit(compositeId: String): (String, String) = {
     val reg = """^(\S*?)/(\S*)$""".r
     compositeId match {
-      case reg(org, id) => return (org, id)
+      case reg(org, id) => (org, id)
       // These 2 lines never get run, and aren't needed. If we really want to handle a special, put something like this as the 1st case above: case reg(org, "") => return (org, "")
       //case reg(org, _) => return (org, "")
       //case reg(_, id) => return ("", id)
-      case _ => return ("", compositeId)
+      case _ => ("", compositeId)
     }
   }
 
@@ -645,7 +645,7 @@ object IbmCloudAuth {
       // Create an SSLContext that uses our TrustManager
       val context = SSLContext.getInstance("TLS")
       context.init(null, tmf.getTrustManagers, null)
-      return context.getSocketFactory
+      context.getSocketFactory
     } catch { case e: Exception => throw new SelfSignedCertException(e.getMessage) }
   }
 }

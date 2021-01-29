@@ -259,7 +259,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/services/$svcid/policy")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/services/$svcid/policy" '{ "properties": [{"name":"purpose", "value":"location", "type":"string"}], "constraints":["a == b"] }'
+    curlcreate "PUT" $userauth "orgs/$orgid/services/$svcid/policy" '{ "label": "my svc policy", "description": "desc", "properties": [{"name":"purpose", "value":"location", "type":"string"}], "constraints":["a == b"] }'
 else
     echo "orgs/$orgid/services/$svcid/policy exists"
 fi
@@ -517,7 +517,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/policy")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/policy" '{ "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/policy" '{ "label": "my node policy", "description": "desc", "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
 else
     echo "orgs/$orgid/nodes/$nodeid/policy exists"
 fi

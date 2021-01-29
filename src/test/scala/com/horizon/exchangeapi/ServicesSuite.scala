@@ -774,8 +774,15 @@ class ServicesSuite extends AnyFunSuite {
 
   //~~~~~ Service policy ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+  test("PUT /orgs/"+orgid+"/services/"+service+"/policy - as user. First test backward compatibility with no label or description") {
+    val input = PutServicePolicyRequest(None, None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b")))
+    val response = Http(URL+"/services/"+service+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
   test("PUT /orgs/"+orgid+"/services/"+service+"/policy - as user") {
-    val input = PutServicePolicyRequest(Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b")))
+    val input = PutServicePolicyRequest(Some(service+" policy"), Some(service+" policy desc"), Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b")))
     val response = Http(URL+"/services/"+service+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -797,6 +804,8 @@ class ServicesSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val getResp = parse(response.body).extract[ServicePolicy]
+    assert(getResp.label === service+" policy")
+    assert(getResp.description === service+" policy desc")
     assert(getResp.properties.size === 1)
     assert(getResp.properties.head.name === "purpose")
   }

@@ -14,6 +14,13 @@ target/
 /exchange-api.iml
 /.bsp/
 
+# VSCode
+/.bloop/
+/.metals/
+/.vscode/
+/project/.bloop/
+/project/metals.sbt
+
 # Eclipse?
 .classpath
 .cache-main

@@ -180,7 +180,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   def putNodeTestPolicy(nodeid: String): Unit ={
-    val input = PutNodePolicyRequest(Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")))
+    val input = PutNodePolicyRequest(Some(nodeid+" policy"), Some(nodeid+" policy desc"), Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")))
     val response = Http(URL + "/nodes/" + nodeid + "/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("PUT "+nodeid+"/policy, code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1601,8 +1601,15 @@ class NodesSuite extends AnyFunSuite {
 
   //~~~~~ Node policy ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node. First test backward compatibility with no label or description") {
+    val input = PutNodePolicyRequest(None, None, Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")))
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node") {
-    val input = PutNodePolicyRequest(Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")))
+    val input = PutNodePolicyRequest(Some(nodeId+" policy"), Some(nodeId+" policy desc"), Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")))
     val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1624,6 +1631,8 @@ class NodesSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val getResp = parse(response.body).extract[NodePolicy]
+    assert(getResp.label === nodeId+" policy")
+    assert(getResp.description === nodeId+" policy desc")
     assert(getResp.properties.size === 1)
     assert(getResp.properties.head.name === "purpose")
   }
@@ -1652,7 +1661,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - use type `list of strings`") {
-    val input = PutNodePolicyRequest(Some(List(OneProperty("purpose",Some("list of strings"),"testing"))), Some(List("a == b")))
+    val input = PutNodePolicyRequest(Some(nodeId+" policy"), Some(nodeId+" policy desc"), Some(List(OneProperty("purpose",Some("list of strings"),"testing"))), Some(List("a == b")))
     val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -2113,7 +2122,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - so this node won't be stale either") {
-    val input = PutNodePolicyRequest(Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")))
+    val input = PutNodePolicyRequest(Some(nodeId+" policy"), Some(nodeId+" policy desc"), Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")))
     val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)

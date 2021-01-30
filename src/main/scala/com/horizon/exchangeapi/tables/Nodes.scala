@@ -303,13 +303,13 @@ object NodeErrorTQ {
 
 final case class NodeError(errors: List[Any], lastUpdated: String)
 
-final case class NodePolicyRow(nodeId: String, properties: String, constraints: String, lastUpdated: String) {
+final case class NodePolicyRow(nodeId: String, label: String, description: String, properties: String, constraints: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNodePolicy: NodePolicy = {
     val prop: List[OneProperty] = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
     val con: List[String] = if (constraints != "") read[List[String]](constraints) else List[String]()
-    NodePolicy(prop, con, lastUpdated)
+    NodePolicy(label, description, prop, con, lastUpdated)
   }
 
   def upsert: DBIO[_] = NodePolicyTQ.rows.insertOrUpdate(this)
@@ -317,10 +317,12 @@ final case class NodePolicyRow(nodeId: String, properties: String, constraints: 
 
 class NodePolicies(tag: Tag) extends Table[NodePolicyRow](tag, "nodepolicies") {
   def nodeId = column[String]("nodeid", O.PrimaryKey)
+  def label = column[String]("label")
+  def description = column[String]("description")
   def properties = column[String]("properties")
   def constraints = column[String]("constraints")
   def lastUpdated = column[String]("lastUpdated")
-  def * = (nodeId, properties, constraints, lastUpdated).<>(NodePolicyRow.tupled, NodePolicyRow.unapply)
+  def * = (nodeId, label, description, properties, constraints, lastUpdated).<>(NodePolicyRow.tupled, NodePolicyRow.unapply)
   def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
 }
 
@@ -329,7 +331,7 @@ object NodePolicyTQ {
   def getNodePolicy(nodeId: String): Query[NodePolicies, NodePolicyRow, Seq] = rows.filter(_.nodeId === nodeId)
 }
 
-final case class NodePolicy(properties: List[OneProperty], constraints: List[String], lastUpdated: String)
+final case class NodePolicy(label: String, description: String, properties: List[OneProperty], constraints: List[String], lastUpdated: String)
 
 
 // Agreement is a sub-resource of node

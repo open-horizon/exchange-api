@@ -139,13 +139,13 @@ object ServicesTQ {
 // Policy is a sub-resource of service
 final case class OneProperty(name: String, `type`: Option[String], value: Any)
 
-final case class ServicePolicyRow(serviceId: String, properties: String, constraints: String, lastUpdated: String) {
+final case class ServicePolicyRow(serviceId: String, label: String, description: String, properties: String, constraints: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toServicePolicy: ServicePolicy = {
     val prop: List[OneProperty] = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
     val con: List[String] = if (constraints != "") read[List[String]](constraints) else List[String]()
-    ServicePolicy(prop, con, lastUpdated)
+    ServicePolicy(label, description, prop, con, lastUpdated)
   }
 
   def upsert: DBIO[_] = ServicePolicyTQ.rows.insertOrUpdate(this)
@@ -153,10 +153,12 @@ final case class ServicePolicyRow(serviceId: String, properties: String, constra
 
 class ServicePolicies(tag: Tag) extends Table[ServicePolicyRow](tag, "servicepolicies") {
   def serviceId = column[String]("serviceid", O.PrimaryKey)    // the content of this is orgid/service
+  def label = column[String]("label")
+  def description = column[String]("description")
   def properties = column[String]("properties")
   def constraints = column[String]("constraints")
   def lastUpdated = column[String]("lastUpdated")
-  def * = (serviceId, properties, constraints, lastUpdated).<>(ServicePolicyRow.tupled, ServicePolicyRow.unapply)
+  def * = (serviceId, label, description, properties, constraints, lastUpdated).<>(ServicePolicyRow.tupled, ServicePolicyRow.unapply)
   def service = foreignKey("service_fk", serviceId, ServicesTQ.rows)(_.service, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
 }
 
@@ -165,7 +167,7 @@ object ServicePolicyTQ {
   def getServicePolicy(serviceId: String): Query[ServicePolicies, ServicePolicyRow, Seq] = rows.filter(_.serviceId === serviceId)
 }
 
-final case class ServicePolicy(properties: List[OneProperty], constraints: List[String], lastUpdated: String)
+final case class ServicePolicy(label: String, description: String, properties: List[OneProperty], constraints: List[String], lastUpdated: String)
 
 
 // Key is a sub-resource of service

@@ -136,7 +136,7 @@ final case class PatchServiceRequest(label: Option[String], description: Option[
 }
 
 
-final case class PutServicePolicyRequest(properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+final case class PutServicePolicyRequest(label: Option[String], description: Option[String], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = {
     val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of strings", "version")
@@ -148,7 +148,7 @@ final case class PutServicePolicyRequest(properties: Option[List[OneProperty]], 
     None
   }
 
-  def toServicePolicyRow(serviceId: String): ServicePolicyRow = ServicePolicyRow(serviceId, write(properties), write(constraints), ApiTime.nowUTC)
+  def toServicePolicyRow(serviceId: String): ServicePolicyRow = ServicePolicyRow(serviceId, label.getOrElse(""), description.getOrElse(label.getOrElse("")), write(properties), write(constraints), ApiTime.nowUTC)
 }
 
 
@@ -1045,6 +1045,8 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
+  "label": "human readable name of the service policy",  // this will be displayed in the UI
+  "description": "descriptive text",
   "properties": [
     {
       "name": "mypurpose",

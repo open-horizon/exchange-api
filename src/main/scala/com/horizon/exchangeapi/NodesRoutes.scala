@@ -292,7 +292,7 @@ final case class PutNodeErrorRequest(errors: List[Any]) {
   def toNodeErrorRow(nodeId: String): NodeErrorRow = NodeErrorRow(nodeId, write(errors), ApiTime.nowUTC)
 }
 
-final case class PutNodePolicyRequest(properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+final case class PutNodePolicyRequest(label: Option[String], description: Option[String], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = {
     val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of strings", "version")
@@ -304,7 +304,7 @@ final case class PutNodePolicyRequest(properties: Option[List[OneProperty]], con
     None
   }
 
-  def toNodePolicyRow(nodeId: String): NodePolicyRow = NodePolicyRow(nodeId, write(properties), write(constraints), ApiTime.nowUTC)
+  def toNodePolicyRow(nodeId: String): NodePolicyRow = NodePolicyRow(nodeId, label.getOrElse(""), description.getOrElse(label.getOrElse("")), write(properties), write(constraints), ApiTime.nowUTC)
 }
 
 
@@ -1622,6 +1622,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
+  "label": "human readable name of the node policy",  // this will be displayed in the UI
+  "description": "descriptive text",
   "properties": [
     {
       "name": "mypurpose",

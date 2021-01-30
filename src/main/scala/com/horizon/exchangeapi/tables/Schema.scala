@@ -172,13 +172,19 @@ object SchemaTQ {
       case 39 => DBIO.seq(   // v2.44.0
         sqlu"alter table resourcechanges drop constraint orgid_fk"
       )
+      case 40 => DBIO.seq(   // version 2.57.0
+        sqlu"alter table nodepolicies add column label character varying not null default ''",
+        sqlu"alter table nodepolicies add column description character varying not null default ''",
+        sqlu"alter table servicepolicies add column label character varying not null default ''",
+        sqlu"alter table servicepolicies add column description character varying not null default ''"
+      )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
 
-  val latestSchemaVersion = 39    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "dropping orgid foreign key in resource changes table"
+  val latestSchemaVersion = 40    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "adding label and description columns to nodepolicies and servicepolicies tables"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int): Boolean = fromSchemaVersion >= latestSchemaVersion

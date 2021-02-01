@@ -1389,7 +1389,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       "version": "string",
       "arch": "string",
       "containerStatus": [],
-      "operatorStatus": {}
+      "operatorStatus": {},
+      "configState": "string"
     }
   ],
   "runningServices": "|orgid/serviceid|",
@@ -1445,8 +1446,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             new ExampleObject(
               value = """{
   "connectivity": {   // (optional)
-    "firmware.bluehorizon.network": true,
-    "images.bluehorizon.network": true
+    "string": true
   },
   "services": [
     {
@@ -1463,7 +1463,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           "state": "running"
         }
       ],
-      "operatorStatus": {} // (optional)
+      "operatorStatus": {}, // (optional)
+      "configState": "active" // (optional)
     }
   ]
 }
@@ -2458,7 +2459,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         "operatorStatus": {},
         "orgid": "string",
         "serviceUrl": "string",
-        "version": "string"
+        "version": "string",
+        "configState": "string"
       }
     ],
     "softwareVersions": {},

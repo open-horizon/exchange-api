@@ -67,7 +67,7 @@ class PatternsSuite extends AnyFunSuite {
   val agbotId = "9948"
   val agbotToken = agbotId+"tok"
   val AGBOTAUTH = ("Authorization","Basic "+ApiUtils.encode(authpref+agbotId+":"+agbotToken))
-  val svcurl = "https://bluehorizon.network/services/netspeed"
+  val svcurl = "https://horizon/services/netspeed"
   val svcarch = "amd64"
   val svcversion = "1.0.0"
   val pattern = "pt9920"
@@ -100,17 +100,17 @@ class PatternsSuite extends AnyFunSuite {
   val compositePatid2 = orgid+"/"+patid2
   val patid3 = "p-searchtest3"
   val compositePatid3 = orgid+"/"+patid3
-  val PWSSPEC_URL = "bluehorizon.network.pws"
+  val PWSSPEC_URL = "horizon.pws"
   val PWSSPEC = orgid+"/"+PWSSPEC_URL
   val agProto = "ExchangeAutomatedTest"    // using this to avoid db entries from real users and predefined ones
-  val NETSPEEDSPEC_URL = "bluehorizon.network.netspeed"
+  val NETSPEEDSPEC_URL = "horizon.netspeed"
   val NETSPEEDSPEC = orgid+"/"+NETSPEEDSPEC_URL
-  val SDRSPEC_URL = "bluehorizon.network.sdr"
+  val SDRSPEC_URL = "horizon.sdr"
   val SDRSPEC = orgid+"/"+SDRSPEC_URL
-  val svcid2 = "bluehorizon.network-services-sdr_1.0.0_amd64"
+  val svcid2 = "horizon-services-sdr_1.0.0_amd64"
   val svcarch2 = "amd64"
   val svcversion2 = "1.0.0"
-  val svcid3 = "bluehorizon.network-services-netspeed_1.0.0_amd64"
+  val svcid3 = "horizon-services-netspeed_1.0.0_amd64"
   val svcarch3 = "amd64"
   val svcversion3 = "1.0.0"
   val nodeIdSearchTest1 = "n1"     // the 1st node created, that i will use to run some rest methods
@@ -131,10 +131,10 @@ class PatternsSuite extends AnyFunSuite {
   val nodeId6SearchTest6 = "n6"
   val orgnodeId6SearchTest6 = authpref+nodeId6SearchTest6
   val nodeToken6SearchTest6 = "my tok"
-  val svcid4 = "bluehorizon.network-services-pws_1.0.0"
+  val svcid4 = "horizon-services-pws_1.0.0"
   val svcarch4 = "*"
   val svcversion4 = "1.0.0"
-  val svcid5 = "bluehorizon.network-services-sdr_1.0.0_arm32"
+  val svcid5 = "horizon-services-sdr_1.0.0_arm32"
   val svcarch5 = "arm32"
   val svcversion5 = "1.0.0"
   val maxRecords = 10000
@@ -310,7 +310,7 @@ class PatternsSuite extends AnyFunSuite {
                       "label":"PatternNoService",
                       "description":"Test pattern with no service section to see if this is possible",
                       "public":false,
-                      "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://bluehorizon.network/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+                      "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
                       "agreementProtocols":[{"name":"Basic"}]
                   }""".stripMargin
     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -324,7 +324,7 @@ class PatternsSuite extends AnyFunSuite {
                       "description":"Test pattern with empty service section to see if this is possible",
                       "public":false,
                       "service": [],
-                      "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://bluehorizon.network/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+                      "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
                       "agreementProtocols":[{"name":"Basic"}]
                   }""".stripMargin
     val response = Http(URL+"/patterns/PatternNoService2").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

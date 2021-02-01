@@ -96,7 +96,7 @@ class ServicesSuite extends AnyFunSuite {
   val reqsvcversion2 = "2.0.0"
   val reqservice2 = reqsvcBase2 + "_" + reqsvcversion2 + "_" + reqsvcarch2
   val orgreqservice2 = authpref+reqservice2
-  val reqsvcurl3 = "https://bluehorizon.network/services/rtlsdr"
+  val reqsvcurl3 = "https://horizon/services/rtlsdr"
   val reqsvcarch3 = "amd64"   // intentionally different arch
   val reqsvcversion3 = "1.0.0"
   val IBMURL = urlRoot+"/v1/orgs/IBM"

@@ -70,8 +70,8 @@ class AgbotsSuite extends AnyFunSuite {
   val busPolId = orgid + "_" + businessPol + "_" + orgid
   val businessPol2 = "*"
   val busPolId2 = orgid2 + "_" + businessPol2 + "_" + orgid2
-  val svcid = "bluehorizon.network-services-netspeed_1.0.0_amd64"
-  val svcurl = "https://bluehorizon.network/services/netspeed"
+  val svcid = "horizon-services-netspeed_1.0.0_amd64"
+  val svcurl = "https://horizon/services/netspeed"
   val svcarch = "amd64"
   val svcversion = "1.0.0"
   val nodeId = "mynode"

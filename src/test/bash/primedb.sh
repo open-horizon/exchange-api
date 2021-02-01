@@ -509,7 +509,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/status")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/status" '{ "connectivity": {"firmware.bluehorizon.network": true}, "services": [] }'
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/status" '{ "connectivity": {"something.network": true}, "services": [{"agreementId": "abc","arch": "'$svcarch'","containerStatus": [],"orgid": "'$orgid'","serviceUrl": "'$svcurl'","version": "'$svcversion'","configState":"active"}] }'
 else
     echo "orgs/$orgid/nodes/$nodeid/status exists"
 fi

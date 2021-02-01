@@ -242,7 +242,7 @@ object NodesTQ {
 
 // Status is a sub-resource of node
 final case class ContainerStatus(name: String, image: String, created: Int, state: String)
-final case class OneService(agreementId: String, serviceUrl: String, orgid: String, version: String, arch: String, containerStatus: List[ContainerStatus], operatorStatus: Option[Any])
+final case class OneService(agreementId: String, serviceUrl: String, orgid: String, version: String, arch: String, containerStatus: List[ContainerStatus], operatorStatus: Option[Any], configState: Option[String])
 
 final case class NodeStatusRow(nodeId: String, connectivity: String, services: String, runningServices: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats

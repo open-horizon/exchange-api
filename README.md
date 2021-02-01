@@ -256,9 +256,14 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.58.0
+
+- Issue 445: Add the configState field to the node status API
+- Remove `bluehorizon` from the swagger info. (We've decommissioned that site.)
+
 ## Changes in 2.57.0
 
-- 
+- Issue 435: Add label and description fields to node and service policy objects
 
 ## Changes in 2.56.0
 

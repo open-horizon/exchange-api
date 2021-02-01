@@ -291,7 +291,7 @@ func main() {
 		mynodeauth := org + "/" + mynodeid + ":" + nodetoken
 
 		// Update node status when the services stop running
-		perfutils.ExchangeP(http.MethodPut, "orgs/"+org+"/nodes/"+mynodeid+"/status", mynodeauth, nil, `{ "connectivity": {"firmware.bluehorizon.network": true}, "services": [] }`, nil, true)
+		perfutils.ExchangeP(http.MethodPut, "orgs/"+org+"/nodes/"+mynodeid+"/status", mynodeauth, nil, `{ "connectivity": {"something.network": true}, "services": [] }`, nil, true)
 	}
 
 	// Don't need to delete the msgs, they'll get deleted with the node

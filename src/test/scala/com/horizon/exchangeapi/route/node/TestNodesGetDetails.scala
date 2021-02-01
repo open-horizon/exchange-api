@@ -50,10 +50,10 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 owner = "TestNodesGetDetails/u1",
                 pattern = "TestNodesGetDetails/p1",
                 publicKey = "key",
-                regServices = """[{"url":"NodesSuiteTests/bluehorizon.network.sdr","numAgreements":1,"configState":"active","policy":"{json policy for n1 sdr}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"memory","value":"300","propType":"int","op":">="},{"name":"version","value":"1.0.0","propType":"version","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"dataVerification","value":"true","propType":"boolean","op":"="}]},{"url":"NodesSuiteTests/bluehorizon.network.netspeed","numAgreements":1,"configState":"active","policy":"{json policy for n1 netspeed}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"version","value":"1.0.0","propType":"version","op":"in"}]}]""",
+                regServices = """[{"url":"NodesSuiteTests/horizon.sdr","numAgreements":1,"configState":"active","policy":"{json policy for n1 sdr}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"memory","value":"300","propType":"int","op":">="},{"name":"version","value":"1.0.0","propType":"version","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"dataVerification","value":"true","propType":"boolean","op":"="}]},{"url":"NodesSuiteTests/horizon.netspeed","numAgreements":1,"configState":"active","policy":"{json policy for n1 netspeed}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"version","value":"1.0.0","propType":"version","op":"in"}]}]""",
                 softwareVersions = """{"horizon":"3.2.1"}""",
                 token = "$2a$10$iXtbvxfSH8iN3LxPDlntEO7yLq6Wk4YhE4Tq4B7RtiqLfeHOaBE8q", // TestNodesGetDetails/n1:n1pw
-                userInput = """[{"serviceOrgid":"NodesSuiteTests","serviceUrl":"bluehorizon.network.sdr","serviceArch":"amd64","serviceVersionRange":"[0.0.0,INFINITY)","inputs":[{"name":"UI_STRING","value":"mystr - updated"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}]"""),
+                userInput = """[{"serviceOrgid":"NodesSuiteTests","serviceUrl":"horizon.sdr","serviceArch":"amd64","serviceVersionRange":"[0.0.0,INFINITY)","inputs":[{"name":"UI_STRING","value":"mystr - updated"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}]"""),
         NodeRow(arch = "x86",
                 id = "TestNodesGetDetails/n2",
                 heartbeatIntervals = "",
@@ -123,7 +123,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                       description = "node policy description",
                       properties = ""))
   private val TESTNODESTATUSES: Seq[NodeStatusRow] =
-    Seq(NodeStatusRow(connectivity = """{"images.bluehorizon.network":true}""",
+    Seq(NodeStatusRow(connectivity = """{"images.horizon":true}""",
                       lastUpdated = ApiTime.nowUTC,
                       nodeId = "TestNodesGetDetails/n1",
                       runningServices = """|NodesSuiteTests/testService_0.0.1_arm|""",

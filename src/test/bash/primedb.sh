@@ -491,7 +491,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [{"url": "'$orgid'/'$svcurl'", "numAgreements": 1, "policy": "", "properties": []}], "publicKey": "'$encodedPubKey'" }'
+    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2?noheartbeat=true" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [{"url": "'$orgid'/'$svcurl'", "numAgreements": 1, "policy": "", "properties": []}], "publicKey": "'$encodedPubKey'" }'
 else
     echo "orgs/$orgid/nodes/$nodeid2 exists"
 fi
@@ -517,7 +517,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/policy")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/policy" '{ "label": "my node policy", "description": "desc", "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/policy?noheartbeat=true" '{ "label": "my node policy", "description": "desc", "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
 else
     echo "orgs/$orgid/nodes/$nodeid/policy exists"
 fi
@@ -587,7 +587,8 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$orgid'/'$patid2'", "url": "'$orgid'/'$svcurl'"}, "state": "negotiating"}'
+    # using noheartbeat=true because i want n2 to be created w/o lastHeartbeat being set
+    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2?noheartbeat=true" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$orgid'/'$patid2'", "url": "'$orgid'/'$svcurl'"}, "state": "negotiating"}'
 else
     echo "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2 exists"
 fi

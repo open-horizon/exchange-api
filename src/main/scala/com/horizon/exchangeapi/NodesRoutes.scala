@@ -1907,7 +1907,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         name = "agid",
         in = ParameterIn.PATH,
         description = "ID of the agreement to be added/updated."
-      )
+      ),
+      new Parameter(name = "noheartbeat", in = ParameterIn.QUERY, required = false, description = "If set to 'true', skip the step to update the node's lastHeartbeat field.")
     ),
     requestBody = new RequestBody(
       content = Array(
@@ -1961,11 +1962,12 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     )
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/agreement")
-  def nodePutAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & put & entity(as[PutNodeAgreementRequest])) { (orgid, id, agrId, reqBody) =>
+  def nodePutAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & put & parameter((Symbol("noheartbeat").?)) & entity(as[PutNodeAgreementRequest])) { (orgid, id, agrId, noheartbeat, reqBody) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
+          val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
           db.run(NodeAgreementsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
             logger.debug("PUT /orgs/"+orgid+"/nodes/"+id+"/agreements/"+agrId+" num owned: "+xs)
             val numOwned: Int = xs
@@ -1982,12 +1984,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           }).flatMap({
             case Success(v) =>
               logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastUpdated result: " + v)
-              NodesTQ.setLastHeartbeat(compositeId, ApiTime.nowUTC).asTry
+              if (noHB) DBIO.successful(1).asTry  // skip updating lastHeartbeat
+              else NodesTQ.setLastHeartbeat(compositeId, ApiTime.nowUTC).asTry
             case Failure(t) => DBIO.failed(t).asTry
           }).flatMap({
             case Success(v) =>
               // Add the resource to the resourcechanges table
-              logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastHeartbeat result: " + v)
+              if (!noHB) logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastHeartbeat result: " + v)
               val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
               nodeChange.insert.asTry
             case Failure(t) => DBIO.failed(t).asTry

@@ -258,8 +258,8 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 ## Changes in 2.59.0
 
-- Issue 429: add `do-not-set-heartbeat` option to APIs `PUT /orgs/{orgid}/nodes/{nodeid}` and `PUT /orgs/{orgid}/nodes/{nodeid}/agreements/<ag_id>`
-- Issue 419: add `do-not-set-heartbeat` option to `PUT /orgs/{orgid}/nodes/{nodeid}/policy`
+- Issue 429: add `noheartbeat=true` option to APIs `PUT /orgs/{orgid}/nodes/{nodeid}` and `PUT /orgs/{orgid}/nodes/{nodeid}/agreements/<agreement-id>`
+- Issue 419: add `noheartbeat=true` option to `PUT /orgs/{orgid}/nodes/{nodeid}/policy`
 
 ## Changes in 2.58.0
 

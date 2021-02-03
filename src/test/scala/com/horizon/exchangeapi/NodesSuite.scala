@@ -166,9 +166,12 @@ class NodesSuite extends AnyFunSuite {
     }
   }
 
-  def putNodeTestAgreement(nodeid: String): Unit ={
+  def putNodeTestAgreement(nodeid: String, noHeartbeat: Boolean = false): Unit ={
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), None, "signed")
-    val response = Http(URL + "/nodes/" + nodeid + "/agreements/testagreement" + nodeid).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val agUrl = URL + "/nodes/" + nodeid + "/agreements/testagreement" + nodeid
+    val response =
+      if (noHeartbeat) Http(agUrl).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
+      else Http(agUrl).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("PUT "+nodeid+"/agreements/testagreement" + nodeid + ", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -192,7 +195,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
-  /** Patches all of the nodes to have a  test policy and agreement (for business policy search) */
+  /** Patches all of the nodes to have a test policy and agreement (for business policy search) */
   def putAllNodePolicyAndAgreements(): Unit = {
     // Add agreements
     for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
@@ -873,6 +876,11 @@ class NodesSuite extends AnyFunSuite {
     Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
     assert(Option(parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8).lastHeartbeat).isEmpty)
 
+    // Create an agreement for this node with the option to not update the node's lastHeartbeat, and confirm lastHeartbeat is still not set
+    putNodeTestAgreement(nodeId8, noHeartbeat=true)
+    assert(Option(parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8).lastHeartbeat).isEmpty)
+    deleteNodeTestAgreement(nodeId8)  // clean up agreement
+
     // Delete node, then create with heartbeat
     response = Http(URL + "/nodes/" + nodeId8).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     assert(response.code === HttpCode.DELETED.intValue)
@@ -908,7 +916,14 @@ class NodesSuite extends AnyFunSuite {
     // Update the node as a node with changing lastHeartbeat
     Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE8AUTH).asString
     node = parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8)
-    assert(Option(node.lastHeartbeat).get !== heartbeat.get)
+    val heartbeat2: Option[String] = Option(node.lastHeartbeat)
+    assert(heartbeat2.get !== heartbeat.get)
+
+    // Create an agreement for this node with changing the node's lastHeartbeat, and confirm lastHeartbeat is different
+    putNodeTestAgreement(nodeId8)
+    node = parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8)
+    assert(Option(node.lastHeartbeat).get !== heartbeat2.get)
+    deleteNodeTestAgreement(nodeId8)  // clean up agreement
   }
 
   test("GET /orgs/" + orgid + "/nodes/ " + nodeId + " - user 1") {

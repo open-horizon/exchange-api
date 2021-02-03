@@ -491,7 +491,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [{"url": "'$orgid'/'$svcurl'", "numAgreements": 1, "policy": "", "properties": []}], "publicKey": "'$encodedPubKey'" }'
+    curlcreate "PUT" $userauth "orgs/$orgid/nodes/$nodeid2?noheartbeat=true" '{"token": "'$nodetoken'", "name": "rpi1", "pattern": "'$orgid'/'$patid'", "registeredServices": [{"url": "'$orgid'/'$svcurl'", "numAgreements": 1, "policy": "", "properties": []}], "publicKey": "'$encodedPubKey'" }'
 else
     echo "orgs/$orgid/nodes/$nodeid2 exists"
 fi
@@ -584,13 +584,14 @@ else
     echo "orgs/$orgid/nodes/$nodeid/agreements/$agreementid1 exists"
 fi
 
-rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2")
-checkrc "$rc" 200 404
-if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$orgid'/'$patid2'", "url": "'$orgid'/'$svcurl'"}, "state": "negotiating"}'
-else
-    echo "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2 exists"
-fi
+# not doing this right now because i want n2 to be created w/o lastHeartbeat being set
+#rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2")
+#checkrc "$rc" 200 404
+#if [[ $rc != 200 ]]; then
+#    curlcreate "PUT" $nodeauth2 "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2" '{"services": [], "agreementService": {"orgid": "'$orgid'", "pattern": "'$orgid'/'$patid2'", "url": "'$orgid'/'$svcurl'"}, "state": "negotiating"}'
+#else
+#    echo "orgs/$orgid/nodes/$nodeid2/agreements/$agreementid2 exists"
+#fi
 
 if isCloud; then
   rc=$(curlfind $userauthorg2 "orgs/$orgid2/nodes/$nodeid/agreements/$agreementid3")

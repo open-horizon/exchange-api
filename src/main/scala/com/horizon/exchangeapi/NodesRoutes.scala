@@ -103,7 +103,8 @@ final case class PutNodesRequest(token: String,
   require(token!=null && name!=null && pattern!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
-  def getAnyProblem: Option[String] = {
+  def getAnyProblem(noheartbeat: Option[String]): Option[String] = {
+    if (noheartbeat.isDefined && noheartbeat.get.toLowerCase != "true" && noheartbeat.get.toLowerCase != "false") return Some(ExchMsg.translate("bad.noheartbeat.param"))
     if (token == "") return Some(ExchMsg.translate("token.must.not.be.blank"))
     // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
     if (nodeType.isDefined && !NodeType.containsString(nodeType.get)) return Some(ExchMsg.translate("invalid.node.type", NodeType.valuesAsString))
@@ -123,7 +124,7 @@ final case class PutNodesRequest(token: String,
   def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { NodesTQ.validateServiceIds(userInput.getOrElse(List())) }
 
   /** Get the db actions to insert or update all parts of the node */
-  def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String, lastHeartbeat: Option[String] = Some(ApiTime.nowUTC)): DBIO[_] = {
+  def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String, lastHeartbeat: Option[String] /*= Some(ApiTime.nowUTC)*/): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2: Seq[RegService] = registeredServices.getOrElse(List()).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
     NodeRow(id,
@@ -146,7 +147,7 @@ final case class PutNodesRequest(token: String,
 
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
    * because we can't let a node create new nodes. */
-  def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String, lastHeartbeat: Option[String] = Some(ApiTime.nowUTC)): DBIO[_] = {
+  def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String, lastHeartbeat: Option[String] /*= Some(ApiTime.nowUTC)*/): DBIO[_] = {
     // default new field configState in registeredServices
     val rsvc2: Seq[RegService] = registeredServices.getOrElse(List()).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
     NodeRow(id,
@@ -635,7 +636,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
 
   // =========== PUT /orgs/{orgid}/nodes/{id} ===============================
   @PUT
-  @Path("{id}")
+  @Path("nodes/{id}")
   @Operation(
     summary = "Add/updates a node",
     description = "Adds a new edge node, or updates an existing node. This must be called by the user to add a node, and then can be called by that user or node to update itself.",
@@ -649,7 +650,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         name = "id",
         in = ParameterIn.PATH,
         description = "ID of the node."
-      )
+      ),
+      new Parameter(name = "noheartbeat", in = ParameterIn.QUERY, required = false, description = "If set to 'true', skip the step to update the lastHeartbeat field.")
     ),
     requestBody = new RequestBody(
       content = Array(
@@ -737,13 +739,14 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     )
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def nodePutRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & put & entity(as[PutNodesRequest])) { (orgid, id, reqBody) =>
+  def nodePutRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & put & parameter((Symbol("noheartbeat").?)) & entity(as[PutNodesRequest])) { (orgid, id, noheartbeat, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgid/nodes/$id")
     val compositeId: String = OrgAndId(orgid, id).toString
     var orgMaxNodes = 0
     exchAuth(TNode(compositeId), Access.WRITE) { ident =>
-      validateWithMsg(reqBody.getAnyProblem) {
+      validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
         complete({
+          val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
           var orgLimitMaxNodes = 0
           var fivePercentWarning = false
           val owner: String = ident match { case IUser(creds) => creds.id; case _ => "" }
@@ -827,14 +830,17 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           .flatMap({
             case Success(lastHeartbeat) => 
               lastHeartbeat.size match {
-                  case 0 => (if (owner == "") 
-                               reqBody.getDbUpdate(compositeId, orgid, owner, Password.hash(reqBody.token), None)
-                             else 
-                               reqBody.getDbUpsert(compositeId, orgid, owner, Password.hash(reqBody.token), None)).transactionally.asTry
-                  case 1 => (if (owner == "") 
-                               reqBody.getDbUpdate(compositeId, orgid, owner, Password.hash(reqBody.token), lastHeartbeat.head)
-                             else 
-                               reqBody.getDbUpsert(compositeId, orgid, owner, Password.hash(reqBody.token), lastHeartbeat.head)).transactionally.asTry
+                  case 0 => val lastHB = if (noHB) None else Some(ApiTime.nowUTC)
+                    (if (owner == "")
+                        // It seems like this case is an error (node doesn't exist yet, and client is not a user). The update will fail, but probably not with an error that will really explain what they did wrong.
+                        reqBody.getDbUpdate(compositeId, orgid, owner, Password.hash(reqBody.token), lastHB)
+                      else 
+                        reqBody.getDbUpsert(compositeId, orgid, owner, Password.hash(reqBody.token), lastHB)).transactionally.asTry
+                  case 1 => val lastHB = if (noHB) lastHeartbeat.head else Some(ApiTime.nowUTC)
+                    (if (owner == "") 
+                        reqBody.getDbUpdate(compositeId, orgid, owner, Password.hash(reqBody.token), lastHB)
+                      else 
+                        reqBody.getDbUpsert(compositeId, orgid, owner, Password.hash(reqBody.token), lastHB)).transactionally.asTry
                   case _ => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", compositeId, "Unexpected result"))).asTry
                 }
             case Failure(t) => DBIO.failed(t).asTry

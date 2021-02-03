@@ -96,15 +96,6 @@ final case class NodeRow(id: String,
     new Node(tok, name, owner, nt, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat.orNull, publicKey, arch, hbInterval, lastUpdated)
   }
 
-  /* Not needed anymore, because node properties are no longer in a separate table that needs to be joined...
-  def putInHashMap(isSuperUser: Boolean, nodes: MutableHashMap[String,Node]): Unit = {
-    nodes.get(id) match {
-      case Some(_) => ; // do not need to add the node entry, because it is already there
-      case None => nodes.put(id, toNode(isSuperUser))
-    }
-  }
-  */
-
   def upsert: DBIO[_] = {
     //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
     if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.nodeType, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated)).insertOrUpdate((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat.orElse(None), publicKey, arch, heartbeatIntervals, lastUpdated))

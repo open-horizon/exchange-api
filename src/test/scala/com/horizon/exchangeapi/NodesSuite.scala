@@ -846,60 +846,69 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/" + orgid + "/nodes/" + nodeId8 + " - Should not set lastHeartbeat") {
-    Http(URL + "/nodes/" + nodeId8).postData(write(PutNodesRequest(nodeToken, 
-                                                                   nodeId8, 
-                                                                   Some("cluster"), 
-                                                                   compositePatid, 
-                                                                   Some(List(RegService(SDRSPEC, 
-                                                                                        1,
-                                                                                        Some("active"),
-                                                                                        "{json policy for " + nodeId8 + " sdr}",
-                                                                                        List(Prop("arch","arm","string","in"),
-                                                                                        Prop("memory","400","int",">="),
-                                                                                        Prop("version","2.0.0","version","in"),
-                                                                                        Prop("agreementProtocols",agProto,"list","in"),
-                                                                                        Prop("dataVerification","true","boolean","="))))), 
-                                                                   None, 
-                                                                   None, 
-                                                                   None, 
-                                                                   nodePubKey, 
-                                                                   Some("amd64"), 
-                                                                   None)
-                                                  )).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString // Create new node with blank lastHeartbeat
-    
+    // Try to create new node with no lastHeartbeat, but with bad noheartbeat value - should fail
+    var nodeRequest = PutNodesRequest(nodeToken, 
+                                              nodeId8, 
+                                              Some("cluster"), 
+                                              compositePatid, 
+                                              Some(List(RegService(SDRSPEC, 
+                                                                  1,
+                                                                  Some("active"),
+                                                                  "{json policy for " + nodeId8 + " sdr}",
+                                                                  List(Prop("arch","arm","string","in"),
+                                                                  Prop("memory","400","int",">="),
+                                                                  Prop("version","2.0.0","version","in"),
+                                                                  Prop("agreementProtocols",agProto,"list","in"),
+                                                                  Prop("dataVerification","true","boolean","="))))), 
+                                              None, 
+                                              None, 
+                                              None, 
+                                              nodePubKey, 
+                                              Some("amd64"), 
+                                              None)
+    var response: HttpResponse[String] = Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","tru").asString
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+
+    // Create new node as user with no lastHeartbeat
+    Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
     assert(Option(parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8).lastHeartbeat).isEmpty)
-    
-    Http(URL + "/nodes/" + nodeId8 + "/heartbeat").method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString // Give node a heartbeat
-    
+
+    // Delete node, then create with heartbeat
+    response = Http(URL + "/nodes/" + nodeId8).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    assert(response.code === HttpCode.DELETED.intValue)
+    Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     val heartbeat: Option[String] = Option(parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8).lastHeartbeat)
-    
     assert(heartbeat.nonEmpty)
     
-    Http(URL + "/nodes/" + nodeId8).postData(write(PutNodesRequest(nodeToken, 
-                                                                   nodeId8, 
-                                                                   Some("cluster"), 
-                                                                   compositePatid, 
-                                                                   Some(List(RegService(SDRSPEC, 
-                                                                                        1,
-                                                                                        Some("active"),
-                                                                                        "{json policy for " + nodeId8 + " sdr}",
-                                                                                        List(Prop("arch","arm","string","in"),
-                                                                                        Prop("memory","400","int",">="),
-                                                                                        Prop("version","2.0.0","version","in"),
-                                                                                        Prop("agreementProtocols",agProto,"list","in"),
-                                                                                        Prop("dataVerification","true","boolean","="))))), 
-                                                                   None, 
-                                                                   None, 
-                                                                   None, 
-                                                                   nodePubKey, 
-                                                                   Some("x86"), 
-                                                                   None)
-                                                  )).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString // Update the node
-    
-    val node = parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8)
-    
+    // Update the node as a user w/o changing lastHeartbeat
+    nodeRequest = PutNodesRequest(nodeToken, 
+                                  nodeId8, 
+                                  Some("cluster"), 
+                                  compositePatid, 
+                                  Some(List(RegService(SDRSPEC, 
+                                                      1,
+                                                      Some("active"),
+                                                      "{json policy for " + nodeId8 + " sdr}",
+                                                      List(Prop("arch","arm","string","in"),
+                                                      Prop("memory","400","int",">="),
+                                                      Prop("version","2.0.0","version","in"),
+                                                      Prop("agreementProtocols",agProto,"list","in"),
+                                                      Prop("dataVerification","true","boolean","="))))), 
+                                  None, 
+                                  None, 
+                                  None, 
+                                  nodePubKey, 
+                                  Some("x86"), 
+                                  None)
+    Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
+    var node = parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8)
     assert(node.arch === "x86")
     assert(Option(node.lastHeartbeat).get === heartbeat.get)
+    
+    // Update the node as a node with changing lastHeartbeat
+    Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE8AUTH).asString
+    node = parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8)
+    assert(Option(node.lastHeartbeat).get !== heartbeat.get)
   }
 
   test("GET /orgs/" + orgid + "/nodes/ " + nodeId + " - user 1") {

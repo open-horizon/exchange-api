@@ -1621,7 +1621,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         name = "id",
         in = ParameterIn.PATH,
         description = "ID of the node to be updated."
-      )
+      ),
+      new Parameter(name = "noheartbeat", in = ParameterIn.QUERY, required = false, description = "If set to 'true', skip the step to update the node's lastHeartbeat field.")
     ),
     requestBody = new RequestBody(
       content = Array(
@@ -1674,11 +1675,12 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     )
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/policy")
-  def nodePutPolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & put & entity(as[PutNodePolicyRequest])) { (orgid, id, reqBody) =>
+  def nodePutPolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & put & parameter((Symbol("noheartbeat").?)) & entity(as[PutNodePolicyRequest])) { (orgid, id, noheartbeat, reqBody) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
+          val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
           db.run(reqBody.toNodePolicyRow(compositeId).upsert.asTry.flatMap({
             case Success(v) =>
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/policy result: " + v)
@@ -1687,12 +1689,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           }).flatMap({
             case Success(v) =>
               logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastUpdated result: " + v)
-              NodesTQ.setLastHeartbeat(compositeId, ApiTime.nowUTC).asTry
+              if (noHB) DBIO.successful(1).asTry  // skip updating lastHeartbeat
+              else NodesTQ.setLastHeartbeat(compositeId, ApiTime.nowUTC).asTry
             case Failure(t) => DBIO.failed(t).asTry
           }).flatMap({
             case Success(n) =>
               // Add the resource to the resourcechanges table
-              logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastHeartbeat result: " + n)
+              if (!noHB) logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastHeartbeat result: " + n)
               try {
                 val numUpdated: Int = n.toString.toInt // i think n is an AnyRef so we have to do this to get it to an int
                 if (numUpdated > 0) {

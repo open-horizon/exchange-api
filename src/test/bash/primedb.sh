@@ -517,7 +517,7 @@ fi
 rc=$(curlfind $userauth "orgs/$orgid/nodes/$nodeid/policy")
 checkrc "$rc" 200 404
 if [[ $rc != 200 ]]; then
-    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/policy" '{ "label": "my node policy", "description": "desc", "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
+    curlcreate "PUT" $nodeauth "orgs/$orgid/nodes/$nodeid/policy?noheartbeat=true" '{ "label": "my node policy", "description": "desc", "properties": [{"name":"purpose", "value":"testing", "type":"string"}], "constraints":["a == b"] }'
 else
     echo "orgs/$orgid/nodes/$nodeid/policy exists"
 fi

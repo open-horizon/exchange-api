@@ -182,9 +182,11 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
-  def putNodeTestPolicy(nodeid: String): Unit ={
+  def putNodeTestPolicy(nodeid: String, noHeartbeat: Boolean = false): Unit ={
     val input = PutNodePolicyRequest(Some(nodeid+" policy"), Some(nodeid+" policy desc"), Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")))
-    val response = Http(URL + "/nodes/" + nodeid + "/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = 
+      if (noHeartbeat) Http(URL + "/nodes/" + nodeid + "/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
+      else Http(URL + "/nodes/" + nodeid + "/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("PUT "+nodeid+"/policy, code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -881,6 +883,11 @@ class NodesSuite extends AnyFunSuite {
     assert(Option(parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8).lastHeartbeat).isEmpty)
     deleteNodeTestAgreement(nodeId8)  // clean up agreement
 
+    // Create a node policy for this node with the option to not update the node's lastHeartbeat, and confirm lastHeartbeat is still not set
+    putNodeTestPolicy(nodeId8, noHeartbeat=true)
+    assert(Option(parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8).lastHeartbeat).isEmpty)
+    deleteNodeTestPolicy(nodeId8)  // clean up policy
+
     // Delete node, then create with heartbeat
     response = Http(URL + "/nodes/" + nodeId8).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     assert(response.code === HttpCode.DELETED.intValue)
@@ -922,8 +929,15 @@ class NodesSuite extends AnyFunSuite {
     // Create an agreement for this node with changing the node's lastHeartbeat, and confirm lastHeartbeat is different
     putNodeTestAgreement(nodeId8)
     node = parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8)
-    assert(Option(node.lastHeartbeat).get !== heartbeat2.get)
+    val heartbeat3: Option[String] = Option(node.lastHeartbeat)
+    assert(heartbeat3.get !== heartbeat2.get)
     deleteNodeTestAgreement(nodeId8)  // clean up agreement
+
+    // Create a node polciy for this node with changing the node's lastHeartbeat, and confirm lastHeartbeat is different
+    putNodeTestPolicy(nodeId8)
+    node = parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8)
+    assert(Option(node.lastHeartbeat).get !== heartbeat3.get)
+    deleteNodeTestPolicy(nodeId8)  // clean up policy
   }
 
   test("GET /orgs/" + orgid + "/nodes/ " + nodeId + " - user 1") {

@@ -138,7 +138,7 @@ lazy val root = (project in file("."))
                                         Cmd("USER", "1001:1001"), 
                                         /*
                                          * If bind-mounting your own config.json rename the configuration file in the container's filesystem to exchange-api.tmpl. This will overwrite the 
-                                         * provided exchange-api.tmpl provided in this docker image and prevent cases where a bind-mount config.json is set with read-only permissions. 
+                                         * exchange-api.tmpl provided in this docker image and prevent cases where a bind-mount config.json is set with read-only permissions. 
                                          * Any mounted config.json can choose to use variables to take advantage of the substitution below.
                                          */
                                         Cmd("ENTRYPOINT", "/usr/bin/envsubst $ENVSUBST_CONFIG < /etc/horizon/exchange/exchange-api.tmpl > /etc/horizon/exchange/config.json && /opt/docker/bin/" ++ name.value),

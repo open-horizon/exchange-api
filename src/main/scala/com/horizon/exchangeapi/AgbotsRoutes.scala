@@ -1294,7 +1294,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
           val maxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
           val getNumOwnedDbio = if (maxAgreements == 0) DBIO.successful(0) else AgbotAgreementsTQ.getNumOwned(compositeId).result // avoid DB read for this if there is no max
           db.run(getNumOwnedDbio.flatMap({ xs =>
-            logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" num owned: "+xs)
+            if (maxAgreements != 0) logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+"/agreements/"+agrId+" num owned: "+xs)
             val numOwned = xs
             // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
             if (maxAgreements == 0 || numOwned <= maxAgreements) reqBody.toAgbotAgreementRow(compositeId, agrId).upsert.asTry
@@ -1579,7 +1579,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
         val getNumOwnedDbio = if (maxMessagesInMailbox == 0) DBIO.successful(0) else AgbotMsgsTQ.getNumOwned(compositeId).result // avoid DB read for this if there is no max
         // Remove msgs whose TTL is past, then check the mailbox is not full, then get the node publicKey, then write the agbotmsgs row, all in the same db.run thread
         db.run(getNumOwnedDbio.flatMap({ xs =>
-          logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs mailbox size: "+xs)
+          if (maxMessagesInMailbox != 0) logger.debug("POST /orgs/"+orgid+"/agbots/"+id+"/msgs mailbox size: "+xs)
           val mailboxSize = xs
           if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) NodesTQ.getPublicKey(nodeId).result.asTry
           else DBIO.failed(new DBProcessingError(HttpCode.BAD_GW, ApiRespType.BAD_GW, ExchMsg.translate("agbot.mailbox.full", compositeId, maxMessagesInMailbox) )).asTry

@@ -34,9 +34,9 @@
 			"type": "guava"    // currently guava is the only option
 		},
 		"resourceChanges": {
-			"ttl": 604800,    // number of seconds to keep the history records of resource changes - 604800 is 1 week
+			"ttl": 14400,    // number of seconds to keep the history records of resource changes (14400 is 4 hours). When agents miss 1 or more heartbeats, they reset querying the /changes route, so they do not need very old entries.
 			"maxRecordsCap": 10000, // maximum number of records the notification framework route will return
-			"cleanupInterval": 86400	 // number of seconds between pruning the resourcechanges table in the db of expired changes - 86400 is 24 hours
+			"cleanupInterval": 3600	 // number of seconds between pruning the resourcechanges table in the db of expired changes - 3600 is 1 hour
 		},
 		"db": {
       "acquireIncrement": 1,
@@ -79,7 +79,8 @@
 			"Agbot": ["READ_MYSELF", "WRITE_MYSELF", "DATA_HEARTBEAT_MY_AGBOTS", "READ_MY_AGBOTS", "READ_ALL_AGBOTS", "READ_ALL_NODES", "SEND_MSG_TO_NODE", "READ_ALL_SERVICES", "READ_ALL_PATTERNS", "READ_ALL_BUSINESS", "READ_MY_ORG", "MAXCHANGEID"]
 		},
 		"akka": {
-			// add entries like: "akka.http.server.max-connections": 512
+			"akka.http.server.request-timeout": "45s"
+			// add additional entries like: "akka.http.server.max-connections": 512
 			// see: https://doc.akka.io/docs/akka-http/current/configuration.html
 			// and see: https://doc.akka.io/docs/akka/current/general/configuration-reference.html
 			// can use this to see all of the akka config: "akka.log-config-on-start": "on"

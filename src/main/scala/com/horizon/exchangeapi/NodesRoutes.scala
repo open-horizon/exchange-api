@@ -1971,13 +1971,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
-          db.run(NodeAgreementsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
+          val maxAgreements: Int = ExchConfig.getInt("api.limits.maxAgreements")
+          val getNumOwnedDbio = if (maxAgreements == 0) DBIO.successful(0) else NodeAgreementsTQ.getNumOwned(compositeId).result // avoid DB read for this if there is no max
+          db.run(getNumOwnedDbio.flatMap({ xs =>
             logger.debug("PUT /orgs/"+orgid+"/nodes/"+id+"/agreements/"+agrId+" num owned: "+xs)
             val numOwned: Int = xs
-            val maxAgreements: Int = ExchConfig.getInt("api.limits.maxAgreements")
-            if (maxAgreements == 0 || numOwned <= maxAgreements) {    // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
-              reqBody.toNodeAgreementRow(compositeId, agrId).upsert.asTry
-            }
+            // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
+            if (maxAgreements == 0 || numOwned <= maxAgreements) reqBody.toNodeAgreementRow(compositeId, agrId).upsert.asTry
             else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.limit.of.agreements.for.node", maxAgreements) )).asTry
           }).flatMap({
             case Success(v) =>
@@ -2185,11 +2185,12 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       complete({
         val agbotId: String = ident.creds.id      //someday: handle the case where the acls allow users to send msgs
         var msgNum = ""
+        val maxMessagesInMailbox: Int = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
+        val getNumOwnedDbio = if (maxMessagesInMailbox == 0) DBIO.successful(0) else NodeMsgsTQ.getNumOwned(compositeId).result // avoid DB read for this if there is no max
         // Remove msgs whose TTL is past, then check the mailbox is not full, then get the agbot publicKey, then write the nodemsgs row, all in the same db.run thread
-        db.run(NodeMsgsTQ.getNumOwned(compositeId).result.flatMap({ xs =>
+        db.run(getNumOwnedDbio.flatMap({ xs =>
           logger.debug("POST /orgs/"+orgid+"/nodes/"+id+"/msgs mailbox size: "+xs)
           val mailboxSize: Int = xs
-          val maxMessagesInMailbox: Int = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
           if (maxMessagesInMailbox == 0 || mailboxSize < maxMessagesInMailbox) AgbotsTQ.getPublicKey(agbotId).result.asTry
           else DBIO.failed(new DBProcessingError(HttpCode.BAD_GW, ApiRespType.BAD_GW, ExchMsg.translate("node.mailbox.full", compositeId, maxMessagesInMailbox) )).asTry
         }).flatMap({

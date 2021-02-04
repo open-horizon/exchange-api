@@ -34,9 +34,9 @@
 			"type": "guava"    // currently guava is the only option
 		},
 		"resourceChanges": {
-			"ttl": 604800,    // number of seconds to keep the history records of resource changes - 604800 is 1 week
+			"ttl": 14400,    // number of seconds to keep the history records of resource changes (14400 is 4 hours). When agents miss 1 or more heartbeats, they reset querying the /changes route, so they do not need very old entries.
 			"maxRecordsCap": 10000, // maximum number of records the notification framework route will return
-			"cleanupInterval": 86400	 // number of seconds between pruning the resourcechanges table in the db of expired changes - 86400 is 24 hours
+			"cleanupInterval": 3600	 // number of seconds between pruning the resourcechanges table in the db of expired changes - 3600 is 1 hour
 		},
 		"db": {
       "acquireIncrement": 1,

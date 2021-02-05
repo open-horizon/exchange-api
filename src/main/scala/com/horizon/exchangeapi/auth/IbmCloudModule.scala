@@ -188,9 +188,9 @@ object IbmCloudAuth {
     logger.debug("authenticateUser(): attempting to authenticate with IBM Cloud with " + authInfo.org + "/" + authInfo.keyType)
 
     /*
-     * The caching library provides several functions that work on the cache defined above. The caching function takes a key and tries
-     * to retrieve from the cache, and if it is not there runs the block of code provided, adds the result to the cache, and then returns it.
-     * I use cachingF here so that I can return a Try value (see http://cb372.github.io/scalacache/docs/#basic-cache-operations for more info)
+     * This caching function takes a key and tries to retrieve it from the cache. If it is not found it runs the block of code provided,
+     * adds the result to the cache, and then returns it. We use cachingF so that we can return a Try value.
+     * See http://cb372.github.io/scalacache/docs/#basic-cache-operations for more info.
      */
     cachingF(authInfo.cacheKey)(ttl = None) {
       for {

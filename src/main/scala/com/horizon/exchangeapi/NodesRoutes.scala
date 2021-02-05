@@ -763,7 +763,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           .flatMap({
             case Success(v) =>
               // Check if referenced services exist, then get whether node is using policy
-              logger.debug("PUT /orgs/" + orgid + "/nodes" + id + " service validation: " + v)
+              logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " service validation: " + v)
               var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
               breakable {
                 for ((len, index) <- v.zipWithIndex) {
@@ -857,8 +857,6 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               // Check creation/update of node, and other errors
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
               AuthCache.putNodeAndOwner(compositeId, Password.hash(reqBody.token), reqBody.token, owner)
-              //AuthCache.ids.putNode(id, hashedTok, node.token)
-              //AuthCache.nodesOwner.putOne(id, owner)
               if (fivePercentWarning) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("num.nodes.near.org.limit", orgid, orgMaxNodes)))
               else (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))
             case Failure(t: DBProcessingError) =>
@@ -966,7 +964,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             }).flatMap({
               case Success(v) =>
                 // Check if referenced services exist, then get whether node is using policy
-                logger.debug("PATCH /orgs/" + orgid + "/nodes" + id + " service validation: " + v)
+                logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " service validation: " + v)
                 var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
                 breakable {
                   for ((len, index) <- v.zipWithIndex) {
@@ -1008,7 +1006,6 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                   val numUpdated: Int = v.toString.toInt // v comes to us as type Any
                   if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
                     if (reqBody.token.isDefined) AuthCache.putNode(compositeId, hashedPw, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
-                    //AuthCache.ids.putNode(id, hashedPw, node.token.get)
                     (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", attrName, compositeId)))
                   } else {
                     (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))

@@ -788,7 +788,7 @@ class UsersSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
-  test("GET /orgs/root/users/" + hubadmin ) {
+  test("GET /orgs/root/users/" + hubadmin + " - hub admin view himself") {
     val response = Http(urlRootOrg + "/users/" + hubadmin).method("get").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -805,7 +805,7 @@ class UsersSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
-  test("GET /orgs/" + orgid + "/users/" + orgadmin ) {
+  test("GET /orgs/" + orgid + "/users/" + orgadmin + " - view org admin by hub admin") {
     val response = Http(URL + "/users/" + orgadmin).method("get").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -815,7 +815,13 @@ class UsersSuite extends AnyFunSuite {
     assert(getUserResp.users(orgid + "/" + orgadmin).admin)
   }
 
-  test("GET /orgs/" + orgid + "/users") {
+  test("GET /orgs/" + orgid + "/users/" + user4 + " - view regular user by hub admin - should fail") {
+    val response = Http(URL + "/users/" + user4).method("get").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+  }
+
+  test("GET /orgs/" + orgid + "/users - view all users by hub admin, should return just the admins") {
     val response = Http(URL + "/users").method("get").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)

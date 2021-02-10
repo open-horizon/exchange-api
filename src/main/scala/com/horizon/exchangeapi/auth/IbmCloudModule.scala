@@ -168,8 +168,8 @@ object IbmCloudAuth {
   def logger = ExchangeApi.defaultLogger
 
   private val guavaCache = CacheBuilder.newBuilder()
-    .maximumSize(ExchConfig.getInt("api.cache.idsMaxSize"))
-    .expireAfterWrite(ExchConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
+    .maximumSize(ExchConfig.getInt("api.cache.IAMusersMaxSize"))
+    .expireAfterWrite(ExchConfig.getInt("api.cache.IAMusersTtlSeconds"), TimeUnit.SECONDS)
     .build[String, Entry[String]] // the cache key is org/apikey, and the value is org/username
   implicit val userCache = GuavaCache(guavaCache) // the effect of this is that these methods don't need to be qualified
 

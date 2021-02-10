@@ -26,8 +26,10 @@
 			}
 		},
 		"cache": {
-			"idsMaxSize": 47000,   // includes: users, nodes, agbots (all together)
-			"idsTtlSeconds": 300,
+			"idsMaxSize": 47000,   // includes: local exchange users, nodes, agbots (all together)
+			"idsTtlSeconds": 3600,
+			"IAMusersMaxSize": 300,   // the users that are backed by IAM users
+			"IAMusersTtlSeconds": 300,
 			"resourcesMaxSize": 300,   // each of: users, agbots, services, patterns, policies
 			"resourcesTtlSeconds": 300,
 			"authDbTimeoutSeconds": 15,   // timeout for db access for critical auth info when cache missing

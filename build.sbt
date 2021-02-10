@@ -23,6 +23,9 @@ val versionFunc = () => {
   versText
 }
 
+Global / excludeLintKeys += daemonGroupGid  // was getting unused error, even tho i think they are used
+Global / excludeLintKeys += dockerEnvVars
+
 lazy val root = (project in file("."))
     .settings(
         description                   := "'Containerized exchange-api'",
@@ -65,8 +68,10 @@ lazy val root = (project in file("."))
             "com.github.tminglei" %% "slick-pg_json4s" % "latest.release", 
             "org.postgresql" % "postgresql" % "42.2.16",
             "com.zaxxer" % "HikariCP" % "latest.release", 
-            "org.slf4j" % "slf4j-api" % "1.7.26", // these 2 seem to be needed by slick
-            "ch.qos.logback" % "logback-classic" % "1.2.3", 
+            //"org.slf4j" % "slf4j-api" % "1.7.26", // was gettting error SLF4J providers found with this level
+            //"ch.qos.logback" % "logback-classic" % "1.2.3", 
+            "org.slf4j" % "slf4j-api" % "latest.release", // these 2 seem to be needed by slick
+            "ch.qos.logback" % "logback-classic" % "latest.release", 
             "com.mchange" % "c3p0" % "latest.release", 
             "org.scalaj" %% "scalaj-http" % "latest.release", 
             "com.typesafe" % "config" % "1.3.5-RC1",
@@ -94,7 +99,7 @@ lazy val root = (project in file("."))
         daemonGroupGid in Docker := some("1001"), 
         dockerExposedPorts      ++= Seq(8080), 
         dockerBaseImage          := "registry.access.redhat.com/ubi8-minimal:latest",
-        dockerEnvVars            := Map("JAVA_OPTS" -> ""),   // this is here so JAVA_OPTS can be overridden on the docker run cmd with a value like: -Xmx1G
+        dockerEnvVars := Map("JAVA_OPTS" -> ""),   // this is here so JAVA_OPTS can be overridden on the docker run cmd with a value like: -Xmx1G
         //dockerEntrypoint ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config")  // <- had trouble getting this to work
         mappings in Docker ++= Seq((baseDirectory.value / "LICENSE.txt") -> "/1/licenses/LICENSE.txt", 
                                    (baseDirectory.value / "config" / "exchange-api.tmpl") -> "/2/etc/horizon/exchange/exchange-api.tmpl"

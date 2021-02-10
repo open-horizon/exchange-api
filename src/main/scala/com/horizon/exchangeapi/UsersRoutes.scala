@@ -31,14 +31,17 @@ import slick.jdbc.PostgresProfile.api._
 final case class GetUsersResponse(users: Map[String, User], lastIndex: Int)
 
 /** Input format for PUT /users/<username> */
-final case class PostPutUsersRequest(password: String, admin: Boolean, hubAdmin: Option[Boolean], email: String) {
+final case class PostPutUsersRequest(password: String, admin: Boolean, hubAdmin: Option[Boolean], email: String) extends AuthenticationSupport {
   require(password!=null && email!=null)
-  def getAnyProblem(identIsAdmin: Boolean, identisHubAdmin: Boolean, identisSuperUser: Boolean, orgid: String): Option[String] = {
-    if ((password == "" || email == "") && !identisHubAdmin) Some(ExchMsg.translate("password.and.email.must.be.non.blank.when.creating.user"))
-    else if (admin && !identIsAdmin && !identisHubAdmin && !identisSuperUser) Some(ExchMsg.translate("non.admin.user.cannot.make.admin.user")) // ensure that a user can't elevate himself to an admin user
-    else if (hubAdmin.isDefined && hubAdmin.get && !identisSuperUser) Some(ExchMsg.translate("only.super.users.make.hub.admins"))
-    else if (hubAdmin.isDefined && hubAdmin.get && orgid != "root") Some(ExchMsg.translate("hub.admins.in.root.org"))
-    else if (identisHubAdmin && (hubAdmin.isEmpty || !hubAdmin.get) && !identisSuperUser && !admin) Some(ExchMsg.translate("hub.admins.only.write.admins")) // a hub admin is trying to edit a non-admin, non-hub admin user
+  def getAnyProblem(identCreds: Creds, orgid: String, compositeId: String): Option[String] = {
+    val ident = IUser(identCreds)
+    // Reminder: ident.isHubAdmin and ident.isAdmin are both true for the root user too
+    if ((password == "" || email == "") && !ident.isHubAdmin) Some(ExchMsg.translate("password.and.email.must.be.non.blank.when.creating.user"))
+    else if (admin && !ident.isAdmin && !ident.isHubAdmin && !ident.isSuperUser) Some(ExchMsg.translate("non.admin.user.cannot.make.admin.user")) // ensure a user can't elevate himself to admin user
+    else if (hubAdmin.getOrElse(false) && !ident.isHubAdmin) Some(ExchMsg.translate("only.super.users.make.hub.admins"))
+    else if (hubAdmin.getOrElse(false) && orgid != "root") Some(ExchMsg.translate("hub.admins.in.root.org"))
+    else if (ident.isHubAdmin && !hubAdmin.getOrElse(false) && !admin) Some(ExchMsg.translate("hub.admins.only.write.admins")) // hub admin is trying to create/update a regular user
+    else if (Role.isSuperUser(compositeId) && !ident.isSuperUser) Some(ExchMsg.translate("creating.updating.superuser.not.allowed"))
     else None // None means no problems with input
   }
 }
@@ -201,7 +204,9 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
           realUsername = ident.getIdentity
           compositeId = OrgAndId(ident.getOrg, ident.getIdentity).toString
         }
-        if (ident.isHubAdmin && !AuthCache.getUserIsAdmin(compositeId).getOrElse(false)) (HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("hub.admins.only.view.admins"))
+        /* Note: this kind of check and error msg in the body of complete({}) does not work (it returns the error msg, but the response code is still 200). This kind of access check belongs in Authorization.scala, which is invoked by exchAuth().
+        if (ident.isHubAdmin && !AuthCache.getUserIsAdmin(compositeId).getOrElse(false) && !AuthCache.getUserIsHubAdmin(compositeId).getOrElse(false)) (HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("hub.admins.only.view.admins"))
+        else */
         db.run(UsersTQ.getUser(compositeId).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/users/$realUsername result size: ${list.size}")
           val users: Map[String, User] = list.map(e => e.username -> User(if (ident.isSuperUser || ident.isHubAdmin) e.hashedPw else StrConstants.hiddenPw, e.admin, e.hubAdmin, e.email, e.lastUpdated, e.updatedBy)).toMap
@@ -278,7 +283,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     val compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.CREATE) { ident =>
       logger.debug("isAdmin: " + ident.isAdmin + ", isHubAdmin: " + ident.isHubAdmin + ", isSuperUser: " + ident.isSuperUser)
-      validateWithMsg(reqBody.getAnyProblem(ident.isAdmin, ident.isHubAdmin, ident.isSuperUser, orgid)) {
+      validateWithMsg(reqBody.getAnyProblem(ident.creds, orgid, compositeId)) {
         complete({
           val updatedBy: String = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
           val hashedPw: String = Password.hash(reqBody.password)
@@ -333,7 +338,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug(s"Doing PUT /orgs/$orgid/users/$username")
     val compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.WRITE) { ident =>
-      validateWithMsg(reqBody.getAnyProblem(ident.isAdmin, ident.isHubAdmin, ident.isSuperUser, orgid)) {
+      validateWithMsg(reqBody.getAnyProblem(ident.creds, orgid, compositeId)) {
         complete({
           val updatedBy: String = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
           val hashedPw: String = Password.hash(reqBody.password)
@@ -438,7 +443,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
         // remove does *not* throw an exception if the key does not exist
         // if the user is not an admin, and the caller is a hubadmin, and we know the caller isn't editing themselves
         if(!AuthCache.getUserIsAdmin(compositeId).getOrElse(false) && ident.isHubAdmin && (compositeId!=ident.identityString) && !ident.isSuperUser) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("hub.admins.only.write.admins")))
-        db.run(UsersTQ.getUser(compositeId).delete.transactionally.asTry).map({
+        else db.run(UsersTQ.getUser(compositeId).delete.transactionally.asTry).map({
           case Success(v) => // there were no db errors, but determine if it actually found it or not
             logger.debug(s"DELETE /orgs/$orgid/users/$username result: $v")
             if (v > 0) {

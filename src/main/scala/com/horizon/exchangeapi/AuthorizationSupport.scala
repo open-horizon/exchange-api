@@ -235,10 +235,11 @@ trait AuthorizationSupport {
         identity match {
           case IUser(_) =>
             if (target.getId == "iamapikey" || target.getId == "iamtoken") {
-              // This is a cloud user
+              // This is a cloud IAM user. Get the actual username before continuing.
               val authenticatedIdentity: Creds = subject.getPrivateCredentials(classOf[IUser]).asScala.head.creds
               identity.authorizeTo(TUser(authenticatedIdentity.id), access)
             } else {
+              println("authorizeTo(): calling authorizeTo on "+identity)
               identity.authorizeTo(target, access)
             }
           case _ =>
@@ -336,9 +337,16 @@ trait AuthorizationSupport {
         if (isMyOrg(target) || target.isPublic) {
           target match {
             case TUser(id) => access match { // a user accessing a user
-              case Access.READ => logger.debug(s"id=$id, creds.id=${creds.id}"); if (id == creds.id) Access.READ_MYSELF else if (Role.isHubAdmin(creds.id)) Access.READ_MY_USERS else Access.READ_ALL_USERS
-              case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (Role.isHubAdmin(creds.id)) Access.WRITE_MY_USERS else Access.WRITE_ALL_USERS
-              case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
+              case Access.READ => logger.debug(s"authorizeTo(): target id=$id, identity creds.id=${creds.id}")
+                if (id == creds.id) Access.READ_MYSELF
+                // since we are in the section in which identity and target are in the same org, if identity is a hub admin we are viewing the users in the root org. Note: the root user is also an hub admin and org admin.
+                else if (isHubAdmin && (target.isAdmin || target.isHubAdmin || target.mine)) Access.READ_MY_USERS
+                else Access.READ_ALL_USERS
+              case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF
+                else if (isHubAdmin && !target.isSuperUser && (target.isAdmin || target.isHubAdmin)) Access.WRITE_MY_USERS
+                else Access.WRITE_ALL_USERS
+              case Access.CREATE => if (target.isSuperUser) Access.CREATE_SUPERUSER
+                else Access.CREATE_USER // this also applies to a hub admin creating another hub admin
               case _ => access
             }
             case TNode(_) => access match { // a user accessing a node
@@ -380,9 +388,22 @@ trait AuthorizationSupport {
             }
             case TAction(_) => access // a user running an action
           }
+        } else if (isHubAdmin) { // cross-org access is "normal" for a hub admin, because the hub admin is defined in the root org
+          // since we are in the cross-org section, the target will never be itself or root
+          target match {
+            case TUser(id) => access match { // a user accessing a user
+              case Access.READ => logger.debug(s"authorizeTo(): target id=$id, identity creds.id=${creds.id}")
+                if (target.isAdmin || target.isHubAdmin || target.mine) Access.READ_MY_USERS else Access.READ_ALL_USERS
+              case Access.WRITE => Access.WRITE_MY_USERS // we don't know the content of the request body here, the actual request will have to prevent updating regular users
+              case Access.CREATE => Access.CREATE_USER // we don't know the content of the request body here, the actual request will have to prevent updating regular users
+              case _ => access
+            }
+          case _ => access // a user running an action
+          }
         } else if (!target.isThere && access == Access.READ) {  // not my org, not public, not there, and we are trying to read it
           Access.NOT_FOUND
         } else {  // not my org and not public, but is there or we might create it
+          println("IUser.authorizeTo(): determining access to other orgs...")
           access match {
             case Access.READ => Access.READ_OTHER_ORGS
             case Access.WRITE => Access.WRITE_OTHER_ORGS
@@ -640,6 +661,9 @@ trait AuthorizationSupport {
     def isPublic: Boolean = false    // is overridden by some subclasses
     def isThere: Boolean = false    // is overridden by some subclasses
     def isOwner(user: IUser): Boolean = false    // is overridden by some subclasses
+    def isAdmin = false       // TUser overrides this
+    def isHubAdmin = false       // TUser overrides this
+    def isSuperUser = false       // TUser overrides this
     def label: String = ""    // overridden by subclasses. This should be the exchange resource type
     def toAccessMsg = s"$label=$id"  // the way the target should be described in access denied msgs
 
@@ -672,6 +696,9 @@ trait AuthorizationSupport {
   case class TUser(id: String) extends Target {
     override def isOwner(user: IUser): Boolean = id == user.creds.id
     override def isThere: Boolean = all || mine || AuthCache.getUserIsAdmin(id).nonEmpty
+    override def isAdmin: Boolean = AuthCache.getUserIsAdmin(id).getOrElse(false)
+    override def isHubAdmin: Boolean = AuthCache.getUserIsHubAdmin(id).getOrElse(false)
+    override def isSuperUser: Boolean = Role.isSuperUser(id)
     override def label = "user"
   }
 

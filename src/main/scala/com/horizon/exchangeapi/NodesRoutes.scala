@@ -103,7 +103,8 @@ final case class PutNodesRequest(token: String,
   require(token!=null && name!=null && pattern!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
-  def getAnyProblem(noheartbeat: Option[String]): Option[String] = {
+  def getAnyProblem(id: String, noheartbeat: Option[String]): Option[String] = {
+    if (id == "iamapikey" || id == "iamtoken") return Some(ExchMsg.translate("node.id.not.iamapikey.or.iamtoken"))
     if (noheartbeat.isDefined && noheartbeat.get.toLowerCase != "true" && noheartbeat.get.toLowerCase != "false") return Some(ExchMsg.translate("bad.noheartbeat.param"))
     if (token == "") return Some(ExchMsg.translate("token.must.not.be.blank"))
     // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
@@ -261,8 +262,6 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
     //if (newRegSvcs.sameElements(regSvcs)) halt(HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, "did not find any registeredServices that matched the given org and url criteria."))
     if (!matchingSvcFound) return DBIO.failed(new ResourceNotFoundException(ExchMsg.translate("did.not.find.registered.services")))
     if (newRegSvcs == regSvcs) {
-      println(ExchMsg.translate("no.db.update.necessary"))
-      //logger.debug("No db update necessary, all relevant config states already correct")
       return DBIO.successful(1)    // all the configStates were already set correctly, so nothing to do
     }
 
@@ -744,7 +743,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     val compositeId: String = OrgAndId(orgid, id).toString
     var orgMaxNodes = 0
     exchAuth(TNode(compositeId), Access.WRITE) { ident =>
-      validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
+      validateWithMsg(reqBody.getAnyProblem(id, noheartbeat)) {
         complete({
           val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
           var orgLimitMaxNodes = 0

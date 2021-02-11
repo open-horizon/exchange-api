@@ -4,6 +4,7 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.server.{Directive, Directive0, ValidationRejection}
 import akka.http.scaladsl.server.Directive1
 import com.horizon.exchangeapi.Access.Access
+import com.horizon.exchangeapi.AuthenticationSupport._
 import javax.security.auth.login.{AppConfigurationEntry, Configuration}
 
 import scala.util.matching.Regex
@@ -176,7 +177,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
       authenticate(optCreds, hint = hint) match {
         case Failure(t) => reject(AuthRejection(t))
         case Success(authenticatedIdentity) =>
-          println("exchAuth(): id "+authenticatedIdentity.identity.creds.id+" authenticated, now authorizing to "+target.id+" for "+access)
+          //println("exchAuth(): id "+authenticatedIdentity.identity.creds.id+" authenticated, now authorizing to "+target.id+" for "+access)
           authenticatedIdentity.authorizeTo(target, access) match {
             case Failure(t) => reject(AuthRejection(t))
             case Success(identity) => provide(identity)

@@ -182,7 +182,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // Note: i think these annotations can't have any comments between them and the method def
   @GET
   @Path("orgs")
-  @Operation(summary = "Returns all orgs", description = "Returns some or all org definitions. Can be run by any user if filter orgType=IBM is used, otherwise can only be run by the root user.",
+  @Operation(summary = "Returns all orgs", description = "Returns some or all org definitions. Can be run by any user if filter orgType=IBM is used, otherwise can only be run by the root user or a hub admin.",
     parameters = Array(
       new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this org type. A common org type is 'IBM'.",
         content = Array(new Content(schema = new Schema(implementation = classOf[String], allowableValues = Array("IBM"))))),
@@ -258,7 +258,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // ====== GET /orgs/{orgid} ================================
   @GET
   @Path("orgs/{orgid}")
-  @Operation(summary = "Returns an org", description = "Returns the org with the specified id. Can be run by any user in this org.",
+  @Operation(summary = "Returns an org", description = "Returns the org with the specified id. Can be run by any user in this org or a hub admin.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire org resource will be returned.")),
@@ -333,7 +333,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("orgs/{orgid}")
   @Operation(
     summary = "Adds an org",
-    description = "Creates an org resource. This can only be called by the root user.",
+    description = "Creates an org resource. This can only be called by the root user or a hub admin.",
     parameters = Array(
       new Parameter(
         name = "orgid",
@@ -428,7 +428,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // ====== PUT /orgs/{orgid} ================================
   @PUT
   @Path("orgs/{orgid}")
-  @Operation(summary = "Updates an org", description = "Does a full replace of an existing org. This can only be called by root or a user in the org with the admin role.",
+  @Operation(summary = "Updates an org", description = "Does a full replace of an existing org. This can only be called by root, a hub admin, or a user in the org with the admin role.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     requestBody = new RequestBody(description = "Does a full replace of an existing org.", required = true, content = Array(
@@ -500,7 +500,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // ====== PATCH /orgs/{orgid} ================================
   @PATCH
   @Path("orgs/{orgid}")
-  @Operation(summary = "Updates 1 attribute of an org", description = "Updates one attribute of a org. This can only be called by root or a user in the org with the admin role.",
+  @Operation(summary = "Updates 1 attribute of an org", description = "Updates one attribute of a org. This can only be called by root, a hub admin, or a user in the org with the admin role.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     requestBody = new RequestBody(description = "Specify only **one** of the attributes:", required = true, content = Array(
@@ -576,7 +576,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // =========== DELETE /orgs/{org} ===============================
   @DELETE
   @Path("orgs/{orgid}")
-  @Operation(summary = "Deletes an org", description = "Deletes an org. This can only be called by root or a user in the org with the admin role.",
+  @Operation(summary = "Deletes an org", description = "Deletes an org. This can only be called by root or a hub admin.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     responses = Array(
@@ -586,33 +586,34 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def orgDeleteRoute: Route = (path("orgs" / Segment) & delete) { (orgId) =>
     logger.debug(s"Doing DELETE /orgs/$orgId")
-    exchAuth(TOrg(orgId), Access.WRITE) { _ =>
-      complete({
-        var orgFound = true
-        // remove does *not* throw an exception if the key does not exist
-        db.run(OrgsTQ.getOrgid(orgId).delete.transactionally.asTry.flatMap({
-          case Success(v) =>
-            logger.debug(s"DELETE /orgs/$orgId result: $v")
-            if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              val orgChange: ResourceChangeRow = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              orgChange.insert.asTry
-            } else {
-              orgFound = false
-              logger.debug("line 599")
-              DBIO.successful("no update in resourcechanges table").asTry // just give a success to get us to the next step, but notify that it wasn't added to the resourcechanges table
-            }
-          case Failure(t) => DBIO.failed(t).asTry
-        })).map({
-          case Success(v) =>
-            logger.debug(s"DELETE /orgs/$orgId updated in changes table: $v")
-            if (orgFound) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
-            else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
-          case Failure(t: org.postgresql.util.PSQLException) =>
-            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.deleted", orgId, t.toString))
-          case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.deleted", orgId, t.toString)))
-        })
-      }) // end of complete
+    exchAuth(TOrg(orgId), Access.DELETE_ORG) { _ =>
+      validate(orgId != "root", ExchMsg.translate("cannot.delete.root.org")) {
+        complete({
+          var orgFound = true
+          // remove does *not* throw an exception if the key does not exist
+          db.run(OrgsTQ.getOrgid(orgId).delete.transactionally.asTry.flatMap({
+            case Success(v) =>
+              logger.debug(s"DELETE /orgs/$orgId result: $v")
+              if (v > 0) { // there were no db errors, but determine if it actually found it or not
+                val orgChange: ResourceChangeRow = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
+                orgChange.insert.asTry
+              } else {
+                orgFound = false
+                DBIO.successful("no update in resourcechanges table").asTry // just give a success to get us to the next step, but notify that it wasn't added to the resourcechanges table
+              }
+            case Failure(t) => DBIO.failed(t).asTry
+          })).map({
+            case Success(v) =>
+              logger.debug(s"DELETE /orgs/$orgId updated in changes table: $v")
+              if (orgFound) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
+              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.deleted", orgId, t.toString))
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.deleted", orgId, t.toString)))
+          })
+        }) // end of complete
+      }
     } // end of exchAuth
   }
 

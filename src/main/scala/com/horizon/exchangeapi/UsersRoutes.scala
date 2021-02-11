@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
+//import com.horizon.exchangeapi.AuthenticationSupport._
 import com.horizon.exchangeapi.tables._
 import com.horizon.exchangeapi.auth.{BadInputException, DBProcessingError}
 import org.json4s._
@@ -31,26 +32,45 @@ import slick.jdbc.PostgresProfile.api._
 final case class GetUsersResponse(users: Map[String, User], lastIndex: Int)
 
 /** Input format for PUT /users/<username> */
-final case class PostPutUsersRequest(password: String, admin: Boolean, hubAdmin: Option[Boolean], email: String) extends AuthenticationSupport {
+final case class PostPutUsersRequest(password: String, admin: Boolean, hubAdmin: Option[Boolean], email: String) {
   require(password!=null && email!=null)
-  def getAnyProblem(identCreds: Creds, orgid: String, compositeId: String): Option[String] = {
-    val ident = IUser(identCreds)
+  def getAnyProblem(ident: Identity, orgid: String, compositeId: String, isPost: Boolean): Option[String] = {
+    // Note: AuthorizationSupport.IUser does some permission checking for this route, but it can't make decisions based on the request body content,
+    //        so we have to do those checks here. For example, non-root trying to create/modify root is caught there.
+    // Also Note: AuthCache methods can't be used here because they aren't always up to date on every exchange instance.
     // Reminder: ident.isHubAdmin and ident.isAdmin are both true for the root user too
-    if ((password == "" || email == "") && !ident.isHubAdmin) Some(ExchMsg.translate("password.and.email.must.be.non.blank.when.creating.user"))
-    else if (admin && !ident.isAdmin && !ident.isHubAdmin && !ident.isSuperUser) Some(ExchMsg.translate("non.admin.user.cannot.make.admin.user")) // ensure a user can't elevate himself to admin user
+
+    if ((password == "") && !ident.isHubAdmin) Some(ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
+    // ensure a regular user can't elevate himself to admin user, or admin user elevate to hub admin
+    else if (admin && !ident.isAdmin && !ident.isHubAdmin) Some(ExchMsg.translate("non.admin.user.cannot.make.admin.user"))
     else if (hubAdmin.getOrElse(false) && !ident.isHubAdmin) Some(ExchMsg.translate("only.super.users.make.hub.admins"))
+    // hub admin users have to be in the root org and org admins or regular users in a non-root org
     else if (hubAdmin.getOrElse(false) && orgid != "root") Some(ExchMsg.translate("hub.admins.in.root.org"))
-    else if (ident.isHubAdmin && !hubAdmin.getOrElse(false) && !admin) Some(ExchMsg.translate("hub.admins.only.write.admins")) // hub admin is trying to create/update a regular user
-    else if (Role.isSuperUser(compositeId) && !ident.isSuperUser) Some(ExchMsg.translate("creating.updating.superuser.not.allowed"))
+    else if (!hubAdmin.getOrElse(false) && orgid == "root") Some(ExchMsg.translate("user.cannot.be.in.root"))
+    // hub admins can only create hub admins or admins, or modify a user to be a hub admin or admin
+    else if (ident.isHubAdmin && !ident.isSuperUser && !hubAdmin.getOrElse(false) && !admin) Some(ExchMsg.translate("hub.admins.only.write.admins"))
     else None // None means no problems with input
   }
 }
 
-final case class PatchUsersRequest(password: Option[String], admin: Option[Boolean], email: Option[String]) {
+final case class PatchUsersRequest(password: Option[String], admin: Option[Boolean], hubAdmin: Option[Boolean], email: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def getAnyProblem(identIsAdmin: Boolean, identisHubAdmin: Boolean, identisSuperUser: Boolean): Option[String] = {
-    if (password.isDefined && password.get == "") Some(ExchMsg.translate("password.cannot.be.set.to.empty.string"))
-    else if (admin.isDefined && admin.get && !identIsAdmin && !identisHubAdmin && !identisSuperUser) Some(ExchMsg.translate("non.admin.user.cannot.make.admin.user")) // ensure that a user can't elevate himself to an admin user
+  def getAnyProblem(ident: Identity, orgid: String, compositeId: String): Option[String] = {
+    // Note: AuthorizationSupport.IUser does some permission checking for this route, but it can't make decisions based on the request body content,
+    //        so we have to do those checks here. For example, non-root trying to create/modify root is caught there.
+    // Also Note: AuthCache methods can't be used here because they aren't always up to date on every exchange instance.
+    // Reminder: ident.isHubAdmin and ident.isAdmin are both true for the root user too
+
+    if (password.isDefined && password.get == "" && !ident.isHubAdmin) Some(ExchMsg.translate("password.cannot.be.set.to.empty.string"))
+    // ensure a regular user can't elevate himself to admin user, or admin user elevate to hub admin
+    else if (admin.getOrElse(false) && !ident.isAdmin && !ident.isHubAdmin) Some(ExchMsg.translate("non.admin.user.cannot.make.admin.user"))
+    else if (hubAdmin.getOrElse(false) && !ident.isHubAdmin) Some(ExchMsg.translate("only.super.users.make.hub.admins"))
+    // hub admin users have to be in the root org and org admins in a non-root org
+    else if (hubAdmin.getOrElse(false) && orgid != "root") Some(ExchMsg.translate("hub.admins.in.root.org"))
+    else if (admin.getOrElse(false) && orgid == "root") Some(ExchMsg.translate("user.cannot.be.in.root"))
+    // Hub admins can only modify a user to be a hub admin or admin. This check unfortunately prevents a hub admin from changing the
+    // password or email, but those are rarely done, so this is better than no check at all.
+    else if (ident.isHubAdmin && !ident.isSuperUser && !hubAdmin.getOrElse(false) && !admin.getOrElse(false)) Some(ExchMsg.translate("hub.admins.only.write.admins"))
     else None // None means no problems with input
   }
 
@@ -65,6 +85,7 @@ final case class PatchUsersRequest(password: Option[String], admin: Option[Boole
       case _ => ;
     }
     admin match { case Some(admin2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username, u.admin, u.lastUpdated, u.updatedBy)).update((username, admin2, lastUpdated, updatedBy)), "admin"); case _ => ; }
+    hubAdmin match { case Some(hubAdmin2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username, u.hubAdmin, u.lastUpdated, u.updatedBy)).update((username, hubAdmin2, lastUpdated, updatedBy)), "hubAdmin"); case _ => ; }
     email match { case Some(email2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username, u.email, u.lastUpdated, u.updatedBy)).update((username, email2, lastUpdated, updatedBy)), "email"); case _ => ; }
     (null, null)
   }
@@ -144,8 +165,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TUser(OrgAndId(orgid, "#").toString), Access.READ) { ident =>
       complete({
         logger.debug(s"GET /orgs/$orgid/users identity: $ident")
-        var query = UsersTQ.getAllUsers(orgid)
-        if (ident.isHubAdmin && !ident.isSuperUser) query = UsersTQ.getAllAdmins(orgid)
+        val query = if (ident.isHubAdmin && !ident.isSuperUser) UsersTQ.getAllAdmins(orgid) else UsersTQ.getAllUsers(orgid)
         db.run(query.result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/users result size: ${list.size}")
           val users: Map[String, User] = list.map(e => e.username -> User(if (ident.isSuperUser || ident.isHubAdmin) e.hashedPw else StrConstants.hiddenPw, e.admin, e.hubAdmin, e.email, e.lastUpdated, e.updatedBy)).toMap
@@ -204,10 +224,8 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
           realUsername = ident.getIdentity
           compositeId = OrgAndId(ident.getOrg, ident.getIdentity).toString
         }
-        /* Note: this kind of check and error msg in the body of complete({}) does not work (it returns the error msg, but the response code is still 200). This kind of access check belongs in Authorization.scala, which is invoked by exchAuth().
-        if (ident.isHubAdmin && !AuthCache.getUserIsAdmin(compositeId).getOrElse(false) && !AuthCache.getUserIsHubAdmin(compositeId).getOrElse(false)) (HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("hub.admins.only.view.admins"))
-        else */
-        db.run(UsersTQ.getUser(compositeId).result).map({ list =>
+        val query = if (ident.isHubAdmin && !ident.isSuperUser) UsersTQ.getUserIfAdmin(compositeId) else UsersTQ.getUser(compositeId)
+        db.run(query.result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/users/$realUsername result size: ${list.size}")
           val users: Map[String, User] = list.map(e => e.username -> User(if (ident.isSuperUser || ident.isHubAdmin) e.hashedPw else StrConstants.hiddenPw, e.admin, e.hubAdmin, e.email, e.lastUpdated, e.updatedBy)).toMap
           val code: StatusCode with Serializable = if (users.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
@@ -283,10 +301,13 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     val compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.CREATE) { ident =>
       logger.debug("isAdmin: " + ident.isAdmin + ", isHubAdmin: " + ident.isHubAdmin + ", isSuperUser: " + ident.isSuperUser)
-      validateWithMsg(reqBody.getAnyProblem(ident.creds, orgid, compositeId)) {
+      validateWithMsg(reqBody.getAnyProblem(ident, orgid, compositeId, true)) {
         complete({
           val updatedBy: String = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
           val hashedPw: String = Password.hash(reqBody.password)
+          /* Note: this kind of check and error msg in the body of complete({}) does not work (it returns the error msg, but the response code is still 200). This kind of access check belongs in AuthorizationSupport (which is invoked by exchAuth()) or in getAnyProblem().
+          if (ident.isHubAdmin && !ident.isSuperUser && !hubAdmin.getOrElse(false) && !admin) (HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("hub.admins.only.write.admins"))
+          else */
           db.run(UserRow(compositeId, orgid, hashedPw, reqBody.admin, reqBody.hubAdmin.getOrElse(false), reqBody.email, ApiTime.nowUTC, updatedBy).insertUser().asTry).map({
             case Success(v) =>
               logger.debug("POST /orgs/" + orgid + "/users/" + username + " result: " + v)
@@ -338,7 +359,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug(s"Doing PUT /orgs/$orgid/users/$username")
     val compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.WRITE) { ident =>
-      validateWithMsg(reqBody.getAnyProblem(ident.creds, orgid, compositeId)) {
+      validateWithMsg(reqBody.getAnyProblem(ident, orgid, compositeId, false)) {
         complete({
           val updatedBy: String = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
           val hashedPw: String = Password.hash(reqBody.password)
@@ -395,15 +416,13 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug(s"Doing POST /orgs/$orgid/users/$username")
     val compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.WRITE) { ident =>
-      validateWithMsg(reqBody.getAnyProblem(ident.isAdmin, ident.isHubAdmin, ident.isSuperUser)) {
+      validateWithMsg(reqBody.getAnyProblem(ident, orgid, compositeId)) {
         complete({
           val updatedBy: String = ident match { case IUser(identCreds) => identCreds.id; case _ => "" }
           val hashedPw: String = if (reqBody.password.isDefined) Password.hash(reqBody.password.get) else "" // hash the pw if that is what is being updated
           val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid, updatedBy, hashedPw)
           if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attr.specified")))
-          // if the user is not an admin, and the caller is a hubadmin, and we know the caller isn't editing themselves, and they aren't root
-          if(!AuthCache.getUserIsAdmin(compositeId).getOrElse(false) && ident.isHubAdmin && (compositeId!=ident.identityString) && !ident.isSuperUser) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("hub.admins.only.write.admins")))
-          else db.run(action.transactionally.asTry).map({
+          db.run(action.transactionally.asTry).map({
             case Success(n) =>
               logger.debug("PATCH /orgs/" + orgid + "/users/" + username + " result: " + n)
               if (n.asInstanceOf[Int] > 0) {
@@ -439,24 +458,25 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug(s"Doing DELETE /orgs/$orgid/users/$username")
     val compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.WRITE) { ident =>
-      complete({
-        // remove does *not* throw an exception if the key does not exist
-        // if the user is not an admin, and the caller is a hubadmin, and we know the caller isn't editing themselves
-        if(!AuthCache.getUserIsAdmin(compositeId).getOrElse(false) && ident.isHubAdmin && (compositeId!=ident.identityString) && !ident.isSuperUser) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("hub.admins.only.write.admins")))
-        else db.run(UsersTQ.getUser(compositeId).delete.transactionally.asTry).map({
-          case Success(v) => // there were no db errors, but determine if it actually found it or not
-            logger.debug(s"DELETE /orgs/$orgid/users/$username result: $v")
-            if (v > 0) {
-              if (AuthCache.getUserIsHubAdmin(compositeId).getOrElse(false)) AuthCache.removeUserAndIsHubAdmin(compositeId)
-              else AuthCache.removeUserAndIsAdmin(compositeId)
-              (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.deleted")))
-            } else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
-          case Failure(t: org.postgresql.util.PSQLException) =>
-            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.deleted", compositeId, t.toString))
-          case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.deleted", compositeId, t.toString)))
-        })
-      }) // end of complete
+      validate(orgid+"/"+username != Role.superUser, ExchMsg.translate("cannot.delete.root.user")) {
+        complete({
+          // Note: remove does *not* throw an exception if the key does not exist
+          //todo: if ident.isHubAdmin then 1st get the target user row to verify it isn't a regular user
+          db.run(UsersTQ.getUser(compositeId).delete.transactionally.asTry).map({
+            case Success(v) => // there were no db errors, but determine if it actually found it or not
+              logger.debug(s"DELETE /orgs/$orgid/users/$username result: $v")
+              if (v > 0) {
+                if (AuthCache.getUserIsHubAdmin(compositeId).getOrElse(false)) AuthCache.removeUserAndIsHubAdmin(compositeId)
+                else AuthCache.removeUserAndIsAdmin(compositeId)
+                (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.deleted")))
+              } else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
+            case Failure(t: org.postgresql.util.PSQLException) =>
+              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.deleted", compositeId, t.toString))
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.deleted", compositeId, t.toString)))
+          })
+        }) // end of complete
+      }
     } // end of exchAuth
   }
 

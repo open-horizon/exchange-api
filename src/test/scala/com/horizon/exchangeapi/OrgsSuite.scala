@@ -230,11 +230,22 @@ class OrgsSuite extends AnyFunSuite {
     assert(response.body.contains("Org specific limits cannot be over the global exchange limit"))
   }
 
-  test("DELETE /orgs/" + orgid2) {
+  test("DELETE /orgs/" + orgid2 + " - as hub admin") {
     val response = Http(URL + "/" + orgid2).method("delete").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
-    info("code: "+response.code)
-    info("body: "+response.body)
+    info("code: "+response.code+", body: "+response.body)
     assert(response.code == HttpCode.DELETED.intValue)
+  }
+
+  test("DELETE /orgs/root - as hub admin - should fail") {
+    val response = Http(URL + "/root").method("delete").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: "+response.code+", body: "+response.body)
+    assert(response.code == HttpCode.ACCESS_DENIED.intValue)
+  }
+
+  test("DELETE /orgs/root - as root - should fail") {
+    val response = Http(URL + "/root").method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code+", body: "+response.body)
+    assert(response.code == HttpCode.ACCESS_DENIED.intValue)
   }
 
 //  test("POST /orgs/"+orgid2+"/changes - verify " + orgid2 + " was deleted and stored") {
@@ -255,9 +266,8 @@ class OrgsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
-  /** Delete the org we used for this test */
+  // Try deleting it 1st, in case it is left over from previous test
   test("POST /orgs/"+orgid+" - delete org") {
-    // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL+"/"+orgid).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)

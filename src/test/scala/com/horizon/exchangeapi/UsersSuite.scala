@@ -246,8 +246,7 @@ class UsersSuite extends AnyFunSuite {
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
-  /** Try adding an invalid user body */
-  test("POST /orgs/" + orgid + "/users/" + user + " - bad format") {
+  test("POST /orgs/" + orgid + "/users/" + user + " - add user with invalid body - should fail") {
     val badJsonInput = """{
       "token": "foo",
       "email": "user9972-bad-format"
@@ -257,20 +256,18 @@ class UsersSuite extends AnyFunSuite {
     assert(response.code === HttpCode.BAD_INPUT.intValue) // for now this is what is returned when the json-to-scala conversion fails
   }
 
-  // this check was removed to facilitate creation of hubadmins in multitenancy
-//  test("POST /orgs/" + orgid + "/users/" + user + " - no email - should fail") {
-//    val input = PostPutUsersRequest(pw, admin = true, Some(false), "")
-//    val response = Http(URL + "/users/" + user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-//    info("code: " + response.code + ", response.body: " + response.body)
-//    assert(response.code === HttpCode.BAD_INPUT.intValue)
-//  }
-
-  /** Add a normal user */
-  test("POST /orgs/" + orgid + "/users/" + user + " - normal") {
+  test("POST /orgs/" + orgid + "/users/" + user + " - add a normal user") {
     val input = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
     val response = Http(URL + "/users/" + user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
+  }
+
+  test("PUT /orgs/" + orgid + "/users/" + user + " - update as user with empty email") {
+    val input = PostPutUsersRequest(pw, admin = false, Some(false), "")
+    val response = Http(URL + "/users/" + user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PUT /orgs/" + orgid + "/users/" + user + " - update his own email") {
@@ -286,13 +283,13 @@ class UsersSuite extends AnyFunSuite {
     assert(response.code === HttpCode.OK.intValue)
   }
 
-  test("PUT /orgs/" + orgid + "/users/" + user + " - try to himself admin privilege - should fail") {
+  test("PUT /orgs/" + orgid + "/users/" + user + " - try to give himself admin privilege - should fail") {
     val input = PostPutUsersRequest(pw, admin = true, Some(false), user + "@msn.com")
     var response = Http(URL + "/users/" + user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
 
-    // Try to do it via patch
+    // Try to do it via patch - should fail
     val jsonInput = """{ "admin": true }"""
     response = Http(URL + "/users/" + user).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
@@ -588,7 +585,7 @@ class UsersSuite extends AnyFunSuite {
   }
 
   test("PATCH /orgs/" + orgid + "/users/" + user4 + " - update email via patch - to test updatedBy") {
-    val input = PatchUsersRequest(None, None, Some(user4 + "@hotmail.com"))
+    val input = PatchUsersRequest(None, None, None, Some(user4 + "@hotmail.com"))
     val response = Http(URL + "/users/" + user4).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -631,7 +628,7 @@ class UsersSuite extends AnyFunSuite {
   }
 
   test("PATCH /orgs/" + orgid + "/users/" + user4 + " - update email via patch - to test updatedBy via PATCH again") {
-    val input = PatchUsersRequest(None, None, Some(user4 + "@hotmail.com"))
+    val input = PatchUsersRequest(None, None, None, Some(user4 + "@hotmail.com"))
     val response = Http(URL + "/users/" + user4).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -781,14 +778,21 @@ class UsersSuite extends AnyFunSuite {
   }
 
   // Hub Admin Tests
-  test("POST /orgs/root/users/" + hubadmin ) {
-    val input = PostPutUsersRequest(pw, admin = false, Some(true), hubadmin + "@hotmail.com")
+  test("POST /orgs/root/users/" + hubadmin + " - create hub admin as root") {
+    val input = PostPutUsersRequest(pw, admin = false, Some(true), hubadmin + "@none.com")
     val response = Http(urlRootOrg + "/users/" + hubadmin).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
-  test("GET /orgs/root/users/" + hubadmin ) {
+  test("PUT /orgs/root/users/" + hubadmin + " - update hub admin as himself") {
+    val input = PostPutUsersRequest(pw, admin = false, Some(true), hubadmin + "@hotmail.com")
+    val response = Http(urlRootOrg + "/users/" + hubadmin).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("GET /orgs/root/users/" + hubadmin + " - hub admin view himself") {
     val response = Http(urlRootOrg + "/users/" + hubadmin).method("get").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -796,6 +800,7 @@ class UsersSuite extends AnyFunSuite {
     assert(getUserResp.users.size == 1)
     assert(getUserResp.users.contains("root/" + hubadmin))
     assert(getUserResp.users("root/" + hubadmin).hubAdmin)
+    assert(getUserResp.users("root/" + hubadmin).email === hubadmin + "@hotmail.com")
   }
 
   test("POST /orgs/" + orgid + "/users/" + orgadmin + " creating orgadmin by hubadmin" ) {
@@ -805,7 +810,7 @@ class UsersSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
-  test("GET /orgs/" + orgid + "/users/" + orgadmin ) {
+  test("GET /orgs/" + orgid + "/users/" + orgadmin + " - view org admin by hub admin") {
     val response = Http(URL + "/users/" + orgadmin).method("get").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -815,12 +820,19 @@ class UsersSuite extends AnyFunSuite {
     assert(getUserResp.users(orgid + "/" + orgadmin).admin)
   }
 
-  test("GET /orgs/" + orgid + "/users") {
+  test("GET /orgs/" + orgid + "/users/" + user4 + " - view regular user by hub admin - should fail") {
+    val response = Http(URL + "/users/" + user4).method("get").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+  }
+
+  test("GET /orgs/" + orgid + "/users - view all users by hub admin, should return just the admins") {
     val response = Http(URL + "/users").method("get").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val getUserResp = parse(response.body).extract[GetUsersResponse]
-    assert(getUserResp.users.nonEmpty)
+    assert(getUserResp.users.size === 2)
+    assert(getUserResp.users.contains(orgid + "/" + user))
     assert(getUserResp.users.contains(orgid + "/" + orgadmin))
     assert(getUserResp.users(orgid + "/" + orgadmin).admin)
   }
@@ -847,26 +859,32 @@ class UsersSuite extends AnyFunSuite {
   }
 
   test("PATCH /orgs/" + orgid + "/users/" + orgadmin + " updating orgadmin by hubadmin" ) {
-    val jsonInput = """{ "email": "fakefake@hotmail.com" }"""
+    val jsonInput = """{ "admin": true }"""
     val response = Http(URL + "/users/" + orgadmin).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  test("PUT /orgs/" + orgid + "/users/" + user + " update on non-admin user by hubadmin -- should fail" ) {
+  test("PUT /orgs/" + orgid + "/users/" + user + " update non-admin user by hubadmin -- should fail" ) {
     val input = PostPutUsersRequest(pw2, admin = false, Some(false), user + "1@hotmail.com")
     val response = Http(URL + "/users/" + user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
-    assert(response.body.contains("Hub Admin users can only write org admin users"))
+    assert(response.body.contains("Hub Admin users can only create or update hub admin or org admin users"))
   }
 
-  test("PATCH /orgs/" + orgid + "/users/" + user2 + " update on non-admin user by hubadmin -- should fail" ) {
-    val input = PatchUsersRequest(None, None, Some("fakefake@hotmail.com"))
+  test("PATCH /orgs/" + orgid + "/users/" + user2 + " patch non-admin user by hubadmin -- should fail" ) {
+    val input = PatchUsersRequest(None, None, None, Some("fakefake@hotmail.com"))
     val response = Http(URL + "/users/" + user2).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    assert(response.body.contains("Hub Admin users can only write org admin users"))
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.body.contains("Hub Admin users can only create or update hub admin or org admin users"))
+  }
+
+  test("DELETE /orgs/root/users/root - should fail") {
+    val response = Http(urlRootOrg + "/users/root").method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("IAM login") {

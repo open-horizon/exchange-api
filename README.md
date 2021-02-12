@@ -256,6 +256,13 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.61.0
+
+- Fixed issue 449: check for nodes in auth cache/table first
+- Fixed issue 438: Exchange Auth Cache more granular TTL configuration
+- Issue 454: Tested and confirmed current behavior is correct when a user and node have the same id
+- Fixed issue 436: Hub Admin Bug Fixes/Improvements
+
 ## Changes in 2.60.0
 
 - Issue 456: Change config value `akka.http.server.request-timeout` to `45s`

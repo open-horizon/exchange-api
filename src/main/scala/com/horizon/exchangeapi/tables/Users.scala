@@ -54,8 +54,9 @@ object UsersTQ {
 
   //def getAllUsers(orgid: String) = rows.filter(_.username like orgid+"/%")
   def getAllUsers(orgid: String): Query[Users, UserRow, Seq] = rows.filter(_.orgid === orgid)
-  def getAllAdmins(orgid: String): Query[Users, UserRow, Seq] = rows.filter(_.orgid === orgid).filter(_.admin === true)
+  def getAllAdmins(orgid: String): Query[Users, UserRow, Seq] = rows.filter(_.orgid === orgid).filter(r => {r.admin || r.hubAdmin})
   def getUser(username: String): Query[Users, UserRow, Seq] = rows.filter(_.username === username)
+  def getUserIfAdmin(username: String): Query[Users, UserRow, Seq] = rows.filter(r => {r.username === username && (r.admin || r.hubAdmin)})
   def getPassword(username: String): Query[Rep[String], String, Seq] = rows.filter(_.username === username).map(_.password)
   def getAdmin(username: String): Query[Rep[Boolean], Boolean, Seq] = rows.filter(_.username === username).map(_.admin)
   def getHubAdmin(username: String): Query[Rep[Boolean], Boolean, Seq] = rows.filter(_.username === username).map(_.hubAdmin)

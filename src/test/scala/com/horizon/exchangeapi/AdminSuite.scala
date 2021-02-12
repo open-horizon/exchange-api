@@ -74,29 +74,40 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
 
     for (org <- ORGS) {
       for (user <- USERS) {
-        Http(URL + "/orgs/" + org + "/users/" + user).postData(write(PostPutUsersRequest("password", user.endsWith("admin"), Some(false), user + "@host.domain"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        val response = Http(URL + "/orgs/" + org + "/users/" + user).postData(write(PostPutUsersRequest("password", user.endsWith("admin"), Some(org=="root"), user + "@host.domain"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        assert(response.code == HttpCode.POST_OK.intValue)
       }
       
-      Http(URL + "/orgs/" + org + "/agbots/" + AGBOT).postData(write(PutAgbotsRequest("password", AGBOT, None, "password"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      Http(URL + "/orgs/" + org + "/services").postData(write(PostPutServiceRequest(SERVICE, None, true, None, URL + "/orgs/" + org + "/services/" + SERVICE, "0.0.1", "test-arch", "multiple", None, None, None, None, None, None, None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      Http(URL + "/orgs/" + org + "/patterns/" + PATTERN).postData(write(PostPutPatternRequest(PATTERN, Some("AdminSuite Test Pattern"), None, List(PServices(URL + "/orgs/" + org + "/services/" + SERVICE, org, "test-arch", None, List(PServiceVersions("0.0.1", None, None, None, None)), None, None)), None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      Http(URL + "/orgs/" + org + "/nodes/" + NODE).postData(write(PutNodesRequest("password", NODE, None, org + "/" + PATTERN, None, None, None, None, "password", None, None))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(URL + "/orgs/" + org + "/agbots/" + AGBOT).postData(write(PutAgbotsRequest("password", AGBOT, None, "password"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      assert(response.code == HttpCode.PUT_OK.intValue)
+      response = Http(URL + "/orgs/" + org + "/services").postData(write(PostPutServiceRequest(SERVICE, None, true, None, URL + "/orgs/" + org + "/services/" + SERVICE, "0.0.1", "test-arch", "multiple", None, None, None, None, None, None, None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      assert(response.code == HttpCode.POST_OK.intValue)
+      response = Http(URL + "/orgs/" + org + "/patterns/" + PATTERN).postData(write(PostPutPatternRequest(PATTERN, Some("AdminSuite Test Pattern"), None, List(PServices(URL + "/orgs/" + org + "/services/" + SERVICE, org, "test-arch", None, List(PServiceVersions("0.0.1", None, None, None, None)), None, None)), None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      assert(response.code == HttpCode.POST_OK.intValue)
+      response = Http(URL + "/orgs/" + org + "/nodes/" + NODE).postData(write(PutNodesRequest("password", NODE, None, org + "/" + PATTERN, None, None, None, None, "password", None, None))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      assert(response.code == HttpCode.PUT_OK.intValue)
     }
   }
 
   override def afterAll(): Unit = {
     for (org <- ORGS) {
       for (user <- USERS) {
-        Http(URL + "/orgs/" + org + "/users/" + user).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+        val response = Http(URL + "/orgs/" + org + "/users/" + user).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+        assert(response.code == HttpCode.DELETED.intValue)
       }
       
-      Http(URL + "/orgs/" + org + "/agbots/" + AGBOT).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-      Http(URL + "/orgs/" + org + "/nodes/" + NODE).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-      Http(URL + "/orgs/" + org + "/patterns/" + PATTERN).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-      Http(URL + "/orgs/" + org + "/services/" + ("/".r.replaceAllIn(("""(http[sS]{0,1}://(www.){0,1}){0,1}""".r.replaceFirstIn(URL, "")), "-")) + "-orgs-" + org + "-services-" + SERVICE + "_0.0.1_test-arch").method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(URL + "/orgs/" + org + "/agbots/" + AGBOT).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      assert(response.code == HttpCode.DELETED.intValue)
+      response = Http(URL + "/orgs/" + org + "/nodes/" + NODE).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      assert(response.code == HttpCode.DELETED.intValue)
+      response = Http(URL + "/orgs/" + org + "/patterns/" + PATTERN).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      assert(response.code == HttpCode.DELETED.intValue)
+      response = Http(URL + "/orgs/" + org + "/services/" + ("/".r.replaceAllIn(("""(http[sS]{0,1}://(www.){0,1}){0,1}""".r.replaceFirstIn(URL, "")), "-")) + "-orgs-" + org + "-services-" + SERVICE + "_0.0.1_test-arch").method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      assert(response.code == HttpCode.DELETED.intValue)
     }
     
-    Http(URL + "/orgs/" + ORGS(0)).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL + "/orgs/" + ORGS(0)).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+    assert(response.code == HttpCode.DELETED.intValue)
   }
 
   // =============== Hash a Password ===============

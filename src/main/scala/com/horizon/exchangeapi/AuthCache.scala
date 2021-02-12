@@ -75,12 +75,12 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
             // the creds were invalid
             if (alreadyRetried) {
               // we already tried clearing the cache and retrying, so give up and return that they were bad creds
-              logger.debug("CacheId:getValidType(): user " + creds.id + " not authenticated in the exchange")
+              logger.debug("CacheId:getValidType(): id " + creds.id + " not authenticated in the exchange")
               Success(CacheIdType.None)  // this is distinguished from Failure, because we didn't hit an error trying to access the db, it's just that the creds weren't value
             } else {
               // If we only used a non-expired cache entry to get here, the cache entry could be stale (e.g. they recently changed their pw/token via a different instance of the exchange).
               // So delete the cache entry from the db and try 1 more time
-              logger.debug("CacheId:getValidType(): user " + creds.id + " was not authenticated successfully, removing cache entry in case it was stale, and trying 1 more time")
+              logger.debug("CacheId:getValidType(): id " + creds.id + " was not authenticated successfully, removing cache entry in case it was stale, and trying 1 more time")
               removeOne(creds.id)
               getValidType(creds, alreadyRetried = true)
             }
@@ -88,20 +88,24 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
       }
     }
 
-    // I currently don't know how to make the cachingF function run and get its value w/o putting it in a separate method
+    // Returns the cache value associated with this creds.id. If not in the cache, it will run the code block, add it to the cache, then return it.
+    // (I currently don't know how to make the cachingF function run and get its value w/o putting it in a separate method.)
     private def getCacheValue(creds: Creds): Try[CacheVal] = {
       cachingF(creds.id)(ttl = None) {
+        // Tries each type of id until it finds it (then it just nominally calls the remaining methods).
+        // The for comprehension will kick out if any of the methods return a Try failure. Otherwise it unwraps the Try object before going to the next one.
         for {
-          userVal <- getId(creds, UsersTQ.getPassword(creds.id).result, CacheIdType.User, None)
-          nodeVal <- getId(creds, NodesTQ.getToken(creds.id).result, CacheIdType.Node, userVal)
-          cacheVal <- getId(creds, AgbotsTQ.getToken(creds.id).result, CacheIdType.Agbot, nodeVal, last = true)
-        } yield cacheVal.get
+          nodeValOpt <- getId(creds, NodesTQ.getToken(creds.id).result, CacheIdType.Node, None)
+          agbotValOpt <- getId(creds, AgbotsTQ.getToken(creds.id).result, CacheIdType.Agbot, nodeValOpt)
+          cacheValOpt <- getId(creds, UsersTQ.getPassword(creds.id).result, CacheIdType.User, agbotValOpt, last = true)
+        } yield cacheValOpt.get
       }
     }
 
     // Get the id of this type from the db, if there
-    private def getId(creds: Creds, dbAction: DBIO[Seq[String]], idType: CacheIdType, cacheVal: Option[CacheVal], last: Boolean = false): Try[Option[CacheVal]] = {
-      if (cacheVal.isDefined) return Success(cacheVal)
+    private def getId(creds: Creds, dbAction: DBIO[Seq[String]], idType: CacheIdType, cacheValOpt: Option[CacheVal], last: Boolean = false): Try[Option[CacheVal]] = {
+      if (cacheValOpt.isDefined) return Success(cacheValOpt) // short circuit the search because we already found it
+
       logger.debug(s"CacheId:getId(): ${creds.id} was not in the cache, so attempting to get it from the $idType db table")
       //val dbAction = NodesTQ.getToken(id).result
       val dbHashedTok: String = try {

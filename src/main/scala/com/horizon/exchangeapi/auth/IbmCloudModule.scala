@@ -168,8 +168,8 @@ object IbmCloudAuth {
   def logger = ExchangeApi.defaultLogger
 
   private val guavaCache = CacheBuilder.newBuilder()
-    .maximumSize(ExchConfig.getInt("api.cache.idsMaxSize"))
-    .expireAfterWrite(ExchConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
+    .maximumSize(ExchConfig.getInt("api.cache.IAMusersMaxSize"))
+    .expireAfterWrite(ExchConfig.getInt("api.cache.IAMusersTtlSeconds"), TimeUnit.SECONDS)
     .build[String, Entry[String]] // the cache key is org/apikey, and the value is org/username
   implicit val userCache = GuavaCache(guavaCache) // the effect of this is that these methods don't need to be qualified
 
@@ -188,9 +188,9 @@ object IbmCloudAuth {
     logger.debug("authenticateUser(): attempting to authenticate with IBM Cloud with " + authInfo.org + "/" + authInfo.keyType)
 
     /*
-     * The caching library provides several functions that work on the cache defined above. The caching function takes a key and tries
-     * to retrieve from the cache, and if it is not there runs the block of code provided, adds the result to the cache, and then returns it.
-     * I use cachingF here so that I can return a Try value (see http://cb372.github.io/scalacache/docs/#basic-cache-operations for more info)
+     * This caching function takes a key and tries to retrieve it from the cache. If it is not found it runs the block of code provided,
+     * adds the result to the cache, and then returns it. We use cachingF so that we can return a Try value.
+     * See http://cb372.github.io/scalacache/docs/#basic-cache-operations for more info.
      */
     cachingF(authInfo.cacheKey)(ttl = None) {
       for {

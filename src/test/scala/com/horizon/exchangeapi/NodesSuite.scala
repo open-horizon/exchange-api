@@ -344,6 +344,20 @@ class NodesSuite extends AnyFunSuite {
 
   ExchConfig.load()
 
+  test("PUT /orgs/"+orgid+"/nodes/iamapikey - add node with id iamapikey - should fail") {
+    val input = PutNodesRequest(nodeToken, "bad", None, "", None, None, None, None, "", None, None)
+    val response = Http(URL+"/nodes/iamapikey").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/iamtoken - add node with id iamapikey - should fail") {
+    val input = PutNodesRequest(nodeToken, "bad", None, "", None, None, None, None, "", None, None)
+    val response = Http(URL+"/nodes/iamapikey").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - add node with invalid svc ref in userInput - should fail") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", None, compositePatid, None,
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, Some("[9.9.9,9.9.9]"), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),

@@ -4,6 +4,7 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.server.{Directive, Directive0, ValidationRejection}
 import akka.http.scaladsl.server.Directive1
 import com.horizon.exchangeapi.Access.Access
+import com.horizon.exchangeapi.AuthenticationSupport._
 import javax.security.auth.login.{AppConfigurationEntry, Configuration}
 
 import scala.util.matching.Regex
@@ -24,15 +25,15 @@ import java.util
 
 /* Used by all routes classes to Authenticates the client credentials and then checks the ACLs for authorization.
 The main authenticate/authorization flow is:
-- an api route calls authenticate() which:
+- an api route calls the directive exchAuth() which calls authenticate() which:
   - initiates a login with JAAS, giving it ExchCallbackHandler (which gives it access to the creds)
     - calls the login() methods of each module listed in resources/jaas.config until 1 doesnt throw an exception
       - in IbmCloudModule.login() it calls IbmCloudAuth.authenticateUser()
       - in Module.login() it calls Identity.authenticate()
-  - returns an AuthenticatedIdentity (that contains both the exchange-specific Identity, and the JAAS Subject)
+  - returns an AuthenticatedIdentity (that contains both the exchange-specific Identity, and the JAAS Subject), or it throws an authentication exception
 - from the return of authenticate() the route then calls AuthenticatedIdentity.authorizeTo() with the target and access required
   - calls the correct Identity subclass authorizeTo() method
-    - determines if the Identity has the specific access required
+    - if the Identity has the specific access required it returns the identity, otherwise it throws an authorization exception
 */
 object AuthenticationSupport {
   def logger: LoggingAdapter = ExchangeApi.defaultLogger
@@ -176,6 +177,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
       authenticate(optCreds, hint = hint) match {
         case Failure(t) => reject(AuthRejection(t))
         case Success(authenticatedIdentity) =>
+          //println("exchAuth(): id "+authenticatedIdentity.identity.creds.id+" authenticated, now authorizing to "+target.id+" for "+access)
           authenticatedIdentity.authorizeTo(target, access) match {
             case Failure(t) => reject(AuthRejection(t))
             case Success(identity) => provide(identity)

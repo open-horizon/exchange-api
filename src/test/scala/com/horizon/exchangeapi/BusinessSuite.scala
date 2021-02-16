@@ -482,14 +482,21 @@ class BusinessSuite extends AnyFunSuite {
 
   //~~~~~ Patch and get (verify) business policies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - no service versions") {
-    val jsonInput = """{ "service": [{ "org": """"+orgid+"""", "name": """"+svcurl+"""", "arch": """"+svcarch+"""", "serviceVersions": [] }] }"""
+  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - no service org - should fail") {
+    val jsonInput = """{ "service": { "name": """"+svcurl+"""", "arch": """"+svcarch+"""", "serviceVersions": [{ "version": "1.2.3" }] } }"""
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
-  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - userInput with an invalid service ref") {
+  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - no service versions - should fail") {
+    val jsonInput = """{ "service": { "org": """"+orgid+"""", "name": """"+svcurl+"""", "arch": """"+svcarch+"""", "serviceVersions": [] } }"""
+    val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
+  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - userInput with an invalid service ref - should fail") {
     val jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": "fooarch", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

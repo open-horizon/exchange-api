@@ -50,7 +50,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
     private val guavaCache: cache.Cache[String, Entry[CacheVal]] = CacheBuilder.newBuilder()
                                                                                .maximumSize(ExchConfig.getInt("api.cache.idsMaxSize"))
                                                                                .expireAfterWrite(ExchConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
-                                                                               .build[String, Entry[CacheVal]] // the cache key is org/id, and the value is CacheVal
+                                                                               .build[String, Entry[CacheVal]] // the cache key is <org>/<id>, and the value is CacheVal
     implicit val userCache: GuavaCache[CacheVal] = GuavaCache(guavaCache) // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
     private var db: Database = _
 
@@ -365,9 +365,10 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
     usersAdmin.putOne(id, isAdmin)
   }
 
-  def removeUserAndIsAdmin(id: String): Unit = {
+  def removeUser(id: String): Unit = { // id is the composite id (org/user)
     ids.removeOne(id)
-    usersAdmin.removeOne(id)
+    usersAdmin.removeOne(id) // removeOne() does not throw an error if the cache entry doesn't exist
+    usersHubAdmin.removeOne(id)
   }
 
   def getUserIsHubAdmin(id: String): Option[Boolean] = {
@@ -381,11 +382,6 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
   def putUserAndIsHubAdmin(id: String, hashedPw: String, unhashedPw: String, isHubAdmin: Boolean): Unit = {
     ids.putUser(id, hashedPw, unhashedPw)
     usersHubAdmin.putOne(id, isHubAdmin)
-  }
-
-  def removeUserAndIsHubAdmin(id: String): Unit = {
-    ids.removeOne(id)
-    usersHubAdmin.removeOne(id)
   }
 
   def getNodeOwner(id: String): Option[String] = {

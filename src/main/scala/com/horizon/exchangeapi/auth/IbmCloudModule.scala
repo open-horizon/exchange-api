@@ -170,7 +170,7 @@ object IbmCloudAuth {
   private val guavaCache = CacheBuilder.newBuilder()
     .maximumSize(ExchConfig.getInt("api.cache.IAMusersMaxSize"))
     .expireAfterWrite(ExchConfig.getInt("api.cache.IAMusersTtlSeconds"), TimeUnit.SECONDS)
-    .build[String, Entry[String]] // the cache key is org/apikey, and the value is org/username
+    .build[String, Entry[String]] // the cache key is <org>/<keytype>:<apikey> (where keytype is iamapikey or iamtoken), and the value is <org>/<username>
   implicit val userCache = GuavaCache(guavaCache) // the effect of this is that these methods don't need to be qualified
 
   // Called by ExchangeApiApp after db is established and upgraded
@@ -204,9 +204,14 @@ object IbmCloudAuth {
     }
   }
 
+  // Note: the cache key is <org>/<keytype>:<apikey>, so in the rest of the code it is usually hard to know this value, except in the auth code path
+  def removeUserKey(cacheKey: String): Unit = {
+    remove(cacheKey) // does not throw an error if it doesn't exist
+  }
+
   def clearCache(): Try[Unit] = {
     logger.debug(s"Clearing the IBM Cloud auth cache")
-    removeAll().map(_ => ())
+    removeAll().map(_ => ()) // i think this map() just transforms the removeAll() return of a future into Unit
   }
 
   // Note: we need these 2 methods because if the env var is set to "", sys.env.get() will return Some("") instead of None

@@ -258,7 +258,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 ## Changes in 2.62.0
 
-- Fixed issue 464: NPE in Exchange on PATCH businesspolicies with incorrect payload returns incorrect HTTP status code - doesn't tell user what is wrong
+- Fixed issue 464: NPE in Exchange on PATCH business policies with incorrect payload returns incorrect HTTP status code - doesn't tell user what is wrong
 - Fixed issue 176: When user or org is deleted, delete all corresponding auth cache entries
 - Fixed issue 440: Add max parameter on GET /msgs calls
 

@@ -589,9 +589,18 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TOrg(orgId), Access.DELETE_ORG) { _ =>
       validate(orgId != "root", ExchMsg.translate("cannot.delete.root.org")) {
         complete({
+          // DB actions to get the user/agbot/node id's in this org
+          var getResourceIds = DBIO.sequence(Seq(UsersTQ.getAllUsersUsername(orgId).result, AgbotsTQ.getAllAgbotsId(orgId).result, NodesTQ.getAllNodesId(orgId).result))
+          var resourceIds: Seq[Seq[String]] = null
           var orgFound = true
           // remove does *not* throw an exception if the key does not exist
-          db.run(OrgsTQ.getOrgid(orgId).delete.transactionally.asTry.flatMap({
+          db.run(getResourceIds.asTry.flatMap({
+            case Success(v) =>
+              logger.debug(s"DELETE /orgs/$orgId remove from cache: users: ${v(0).size}, agbots: ${v(1).size}, nodes: ${v(2).size}")
+              resourceIds = v // save for a subsequent step - this is a vector of 3 vectors
+              OrgsTQ.getOrgid(orgId).delete.transactionally.asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          }).flatMap({
             case Success(v) =>
               logger.debug(s"DELETE /orgs/$orgId result: $v")
               if (v > 0) { // there were no db errors, but determine if it actually found it or not
@@ -605,8 +614,14 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           })).map({
             case Success(v) =>
               logger.debug(s"DELETE /orgs/$orgId updated in changes table: $v")
-              if (orgFound) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
-              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+              if (orgFound && resourceIds!=null) {
+                // Loop thru user/agbot/node id's and remove them from the cache
+                for (id <- resourceIds(0)) { /*println(s"removing $id from cache");*/ AuthCache.removeUser(id) } // users
+                for (id <- resourceIds(1)) { /*println(s"removing $id from cache");*/ AuthCache.removeAgbotAndOwner(id) } // agbots
+                for (id <- resourceIds(2)) { /*println(s"removing $id from cache");*/ AuthCache.removeNodeAndOwner(id) } // nodes
+                IbmCloudAuth.clearCache() // no alternative but sledgehammer approach because the IAM cache is keyed by api key
+                (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
+              } else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.deleted", orgId, t.toString))
             case Failure(t) =>

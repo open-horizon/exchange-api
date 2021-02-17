@@ -3082,14 +3082,14 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
-  //todo: Need to do this to clean up some cache references, until issue 232 or 176 is implemented.
+  /* No longer needed because https://github.com/open-horizon/exchange-api/issues/176 is fixed.
   // What is going on here is the resources are created with 1 user, then updated with another. When the org is deleted, the resource goes away, but the cache entry doesn't go away for 5 minutes.
   // If the test suite is run again within that time frame, the 1st create above will find the cache entry and think it is owned by another user and return 403.
   test("DELETE /orgs/"+orgid2+"/nodes/"+nodeId) {
     val response = Http(URL2+"/nodes/"+nodeId).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
-  }
+  } */
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " was deleted and logged as deleted also that node error change is there") {
     val time = ApiTime.pastUTC(60)

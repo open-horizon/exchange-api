@@ -423,6 +423,7 @@ class AgbotsSuite extends AnyFunSuite {
       assert(respObj2.services.size === 1)
 
       if (ibmAgbotId != "") {
+        // Note: most of the /msgs testing for both nodes and agbots is in NodesSuite
         // Also create a node to make sure they can msg each other
         val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", None, orgid + "/" + pattern, None, None, None, None, "NODEABC", None, None)
         var response2 = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

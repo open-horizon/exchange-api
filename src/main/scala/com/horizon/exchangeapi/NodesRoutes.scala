@@ -2229,7 +2229,9 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Returns all msgs sent to this node", description = "Returns all msgs that have been sent to this node. They will be returned in the order they were sent. All msgs that have been sent to this node will be returned, unless the node has deleted some, or some are past their TTL. Can be run by a user or the node.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
+      new Parameter(name = "maxmsgs", in = ParameterIn.QUERY, required = false, description = "Maximum number of messages returned. If this is less than the number of messages available, the oldest messages are returned. Defaults to unlimited.")
+    ),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[GetNodeMsgsResponse])))),
@@ -2238,20 +2240,25 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/message")
-  def nodeGetMsgsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs") & get) { (orgid, id) =>
+  def nodeGetMsgsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs") & get & parameter((Symbol("maxmsgs").?))) { (orgid, id, maxmsgsStrOpt) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
-      complete({
-        // Remove msgs whose TTL is past, and then get the msgs for this node
-        db.run(NodeMsgsTQ.getMsgs(compositeId).result).map({ list =>
-          logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs result size: "+list.size)
-          //logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs result: "+list.toString)
-          val listSorted: Seq[NodeMsgRow] = list.sortWith(_.msgId < _.msgId)
-          val msgs: List[NodeMsg] = listSorted.map(_.toNodeMsg).toList
-          val code: StatusCode with Serializable = if (msgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-          (code, GetNodeMsgsResponse(msgs, 0))
-        })
-      }) // end of complete
+      validate(Try(maxmsgsStrOpt.map(_.toInt)).isSuccess, ExchMsg.translate("invalid.int.for.name", maxmsgsStrOpt.getOrElse(""), "maxmsgs")) {
+        complete({
+          // Set the query, including maxmsgs
+          var maxIntOpt = maxmsgsStrOpt.map(_.toInt)
+          var query = NodeMsgsTQ.getMsgs(compositeId).sortBy(_.msgId)
+          if (maxIntOpt.getOrElse(0) > 0) query = query.take(maxIntOpt.get)
+          // Get the msgs for this agbot
+          db.run(query.result).map({ list =>
+            logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs result size: "+list.size)
+            //logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs result: "+list.toString)
+            val msgs: List[NodeMsg] = list.map(_.toNodeMsg).toList
+            val code: StatusCode with Serializable = if (msgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            (code, GetNodeMsgsResponse(msgs, 0))
+          })
+        }) // end of complete
+      }
     } // end of exchAuth
   }
   

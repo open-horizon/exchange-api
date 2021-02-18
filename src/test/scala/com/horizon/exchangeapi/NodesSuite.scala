@@ -2376,7 +2376,7 @@ class NodesSuite extends AnyFunSuite {
     assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "nodemsgs")}))
   }
 
-  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " can't see nodemsgs") {
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " doesn't see nodemsgs") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -2444,6 +2444,29 @@ class NodesSuite extends AnyFunSuite {
     assert(msg !== null)
     assert(msg.agbotId === orgagbotId2)
     assert(msg.agbotPubKey === "AGBOT2ABC")
+  }
+
+  test("GET /orgs/" + orgid + "/nodes/" + nodeId + "/msgs - check maxmsgs query parameter") {
+    var response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","2").asString
+    assert(response.code === HttpCode.OK.intValue)
+    var resp = parse(response.body).extract[GetNodeMsgsResponse]
+    assert(resp.messages.size === 2)
+    assert(resp.messages(0).message === "{msg1 from agbot1 to node1}") // confirm we got the oldest msgs
+    // the 2nd msg may be the msg with short ttl, or the msg after that, so we aren't checking that one
+
+    // set maxmsgs=0, which is the same as no limit
+    response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","0").asString
+    assert(response.code === HttpCode.OK.intValue)
+    resp = parse(response.body).extract[GetNodeMsgsResponse]
+    assert(resp.messages.size === 3 || resp.messages.size === 4)
+
+    // set maxmsgs=bad - should fail
+    response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","bad").asString
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+
+    // set maxmsgs="" - should fail
+    response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","").asString
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId2+"/msgs - then delete and get again") {
@@ -2566,6 +2589,29 @@ class NodesSuite extends AnyFunSuite {
     assert(msg.nodePubKey === nodePubKey)
   }
 
+  test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - check maxmsgs query parameter") {
+    var response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","2").asString
+    assert(response.code === HttpCode.OK.intValue)
+    var resp = parse(response.body).extract[GetAgbotMsgsResponse]
+    assert(resp.messages.size === 2)
+    assert(resp.messages(0).message === "{msg1 from node1 to agbot1}") // confirm we got the oldest msgs
+    // the 2nd msg may be the msg with short ttl, or the msg after that, so we aren't checking that one
+
+    // set maxmsgs=0, which is the same as no limit
+    response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","0").asString
+    assert(response.code === HttpCode.OK.intValue)
+    resp = parse(response.body).extract[GetAgbotMsgsResponse]
+    assert(resp.messages.size === 3 || resp.messages.size === 4)
+
+    // set maxmsgs=bad - should fail
+    response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","bad").asString
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+
+    // set maxmsgs="" - should fail
+    response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","").asString
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
   test("GET /orgs/"+orgid+"/agbots/"+agbotId2+"/msgs - then delete and get again") {
     var response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("get").headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -2610,7 +2656,7 @@ class NodesSuite extends AnyFunSuite {
     assert(resp2.messages.size === 0)
   }
 
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+" - with low maxMessagesInMailbox") {
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+" - with low maxMessagesInMailbox") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- already do this earlier

@@ -110,7 +110,7 @@ runexecutable:
 
 test:
 	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
-	- sbt test
+	sbt test
 
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:

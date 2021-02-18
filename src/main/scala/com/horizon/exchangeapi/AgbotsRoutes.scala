@@ -1621,7 +1621,9 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Returns all msgs sent to this agbot", description = "Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
+      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
+      new Parameter(name = "maxmsgs", in = ParameterIn.QUERY, required = false, description = "Maximum number of messages returned. If this is less than the number of messages available, the oldest messages are returned. Defaults to unlimited.")
+    ),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotMsgsResponse])))),
@@ -1630,20 +1632,25 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/message")
-  def agbotGetMsgsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "msgs") & get) { (orgid, id) =>
+  def agbotGetMsgsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "msgs") & get & parameter((Symbol("maxmsgs").?))) { (orgid, id, maxmsgsStrOpt) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
-      complete({
-        // Remove msgs whose TTL is past, and then get the msgs for this agbot
-        db.run(AgbotMsgsTQ.getMsgs(compositeId).result).map({ list =>
-          logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result size: "+list.size)
-          //logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result: "+list.toString)
-          val listSorted = list.sortWith(_.msgId < _.msgId)
-          val msgs = listSorted.map(_.toAgbotMsg).toList
-          val code = if (msgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-          (code, GetAgbotMsgsResponse(msgs, 0))
-        })
-      }) // end of complete
+      validate(Try(maxmsgsStrOpt.map(_.toInt)).isSuccess, ExchMsg.translate("invalid.int.for.name", maxmsgsStrOpt.getOrElse(""), "maxmsgs")) {
+        complete({
+          // Set the query, including maxmsgs
+          var maxIntOpt = maxmsgsStrOpt.map(_.toInt)
+          var query = AgbotMsgsTQ.getMsgs(compositeId).sortBy(_.msgId)
+          if (maxIntOpt.getOrElse(0) > 0) query = query.take(maxIntOpt.get)
+          // Get the msgs for this agbot
+          db.run(query.result).map({ list =>
+            logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result size: "+list.size)
+            //logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result: "+list.toString)
+            val msgs = list.map(_.toAgbotMsg).toList
+            val code = if (msgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            (code, GetAgbotMsgsResponse(msgs, 0))
+          })
+        }) // end of complete
+      }
     } // end of exchAuth
   }
   

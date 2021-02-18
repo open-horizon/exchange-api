@@ -2376,7 +2376,7 @@ class NodesSuite extends AnyFunSuite {
     assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "nodemsgs")}))
   }
 
-  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " can't see nodemsgs") {
+  test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " doesn't see nodemsgs") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -2444,6 +2444,29 @@ class NodesSuite extends AnyFunSuite {
     assert(msg !== null)
     assert(msg.agbotId === orgagbotId2)
     assert(msg.agbotPubKey === "AGBOT2ABC")
+  }
+
+  test("GET /orgs/" + orgid + "/nodes/" + nodeId + "/msgs - check maxmsgs query parameter") {
+    var response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","2").asString
+    assert(response.code === HttpCode.OK.intValue)
+    var resp = parse(response.body).extract[GetNodeMsgsResponse]
+    assert(resp.messages.size === 2)
+    assert(resp.messages(0).message === "{msg1 from agbot1 to node1}") // confirm we got the oldest msgs
+    // the 2nd msg may be the msg with short ttl, or the msg after that, so we aren't checking that one
+
+    // set maxmsgs=0, which is the same as no limit
+    response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","0").asString
+    assert(response.code === HttpCode.OK.intValue)
+    resp = parse(response.body).extract[GetNodeMsgsResponse]
+    assert(resp.messages.size === 3 || resp.messages.size === 4)
+
+    // set maxmsgs=bad - should fail
+    response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","bad").asString
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+
+    // set maxmsgs="" - should fail
+    response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","").asString
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId2+"/msgs - then delete and get again") {
@@ -2566,6 +2589,29 @@ class NodesSuite extends AnyFunSuite {
     assert(msg.nodePubKey === nodePubKey)
   }
 
+  test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - check maxmsgs query parameter") {
+    var response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","2").asString
+    assert(response.code === HttpCode.OK.intValue)
+    var resp = parse(response.body).extract[GetAgbotMsgsResponse]
+    assert(resp.messages.size === 2)
+    assert(resp.messages(0).message === "{msg1 from node1 to agbot1}") // confirm we got the oldest msgs
+    // the 2nd msg may be the msg with short ttl, or the msg after that, so we aren't checking that one
+
+    // set maxmsgs=0, which is the same as no limit
+    response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","0").asString
+    assert(response.code === HttpCode.OK.intValue)
+    resp = parse(response.body).extract[GetAgbotMsgsResponse]
+    assert(resp.messages.size === 3 || resp.messages.size === 4)
+
+    // set maxmsgs=bad - should fail
+    response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","bad").asString
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+
+    // set maxmsgs="" - should fail
+    response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","").asString
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
   test("GET /orgs/"+orgid+"/agbots/"+agbotId2+"/msgs - then delete and get again") {
     var response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("get").headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -2610,7 +2656,7 @@ class NodesSuite extends AnyFunSuite {
     assert(resp2.messages.size === 0)
   }
 
-  test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+" - with low maxMessagesInMailbox") {
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+" - with low maxMessagesInMailbox") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- already do this earlier
@@ -3082,14 +3128,14 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
-  //todo: Need to do this to clean up some cache references, until issue 232 or 176 is implemented.
+  /* No longer needed because https://github.com/open-horizon/exchange-api/issues/176 is fixed.
   // What is going on here is the resources are created with 1 user, then updated with another. When the org is deleted, the resource goes away, but the cache entry doesn't go away for 5 minutes.
   // If the test suite is run again within that time frame, the 1st create above will find the cache entry and think it is owned by another user and return 403.
   test("DELETE /orgs/"+orgid2+"/nodes/"+nodeId) {
     val response = Http(URL2+"/nodes/"+nodeId).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
-  }
+  } */
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " was deleted and logged as deleted also that node error change is there") {
     val time = ApiTime.pastUTC(60)

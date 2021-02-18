@@ -86,7 +86,6 @@ class PatternsSuite extends AnyFunSuite {
   val ibmSvcVersion = "9.7.5"
   val ibmSvcArch = "arm"
   val ibmService = ibmSvcBase + "_" + ibmSvcVersion + "_" + ibmSvcArch
-  val ibmOrgService = "IBM/"+ibmService
   val ibmPattern = "pattern-only-for-automated-tests"
   val ibmOrgPattern = "IBM/"+ibmPattern
   val keyId = "mykey.pem"
@@ -1346,7 +1345,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
-  test("POST /orgs/"+orgid+"/changes - verify " + pattern + "key was deleted and stored") {
+  test("POST /orgs/"+orgid+"/changes - verify " + pattern + " key was deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -1385,7 +1384,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(resp.size === 0)
   }
 
-  test("POST /orgs/"+orgid+"/changes - verify " + pattern + "all keys were deleted and stored") {
+  test("POST /orgs/"+orgid+"/changes - verify " + pattern + " all keys were deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

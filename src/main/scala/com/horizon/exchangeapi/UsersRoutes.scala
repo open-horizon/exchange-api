@@ -16,7 +16,7 @@ import io.swagger.v3.oas.annotations._
 
 //import com.horizon.exchangeapi.AuthenticationSupport._
 import com.horizon.exchangeapi.tables._
-import com.horizon.exchangeapi.auth.{BadInputException, DBProcessingError}
+import com.horizon.exchangeapi.auth.{BadInputException, DBProcessingError, IbmCloudAuth}
 import org.json4s._
 
 import scala.collection.immutable._
@@ -466,8 +466,8 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) => // there were no db errors, but determine if it actually found it or not
               logger.debug(s"DELETE /orgs/$orgid/users/$username result: $v")
               if (v > 0) {
-                if (AuthCache.getUserIsHubAdmin(compositeId).getOrElse(false)) AuthCache.removeUserAndIsHubAdmin(compositeId)
-                else AuthCache.removeUserAndIsAdmin(compositeId)
+                AuthCache.removeUser(compositeId) // these do not throw an error if the user doesn't exist
+                //IbmCloudAuth.removeUserKey(compositeId) //todo: <- doesn't work because the IAM cache key includes the api key, which we don't know at this point. Address this in https://github.com/open-horizon/exchange-api/issues/232
                 (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.deleted")))
               } else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", compositeId)))
             case Failure(t: org.postgresql.util.PSQLException) =>

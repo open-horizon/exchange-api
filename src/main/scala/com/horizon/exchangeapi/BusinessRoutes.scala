@@ -36,8 +36,10 @@ final case class GetBusinessPolicyAttributeResponse(attribute: String, value: St
 
 object BusinessUtils {
   def getAnyProblem(service: BService): Option[String] = {
+    // Ensure the references to the service are not null
+    if (service.name==null || service.org==null || service.arch==null) return Some(ExchMsg.translate("no.service.ref.specified.for.service"))
     // Check they specified at least 1 service version
-    if (service.serviceVersions.isEmpty) return Some(ExchMsg.translate("no.version.specified.for.service2"))
+    if (service.serviceVersions==null || service.serviceVersions.isEmpty) return Some(ExchMsg.translate("no.version.specified.for.service2"))
     // Check the version syntax
     for (sv <- service.serviceVersions) {
       if (!Version(sv.version).isValid) return Some(ExchMsg.translate("version.not.valid.format", sv.version))
@@ -722,7 +724,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               else (DBIO.successful(Vector()), Vector())
             db.run(valServiceIdActions.asTry.flatMap({
               case Success(v) =>
-                logger.debug("PUT /orgs/" + orgid + "/business/policies" + policy + " service validation: " + v)
+                logger.debug("PATCH /orgs/" + orgid + "/business/policies" + policy + " service validation: " + v)
                 var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
                 breakable {
                   for ((len, index) <- v.zipWithIndex) {

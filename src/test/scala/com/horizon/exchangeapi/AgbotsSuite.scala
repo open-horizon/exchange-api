@@ -423,6 +423,7 @@ class AgbotsSuite extends AnyFunSuite {
       assert(respObj2.services.size === 1)
 
       if (ibmAgbotId != "") {
+        // Note: most of the /msgs testing for both nodes and agbots is in NodesSuite
         // Also create a node to make sure they can msg each other
         val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", None, orgid + "/" + pattern, None, None, None, None, "NODEABC", None, None)
         var response2 = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -1007,6 +1008,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(parsedBody.maxChangeId > 0)
   }
 
+  /* this test cannot be run, because even tho this isn't an IBM agbot it will still get changes of *public* services and patterns in the IBM org and those are created by: CatalogSuites, ServiceSuites, PatternSuites
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " does not get wildcard case") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List("*")))
@@ -1015,8 +1017,9 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
+    info("parsedBody: "+parsedBody)
     assert(!parsedBody.changes.exists(y => {y.orgId == "IBM"}))
-  }
+  } */
 
   test("PUT /orgs/"+orgid+"/changes - with low maxRecords") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode

@@ -73,7 +73,6 @@ class BusinessSuite extends AnyFunSuite {
   val svcversion2 = "9.7.5"
   val svcarch2 = "arm"
   val service2 = svcurl2 + "_" + svcversion2 + "_" + svcarch2
-  val org2Service = "IBM/"+service2
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
   val NOORGURL = urlRoot+"/v1"
   val maxRecords = 10000
@@ -482,14 +481,21 @@ class BusinessSuite extends AnyFunSuite {
 
   //~~~~~ Patch and get (verify) business policies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - no service versions") {
-    val jsonInput = """{ "service": [{ "org": """"+orgid+"""", "name": """"+svcurl+"""", "arch": """"+svcarch+"""", "serviceVersions": [] }] }"""
+  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - no service org - should fail") {
+    val jsonInput = """{ "service": { "name": """"+svcurl+"""", "arch": """"+svcarch+"""", "serviceVersions": [{ "version": "1.2.3" }] } }"""
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
-  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - userInput with an invalid service ref") {
+  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - no service versions - should fail") {
+    val jsonInput = """{ "service": { "org": """"+orgid+"""", "name": """"+svcurl+"""", "arch": """"+svcarch+"""", "serviceVersions": [] } }"""
+    val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
+  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - userInput with an invalid service ref - should fail") {
     val jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": "fooarch", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -639,7 +645,7 @@ class BusinessSuite extends AnyFunSuite {
   //~~~~~ Create create service in org2 and update business policy to reference it ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("POST /orgs/"+orgid2+"/services - add "+orgid2+" service so business policies can reference it") {
-    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, svcurl2, svcversion2, svcarch2, "singleton", None, None, None, Some("{\"services\":{}}"), Some("a"), None, None, None)
+    val input = PostPutServiceRequest("TestSvc", Some("desc"), public = true, None, svcurl2, svcversion2, svcarch2, "singleton", None, None, None, Some("{\"services\":{}}"), Some("a"), None, None, None)
     val response = Http(URL2+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)

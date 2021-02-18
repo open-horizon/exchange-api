@@ -135,18 +135,18 @@ class UsersSuite extends AnyFunSuite {
     if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
     deleteAllOrgs()
 
+    /* No longer needed because https://github.com/open-horizon/exchange-api/issues/176 is fixed.
     // Clear auth cache because we deleted orgs and the cloud users won't automatically get recreated in the db if they are still in the cache.
-    // This won't be necessary when https://github.com/open-horizon/exchange-api/issues/176 is fixed.
     var response = Http(NOORGURL+"/admin/clearauthcaches").method("post").headers(ACCEPT).headers(ROOTAUTH).asString
     info("CLEAR CACHE code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === HttpCode.POST_OK.intValue) */
 
     // Try adding an invalid org body
     val badJsonInput = """{
       "labelx": "foo",
       "description": "desc"
     }"""
-    response = Http(URL).postData(badJsonInput).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    var response = Http(URL).postData(badJsonInput).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code)
     assert(response.code === HttpCode.BAD_INPUT.intValue) // for now this is what is returned when the json-to-scala conversion fails
 
@@ -990,10 +990,10 @@ class UsersSuite extends AnyFunSuite {
         info("DELETE " + iamUser + ", code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
 
-        // clear auth cache
+        /* this is no longer needed because https://github.com/open-horizon/exchange-api/issues/176 is fixed
         response = Http(NOORGURL+"/admin/clearauthcaches").method("post").headers(ACCEPT).headers(ROOTAUTH).asString
         info("CLEAR CACHE code: "+response.code+", response.body: "+response.body)
-        assert(response.code === HttpCode.POST_OK.intValue)
+        assert(response.code === HttpCode.POST_OK.intValue) */
 
         // add ibmcloud_id to different org
         var tagInput = s"""{ "tags": {"ibmcloud_id": "$iamAccountId"} }"""

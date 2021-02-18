@@ -51,6 +51,7 @@ object AgbotsTQ {
   val rows = TableQuery[Agbots]
 
   def getAllAgbots(orgid: String): Query[Agbots, AgbotRow, Seq] = rows.filter(_.orgid === orgid)
+  def getAllAgbotsId(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.id)
   def getAgbot(id: String): Query[Agbots, AgbotRow, Seq] = rows.filter(_.id === id)
   def getToken(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.token)
   def getOwner(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.owner)

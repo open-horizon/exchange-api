@@ -172,6 +172,7 @@ object NodesTQ {
   }
 
   def getAllNodes(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(_.orgid === orgid)
+  def getAllNodesId(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.id)
   def getNodeTypeNodes(orgid: String, nodeType: String): Query[Nodes, NodeRow, Seq] = rows.filter(r => {r.orgid === orgid && r.nodeType === nodeType})
   def getNonPatternNodes(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(r => {r.orgid === orgid && r.pattern === ""})
   def getNode(id: String): Query[Nodes, NodeRow, Seq] = rows.filter(_.id === id)

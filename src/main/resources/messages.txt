@@ -315,6 +315,7 @@ logging.level.set=Logging level set
 node.msg.nodeid.not.found=node ''{0}'' not found: {1}
 agbot.message.agbotid.not.found=agbot ''{0}'' not found: {1}
 no.version.specified.for.service2=no versions specified for service
+no.service.ref.specified.for.service=''name'', ''org'', and ''arch'' must all be specified for a service
 not.pattern.when.policy=can not set a pattern when the node is already using policy
 node.errors.added=node errors added or updated
 node.errors.not.inserted=errors for node ''{0}'' not inserted or updated: {1}

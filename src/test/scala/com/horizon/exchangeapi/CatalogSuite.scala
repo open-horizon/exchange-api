@@ -228,7 +228,7 @@ class CatalogSuite extends AnyFunSuite {
   }
 
   val IBMURL = urlRoot+"/v1/orgs/IBM"
-  val ibmSvcBase = "service-only-for-pattern-automated-tests"   // needs to be different from the IBM svc created in ServicesSuite
+  val ibmSvcBase = "service-only-for-catalog-automated-tests"   // needs to be different from the IBM svc created in ServicesSuite
   val ibmSvcUrl = "http://" + ibmSvcBase
   val ibmSvcVersion = "9.7.5"
   val ibmSvcArch = "arm"

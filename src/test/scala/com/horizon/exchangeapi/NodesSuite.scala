@@ -856,14 +856,6 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.OK.intValue)
   }
 
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/heartbeat") {
-    val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("post").headers(ACCEPT).headers(NODEAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val devResp = parse(response.body).extract[ApiResponse]
-    assert(devResp.code === ApiRespType.OK)
-  }
-
   test("PUT /orgs/" + orgid + "/nodes/" + nodeId8 + " - Should not set lastHeartbeat") {
     // Try to create new node with no lastHeartbeat, but with bad noheartbeat value - should fail
     var nodeRequest = PutNodesRequest(nodeToken, 
@@ -954,6 +946,14 @@ class NodesSuite extends AnyFunSuite {
     deleteNodeTestPolicy(nodeId8)  // clean up policy
   }
 
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/heartbeat") {
+    val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("post").headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    val devResp = parse(response.body).extract[ApiResponse]
+    assert(devResp.code === ApiRespType.OK)
+  }
+
   test("GET /orgs/" + orgid + "/nodes/ " + nodeId + " - user 1") {
     val response: HttpResponse[String] = Http(URL + "/nodes/" + nodeId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
@@ -969,7 +969,7 @@ class NodesSuite extends AnyFunSuite {
     // Verify the lastHeartbeat from the POST heartbeat above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
     val now: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
     val lastHb = ZonedDateTime.parse(dev.lastHeartbeat).toEpochSecond
-    assert(now - lastHb <= 3)    // should not now be more than 3 seconds from the time the heartbeat was done above
+    assert(now - lastHb <= 5)    // should not now be more than 5 seconds from the time the heartbeat was done above. This value needs to be generous, because the tests run slowly in travis.
 
     assert(dev.registeredServices.length === 2)
     val svc: RegService = dev.registeredServices.find(m => m.url==SDRSPEC).orNull

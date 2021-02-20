@@ -212,7 +212,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug(s"Doing GET /orgs/$orgid/agbots")
     exchAuth(TAgbot(OrgAndId(orgid,"*").toString), Access.READ) { ident =>
       complete({
-        logger.debug(s"GET /orgs/$orgid/agbots identity: $ident")
+        logger.debug(s"GET /orgs/$orgid/agbots identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
         var q = AgbotsTQ.getAllAgbots(orgid)
         idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
         name.foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
@@ -273,7 +273,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       val q = if (attribute.isDefined) AgbotsTQ.getAttribute(compositeId, attribute.get) else null
       validate(attribute.isEmpty || q!= null, ExchMsg.translate("agbot.name.not.in.resource")) {
         complete({
-          logger.debug(s"GET /orgs/$orgid/agbots/$id identity: $ident")
+          logger.debug(s"GET /orgs/$orgid/agbots/$id identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
           attribute match {
             case Some(attr) => // Only returning 1 attr of the agbot
               db.run(q.result).map({ list =>

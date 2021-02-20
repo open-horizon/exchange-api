@@ -164,7 +164,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug(s"Doing GET /orgs/$orgid/users")
     exchAuth(TUser(OrgAndId(orgid, "#").toString), Access.READ) { ident =>
       complete({
-        logger.debug(s"GET /orgs/$orgid/users identity: $ident")
+        logger.debug(s"GET /orgs/$orgid/users identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
         val query = if (ident.isHubAdmin && !ident.isSuperUser) UsersTQ.getAllAdmins(orgid) else UsersTQ.getAllUsers(orgid)
         db.run(query.result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/users result size: ${list.size}")
@@ -217,7 +217,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     var compositeId: String = OrgAndId(orgid, username).toString
     exchAuth(TUser(compositeId), Access.READ) { ident =>
       complete({
-        logger.debug(s"GET /orgs/$orgid/users/$username identity: $ident")
+        logger.debug(s"GET /orgs/$orgid/users/$username identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
         var realUsername: String = username
         if (username == "iamapikey" || username == "iamtoken") {
           // Need to change the target into the username that the key resolved to

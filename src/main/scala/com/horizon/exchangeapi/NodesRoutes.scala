@@ -475,7 +475,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TNode(OrgAndId(orgid,"#").toString), Access.READ) { ident =>
       validateWithMsg(GetNodesUtils.getNodesProblem(nodetype)) {
         complete({
-          logger.debug(s"GET /orgs/$orgid/nodes identity: $ident")
+          logger.debug(s"GET /orgs/$orgid/nodes identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
           var q = NodesTQ.getAllNodes(orgid)
           idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
           name.foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })

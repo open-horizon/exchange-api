@@ -46,7 +46,7 @@ final case class PostPutUsersRequest(password: String, admin: Boolean, hubAdmin:
     else if (hubAdmin.getOrElse(false) && !ident.isHubAdmin) Some(ExchMsg.translate("only.super.users.make.hub.admins"))
     // hub admin users have to be in the root org and org admins or regular users in a non-root org
     else if (hubAdmin.getOrElse(false) && orgid != "root") Some(ExchMsg.translate("hub.admins.in.root.org"))
-    else if (!hubAdmin.getOrElse(false) && orgid == "root") Some(ExchMsg.translate("user.cannot.be.in.root"))
+    else if (!hubAdmin.getOrElse(false) && orgid == "root") Some(ExchMsg.translate("user.cannot.be.in.root.org"))
     // hub admins can only create hub admins or admins, or modify a user to be a hub admin or admin
     else if (ident.isHubAdmin && !ident.isSuperUser && !hubAdmin.getOrElse(false) && !admin) Some(ExchMsg.translate("hub.admins.only.write.admins"))
     else None // None means no problems with input
@@ -67,7 +67,7 @@ final case class PatchUsersRequest(password: Option[String], admin: Option[Boole
     else if (hubAdmin.getOrElse(false) && !ident.isHubAdmin) Some(ExchMsg.translate("only.super.users.make.hub.admins"))
     // hub admin users have to be in the root org and org admins in a non-root org
     else if (hubAdmin.getOrElse(false) && orgid != "root") Some(ExchMsg.translate("hub.admins.in.root.org"))
-    else if (admin.getOrElse(false) && orgid == "root") Some(ExchMsg.translate("user.cannot.be.in.root"))
+    else if (admin.getOrElse(false) && orgid == "root") Some(ExchMsg.translate("user.cannot.be.in.root.org"))
     // Hub admins can only modify a user to be a hub admin or admin. This check unfortunately prevents a hub admin from changing the
     // password or email, but those are rarely done, so this is better than no check at all.
     else if (ident.isHubAdmin && !ident.isSuperUser && !hubAdmin.getOrElse(false) && !admin.getOrElse(false)) Some(ExchMsg.translate("hub.admins.only.write.admins"))

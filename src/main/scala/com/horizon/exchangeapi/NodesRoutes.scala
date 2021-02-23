@@ -294,7 +294,8 @@ final case class PutNodeErrorRequest(errors: List[Any]) {
 
 final case class PutNodePolicyRequest(label: Option[String], description: Option[String], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def getAnyProblem: Option[String] = {
+  def getAnyProblem(noheartbeat: Option[String]): Option[String] = {
+    if (noheartbeat.isDefined && noheartbeat.get.toLowerCase != "true" && noheartbeat.get.toLowerCase != "false") return Some(ExchMsg.translate("bad.noheartbeat.param"))
     val validTypes: Set[String] = Set("string", "int", "float", "boolean", "list of strings", "version")
     for (p <- properties.getOrElse(List())) {
       if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
@@ -315,7 +316,8 @@ final case class GetNodeAgreementsResponse(agreements: Map[String,NodeAgreement]
 final case class PutNodeAgreementRequest(services: Option[List[NAService]], agreementService: Option[NAgrService], state: String) {
   require(state!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def getAnyProblem: Option[String] = {
+  def getAnyProblem(noheartbeat: Option[String]): Option[String] = {
+    if (noheartbeat.isDefined && noheartbeat.get.toLowerCase != "true" && noheartbeat.get.toLowerCase != "false") return Some(ExchMsg.translate("bad.noheartbeat.param"))
     if (services.isEmpty && agreementService.isEmpty) {
       return Some(ExchMsg.translate("must.specify.service.or.agreementservice"))
     }
@@ -1666,7 +1668,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   def nodePutPolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & put & parameter((Symbol("noheartbeat").?)) & entity(as[PutNodePolicyRequest])) { (orgid, id, noheartbeat, reqBody) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
-      validateWithMsg(reqBody.getAnyProblem) {
+      validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
         complete({
           val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
           db.run(reqBody.toNodePolicyRow(compositeId).upsert.asTry.flatMap({
@@ -1954,7 +1956,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   def nodePutAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & put & parameter((Symbol("noheartbeat").?)) & entity(as[PutNodeAgreementRequest])) { (orgid, id, agrId, noheartbeat, reqBody) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
-      validateWithMsg(reqBody.getAnyProblem) {
+      validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
         complete({
           val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
           val maxAgreements: Int = ExchConfig.getInt("api.limits.maxAgreements")

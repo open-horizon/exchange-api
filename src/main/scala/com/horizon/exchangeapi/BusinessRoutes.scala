@@ -9,7 +9,6 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import com.horizon.exchangeapi.auth._
 import de.heikoseeberger.akkahttpjackson._
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
@@ -18,7 +17,6 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
-import com.horizon.exchangeapi.tables._
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization.write
 import slick.jdbc.PostgresProfile.api._
@@ -27,6 +25,9 @@ import scala.collection.immutable._
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.util._
 import scala.util.control.Breaks._
+
+import com.horizon.exchangeapi.tables._
+import com.horizon.exchangeapi.auth._
 
 //====== These are the input and output structures for /orgs/{orgid}/business/policies routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -463,8 +464,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + orgid + "/business/policies/" + policy + " result: " + v)
-              val policyChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
-              policyChange.insert.asTry
+              ResourceChange(0L, orgid, policy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.CREATED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -603,8 +603,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               if (numUpdated > 0) {
                 if (owner != "") AuthCache.putBusinessOwner(compositeId, owner) // currently only users are allowed to update business policy resources, so owner should never be blank
                 AuthCache.putBusinessIsPublic(compositeId, isPublic = false)
-                val policyChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
-                policyChange.insert.asTry
+                ResourceChange(0L, orgid, policy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.CREATEDMODIFIED).insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
               }
@@ -747,8 +746,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                 logger.debug("PATCH /orgs/" + orgid + "/business/policies/" + policy + " result: " + n)
                 val numUpdated: Int = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
                 if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-                  val policyChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
-                  policyChange.insert.asTry
+                  ResourceChange(0L, orgid, policy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.MODIFIED).insert.asTry
                 } else {
                   DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
                 }
@@ -795,8 +793,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               AuthCache.removeBusinessOwner(compositeId)
               AuthCache.removeBusinessIsPublic(compositeId)
-              val policyChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, policy, "policy", "false", "policy", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              policyChange.insert.asTry
+              ResourceChange(0L, orgid, policy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
             }

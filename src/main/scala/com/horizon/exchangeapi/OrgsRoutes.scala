@@ -405,8 +405,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(n) =>
               // Add the resource to the resourcechanges table
               logger.debug(s"POST /orgs/$orgId result: $n")
-              val orgChange: ResourceChangeRow = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
-              orgChange.insert.asTry
+              ResourceChange(0L, orgId, orgId, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.CREATED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(n) =>
@@ -475,8 +474,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               // Add the resource to the resourcechanges table
               logger.debug(s"PUT /orgs/$orgId result: $n")
               if (n.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
-                val orgChange: ResourceChangeRow = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
-                orgChange.insert.asTry
+                ResourceChange(0L, orgId, orgId, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.CREATEDMODIFIED).insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId))).asTry
               }
@@ -550,8 +548,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               // Add the resource to the resourcechanges table
               logger.debug(s"PATCH /orgs/$orgId result: $n")
               if (n.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
-                val orgChange: ResourceChangeRow = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
-                orgChange.insert.asTry
+                ResourceChange(0L, orgId, orgId, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.MODIFIED).insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId))).asTry
               }
@@ -604,8 +601,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               logger.debug(s"DELETE /orgs/$orgId result: $v")
               if (v > 0) { // there were no db errors, but determine if it actually found it or not
-                val orgChange: ResourceChangeRow = ResourceChangeRow(0L, orgId, orgId, "org", "false", "org", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-                orgChange.insert.asTry
+                ResourceChange(0L, orgId, orgId, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.DELETED).insert.asTry
               } else {
                 orgFound = false
                 DBIO.successful("no update in resourcechanges table").asTry // just give a success to get us to the next step, but notify that it wasn't added to the resourcechanges table
@@ -1022,16 +1018,20 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           ident match {
             case _: INode =>
               // if its a node calling then it doesn't want information about any other nodes
-              qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node")
+              /* Note: these filters in the commented out line were replaced with the line below it because it was found that postgresql used significantly less CPU processing filters that don't contain
+                    inequality statements. In postgresql 9 the difference was dramatic. In postgreql 12 the difference was less but still signficant. Logically, the only difference between these 2 lines
+                    is that the latter will not get changes in patterns or deployment policies. But the node doesn't need these, because the agbots drive the response to those.
+                qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node") */
+              qFilter = qFilter.filter(u => (u.orgId === orgId) || u.public === "true").filter(u => (u.category === "node" && u.id === ident.getIdentity) || (u.category === "service" || u.category === "org"))
             case _: IAgbot =>
               val wildcard: Boolean = orgSet.contains("*") || orgSet.contains("")
               if (ident.isMultiTenantAgbot && !wildcard) { // its an IBM Agbot with no wildcard sent in, get all changes from orgs the agbot covers
-                qFilter = qFilter.filter(u => (u.orgId inSet orgSet) || ((u.resource === "org") && (u.operation === ResourceChangeConfig.CREATED))).filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED).filterNot(u => u.resource === "agbotagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED)
+                qFilter = qFilter.filter(u => (u.orgId inSet orgSet) || ((u.resource === "org") && (u.operation === ResChangeOperation.CREATED.toString))).filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString).filterNot(u => u.resource === "agbotagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString)
               } else if ( ident.isMultiTenantAgbot && wildcard) {
                 // if the IBM agbot sends in the wildcard case then we don't want to filter on orgId at all
-                qFilter = qFilter.filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED).filterNot(u => u.resource === "agbotagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED)
+                qFilter = qFilter.filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString).filterNot(u => u.resource === "agbotagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString)
               } else {
-                qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED).filterNot(u => u.resource === "agbotagreements" && u.operation === ResourceChangeConfig.CREATEDMODIFIED) // if its not an IBM agbot only allow access to the agbot's own org and public changes from other orgs
+                qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString).filterNot(u => u.resource === "agbotagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString) // if its not an IBM agbot only allow access to the agbot's own org and public changes from other orgs
               }
             case _ => qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
           }

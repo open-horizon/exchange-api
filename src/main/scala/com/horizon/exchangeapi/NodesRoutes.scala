@@ -848,8 +848,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " result: " + v)
-              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "node", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
-              nodeChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODE, ResChangeOperation.CREATEDMODIFIED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -995,8 +994,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               case Success(v) =>
                 // Add the resource to the resourcechanges table
                 logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " result: " + v)
-                val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "node", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
-                nodeChange.insert.asTry
+                ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODE, ResChangeOperation.MODIFIED).insert.asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
               case Success(v) =>
@@ -1099,8 +1097,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + orgid + "/nodes/" + id + "/configstate write row result: " + v)
-              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "services_configstate", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
-              nodeChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODESERVICES_CONFIGSTATE, ResChangeOperation.CREATED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(n) =>
@@ -1142,8 +1139,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               logger.debug(s"DELETE /orgs/$orgid/nodes/$id result: $v")
               AuthCache.removeNodeAndOwner(compositeId)
-              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "node", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              nodeChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODE, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId))).asTry
             }
@@ -1303,8 +1299,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/errors result: " + v)
-              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeerrors", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
-              nodeChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODEERRORS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -1344,8 +1339,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/errors result: " + v)
             if (v > 0) {
-              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeerrors", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              nodeChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODEERRORS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId))).asTry
             }
@@ -1511,8 +1505,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/status result: " + v)
-              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodestatus", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
-              nodeChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODESTATUS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -1552,8 +1545,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/status result: " + v)
             if (v > 0) {
-              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodestatus", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              nodeChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODESTATUS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.status.not.found", compositeId))).asTry
             }
@@ -1695,8 +1687,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               try {
                 val numUpdated: Int = n.toString.toInt // i think n is an AnyRef so we have to do this to get it to an int
                 if (numUpdated > 0) {
-                  val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodepolicies", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
-                  nodeChange.insert.asTry
+                  ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODEPOLICIES, ResChangeOperation.CREATEDMODIFIED).insert.asTry
                 } else {
                   DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId))).asTry
                 }
@@ -1744,8 +1735,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/policy result: " + v)
             if (v > 0) {
-              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodepolicies", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              nodeChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODEPOLICIES, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.policy.not.found", compositeId))).asTry
             }
@@ -1990,8 +1980,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               if (!noHB) logger.debug("Update /orgs/" + orgid + "/nodes/" + id + " lastHeartbeat result: " + v)
-              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
-              nodeChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODEAGREEMENTS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(n) =>
@@ -2041,8 +2030,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               // Add the resource to the resourcechanges table
               logger.debug("DELETE /nodes/" + id + "/agreements result: " + v)
-              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              nodeChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODEAGREEMENTS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.node.agreements.found", compositeId))).asTry
             }
@@ -2090,8 +2078,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /nodes/" + id + "/agreements/" + agrId + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodeagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              nodeChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODEAGREEMENTS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.agreement.not.found", agrId, compositeId))).asTry
             }
@@ -2204,8 +2191,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/msgs write row result: " + v)
             msgNum = v.toString
-            val nodeChange: ResourceChangeRow = ResourceChangeRow(0L, orgid, id, "node", "false", "nodemsgs", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
-            nodeChange.insert.asTry
+            ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODEMSGS, ResChangeOperation.CREATED).insert.asTry
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>

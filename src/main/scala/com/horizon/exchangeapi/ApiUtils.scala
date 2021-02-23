@@ -83,13 +83,6 @@ object ApiRespType {
   val TOO_BUSY: String = ExchMsg.translate("too.busy")
 }
 
-object ResourceChangeConfig {
-  val CREATED = "created"
-  val CREATEDMODIFIED = "created/modified"
-  val MODIFIED = "modified"
-  val DELETED = "deleted"
-}
-
 trait ExchangeRejection extends Rejection {
   private implicit val formats: DefaultFormats.type = DefaultFormats
 

@@ -363,7 +363,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "pattern")}))
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "pattern")}))
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - try to add "+pattern+" again with whitespace") {
@@ -472,7 +472,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "pattern")}))
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "pattern")}))
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as 2nd user - should fail") {
@@ -772,7 +772,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.MODIFIED) && (y.resource == "pattern")}))
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.MODIFIED.toString) && (y.resource == "pattern")}))
   }
 
   test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - description and userInput as user with whitespace") {
@@ -1310,7 +1310,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "patternkeys")}))
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "patternkeys")}))
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId2+" - add "+keyId2+" as user") {
@@ -1353,7 +1353,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "patternkeys")}))
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "patternkeys")}))
   }
 
   test("DELETE /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" try deleting it again - should fail") {
@@ -1392,7 +1392,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "patternkeys")}))
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "patternkeys")}))
   }
 
 
@@ -1410,7 +1410,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "pattern")}))
+    assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "pattern")}))
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+" - as user - verify gone") {

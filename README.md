@@ -260,8 +260,9 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 - Fixed issue 418: POST ​/v1​/orgs​/{orgid}​/agbots​/{id}​/agreements​/confirm wrong in swagger
 - Fixed issue 448: Remove node token from log messages
-- Fixed issue 451: The /search api failed to return the node after the node and node policy changed
 - Fixed error message id `user.cannot.be.in.root` not found
+- Fixed issue 462: Altering SQL to avoid inequalities for checking NF for /changes route for nodes reduces ExchangeDB CPU utilization
+- Fixed issue 451: The /search api failed to return the node after the node and node policy changed
 
 ## Changes in 2.62.0
 

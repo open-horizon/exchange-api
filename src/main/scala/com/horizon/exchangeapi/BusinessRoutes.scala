@@ -892,7 +892,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
           db.run(BusinessPoliciesTQ.getService(compositeId).result.flatMap({ list =>
             if (list.nonEmpty) {
               // Finding the service was successful, form the query for the nodes for the next step
-              val service: BService = BusinessPoliciesTQ.getServiceFromString(list.head)    // we should have found only 1 business pol service string, now parse it to get service list
+              val service: BService = BusinessPoliciesTQ.getServiceFromString(list.head)    // we should have found only 1 business pol service string, now parse it to get the BService object
               
               // Bypass filter on architecture.
               val optArch: Option[String] =
@@ -904,17 +904,12 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               
               searchSvcUrl = OrgAndId(service.org, service.name).toString
               
-              /*
-                Narrow down the db query results as much as possible by joining the Nodes and NodeAgreements tables and filtering.
-                In english, the join gets: n.id, n.nodeType, n.publicKey, a.serviceUrl, a.state
-                The filters are: n is in the given list of node orgs, n.pattern is not set, the node is not stale, the node arch matches the service arch (the filter a.state=="" is applied later in our code below)
-                After this we have to go thru all of the results and find nodes that do NOT have an agreement for searchSvcUrl.
-                Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
-              */
+              // Build the DB query that includes the pagination and node/agreement filtering
               val pagination =
                 for {
-                  // Grab any set offset and session for agbot and policy
-                  currentOffsetSession <- SearchOffsetPolicyTQ.getOffsetSession(ident.identityString, compositeId).result.headOption
+                  // Grab the offset and session that is in the DB from the last query of this agbot and policy
+                  // Note: the offset is a lastUpdated UTC timestamp, whereas reqBody.changedSince is Unix epoch seconds, but they have the same meaning.
+                  currentOffsetSession <- SearchOffsetPolicyTQ.getOffsetSession(ident.identityString, compositeId).result.headOption // returns Option[(offset, session)]
                   
                   currentOffset: Option[String] =
                     if (currentOffsetSession.isDefined)
@@ -928,20 +923,21 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                   else
                     None
                   
-                  // Figure out what our offset is going to be in DB query.
+                  // Figure out what our offset is going to be in this DB query.
                   offset: Option[String] =
-                  if (currentOffset.isEmpty && 0L < reqBody.changedSince) // New workflow for abgot and policy
+                  if (currentOffset.isEmpty && 0L < reqBody.changedSince) // New workflow for abgot and policy, use the changedSince they passed in
                     Some(ApiTime.thenUTC(reqBody.changedSince))
                   else if (currentOffset.isDefined &&
                            currentSession.isDefined &&
                            reqBody.session.isDefined &&
-                           currentSession.get.equals(reqBody.session.get)) // All other pages.
+                           currentSession.get.equals(reqBody.session.get)) // the session they passed in equals the session stored in the DB, so use that offset
                     currentOffset
                   else
-                    None // No pagination/Agbot Desynchronization
+                    None // No previous pagination, so we don't limit how far back we look at the nodes
                   
-                  // Culls any desynchronized agbots forcing them onto the same workflow as the rest.
-                  // In the case of catastrophic failure of the entire set of agbots the Exchange will throw Http code 409 - Conflict to all agbots (pending the set forgetting the session)!
+                  // If this is a desynchronized agbot (one using a different session than is stored in the DB), setting desynchronization will cause us to return 409 to let the agbot know
+                  // it is out of sync with the other agbots, and we will also return the current session/offset that they should begin using.
+                  // In the case of catastrophic failure of the entire set of agbots, we will return Http code 409 to each of them, and they will each be redirected to using the session again.
                   desynchronization: Option[PolicySearchResponseDesync] =
                     if (currentSession.isDefined &&
                         reqBody.session.isDefined &&
@@ -952,23 +948,44 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                     else
                       None
                   
-                  // Result set includes all nodes without agreements as-well-as non-valid agreements.
-                  // Live-lock will occur if the resulting number of nodes with the same lastUpdated is greater than the size of the page between the agbots and the Exchange!
+                  /*
+                    Filter the nodes in the DB to return the nodes that:
+                      - the arch matches the service arch (including wildcards)
+                      - are not pre-created nodes from which the agent has never communicated to us yet
+                      - have changed since the offset or changedSince
+                      - are in the given list of node orgs
+                      - pattern is not set
+                      - have publicKey set (are registered)
+                      - does not have an agreement for this service with a non-empty state
+                    Notes:
+                      - about Slick usage: joinLeft returns node rows even if they don't have any agreements (which is why the agreement cols are Option() )
+                      - Live-lock will occur if the resulting number of nodes with the same lastUpdated is greater than the size of the page being returned. In that case we have no choice
+                        but to keep having the agbots call us with the same offset until that is no longer the case (because the agbots have processed some nodes and made agreements with them)
+                  */
                   nodes = NodesTQ.rows
                                  .filterOpt(optArch)((node, arch) => node.arch === arch)
-                                 .filter(_.lastHeartbeat.isDefined)
-                                 .filterOpt(offset)((node, changedSince) => !(node.lastUpdated < changedSince))
+                                 .filter(_.lastHeartbeat.isDefined) // do not return pre-created nodes from which the agent has never communicated to us yet
+                                 // Note: since the timestamp for lastUpdated/changedSince/offset is an inexact boundary (i.e. there can be multiple nodes with the same lastlastUpdated value,
+                                 //     some of which weren't returned last time), we err on the side of possibly returning some nodes we already returned, rather that possibly missing some nodes.
+                                 .filterOpt(offset)((node, changedSince) => !(node.lastUpdated < changedSince)) // here changedSince is either currentOffset or converted reqBody.changedSince
                                  .filter(_.orgid inSet nodeOrgids)
                                  .filter(_.pattern === "")
                                  .filter(_.publicKey =!= "")
-                                 .filterOpt(desynchronization)((node, _) => node.id === "")
+                                 .filterOpt(desynchronization)((node, _) => node.id === "") // node.id will never by the empty string, so is this a way of returning 0 nodes in this case??
                                  .map(node => (node.id, node.lastUpdated, node.nodeType, node.publicKey))
+                                 /*
+                                  The joinLeft will create rows like: node.id, node.lastUpdated, node.nodeType, node.publicKey, agreement.agrSvcUrl, agreement.nodeId, agreement.state
+                                  with a few caveats:
+                                    - only agreements which are for searchSvcUrl will be included
+                                    - if there is no agreement for searchSvcUrl for a node, the 3 agreement fields will be None
+                                    - if there are multiple agreements for searchSvcUrl for a node (not supposed to be, but could be), the node will be repeated in the output, but will be filtered out later on
+                                 */
                                  .joinLeft(NodeAgreementsTQ.rows
-                                                           .filter(_.agrSvcUrl === searchSvcUrl)
+                                                           .filter(_.agrSvcUrl === searchSvcUrl) // only join with agreements that are for this service, so we can filter those out below
                                                            .map(agreement => (agreement.agrSvcUrl, agreement.nodeId, agreement.state)))
                                  .on((node, agreement) => node._1 === agreement._2) // (node.id === agreements.nodeId)
                                  .filter ({
-                                   // No/non-valid agreements
+                                   // Since we joined with agreements for this service, now we only keep nodes in our list that don't have any associated agreement or the agreement state is empty
                                    case (_, agreement) =>
                                      agreement.map(_._2).isEmpty ||                        // agreement.nodeId
                                      agreement.map(_._1).getOrElse("") === "" ||  // agreement.agrSvcUrl
@@ -977,36 +994,38 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                                  .sortBy(r => (r._1._2.asc, r._1._1.asc, r._2.getOrElse(("", "", ""))._1.asc.nullsFirst)) // (node.lastUpdated ASC, node.id ASC, agreements.agrSvcUrl ASC NULLS FIRST)
                                  .map(r => (r._1._1, r._1._2, r._1._3, r._1._4))                                          // (node.id, node.lastUpdated, node.nodeType, node.publicKey)
                   
-                  // If paginating then create page else return everything.
+                  // If paginating then limit the query to that number of rows, else return everything.
                   nodesWoAgreements <- {
                     if (reqBody.numEntries.isDefined)
                       nodes.take(reqBody.numEntries.getOrElse(0))
                     else
-                      nodes}.result.map(List[(String, String, String, String)])
+                      nodes
+                    }.result.map(List[(String, String, String, String)])
                   
-                  // Decide what the offset is to be for the next call.
+                  // Decide what offset should be stored in our DB for the next agbot call.
                   updateOffset: Option[String] =
-                    if (desynchronization.isDefined) // Write back what we currently have.
+                    if (desynchronization.isDefined) // return what we currently have.
                       currentOffset
                     else if (reqBody.numEntries.isDefined) {
                       if (nodesWoAgreements.nonEmpty &&
                           (currentOffset.isEmpty ||
-                           (currentOffset.get < nodesWoAgreements.lastOption.get._2 &&
-                            nodesWoAgreements.size.equals(reqBody.numEntries.get)))) // New workflow/beginning of the next page with a newer lastUpdated as offset.
+                           (currentOffset.get < nodesWoAgreements.lastOption.get._2 && // nodesWoAgreements.lastOption.get._2 is the lastUpdated field of the last node in the list
+                            nodesWoAgreements.size.equals(reqBody.numEntries.get)))) // Normal pagination case: we filled a page and the lastUpdated at the end of the page is newer than the offset.
                         Some(nodesWoAgreements.lastOption.get._2)
+                      //todo: i think implied in this next condition is lastUpdated of the last row is the same as offset, because if that wasn't the case the previous if stmt would have been true. But that logic is pretty complex because there are several other parts to the condition, so it would be better to explicitly test for that.
                       else if (currentOffset.isDefined &&
                                currentSession.isDefined &&
                                reqBody.session.isDefined &&
                                currentSession.get.equals(reqBody.session.get) &&
-                               nodesWoAgreements.size.equals(reqBody.numEntries.get)) // Last to be returned record has the same lastUpdated as the current offset.
-                        currentOffset
-                      else // End of workflow.
+                               nodesWoAgreements.size.equals(reqBody.numEntries.get)) // Last row has the same lastUpdated as the current offset (i.e. all rows in the page have same lastUpdated).
+                        currentOffset // I think this is what is called live-lock above. We have no choice but to return the same offset as we used this time
+                      else // We didn't fill the page, so we are done with this session/workflow.
                         None
                     }
-                    else // No defined workflow.
+                    else // We gave them everything, so the current session is over
                       None
                   
-                  // Returned in response body.
+                  // Return in the response body whether or not this query resulted in the offset being changed.
                   isOffsetUpdated: Boolean =
                    if (desynchronization.isDefined ||
                        updateOffset.isEmpty ||
@@ -1015,7 +1034,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                     else
                       true
                   
-                  // Decide what the session is to be for the next call
+                  // Decide what session should be stored in our DB for the next call
                   updateSession: Option[String] =
                     if (desynchronization.isDefined) // Write back what we currently have.
                       currentSession
@@ -1023,7 +1042,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                              reqBody.session.isDefined) {
                       if (currentSession.isEmpty &&
                           nodesWoAgreements.nonEmpty &&
-                          nodesWoAgreements.size.equals(reqBody.numEntries.get)) // New workflow.
+                          nodesWoAgreements.size.equals(reqBody.numEntries.get)) // New workflow. We didn't have a saved session and we only returned partial results, so save the session they gave us.
                         reqBody.session
                       else if (currentSession.isDefined &&
                                currentSession.get.equals(reqBody.session.get) &&
@@ -1032,20 +1051,20 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                       else // End of workflow.
                         None
                     }
-                    else // No defined workflow.
+                    else // No defined workflow. Either they didn't give us numEntries or didn't give us session
                       None
                     
                     // Clear/continue/set/update offset and session for the next call.
                     _ <- SearchOffsetPolicyTQ.setOffsetSession(ident.identityString, updateOffset, compositeId, updateSession)
                 } yield (desynchronization, nodesWoAgreements, isOffsetUpdated)
               
-              // Prevent dirty reads/writes.
-              pagination.transactionally.asTry
+              // Finally run the DB query
+              pagination.transactionally.asTry // Prevent dirty reads/writes by using transactionally.
             }
             else DBIO.failed(new Throwable(ExchMsg.translate("business.policy.not.found", compositeId))).asTry
           })).map({
             case Success(results) =>
-              if(results._2.nonEmpty) { // results.nodesWoAgreements.nonEmpty
+              if(results._2.nonEmpty) { // results.nodesWoAgreements.nonEmpty.
                 (HttpCode.POST_OK,
                   PostBusinessPolicySearchResponse(
                     results._2.map( // results.nodesWoAgreements

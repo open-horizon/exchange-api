@@ -2,11 +2,25 @@
 
 # Prime an empty DB with a few resources useful for testing with
 
-#if [[ $1 == "-h" || $1 == "--help" ]]; then
-#	echo "Usage: $0 [<name base>]"
-#	exit 0
-#fi
-#
+if [[ $1 == "-h" || $1 == "--help" ]]; then
+	cat << EOF
+
+Usage: $0
+
+Required Environment Variables:
+    EXCHANGE_ROOTPW: Exchange root password (Must be similar to what is set in exchange's config.json)
+
+Optional Environment Variables:
+    EXCHANGE_USER: User in IBM org (Set it to anything to simply run tests)
+    EXCHANGE_PW: Password in IBM org (Set it to anything to simply run tests)
+    EXCHANGE_IAM_ORG: (Recommended when running in Openshift)
+    EXCHANGE_IAM_KEY: (Recommended when running in Openshift)
+    EXCHANGE_MULT_ACCOUNT_ID: (Recommended when running in Openshift)
+
+EOF
+	exit 0
+fi
+
 if [[ -z $EXCHANGE_ROOTPW ]]; then
     echo "Error: env var EXCHANGE_ROOTPW must be set and it must match what is in the exchange's config.json file"
     exit 2
@@ -30,7 +44,6 @@ EXCHANGE_NODEAUTH="${EXCHANGE_NODEAUTH:-n1:abc123}"
 EXCHANGE_AGBOTAUTH="${EXCHANGE_AGBOTAUTH:-a1:abcdef}"
 
 # For OCP
-: ${EXCHANGE_IAM_ORG:?} ${EXCHANGE_IAM_KEY:?} ${EXCHANGE_MULT_ACCOUNT_ID:?}
 orgidcloud="$EXCHANGE_IAM_ORG"
 # these are also used with org2
 orgcloudid="$EXCHANGE_MULT_ACCOUNT_ID"

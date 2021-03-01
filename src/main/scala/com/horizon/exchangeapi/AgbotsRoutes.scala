@@ -7,7 +7,6 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import com.horizon.exchangeapi.auth.DBProcessingError
 import de.heikoseeberger.akkahttpjackson._
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
@@ -17,12 +16,13 @@ import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
 
-import com.horizon.exchangeapi.tables._
 import org.json4s._
 import slick.jdbc.PostgresProfile.api._
-
 import scala.collection.immutable._
 import scala.util._
+
+import com.horizon.exchangeapi.tables._
+import com.horizon.exchangeapi.auth.DBProcessingError
 
 //====== These are the input and output structures for /agbots routes. Swagger and/or json seem to require they be outside the trait.
 
@@ -142,8 +142,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
 
-  def agbotsRoutes: Route = agbotAgreementConfirmRoute ~
-                            agbotDeleteAgreementRoute ~
+  def agbotsRoutes: Route = agbotDeleteAgreementRoute ~
                             agbotDeleteAgreementsRoute ~
                             agbotDeleteBusPolRoute ~
                             agbotDeleteBusPolsRoute ~
@@ -213,7 +212,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug(s"Doing GET /orgs/$orgid/agbots")
     exchAuth(TAgbot(OrgAndId(orgid,"*").toString), Access.READ) { ident =>
       complete({
-        logger.debug(s"GET /orgs/$orgid/agbots identity: $ident")
+        logger.debug(s"GET /orgs/$orgid/agbots identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
         var q = AgbotsTQ.getAllAgbots(orgid)
         idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
         name.foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
@@ -274,7 +273,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       val q = if (attribute.isDefined) AgbotsTQ.getAttribute(compositeId, attribute.get) else null
       validate(attribute.isEmpty || q!= null, ExchMsg.translate("agbot.name.not.in.resource")) {
         complete({
-          logger.debug(s"GET /orgs/$orgid/agbots/$id identity: $ident")
+          logger.debug(s"GET /orgs/$orgid/agbots/$id identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
           attribute match {
             case Some(attr) => // Only returning 1 attr of the agbot
               db.run(q.result).map({ list =>
@@ -379,8 +378,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug(s"PUT /orgs/$orgid/agbots/$id result: $v")
-              val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
-              agbotChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOT, ResChangeOperation.CREATEDMODIFIED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -443,8 +441,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
               logger.debug(s"PATCH /orgs/$orgid/agbots/$id result: $v")
               if (v.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
                 if (reqBody.token.isDefined) AuthCache.putAgbot(compositeId, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
-                val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.MODIFIED, ApiTime.nowUTCTimestamp)
-                agbotChange.insert.asTry
+                ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOT, ResChangeOperation.MODIFIED).insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", compositeId))).asTry
               }
@@ -489,8 +486,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               logger.debug(s"DELETE /orgs/$orgid/agbots/$id result: $v")
               AuthCache.removeAgbotAndOwner(compositeId)
-              val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbot", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              agbotChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOT, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", compositeId))).asTry
             }
@@ -718,8 +714,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/patterns result: " + v)
-              val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbotpatterns", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
-              agbotChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.CREATED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -761,8 +756,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               // Add the resource to the resourcechanges table
               logger.debug("DELETE /agbots/" + id + "/patterns result: " + v)
-              val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbotpatterns", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              agbotChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("patterns.not.found", compositeId))).asTry
             }
@@ -805,8 +799,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /agbots/" + id + "/patterns/" + patId + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbotpatterns", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              agbotChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.not.found", patId, compositeId))).asTry
             }
@@ -1000,8 +993,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/businesspols result: " + v)
-              val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbotbusinesspols", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
-              agbotChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTBUSINESSPOLS, ResChangeOperation.CREATED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -1043,8 +1035,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               // Add the resource to the resourcechanges table
               logger.debug("DELETE /agbots/" + id + "/businesspols result: " + v)
-              val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbotbusinesspols", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              agbotChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTBUSINESSPOLS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("buspols.not.found", compositeId))).asTry
             }
@@ -1087,8 +1078,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /agbots/" + id + "/businesspols/" + busPolId + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbotbusinesspols", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              agbotChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTBUSINESSPOLS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("buspol.not.found", busPolId, compositeId))).asTry
             }
@@ -1303,8 +1293,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/agbots/" + id + "/agreements/" + agrId + " result: " + v)
-              val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbotagreements", ResourceChangeConfig.CREATEDMODIFIED, ApiTime.nowUTCTimestamp)
-              agbotChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -1345,8 +1334,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               // Add the resource to the resourcechanges table
               logger.debug("DELETE /agbots/" + id + "/agreements result: " + v)
-              val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbotagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              agbotChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.agreements.found.for.agbot", compositeId))).asTry
             }
@@ -1389,8 +1377,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /agbots/" + id + "/agreements/" + agrId + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbotagreements", ResourceChangeConfig.DELETED, ApiTime.nowUTCTimestamp)
-              agbotChange.insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.for.agbot.not.found", agrId, compositeId))).asTry
             }
@@ -1406,108 +1393,6 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agreement.for.agbot.not.deleted", agrId, compositeId, t.toString)))
         })
-      }) // end of complete
-    } // end of exchAuth
-  }
-
-  // =========== POST /orgs/{orgid}/agreements/confirm ===============================
-  @POST
-  @Path("{id}/agreements/confirm")
-  @Operation(
-    summary = "Confirms if this agbot agreement is active",
-    description = "Confirms whether or not this agreement id is valid, is owned by an agbot owned by this same username, and is a currently active agreement. Can only be run by an agbot or user.",
-    parameters = Array(
-      new Parameter(
-        name = "orgid",
-        in = ParameterIn.PATH,
-        description = "Organization id."
-      ),
-      new Parameter(
-        name = "id",
-        in = ParameterIn.PATH,
-        description = "ID of the agbot to be updated."
-      )
-    ),
-    requestBody = new RequestBody(
-      content = Array(
-        new Content(
-          examples = Array(
-            new ExampleObject(
-              value = """{
-  "agreementId": "ABCDEF"
-}
-"""
-            )
-          ),
-          mediaType = "application/json",
-          schema = new Schema(implementation = classOf[PostAgreementsConfirmRequest])
-        )
-      ),
-      required = true
-    ),
-    responses = Array(
-      new responses.ApiResponse(
-        responseCode = "201",
-        description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
-      ),
-      new responses.ApiResponse(
-        responseCode = "401",
-        description = "invalid credentials"
-      ),
-      new responses.ApiResponse(
-        responseCode = "403",
-        description = "access denied"
-      ),
-      new responses.ApiResponse(
-        responseCode = "404",
-        description = "not found"
-      )
-    )
-  )
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/agreement")
-  def agbotAgreementConfirmRoute: Route = (path("orgs" / Segment / "agreements" / "confirm") & post & entity(as[PostAgreementsConfirmRequest])) { (orgid, reqBody) =>
-    exchAuth(TAgbot(OrgAndId(orgid,"#").toString), Access.READ) { ident =>
-      complete({
-        val creds = ident.creds
-        val owner = ident match { case IUser(creds2) => creds2.id; case _ => "" }
-        if (owner != "") {
-          // the user invoked this rest method, so look for an agbot owned by this user with this agr id
-          val agbotAgreementJoin = for {
-            (agbot, agr) <- AgbotsTQ.rows joinLeft AgbotAgreementsTQ.rows on (_.id === _.agbotId)
-            if agbot.owner === owner && agr.map(_.agrId) === reqBody.agreementId
-          } yield (agbot, agr)
-          db.run(agbotAgreementJoin.result).map({ list =>
-            logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
-            // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.owner === owner && agr.agrId === req.agreementId
-            if (list.nonEmpty && list.head._2.isDefined && list.head._2.get.state != "") {
-              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
-            } else {
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
-            }
-          })
-        } else {
-          // an agbot invoked this rest method, so look for the agbot with this id and for the agbot with this agr id, and see if they are owned by the same user
-          val agbotAgreementJoin = for {
-            (agbot, agr) <- AgbotsTQ.rows joinLeft AgbotAgreementsTQ.rows on (_.id === _.agbotId)
-            if agbot.id === creds.id || agr.map(_.agrId) === reqBody.agreementId
-          } yield (agbot, agr)
-          db.run(agbotAgreementJoin.result).map({ list =>
-            logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
-            if (list.nonEmpty) {
-              // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.id === creds.id || agr.agrId === req.agreementId
-              val agbot1 = list.find(r => r._1.id == creds.id).orNull
-              val agbot2 = list.find(r => r._2.isDefined && r._2.get.agrId == reqBody.agreementId).orNull
-              if (agbot1 != null && agbot2 != null && agbot1._1.owner == agbot2._1.owner && agbot2._2.get.state != "") {
-                (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
-              } else {
-                (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
-              }
-            } else {
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
-            }
-          })
-        }
       }) // end of complete
     } // end of exchAuth
   }
@@ -1596,8 +1481,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("POST /orgs/{orgid}/agbots/" + id + "/msgs write row result: " + v)
             msgNum = v.toString
-            val agbotChange = ResourceChangeRow(0L, orgid, id, "agbot", "false", "agbotmsgs", ResourceChangeConfig.CREATED, ApiTime.nowUTCTimestamp)
-            agbotChange.insert.asTry
+            ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTMSGS, ResChangeOperation.CREATED).insert.asTry
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>

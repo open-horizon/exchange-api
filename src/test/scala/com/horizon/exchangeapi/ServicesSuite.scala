@@ -272,8 +272,8 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.orgId == orgid) && (y.id == service) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "service")}))
-    assert(parsedBody.changes.exists(y => {(y.orgId == orgid2) && (y.id == service) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "service")}))
+    assert(parsedBody.changes.exists(y => {(y.orgId == orgid) && (y.id == service) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "service")}))
+    assert(parsedBody.changes.exists(y => {(y.orgId == orgid2) && (y.id == service) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "service")}))
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service3+" as user that requires a service with reqService.versionRange and version, and both device and cluster deployment") {
@@ -365,7 +365,7 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "service")}))
+    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "service")}))
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update to need 2 required svcs, but 1 version is not in range - should fail") {
@@ -640,7 +640,7 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.MODIFIED) && (y.resource == "service")}))
+    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.MODIFIED.toString) && (y.resource == "service")}))
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - as user with whitespace") {
@@ -796,7 +796,7 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "servicepolicies")}))
+    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "servicepolicies")}))
   }
 
   test("GET /orgs/"+orgid+"/services/"+service+"/policy - as node") {
@@ -824,7 +824,7 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "servicepolicies")}))
+    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "servicepolicies")}))
   }
 
   test("GET /orgs/"+orgid+"/services/"+service+"/policy - as node - should not be there") {
@@ -857,7 +857,7 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "servicekeys")}))
+    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "servicekeys")}))
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+"/keys/"+keyId2+" - add "+keyId2+" as user") {
@@ -900,7 +900,7 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "servicekeys")}))
+    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "servicekeys")}))
   }
 
   test("DELETE /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" try deleting it again - should fail") {
@@ -929,7 +929,7 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "servicekeys")}))
+    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "servicekeys")}))
   }
 
   test("GET /orgs/"+orgid+"/services/"+service+"/keys - all keys should be gone now") {
@@ -971,7 +971,7 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "servicedockauths")}))
+    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "servicedockauths")}))
   }
 
   test("POST /orgs/"+orgid+"/services/"+service+"/dockauths - add another dockauth as user") {
@@ -1021,7 +1021,7 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "servicedockauths")}))
+    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "servicedockauths")}))
 
     info("GET /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" - and check content")
     response = Http(URL+"/services/"+service+"/dockauths/"+dockAuthId).headers(ACCEPT).headers(NODEAUTH).asString
@@ -1057,7 +1057,7 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "servicedockauths")}))
+    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "servicedockauths")}))
   }
 
   test("DELETE /orgs/"+orgid+"/services/"+service+"/dockauths - delete all keys") {
@@ -1074,7 +1074,7 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "servicedockauths")}))
+    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "servicedockauths")}))
   }
 
   test("GET /orgs/"+orgid+"/services/"+service+"/dockauths - all dockauths should be gone now") {
@@ -1101,7 +1101,7 @@ class ServicesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "service")}))
+    assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "service")}))
   }
 
   test("GET /orgs/"+orgid+"/services/"+service+" - as user - verify gone") {

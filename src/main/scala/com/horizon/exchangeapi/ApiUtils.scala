@@ -83,13 +83,6 @@ object ApiRespType {
   val TOO_BUSY: String = ExchMsg.translate("too.busy")
 }
 
-object ResourceChangeConfig {
-  val CREATED = "created"
-  val CREATEDMODIFIED = "created/modified"
-  val MODIFIED = "modified"
-  val DELETED = "deleted"
-}
-
 trait ExchangeRejection extends Rejection {
   private implicit val formats: DefaultFormats.type = DefaultFormats
 
@@ -180,6 +173,10 @@ object ExchangePosgtresErrorHandling {
 object ExchMsg {
   def translate(key: String, args: Any*): String = {
     try {
+      //todo: remove these 2 debug statements
+      val exchLang = sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en"))
+      if (exchLang.startsWith("zh") || exchLang.startsWith("pt")) println("using lang for msgs: "+exchLang)
+
       implicit val userLang: Lang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en")))
       if (args.nonEmpty) {
         return Messages(key, args: _*)

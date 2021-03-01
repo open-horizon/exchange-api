@@ -256,6 +256,16 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.63.0
+
+- Fixed issue 418: POST ​/v1​/orgs​/{orgid}​/agbots​/{id}​/agreements​/confirm wrong in swagger
+- Added new translation files
+- Fixed issue 448: Remove node token from log messages
+- Fixed error message id `user.cannot.be.in.root` not found
+- Fixed issue 462: Altering SQL to avoid inequalities for checking NF for /changes route for nodes reduces ExchangeDB CPU utilization
+- Some progress on issue 451 (the policy /search api)
+  - Analyzed the DB query code, adding many comments along the way. Did not find any problems
+
 ## Changes in 2.62.0
 
 - Fixed issue 464: NPE in Exchange on PATCH business policies with incorrect payload returns incorrect HTTP status code - doesn't tell user what is wrong

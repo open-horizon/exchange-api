@@ -232,7 +232,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TOrg("*"), access) { ident =>
       validate(orgType.isEmpty || orgType.get == "IBM", ExchMsg.translate("org.get.orgtype")) {
         complete({ // this is an anonymous function that returns Future[(StatusCode, GetOrgsResponse)]
-          logger.debug("GET /orgs identity: " + ident)
+          logger.debug(s"GET /orgs identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
           var q = OrgsTQ.rows.subquery
           // If multiple filters are specified they are ANDed together by adding the next filter to the previous filter by using q.filter
           orgType match {
@@ -1022,7 +1022,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
                     inequality statements. In postgresql 9 the difference was dramatic. In postgreql 12 the difference was less but still signficant. Logically, the only difference between these 2 lines
                     is that the latter will not get changes in patterns or deployment policies. But the node doesn't need these, because the agbots drive the response to those.
                 qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node") */
-              qFilter = qFilter.filter(u => (u.orgId === orgId) || u.public === "true").filter(u => (u.category === "node" && u.id === ident.getIdentity) || (u.category === "service" || u.category === "org"))
+                qFilter = qFilter.filter(u => (u.orgId === orgId) || u.public === "true") .filter(u => (u.category === "node" && u.id === ident.getIdentity) || (u.category === "service" || u.category === "org"))
             case _: IAgbot =>
               val wildcard: Boolean = orgSet.contains("*") || orgSet.contains("")
               if (ident.isMultiTenantAgbot && !wildcard) { // its an IBM Agbot with no wildcard sent in, get all changes from orgs the agbot covers

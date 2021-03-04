@@ -1158,9 +1158,12 @@ class UsersSuite extends AnyFunSuite {
     response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.DELETED.intValue)
-    response = Http(CLOUDURL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+
+    if (iamKey.nonEmpty && iamUser.nonEmpty && (ocpAccountId.nonEmpty || iamAccountId.nonEmpty)) {
+      response = Http(CLOUDURL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      info("code: " + response.code + ", response.body: " + response.body)
+      assert(response.code === HttpCode.DELETED.intValue)
+    }
   }
 
   test("Cleanup -- DELETE org changes") {

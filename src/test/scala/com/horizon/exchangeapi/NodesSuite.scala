@@ -10,7 +10,7 @@ import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
-import com.horizon.exchangeapi.tables.{BService, BServiceVersions, ContainerStatus, NAService, NAgrService, NodeError, NodeHeartbeatIntervals, NodePolicy, NodeStatus, NodeType, OneProperty, OneService, OneUserInputService, OneUserInputValue, OrgLimits, PServiceVersions, PServices, Prop, RegService}
+import com.horizon.exchangeapi.tables._
 import org.json4s.native.JsonMethods
 import scalaj.http.{Http, HttpResponse}
 
@@ -405,7 +405,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "node") && (y.resourceChanges.size == 1)}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "node") && (y.resourceChanges.size == 1)}))
     assert(parsedBody.changes.size <= maxRecords)
     assert(parsedBody.mostRecentChangeId != 0)
     assert(!parsedBody.hitMaxRecords)
@@ -760,7 +760,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "services_configstate")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "services_configstate")}))
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify sdr reg svc was suspended") {
@@ -856,14 +856,6 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.OK.intValue)
   }
 
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/heartbeat") {
-    val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("post").headers(ACCEPT).headers(NODEAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val devResp = parse(response.body).extract[ApiResponse]
-    assert(devResp.code === ApiRespType.OK)
-  }
-
   test("PUT /orgs/" + orgid + "/nodes/" + nodeId8 + " - Should not set lastHeartbeat") {
     // Try to create new node with no lastHeartbeat, but with bad noheartbeat value - should fail
     var nodeRequest = PutNodesRequest(nodeToken, 
@@ -954,6 +946,14 @@ class NodesSuite extends AnyFunSuite {
     deleteNodeTestPolicy(nodeId8)  // clean up policy
   }
 
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/heartbeat") {
+    val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("post").headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    val devResp = parse(response.body).extract[ApiResponse]
+    assert(devResp.code === ApiRespType.OK)
+  }
+
   test("GET /orgs/" + orgid + "/nodes/ " + nodeId + " - user 1") {
     val response: HttpResponse[String] = Http(URL + "/nodes/" + nodeId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
@@ -969,7 +969,7 @@ class NodesSuite extends AnyFunSuite {
     // Verify the lastHeartbeat from the POST heartbeat above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
     val now: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
     val lastHb = ZonedDateTime.parse(dev.lastHeartbeat).toEpochSecond
-    assert(now - lastHb <= 3)    // should not now be more than 3 seconds from the time the heartbeat was done above
+    assert(now - lastHb <= 5)    // should not now be more than 5 seconds from the time the heartbeat was done above. This value needs to be generous, because the tests run slowly in travis.
 
     assert(dev.registeredServices.length === 2)
     val svc: RegService = dev.registeredServices.find(m => m.url==SDRSPEC).orNull
@@ -1098,7 +1098,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.MODIFIED) && (y.resource == "node")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.MODIFIED.toString) && (y.resource == "node")}))
   }
 
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - as node with whitespace") {
@@ -1328,7 +1328,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "nodestatus")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "nodestatus")}))
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " can't see nodestatus changes") {
@@ -1339,7 +1339,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(!parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "nodestatus")}))
+    assert(!parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "nodestatus")}))
     assert(!parsedBody.changes.exists(y => {y.resource == "nodestatus"}))
   }
 
@@ -1368,7 +1368,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "nodestatus")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "nodestatus")}))
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node - should not be there") {
@@ -1395,7 +1395,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "nodeerrors")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "nodeerrors")}))
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
@@ -1541,7 +1541,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "nodeerrors")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "nodeerrors")}))
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node - should not be there") {
@@ -1676,7 +1676,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "nodepolicies")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "nodepolicies")}))
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node") {
@@ -1704,7 +1704,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "nodepolicies")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "nodepolicies")}))
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node - should not be there") {
@@ -1763,7 +1763,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "nodeagreements")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "nodeagreements")}))
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " agreement creation not seen by agbot") {
@@ -1774,8 +1774,8 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(!parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "nodeagreements")}))
-    assert(!parsedBody.changes.exists(y => {(y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "nodeagreements")}))
+    assert(!parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "nodeagreements")}))
+    assert(!parsedBody.changes.exists(y => {(y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "nodeagreements")}))
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update sdr agreement as node") {
@@ -1972,7 +1972,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "nodeagreements")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "nodeagreements")}))
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - netspeed") {
@@ -2200,7 +2200,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId3) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "node")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId3) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "node")}))
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" as user so we can grab it from /changes route") {
@@ -2240,8 +2240,8 @@ class NodesSuite extends AnyFunSuite {
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(!parsedBody.changes.exists(y => {(y.orgId == orgid) && (y.id == nodeId3)}))
     assert(!parsedBody.changes.exists(y => {(y.orgId == orgid2) && (y.id == nodeId)}))
-    assert(parsedBody.changes.exists(y => {(y.orgId == orgid) && (y.id == service) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "service")}))
-    assert(parsedBody.changes.exists(y => {(y.orgId == orgid2) && (y.id == service) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "service")}))
+    assert(parsedBody.changes.exists(y => {(y.orgId == orgid) && (y.id == service) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "service")}))
+    assert(parsedBody.changes.exists(y => {(y.orgId == orgid2) && (y.id == service) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "service")}))
   }
 
   test("POST /orgs/"+orgid+"/changes - verify maxRecords works") {
@@ -2298,7 +2298,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "nodeagreements")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "nodeagreements")}))
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/agreements - verify all agreements gone") {
@@ -2373,7 +2373,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "nodemsgs")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "nodemsgs")}))
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " doesn't see nodemsgs") {
@@ -2384,7 +2384,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(!parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "nodemsgs")}))
+    assert(!parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "nodemsgs")}))
     assert(!parsedBody.changes.exists(y => {y.resource == "nodemsgs"}))
   }
 
@@ -2493,7 +2493,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(!parsedBody.changes.exists(y => {(y.id == nodeId2) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "nodemsgs")}))
+    assert(!parsedBody.changes.exists(y => {(y.id == nodeId2) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "nodemsgs")}))
 
     response = Http(URL+"/nodes/"+nodeId2+"/msgs").method("get").headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -2527,7 +2527,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "agbotmsgs")}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "agbotmsgs")}))
   }
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - short ttl so it will expire") {
@@ -2636,7 +2636,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     var parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(!parsedBody.changes.exists(y => {(y.id == agbotId2) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotmsgs")}))
+    assert(!parsedBody.changes.exists(y => {(y.id == agbotId2) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotmsgs")}))
 
     info("POST /orgs/"+orgid+"/changes - verify " + agbotId2 + " msg deletion not seen by agbots in changes table")
     time = ApiTime.pastUTC(secondsAgo)
@@ -2646,8 +2646,8 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(!parsedBody.changes.exists(y => {(y.id == agbotId2) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotmsgs")}))
-    assert(!parsedBody.changes.exists(y => {(y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotmsgs")}))
+    assert(!parsedBody.changes.exists(y => {(y.id == agbotId2) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotmsgs")}))
+    assert(!parsedBody.changes.exists(y => {(y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotmsgs")}))
 
     response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("get").headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -3145,8 +3145,8 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "node")}))
-    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "nodeerrors")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "node")}))
+    assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "nodeerrors")}))
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId + " try to delete again -- should fail") {

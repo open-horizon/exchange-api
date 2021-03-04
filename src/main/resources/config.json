@@ -27,7 +27,7 @@
 		},
 		"cache": {
 			"idsMaxSize": 47000,   // includes: local exchange users, nodes, agbots (all together)
-			"idsTtlSeconds": 3600,
+			"idsTtlSeconds": 5400,
 			"IAMusersMaxSize": 300,   // the users that are backed by IAM users
 			"IAMusersTtlSeconds": 300,
 			"resourcesMaxSize": 300,   // each of: users, agbots, services, patterns, policies

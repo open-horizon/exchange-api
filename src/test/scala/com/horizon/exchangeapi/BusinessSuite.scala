@@ -238,7 +238,7 @@ class BusinessSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == businessPolicy) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "policy")}))
+    assert(parsedBody.changes.exists(y => {(y.id == businessPolicy) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "policy")}))
   }
 
   test("POST /orgs/"+orgid+"/business/policies/BusPolNoService2 - add BusPolNoService as user -- test if service field required") {
@@ -296,7 +296,7 @@ class BusinessSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == businessPolicy3) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "policy")}))
+    assert(parsedBody.changes.exists(y => {(y.id == businessPolicy3) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "policy")}))
   }
 
   test("DELETE /orgs/"+orgid+"/business/policies/"+businessPolicy4) {
@@ -334,7 +334,7 @@ class BusinessSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == businessPolicy) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "policy")}))
+    assert(parsedBody.changes.exists(y => {(y.id == businessPolicy) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "policy")}))
   }
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as 2nd user - should fail") {
@@ -522,7 +522,7 @@ class BusinessSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == businessPolicy) && (y.operation == ResourceChangeConfig.MODIFIED) && (y.resource == "policy")}))
+    assert(parsedBody.changes.exists(y => {(y.id == businessPolicy) && (y.operation == ResChangeOperation.MODIFIED.toString) && (y.resource == "policy")}))
   }
 
   test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - userInput but without heading so invalid input") {

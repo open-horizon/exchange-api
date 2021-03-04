@@ -2,13 +2,14 @@ package com.horizon.exchangeapi.tables
 
 import java.sql.Timestamp
 
-import com.horizon.exchangeapi.ApiUtils
 import org.json4s._
 import org.json4s.jackson.Serialization.read
 import org.json4s.jackson.Serialization.write
-import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 import slick.dbio.Effect
 import slick.sql.FixedSqlAction
+
+import com.horizon.exchangeapi.{ApiUtils,ApiTime}
+import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 
 
 /** Contains the object representations of the DB tables related to orgs. */
@@ -100,22 +101,67 @@ object OrgsTQ {
 final case class Org(orgType: String, label: String, description: String, lastUpdated: String, tags: Option[Map[String, String]], limits: OrgLimits, heartbeatIntervals: NodeHeartbeatIntervals)
 
 /** Contains the object representations of the DB tables related to resource changes. */
+object ResChangeCategory extends Enumeration {
+  type ResChangeCategory = Value
+  val ORG: ResChangeCategory.Value = Value("org")
+  val AGBOT: ResChangeCategory.Value = Value("agbot")
+  val NODE: ResChangeCategory.Value = Value("node")
+  val POLICY: ResChangeCategory.Value = Value("policy")
+  val PATTERN: ResChangeCategory.Value = Value("pattern")
+  val SERVICE: ResChangeCategory.Value = Value("service")
+}
+import com.horizon.exchangeapi.tables.ResChangeCategory._
+
+object ResChangeResource extends Enumeration {
+  type ResChangeResource = Value
+  val ORG: ResChangeResource.Value = Value("org")
+  val AGBOT: ResChangeResource.Value = Value("agbot")
+  val AGBOTPATTERNS: ResChangeResource.Value = Value("agbotpatterns")
+  val AGBOTBUSINESSPOLS: ResChangeResource.Value = Value("agbotbusinesspols")
+  val AGBOTAGREEMENTS: ResChangeResource.Value = Value("agbotagreements")
+  val AGBOTMSGS: ResChangeResource.Value = Value("agbotmsgs")
+  val NODE: ResChangeResource.Value = Value("node")
+  val NODESERVICES_CONFIGSTATE: ResChangeResource.Value = Value("services_configstate")
+  val NODEERRORS: ResChangeResource.Value = Value("nodeerrors")
+  val NODESTATUS: ResChangeResource.Value = Value("nodestatus")
+  val NODEPOLICIES: ResChangeResource.Value = Value("nodepolicies")
+  val NODEAGREEMENTS: ResChangeResource.Value = Value("nodeagreements")
+  val NODEMSGS: ResChangeResource.Value = Value("nodemsgs")
+  val POLICY: ResChangeResource.Value = Value("policy")
+  val PATTERN: ResChangeResource.Value = Value("pattern")
+  val PATTERNKEYS: ResChangeResource.Value = Value("patternkeys")
+  val SERVICE: ResChangeResource.Value = Value("service")
+  val SERVICEPOLICIES: ResChangeResource.Value = Value("servicepolicies")
+  val SERVICEKEYS: ResChangeResource.Value = Value("servicekeys")
+  val SERVICEDOCKAUTHS: ResChangeResource.Value = Value("servicedockauths")
+}
+import com.horizon.exchangeapi.tables.ResChangeResource._
+
+object ResChangeOperation extends Enumeration {
+  type ResChangeOperation = Value
+  val CREATED: ResChangeOperation.Value = Value("created")
+  val CREATEDMODIFIED: ResChangeOperation.Value = Value("created/modified")
+  val MODIFIED: ResChangeOperation.Value = Value("modified")
+  val DELETED: ResChangeOperation.Value = Value("deleted")
+}
+import com.horizon.exchangeapi.tables.ResChangeOperation._
+
 final case class ResourceChangeRow(changeId: Long, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: java.sql.Timestamp) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def toResourceChange: ResourceChange = ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)
+  //def toResourceChange: ResourceChange = ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)
 
   // update returns a DB action to update this row
-  def update: DBIO[_] = (for { m <- ResourceChangesTQ.rows if m.changeId === changeId} yield m).update(this)
+  //def update: DBIO[_] = (for { m <- ResourceChangesTQ.rows if m.changeId === changeId} yield m).update(this)
 
   // insert returns a DB action to insert this row
   def insert: DBIO[_] = ResourceChangesTQ.rows += this
 
   // Returns a DB action to insert or update this row
-  def upsert: DBIO[_] = ResourceChangesTQ.rows.insertOrUpdate(this)
+  //def upsert: DBIO[_] = ResourceChangesTQ.rows.insertOrUpdate(this)
 }
 
-/** Mapping of the orgs db table to a scala class */
+/** Mapping of the resourcechanges db table to a scala class */
 class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcechanges") {
   def changeId = column[Long]("changeid", O.PrimaryKey, O.AutoInc)
   def orgId = column[String]("orgid")
@@ -135,7 +181,7 @@ class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcec
 
 }
 
-// Instance to access the orgs table
+// Instance to access the ResourceChanges table
 object ResourceChangesTQ {
   val rows = TableQuery[ResourceChanges]
 
@@ -170,4 +216,16 @@ object ResourceChangesTQ {
     rows.delete
 }
 
-final case class ResourceChange(changeId: Long, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: java.sql.Timestamp)
+final case class ResourceChange(changeId: Long, orgId: String, id: String, category: ResChangeCategory, public: Boolean, resource: ResChangeResource, operation: ResChangeOperation) {
+
+  def toResourceChangeRow = ResourceChangeRow(changeId, orgId, id, category.toString, public.toString, resource.toString, operation.toString, ApiTime.nowUTCTimestamp)
+
+  // update returns a DB action to update this row
+  //def update: DBIO[_] = toResourceChangeRow.update
+
+  // insert returns a DB action to insert this row
+  def insert: DBIO[_] = toResourceChangeRow.insert
+
+  // Returns a DB action to insert or update this row
+  //def upsert: DBIO[_] = toResourceChangeRow.upsert
+}

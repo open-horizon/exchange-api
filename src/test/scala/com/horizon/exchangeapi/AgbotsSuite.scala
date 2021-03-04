@@ -175,7 +175,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED)}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString)}))
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " can call notification framework") {
@@ -186,7 +186,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED)}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString)}))
   }
 
   /** Update normal agbot as user */
@@ -304,7 +304,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.MODIFIED)}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.MODIFIED.toString)}))
   }
 
   test("PATCH /orgs/"+orgid+"/agbots/"+agbotId+" - as agbot -- invalid input") {
@@ -472,7 +472,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "agbotpatterns")}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "agbotpatterns")}))
   }
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - already exists, should get 409") {
@@ -544,7 +544,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotpatterns")}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotpatterns")}))
   }
 
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/patterns/"+orgid2+"_*_"+orgid+" - delete wildcard pattern") {
@@ -577,7 +577,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotpatterns")}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotpatterns")}))
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - as agbot - should be all gone") {
@@ -614,7 +614,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATED) && (y.resource == "agbotbusinesspols")}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "agbotbusinesspols")}))
   }
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - already exists, should get 409") {
@@ -685,7 +685,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotbusinesspols")}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotbusinesspols")}))
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as agbot - should be 1 less") {
@@ -712,7 +712,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotbusinesspols")}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotbusinesspols")}))
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as agbot - should be all gone") {
@@ -781,7 +781,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "agbotagreements")}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "agbotagreements")}))
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " agreement creation not seen by agbots") {
@@ -792,8 +792,8 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(!parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "agbotagreements")}))
-    assert(!parsedBody.changes.exists(y => {(y.operation == ResourceChangeConfig.CREATEDMODIFIED) && (y.resource == "agbotagreements")}))
+    assert(!parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "agbotagreements")}))
+    assert(!parsedBody.changes.exists(y => {(y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "agbotagreements")}))
   }
 
   /** Update an agreement for agbot 9930 - as the agbot */
@@ -931,7 +931,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotagreements")}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotagreements")}))
   }
 
   /** Confirm 1 agreement was deleted */
@@ -958,7 +958,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbotagreements")}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotagreements")}))
   }
 
   /** Confirm all agreements were deleted */
@@ -1075,7 +1075,7 @@ class AgbotsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResourceChangeConfig.DELETED) && (y.resource == "agbot")}))
+    assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbot")}))
   }
 
   test("POST /orgs/IBM/changes - as IBM agbot (if it exists)") {
@@ -1106,7 +1106,7 @@ class AgbotsSuite extends AnyFunSuite {
       parsedBody = parse(response.body).extract[ResourceChangesRespObject]
       assert(parsedBody.changes.exists(y => {y.orgId == orgid}))
       assert(parsedBody.changes.exists(y => {y.orgId == "IBM"}))
-      assert(parsedBody.changes.exists(y => {y.orgId == orgid && y.id == orgid && y.operation == ResourceChangeConfig.CREATED}))
+      assert(parsedBody.changes.exists(y => {y.orgId == orgid && y.id == orgid && y.operation == ResChangeOperation.CREATED.toString}))
 
       input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List(orgid)))
       response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
@@ -1125,8 +1125,8 @@ class AgbotsSuite extends AnyFunSuite {
       assert(response.code === HttpCode.POST_OK.intValue)
       assert(!response.body.isEmpty)
       parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-      assert(!parsedBody.changes.exists(y => {y.orgId == orgid && y.operation != ResourceChangeConfig.CREATED}))
-      assert(parsedBody.changes.exists(y => {y.orgId == orgid && y.id == orgid && y.operation == ResourceChangeConfig.CREATED}))
+      assert(!parsedBody.changes.exists(y => {y.orgId == orgid && y.operation != ResChangeOperation.CREATED.toString}))
+      assert(parsedBody.changes.exists(y => {y.orgId == orgid && y.id == orgid && y.operation == ResChangeOperation.CREATED.toString}))
       assert(parsedBody.changes.exists(y => {y.orgId == "IBM"}))
 
     }

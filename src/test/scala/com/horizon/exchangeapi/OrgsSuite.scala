@@ -1,6 +1,5 @@
 package com.horizon.exchangeapi
 
-import com.horizon.exchangeapi.tables.{NodeHeartbeatIntervals, OrgLimits}
 import org.scalatest.funsuite.AnyFunSuite
 import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
@@ -8,7 +7,9 @@ import scalaj.http._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
+
 import com.horizon.exchangeapi._
+import com.horizon.exchangeapi.tables._
 import com.horizon.exchangeapi.auth.IamAccountInfo
 
 import scala.collection.immutable.List
@@ -78,7 +79,7 @@ class OrgsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == orgid) && (y.operation == ResourceChangeConfig.CREATED)}))
+    assert(parsedBody.changes.exists(y => {(y.id == orgid) && (y.operation == ResChangeOperation.CREATED.toString)}))
   }
 
   test("PUT /orgs/"+orgid+" - update org") {
@@ -96,7 +97,7 @@ class OrgsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == orgid) && (y.operation == ResourceChangeConfig.CREATEDMODIFIED)}))
+    assert(parsedBody.changes.exists(y => {(y.id == orgid) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString)}))
   }
 
   test("PATCH /orgs/"+orgid+" - update org") {
@@ -115,7 +116,7 @@ class OrgsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == orgid) && (y.operation == ResourceChangeConfig.MODIFIED)}))
+    assert(parsedBody.changes.exists(y => {(y.id == orgid) && (y.operation == ResChangeOperation.MODIFIED.toString)}))
   }
 
   // Hub Admin Tests
@@ -256,7 +257,7 @@ class OrgsSuite extends AnyFunSuite {
 //    assert(response.code === HttpCode.POST_OK.intValue)
 //    assert(!response.body.isEmpty)
 //    val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-//    assert(parsedBody.changes.exists(y => {(y.id == orgid2) && (y.operation == ResourceChangeConfig.DELETED)}))
+//    assert(parsedBody.changes.exists(y => {(y.id == orgid2) && (y.operation == ResChangeOperation.DELETED.toString)}))
 //  }
 
   // Delete Hub Admin User
@@ -281,7 +282,7 @@ class OrgsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
-    assert(parsedBody.changes.exists(y => {(y.id == orgid) && (y.operation == ResourceChangeConfig.DELETED)}))
+    assert(parsedBody.changes.exists(y => {(y.id == orgid) && (y.operation == ResChangeOperation.DELETED.toString)}))
   }
 
   test("IAM Creds - POST /myorgs route") {

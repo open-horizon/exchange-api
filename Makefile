@@ -88,7 +88,7 @@ docker: .docker-exec
 	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -p $(EXCHANGE_API_HTTPS_PORT):$(EXCHANGE_API_HTTPS_PORT) -e "JAVA_OPTS=$(JAVA_OPTS)" -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONFIG_DIR)/exchange-api.tmpl:ro -v $(EXCHANGE_HOST_ICP_CERT_FILE):$(EXCHANGE_ICP_CERT_FILE) -v $(EXCHANGE_HOST_KEYSTORE_DIR):$(EXCHANGE_CONTAINER_KEYSTORE_DIR):ro -v $(EXCHANGE_HOST_POSTGRES_CERT_FILE):$(EXCHANGE_CONTAINER_POSTGRES_CERT_FILE) $(image-string):$(DOCKER_TAG)
 	@touch $@
 
-# Note: this target is used by travis as part of testing
+# Note: this target is used by travis as part of testing, so even if you don't use it in your dev environment, it needs to be kept up to date
 # config.json is mounted into the container as exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
 .docker-exec-run-no-https: .docker-exec .docker-network
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
@@ -110,7 +110,7 @@ runexecutable:
 
 test:
 	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
-	- sbt test
+	sbt test
 
 # Push the docker images to the registry w/o rebuilding them
 docker-push-only:

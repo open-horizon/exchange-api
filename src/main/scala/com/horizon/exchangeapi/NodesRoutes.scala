@@ -267,7 +267,8 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
 
     // Convert from struct back to string and return db action to update that
     val newRegSvcsString: String = write(newRegSvcs)
-    (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat)).update((id, newRegSvcsString, Some(ApiTime.nowUTC)))
+    val nowTime = ApiTime.nowUTC
+    (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat,d.lastUpdated)).update((id, newRegSvcsString, Some(nowTime), nowTime))
   }
 }
 

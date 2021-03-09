@@ -26,6 +26,7 @@ before_install:
 - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce || true
 
 before_script:
+- ($TRAVIS_PULL_REQUEST = ''false'') && (docker login -u="$DOCKER_HUB_USER" -p="$DOCKER_HUB_PASS") || (echo ''This is a PR, skipping the login'')
 - make .docker-network
 - docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER --network 
   $DOCKER_NETWORK --name postgres postgres
@@ -43,7 +44,4 @@ script:
 # Note: this does NOT run the IBM/OCP cloud tests or the multi-tenancy tests (because this travis script would have to stand up an OCP instance). Those tests must be run in your own dev environment.
 - make test
 
-after_success:
-- '{ test $TRAVIS_PULL_REQUEST = ''false'' && [[ ! "$TRAVIS_COMMIT_MESSAGE" =~ "--skip-push" ]]  &&
-  echo "$DOCKER_HUB_PASS" | docker login -u="$DOCKER_HUB_USER" --password-stdin && make docker-push-only; } ||
-  echo ''Skipping the push'''
+

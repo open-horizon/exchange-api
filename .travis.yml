@@ -26,9 +26,9 @@ before_install:
 - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce || true
 
 before_script:
-- if : $TRAVIS_PULL_REQUEST = ''false''
+- if : branch = master AND fork = false
   docker login -u="$DOCKER_HUB_USER" -p="$DOCKER_HUB_PASS"
-  else:
+- else :
     echo ''This is a PR, skipping the login'''
 - make .docker-network
 - docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER --network 

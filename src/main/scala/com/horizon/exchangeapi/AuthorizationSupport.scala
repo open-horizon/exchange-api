@@ -403,6 +403,11 @@ case class IUser(creds: Creds) extends Identity {
               case Access.CREATE => Access.CREATE_ORGS
               case _ => access // this includes the case of an org admin or hub admin trying to DELETE_ORG
             }
+          case TAgbot(_) => access match {    // a hub admin accessing an agbot
+            case Access.READ => Access.READ_ALL_AGBOTS
+            case Access.WRITE => Access.WRITE_ALL_AGBOTS
+            case _ => access
+          }
           case _ => access
         }
       } else if (!target.isThere && access == Access.READ) {  // not my org, not public, not there, and we are trying to read it

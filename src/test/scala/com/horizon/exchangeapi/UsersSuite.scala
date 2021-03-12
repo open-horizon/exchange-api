@@ -933,6 +933,24 @@ class UsersSuite extends AnyFunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
+  test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/patterns -- by hubadmin") { //API call made in hzn exchange agbot listpattern
+    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/patterns").headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid+"/agbots -- by hubadmin") { //API call made in hzn exchange agbot listpattern
+    val response: HttpResponse[String] = Http(URL+"/agbots").headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid+"/agbots/"+agbotId +" -- by hubadmin") { //API call made in hzn exchange agbot listpattern
+    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/patterns").headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+  }
+
   test("IAM login") {
     // these tests will perform authentication with IBM cloud and will only run
     // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY (iamKey), EXCHANGE_IAM_EMAIL (iamUser), and EXCHANGE_MULT_ACCOUNT_ID (ocpAccountId) or EXCHANGE_IAM_ACCOUNT_ID (iamAccountId)

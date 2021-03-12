@@ -887,6 +887,52 @@ class UsersSuite extends AnyFunSuite {
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
+  test("GET /orgs/" + orgid + "/agbots/" + agbotId + " - view agbot by hub admin") {
+    val response = Http(URL + "/agbots/" + agbotId).method("get").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val getAgbotResp = parse(response.body).extract[GetAgbotsResponse]
+    assert(getAgbotResp.agbots.contains(orgid+"/"+agbotId))
+    val dev = getAgbotResp.agbots(orgid+"/"+agbotId) // the 2nd get turns the Some(val) into val
+    assert(dev.name === "agbot"+agbotId+"-normal")
+  }
+
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - as hubadmin") {
+    val input = PostAgbotPatternRequest(orgid, pattern, None)
+    val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("POST /orgs/"+orgid+"/business/policies/"+"mybuspol"+" - add "+"mybuspol"+" as user") {
+    val input = PostPutBusinessPolicyRequest("mybuspol", None, BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None ), None, None, None )
+    val response = Http(URL+"/business/policies/"+"mybuspol").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+  }
+
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as hubadmin") {
+    val input = PostAgbotBusinessPolRequest(orgid, "mybuspol", None)
+    val response = Http(URL+"/agbots/"+agbotId+"/businesspols").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("POST /orgs/root/users/" + hubadmin + " - create user that is hub admin and org admin as root -- should fail") {
+    val input = PostPutUsersRequest(pw, admin = true, Some(true), hubadmin + "@none.com")
+    val response = Http(urlRootOrg + "/users/" + hubadmin).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.body.contains("User cannot be admin and hubAdmin at the same time"))
+  }
+
+  test("PATCH /orgs/root/users/" + hubadmin + " updating hubadmin to have admin=false -- just validating the patch isn't rejected by req body" ) {
+    val jsonInput = """{ "admin": false }"""
+    val response = Http(urlRootOrg + "/users/" + hubadmin).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
   test("IAM login") {
     // these tests will perform authentication with IBM cloud and will only run
     // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY (iamKey), EXCHANGE_IAM_EMAIL (iamUser), and EXCHANGE_MULT_ACCOUNT_ID (ocpAccountId) or EXCHANGE_IAM_ACCOUNT_ID (iamAccountId)

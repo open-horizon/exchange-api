@@ -257,6 +257,13 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.66.0
+
+- HubAdmins now have permission to `READ_ALL_AGBOTS` and `WRITE_ALL_AGBOTS` to facilitate org creation through hzn cli
+- Users can no longer be a HubAdmin and an OrgAdmin at the same time
+- New translation files
+- travis.yml updates 
+
 ## Changes in 2.65.0
 
 - Updating `lastUpdated` field of node on `POST /services_configstate` route

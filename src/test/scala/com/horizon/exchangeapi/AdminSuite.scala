@@ -74,10 +74,9 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
 
     for (org <- ORGS) {
       for (user <- USERS) {
-        val response = Http(URL + "/orgs/" + org + "/users/" + user).postData(write(PostPutUsersRequest("password", user.endsWith("admin"), Some(org=="root"), user + "@host.domain"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        val response = Http(URL + "/orgs/" + org + "/users/" + user).postData(write(PostPutUsersRequest(password="password", admin=user.endsWith("admin") && org!="root", hubAdmin=Some(org=="root"), email=user + "@host.domain"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
         assert(response.code == HttpCode.POST_OK.intValue)
       }
-      
       var response = Http(URL + "/orgs/" + org + "/agbots/" + AGBOT).postData(write(PutAgbotsRequest("password", AGBOT, None, "password"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       assert(response.code == HttpCode.PUT_OK.intValue)
       response = Http(URL + "/orgs/" + org + "/services").postData(write(PostPutServiceRequest(SERVICE, None, true, None, URL + "/orgs/" + org + "/services/" + SERVICE, "0.0.1", "test-arch", "multiple", None, None, None, None, None, None, None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString

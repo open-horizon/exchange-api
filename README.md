@@ -6,14 +6,14 @@ The exchange service also provides a few key services for BH for areas in which 
 do not scale well enough yet. As soon as the decentralized tools are sufficient, they will replace these
 services in the exchange.
 
-## Preconditions for Local Development
+## <a name="preconditions"></a>Preconditions for Local Development
 
 - [Install scala](http://www.scala-lang.org/download/install.html)
 - [Install sbt](https://www.scala-sbt.org/1.x/docs/Setup.html)
 - (optional) Install conscript and giter8 if you want to get example code from scalatra.org
 - Install postgresql locally (unless you have a remote instance you are using). Instructions for installing on Mac OS X:
     - Install: `brew install postgresql`
-    - Note: when running/testing the exchange svr in a docker container, it can't reach you postgres instance on `localhost`, so configure it to also listen on your local IP:
+    - Note: when running/testing the exchange svr in a docker container, it can't reach your postgres instance on `localhost`, so configure it to also listen on your local IP:
       - set this to your IP: `export MY_IP=<my-ip>`
       - `echo "host all all $MY_IP/32 trust" >> /usr/local/var/postgres/pg_hba.conf`
       - `sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = '$MY_IP'/" /usr/local/var/postgres/postgresql.conf`
@@ -22,6 +22,7 @@ services in the exchange.
       - trust all clients on your subnet: `echo 'host all all 192.168.1.0/24 trust' >> /usr/local/var/postgres/pg_hba.conf`
       - listen on all interfaces: `sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /usr/local/var/postgres/postgresql.conf`
       - `brew services start postgresql` or if it is already running `brew services restart postgresql`
+    - Or you can run postgresql in a container and connect it to the docker network `exchange-api-network`
     - Test: `psql "host=$MY_IP dbname=postgres user=<myuser> password=''"`
 - Add a configuration file on your development system at `/etc/horizon/exchange/config.json` with at minimum the following content (this is needed for the automated tests. Defaults and the full list of configuration variables are in `src/main/resources/config.json`):
 
@@ -113,30 +114,31 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
   - Run `sbt scapegoat`
   - Terminal will display where the report was written and provide a summary of found errors and warnings.
 
-## Building and Running the Docker Container
+## Building and Running the Docker Container in Local Sandbox
 
-- Update the version in `src/main/resources.version.txt`
-- **This step doesn't work yet, use the 2 steps in the following bullet for now
-  - To compile your local code, build the exchange container, and run it, run: `make`
-- Or you can build and run in separate steps:
-    - Compile your local code and build the exchange container: `make .docker-exec`
-    - Run the container locally: `make start-docker-exec`
-- Manually test container locally: `curl -sS -w %{http_code} http://localhost:8080/v1/admin/version`
-    - Note: the container can not access a postgres db running locally on the host if the db is only listening for unix domain sockets or 127.0.0.1. See the **Preconditions** section above.
-- Manually test the local container via https:
-    - If you haven't already, set EXCHANGE_KEY_PW and run `make gen-key`
-    - Add `edge-fab-exchange` as an alias for `localhost` in `/etc/hosts`
-    - `src/test/bash/https.sh get services`
-- Run the automated tests: `sbt test`
-- Check the swagger info from the container: `http://localhost:8080/v1/swagger`
+- Update the version in `src/main/resources/version.txt`
+- Add a second configuration file that is specific to running in the docker container:
+  - `sudo mkdir -p /etc/horizon/exchange/docker`
+  - `sudo cp /etc/horizon/exchange/config.json /etc/horizon/exchange/docker/config.json`
+  - See [the Preconditions section](#preconditions) for the options for configuring postgresql to listen on an IP address that your exchange docker container will be able to reach. (Docker will not let it reach your host's `localhost` or `127.0.0.1` .)
+  - Set the `jdbcUrl` field in this `config.json` to use that IP address, for example:
+    - `"jdbcUrl": "jdbc:postgresql://192.168.1.9/postgres",`
+- To compile your local code, build the exchange container, and run it locally, run:
+  - `make .docker-exec-run-no-https`
+  - If you need to rerun the container without changing any code:
+    - `rm .docker-exec-run-no-https && make .docker-exec-run-no-https`
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or might also go to `/var/log/syslog` depending on the docker and syslog configuration.
-- At this point you probably want to `make clean` to stop your local docker container so it stops listening on your 8080 port, or you will be very confused when you go back to running new code in your sandbox, and your testing doesn't seem to be executing it.
+- Manually test container locally: `curl -sS -w %{http_code} http://localhost:8080/v1/admin/version`
+- **Note:** The exchange-api does not support HTTPS until issue https://github.com/open-horizon/exchange-api/issues/259 is completed.
+- Run the automated tests: `sbt test`
+- **Note:** Swagger does not yet work in the local docker container.
+- At this point you probably want to run `docker rm -f amd64_exchange-api` to stop your local docker container so it stops listening on your 8080 port. Otherwise you may be very confused when you go back to running the exchange via `sbt`, but it doesn't seem to be executing your tests.
 
 ### Notes About `config/exchange-api.tmpl`
 
 - The `config/exchange-api.tmpl` is a application configuration template much like `/etc/horizon/exchange/config.json`. The template file itself is required for building a Docker image, but the content is not. It is recommend that the default content remain as-is when building a Docker image. 
 - The content layout of the template exactly matches that of `/etc/horizon/exchange/config.json`, and the content of the config.json can be directly copied-and-pasted into the template. This will set the default Exchange configuration to the hard-coded specifications defined in the config.json when a Docker container is created.
-- Alternatively, instead of using hard-coded values the template accepts substitution variables (default content of the `config/exchange-api.tmpl`). At container creation the utility `envsubst` will make a value substitution with any corresponding environmental variables passed into the running container by Docker, Kubernetes, OpenShift, or etc.
+- Alternatively, instead of using hard-coded values the template accepts substitution variables (default content of the `config/exchange-api.tmpl`). At container creation the utility `envsubst` will make a value substitution with any corresponding environmental variables passed into the running container by Docker, Kubernetes, OpenShift, or etc. For example:
     - `config/exchange-api.tmpl`:
         - "jdbcUrl": "$EXCHANGE_DB_URL"
     - Kubernetes config-map (environment variable passed to container at creation):
@@ -144,8 +146,8 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
     - Default `/etc/horizon/exchange/config.json` inside running container:
         - "jdbcUrl": "192.168.0.123"
 - It is possible to mix-and-match hard-coded values and substitution values in the template.
-- ***WARNING*** `envsubst` will attempt to substitute any value containing a `$` character (hashed passwords for example). To prevent this either pass the environmental variable `$ENVSUBST_CONFIG` with a garbage value (this will effectively disable `envsubst`), or pass with a value containing the exact substitution variables `envsubst` is to substitute (`$ENVSUBST_CONFIG='${EXCHANGE_DB_URL} ${EXCHANGE_DB_USER} ${EXCHANGE_DB_PW} ${EXCHANGE_ROOT_PW} ...'`) along with the normal environment variables to actually do the value substitution.
-    - By default `$ENVSUBST_CONFIG` is set to `$ENVSUBST_CONFIG=''` this is basically `envsubst` using is default opportunistic behavior and will attempt to make any/all substitutions where possible.
+- ***WARNING:*** `envsubst` will attempt to substitute any value containing a `$`, which will include the value of `api.root.password` if it is a hashed password. To prevent this either pass the environmental variable `ENVSUBST_CONFIG` with a garbage value, e.g. `ENVSUBST_CONFIG='$donotsubstituteanything'` (this will effectively disable `envsubst`), or pass it with a value containing the exact substitution variables `envsubst` is to substitute (`ENVSUBST_CONFIG='${EXCHANGE_DB_URL} ${EXCHANGE_DB_USER} ${EXCHANGE_DB_PW} ${EXCHANGE_ROOT_PW} ...'`), and of course you have to pass those environment variables values into the container.
+    - By default `$ENVSUBST_CONFIG` is set to `$ENVSUBST_CONFIG=''` this causes `envsubst` to use its default opportunistic behavior and will attempt to make any/all substitutions where possible.
 - It is also possible to directly pass a `/etc/horizon/exchange/config.json` to a container at creation using a bind/volume mount. This takes precedence over the content of the template `config/exchange-api.tmpl`. The directly passed config.json is still subject to the `envsubst` utility and the above warning still applies.
 
 ### Notes About the Docker Image Build Process

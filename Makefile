@@ -89,12 +89,15 @@ docker: .docker-exec
 	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -p $(EXCHANGE_API_HTTPS_PORT):$(EXCHANGE_API_HTTPS_PORT) -e "JAVA_OPTS=$(JAVA_OPTS)" -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONFIG_DIR)/exchange-api.tmpl:ro -v $(EXCHANGE_HOST_ICP_CERT_FILE):$(EXCHANGE_ICP_CERT_FILE) -v $(EXCHANGE_HOST_KEYSTORE_DIR):$(EXCHANGE_CONTAINER_KEYSTORE_DIR):ro -v $(EXCHANGE_HOST_POSTGRES_CERT_FILE):$(EXCHANGE_CONTAINER_POSTGRES_CERT_FILE) $(image-string):$(DOCKER_TAG)
 	@touch $@
 
-# Note: this target is also used by travis as part of the automated testing, so even if you don't use it in your dev environment, it needs to be kept up to date
 # config.json is mounted into the container as exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Bind-mounting it with read-only permissions prevents the container from attempting to overwrite it.
 .docker-exec-run-no-https: .docker-exec .docker-network
 	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
 	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -e "JAVA_OPTS=$(JAVA_OPTS)" -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" -e "ENVSUBST_CONFIG=$$ENVSUBST_CONFIG" -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONFIG_DIR)/exchange-api.tmpl:ro -v $(EXCHANGE_HOST_ICP_CERT_FILE):$(EXCHANGE_ICP_CERT_FILE) $(image-string):$(DOCKER_TAG)
 	@touch $@
+
+travis-test: .docker-exec .docker-network
+	- docker rm -f $(DOCKER_NAME) 2> /dev/null || :
+	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -e "JAVA_OPTS=$(JAVA_OPTS)" -v /etc/horizon/exchange/config.json:/etc/horizon/exchange/exchange-api.tmpl:ro $(image-string):$(DOCKER_TAG)
 
 # Build the executable and run it locally (not in sbt and not in docker)
 # Note: this is the same way it is run inside the docker container
@@ -174,4 +177,4 @@ version:
 
 .SECONDARY:
 
-.PHONY: default clean docker runexecutable test docker-push-only docker-push-version-only docker-push docker-push-to-prod gen-key sync-swagger-ui testmake version
+.PHONY: default clean docker runexecutable test docker-push-only docker-push-version-only docker-push docker-push-to-prod gen-key sync-swagger-ui testmake version travis-test

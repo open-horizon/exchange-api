@@ -32,14 +32,13 @@ before_script:
   $DOCKER_NETWORK --name postgres postgres
 - export POSTGRES_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
   postgres)
-- sudo mkdir -p /etc/horizon/exchange/docker/icp
-- sudo touch /etc/horizon/exchange/docker/icp/ca.crt
+- sudo mkdir -p /etc/horizon/exchange
 - 'sudo bash -c "echo ''{ \"api\": { \"db\": { \"jdbcUrl\": \"jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB\",
   \"user\": \"$POSTGRES_USER\" }, \"root\": { \"password\": \"$EXCHANGE_ROOTPW\",
-  \"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" } } }'' > /etc/horizon/exchange/docker/config.json"'
-- cat /etc/horizon/exchange/docker/config.json
+  \"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" } } }'' > /etc/horizon/exchange/config.json"'
+- cat /etc/horizon/exchange/config.json
 - unset SBT_OPTS
-- make .docker-exec-run-no-https
+- make travis-test
 
 script:
 # Note: this does NOT run the IBM/OCP cloud tests or the multi-tenancy tests (because this travis script would have to stand up an OCP instance). Those tests must be run in your own dev environment.

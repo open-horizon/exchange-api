@@ -136,7 +136,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def catalogGetServicesRoute: Route = (path("catalog" / "services") & get & parameter((Symbol("orgtype").?))) { (orgType) =>
+  def catalogGetServicesRoute: Route = (path("catalog" / "services") & get & parameter("orgtype".?)) { (orgType) =>
     exchAuth(TService(OrgAndId("*","*").toString),Access.READ_ALL_SERVICES) { _ =>
         complete({
           val svcQuery = for {
@@ -237,7 +237,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def catalogGetPatternsRoute: Route = (path("catalog" / "patterns") & get & parameter((Symbol("orgtype").?))) { (orgType) =>
+  def catalogGetPatternsRoute: Route = (path("catalog" / "patterns") & get & parameter("orgtype".?)) { (orgType) =>
     exchAuth(TPattern(OrgAndId("*","*").toString),Access.READ_ALL_PATTERNS) { _ =>
       complete({
         val svcQuery = for {
@@ -363,7 +363,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def catalogGetServicesAll: Route = (path("catalog" / Segment / "services") & get & parameter((Symbol("owner").?, Symbol("public").?, Symbol("url").?, Symbol("version").?, Symbol("arch").?, Symbol("nodetype").?, Symbol("requiredurl").?))) { (orgid, owner, public, url, version, arch, nodetype, requiredurl) =>
+  def catalogGetServicesAll: Route = (path("catalog" / Segment / "services") & get & parameter("owner".?, "public".?, "url".?, "version".?, "arch".?, "nodetype".?, "requiredurl".?)) { (orgid, owner, public, url, version, arch, nodetype, requiredurl) =>
     exchAuth(TService(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validateWithMsg(GetServicesUtils.getServicesProblem(public, version, nodetype)) {
         complete({
@@ -492,7 +492,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def catalogGetPatternsAll: Route = (path("catalog" / Segment / "patterns") & get & parameter((Symbol("idfilter").?, Symbol("owner").?, Symbol("public").?, Symbol("label").?, Symbol("description").?))) { (orgid, idfilter, owner, public, label, description) =>
+  def catalogGetPatternsAll: Route = (path("catalog" / Segment / "patterns") & get & parameter("idfilter".?, "owner".?, "public".?, "label".?, "description".?)) { (orgid, idfilter, owner, public, label, description) =>
     exchAuth(TPattern(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
         complete({

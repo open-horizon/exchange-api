@@ -196,7 +196,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "policy")
-  def busPolsGetRoute: Route = (path("orgs" / Segment / "business" / "policies") & get & parameter((Symbol("idfilter").?, Symbol("owner").?, Symbol("label").?, Symbol("description").?))) { (orgid, idfilter, owner, label, description) =>
+  def busPolsGetRoute: Route = (path("orgs" / Segment / "business" / "policies") & get & parameter("idfilter".?, "owner".?, "label".?, "description".?)) { (orgid, idfilter, owner, label, description) =>
     exchAuth(TBusiness(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       complete({
         var q = BusinessPoliciesTQ.getAllBusinessPolicies(orgid)
@@ -280,7 +280,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "policy")
-  def busPolGetRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & get & parameter((Symbol("attribute").?))) { (orgid, policy, attribute) =>
+  def busPolGetRoute: Route = (path("orgs" / Segment / "business" / "policies" / Segment) & get & parameter("attribute".?)) { (orgid, policy, attribute) =>
     val compositeId: String = OrgAndId(orgid, policy).toString
     exchAuth(TBusiness(compositeId), Access.READ) { _ =>
       complete({

@@ -35,7 +35,7 @@ final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Opti
   require(token!=null && name!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = {
-    if (token == "") Some(ExchMsg.translate("token.specified.cannot.be.blank"))
+    if (token == "") Option(ExchMsg.translate("token.specified.cannot.be.blank"))
     else None
   }
 
@@ -49,7 +49,7 @@ final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Opti
 final case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], publicKey: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = {
-    if (token.isDefined && token.get == "") Some(ExchMsg.translate("token.cannot.be.empty.string"))
+    if (token.isDefined && token.get == "") Option(ExchMsg.translate("token.cannot.be.empty.string"))
     //else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
     else None
   }
@@ -97,7 +97,7 @@ final case class PostAgbotBusinessPolRequest(businessPolOrgid: String, businessP
   def formId: String = businessPolOrgid + "_" + businessPol + "_" + nodeOrgid.getOrElse(businessPolOrgid)
   def getAnyProblem: Option[String] = {
     val nodeOrg: String = nodeOrgid.getOrElse(businessPolOrgid)
-    if (nodeOrg != businessPolOrgid) Some(ExchMsg.translate("node.org.must.equal.bus.pol.org"))
+    if (nodeOrg != businessPolOrgid) Option(ExchMsg.translate("node.org.must.equal.bus.pol.org"))
     else None
   }
 }
@@ -208,7 +208,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
-  def agbotsGetRoute: Route = (path("orgs" / Segment / "agbots") & get & parameter((Symbol("idfilter").?, Symbol("name").?, Symbol("owner").?))) { (orgid, idfilter, name, owner) =>
+  def agbotsGetRoute: Route = (path("orgs" / Segment / "agbots") & get & parameter("idfilter".?, "name".?, "owner".?)) { (orgid, idfilter, name, owner) =>
     logger.debug(s"Doing GET /orgs/$orgid/agbots")
     exchAuth(TAgbot(OrgAndId(orgid,"*").toString), Access.READ) { ident =>
       complete({
@@ -219,7 +219,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
         owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
         db.run(q.result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/agbots result size: ${list.size}")
-          val agbots = list.map(e => e.id -> e.toAgbot(ident.isSuperUser)).toMap
+          val agbots: Map[String, Agbot] = list.map(e => e.id -> e.toAgbot(ident.isSuperUser)).toMap
           val code: StatusCode with Serializable = if (agbots.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetAgbotsResponse(agbots, 0))
         })
@@ -266,7 +266,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
-  def agbotGetRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & get & parameter(Symbol("attribute").?)) { (orgid, id, attribute) =>
+  def agbotGetRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & get & parameter("attribute".?)) { (orgid, id, attribute) =>
     logger.debug(s"Doing GET /orgs/$orgid/agbots/$id")
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId), Access.READ) { ident =>
@@ -359,16 +359,16 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
   def agbotPutRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & put & entity(as[PutAgbotsRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgid/agbots/$id")
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          val owner = ident match { case IUser(creds) => creds.id; case _ => "" }
-          val hashedTok = Password.hash(reqBody.token)
+          val owner: String = ident match { case IUser(creds) => creds.id; case _ => "" }
+          val hashedTok: String = Password.hash(reqBody.token)
           db.run(AgbotsTQ.getNumOwned(owner).result.flatMap({ xs =>
             logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" num owned: "+xs)
-            val numOwned = xs
-            val maxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
+            val numOwned: Int = xs
+            val maxAgbots: Int = ExchConfig.getInt("api.limits.maxAgbots")
             if (maxAgbots == 0 || numOwned <= maxAgbots || owner == "") {    // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
               val action = if (owner == "") reqBody.getDbUpdate(compositeId, orgid, owner, hashedTok) else reqBody.getDbUpsert(compositeId, orgid, owner, hashedTok)
               action.asTry
@@ -378,7 +378,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug(s"PUT /orgs/$orgid/agbots/$id result: $v")
-              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOT, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.CREATEDMODIFIED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -428,11 +428,11 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
   def agbotPatchRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & patch & entity(as[PatchAgbotsRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/agbots/$id")
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          val hashedTok = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
+          val hashedTok: String = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
           val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid, hashedTok)
           if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attribute.specified")))
           else db.run(action.transactionally.asTry.flatMap({
@@ -441,7 +441,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
               logger.debug(s"PATCH /orgs/$orgid/agbots/$id result: $v")
               if (v.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
                 if (reqBody.token.isDefined) AuthCache.putAgbot(compositeId, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
-                ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOT, ResChangeOperation.MODIFIED).insert.asTry
+                ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.MODIFIED).insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", compositeId))).asTry
               }
@@ -477,7 +477,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
   def agbotDeleteRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & delete) { (orgid, id) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/agbots/$id")
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
       complete({
         // remove does *not* throw an exception if the key does not exist
@@ -486,7 +486,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               logger.debug(s"DELETE /orgs/$orgid/agbots/$id result: $v")
               AuthCache.removeAgbotAndOwner(compositeId)
-              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOT, ResChangeOperation.DELETED).insert.asTry
+              ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", compositeId))).asTry
             }
@@ -522,7 +522,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
   def agbotHeartbeatRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "heartbeat") & post) { (orgid, id) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$id/heartbeat")
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
       complete({
         db.run(AgbotsTQ.getLastHeartbeat(compositeId).update(ApiTime.nowUTC).asTry).map({
@@ -587,13 +587,13 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
   def agbotGetPatternsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns") & get) { (orgid, id) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
       complete({
         db.run(AgbotPatternsTQ.getPatterns(compositeId).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/agbots/$id/patterns result size: ${list.size}")
-          val patterns = list.map(e => e.patId -> e.toAgbotPattern).toMap
-          val code = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val patterns: Map[String, AgbotPattern] = list.map(e => e.patId -> e.toAgbotPattern).toMap
+          val code: StatusCode with Serializable = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetAgbotPatternsResponse(patterns))
         })
       }) // end of complete
@@ -637,13 +637,13 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
   def agbotGetPatternRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns" / Segment) & get) { (orgid, id, patId) =>
-    val compositeId = OrgAndId(orgid,id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
       complete({
         db.run(AgbotPatternsTQ.getPattern(compositeId, patId).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/agbots/$id/patterns/$patId result size: ${list.size}")
-          val patterns = list.map(e => e.patId -> e.toAgbotPattern).toMap
-          val code = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val patterns: Map[String, AgbotPattern] = list.map(e => e.patId -> e.toAgbotPattern).toMap
+          val code: StatusCode with Serializable = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetAgbotPatternsResponse(patterns))
         })
       }) // end of complete
@@ -699,11 +699,11 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
           description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
   def agbotPostPatRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns") & post & entity(as[PostAgbotPatternRequest])) { (orgid, id, reqBody) =>
-    val compositeId = OrgAndId(orgid, id).toString
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          val patId = reqBody.formId
+          val patId: String = reqBody.formId
           db.run(PatternsTQ.getPattern(OrgAndId(reqBody.patternOrgid,reqBody.pattern).toString).length.result.asTry.flatMap({
             case Success(num) =>
               logger.debug("POST /orgs/" + orgid + "/agbots/" + id + "/patterns pattern validation: " + num)
@@ -1516,21 +1516,21 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/message")
-  def agbotGetMsgsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "msgs") & get & parameter((Symbol("maxmsgs").?))) { (orgid, id, maxmsgsStrOpt) =>
-    val compositeId = OrgAndId(orgid,id).toString
+  def agbotGetMsgsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "msgs") & get & parameter("maxmsgs".?)) { (orgid, id, maxmsgsStrOpt) =>
+    val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
       validate(Try(maxmsgsStrOpt.map(_.toInt)).isSuccess, ExchMsg.translate("invalid.int.for.name", maxmsgsStrOpt.getOrElse(""), "maxmsgs")) {
         complete({
           // Set the query, including maxmsgs
-          var maxIntOpt = maxmsgsStrOpt.map(_.toInt)
+          var maxIntOpt: Option[Int] = maxmsgsStrOpt.map(_.toInt)
           var query = AgbotMsgsTQ.getMsgs(compositeId).sortBy(_.msgId)
           if (maxIntOpt.getOrElse(0) > 0) query = query.take(maxIntOpt.get)
           // Get the msgs for this agbot
           db.run(query.result).map({ list =>
             logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result size: "+list.size)
             //logger.debug("GET /orgs/"+orgid+"/agbots/"+id+"/msgs result: "+list.toString)
-            val msgs = list.map(_.toAgbotMsg).toList
-            val code = if (msgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            val msgs: List[AgbotMsg] = list.map(_.toAgbotMsg).toList
+            val code: StatusCode with Serializable = if (msgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
             (code, GetAgbotMsgsResponse(msgs, 0))
           })
         }) // end of complete

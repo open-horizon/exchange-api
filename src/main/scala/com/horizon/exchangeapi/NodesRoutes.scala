@@ -473,7 +473,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def nodesGetRoute: Route = (path("orgs" / Segment / "nodes") & get & parameter((Symbol("idfilter").?, Symbol("name").?, Symbol("owner").?, Symbol("arch").?, Symbol("nodetype").?))) { (orgid, idfilter, name, owner, arch, nodetype) =>
+  def nodesGetRoute: Route = (path("orgs" / Segment / "nodes") & get & parameter("idfilter".?, "name".?, "owner".?, "arch".?, "nodetype".?)) { (orgid, idfilter, name, owner, arch, nodetype) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes")
     exchAuth(TNode(OrgAndId(orgid,"#").toString), Access.READ) { ident =>
       validateWithMsg(GetNodesUtils.getNodesProblem(nodetype)) {
@@ -601,7 +601,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def nodeGetRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & get & parameter((Symbol("attribute").?))) { (orgid, id, attribute) =>
+  def nodeGetRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & get & parameter("attribute".?)) { (orgid, id, attribute) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes/$id")
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.READ) { ident =>
@@ -741,7 +741,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     )
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def nodePutRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & put & parameter((Symbol("noheartbeat").?)) & entity(as[PutNodesRequest])) { (orgid, id, noheartbeat, reqBody) =>
+  def nodePutRoute: Route = (path("orgs" / Segment / "nodes" / Segment) & put & parameter("noheartbeat".?) & entity(as[PutNodesRequest])) { (orgid, id, noheartbeat, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgid/nodes/$id")
     val compositeId: String = OrgAndId(orgid, id).toString
     var orgMaxNodes = 0
@@ -1666,7 +1666,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     )
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/policy")
-  def nodePutPolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & put & parameter((Symbol("noheartbeat").?)) & entity(as[PutNodePolicyRequest])) { (orgid, id, noheartbeat, reqBody) =>
+  def nodePutPolicyRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "policy") & put & parameter("noheartbeat".?) & entity(as[PutNodePolicyRequest])) { (orgid, id, noheartbeat, reqBody) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
@@ -1954,7 +1954,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     )
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/agreement")
-  def nodePutAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & put & parameter((Symbol("noheartbeat").?)) & entity(as[PutNodeAgreementRequest])) { (orgid, id, agrId, noheartbeat, reqBody) =>
+  def nodePutAgreementRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) & put & parameter("noheartbeat".?) & entity(as[PutNodeAgreementRequest])) { (orgid, id, agrId, noheartbeat, reqBody) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
@@ -2229,7 +2229,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/message")
-  def nodeGetMsgsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs") & get & parameter((Symbol("maxmsgs").?))) { (orgid, id, maxmsgsStrOpt) =>
+  def nodeGetMsgsRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "msgs") & get & parameter("maxmsgs".?)) { (orgid, id, maxmsgsStrOpt) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       validate(Try(maxmsgsStrOpt.map(_.toInt)).isSuccess, ExchMsg.translate("invalid.int.for.name", maxmsgsStrOpt.getOrElse(""), "maxmsgs")) {
@@ -2505,7 +2505,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(description = "not found", responseCode = "404")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def nodesGetDetails: Route =
-    (path("orgs" / Segment / "node-details") & get & parameter((Symbol("arch").?, Symbol("id").?, Symbol("name").?, Symbol("type").?, Symbol("owner").?))) {
+    (path("orgs" / Segment / "node-details") & get & parameter("arch".?, "id".?, "name".?, "type".?, "owner".?)) {
       (orgid: String, arch: Option[String], id: Option[String], name: Option[String], nodeType: Option[String], owner: Option[String]) =>
         exchAuth(TNode(OrgAndId(orgid,"#").toString), Access.READ) {
           ident =>

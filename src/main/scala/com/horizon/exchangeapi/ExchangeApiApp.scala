@@ -166,7 +166,16 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   def testRoute = { path("test") { get { logger.debug("In /test"); complete(testResp("OK")) } } }
 
   //someday: use directive https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
-  lazy val routes: Route = DebuggingDirectives.logRequestResult(requestResponseLogging _) { pathPrefix("v1") { testRoute ~ orgsRoutes ~ usersRoutes ~ nodesRoutes ~ agbotsRoutes ~ servicesRoutes ~ patternsRoutes ~ businessRoutes ~ catalogRoutes ~ adminRoutes ~ SwaggerDocService.routes ~ swaggerUiRoutes } }
+  lazy val routes: Route =
+    DebuggingDirectives.logRequestResult(requestResponseLogging _) {
+      pathPrefix("v1") {
+        handleExceptions(myExceptionHandler) {
+          handleRejections(myRejectionHandler) {
+            testRoute ~ orgsRoutes ~ usersRoutes ~ nodesRoutes ~ agbotsRoutes ~ servicesRoutes ~ patternsRoutes ~ businessRoutes ~ catalogRoutes ~ adminRoutes ~ SwaggerDocService.routes ~ swaggerUiRoutes
+          }
+        }
+      }
+    }
 
   // Load the db backend. The db access info must be in config.json
   // https://www.mchange.com/projects/c3p0/#configuration_properties
@@ -289,7 +298,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
 
 
   // Start serving client requests
-  val serverBinding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, ExchangeApi.serviceHost, ExchangeApi.servicePort)
+  val serverBinding: Future[Http.ServerBinding] = Http().newServerAt(ExchangeApi.serviceHost, ExchangeApi.servicePort).bind(routes)
 
   // Configure graceful termination. See: https://doc.akka.io/docs/akka-http/current/server-side/graceful-termination.html
   // But also see: https://discuss.lightbend.com/t/graceful-termination-on-sigterm-using-akka-http/1619

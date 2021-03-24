@@ -355,19 +355,19 @@ object ApiTime {
   def nowUTCTimestamp: java.sql.Timestamp = java.sql.Timestamp.from(ZonedDateTime.now.withZoneSameInstant(ZoneId.of("UTC")).toInstant)
 
   /** Return UTC format of the time specified in seconds */
-  def thenUTC(seconds: Long): String = ZonedDateTime.ofInstant(Instant.ofEpochSecond(seconds), ZoneId.of("UTC")).toString
+  def thenUTC(seconds: Long): String = fixFormatting(ZonedDateTime.ofInstant(Instant.ofEpochSecond(seconds), ZoneId.of("UTC")).toString)
 
   /** Return UTC format of the time n seconds ago */
-  def pastUTC(secondsAgo: Int): String = ZonedDateTime.now.minusSeconds(secondsAgo).withZoneSameInstant(ZoneId.of("UTC")).toString
+  def pastUTC(secondsAgo: Int): String = fixFormatting(ZonedDateTime.now.minusSeconds(secondsAgo).withZoneSameInstant(ZoneId.of("UTC")).toString)
 
   /** Return UTC format of the time n seconds ago in java.sql.Timestamp type */
   def pastUTCTimestamp(secondsAgo: Int): java.sql.Timestamp = java.sql.Timestamp.from(ZonedDateTime.now.minusSeconds(secondsAgo).withZoneSameInstant(ZoneId.of("UTC")).toInstant)
 
   /** Return UTC format of the time n seconds from now */
-  def futureUTC(secondsFromNow: Int): String = ZonedDateTime.now.plusSeconds(secondsFromNow).withZoneSameInstant(ZoneId.of("UTC")).toString
+  def futureUTC(secondsFromNow: Int): String = fixFormatting(ZonedDateTime.now.plusSeconds(secondsFromNow).withZoneSameInstant(ZoneId.of("UTC")).toString)
 
   /** Return UTC format of unix begin time */
-  def beginningUTC: String = ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.of("UTC")).toString
+  def beginningUTC: String = fixFormatting(ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.of("UTC")).toString)
 
   /** Returns now in epoch seconds */
   def nowSeconds: Long = System.currentTimeMillis / 1000 // seconds since 1/1/1970

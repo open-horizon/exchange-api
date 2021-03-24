@@ -93,7 +93,8 @@ lazy val root = (project in file("."))
         //javaOptions ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config", "-Djava.security.policy=src/main/resources/auth.policy")
 
         // These settings are for the Docker subplugin within sbt-native-packager. See: https://sbt-native-packager.readthedocs.io/en/stable/formats/docker.html
-        packageName in Docker    := "openhorizon/" ++ name.value, 
+        version in Docker        := versionFunc(), // overwrite this setting to build a test version of the exchange with a custom tag in docker, defaults to exchange version
+        packageName in Docker    := "openhorizon/" ++ name.value,
         daemonUser in Docker     := "exchangeuser", 
         daemonGroup in Docker    := "exchangegroup", 
         daemonGroupGid in Docker := some("1001"), 

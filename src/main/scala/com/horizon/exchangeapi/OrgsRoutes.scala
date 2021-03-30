@@ -45,6 +45,20 @@ import scala.concurrent.ExecutionContext
 
 /** Output format for GET /orgs */
 final case class GetOrgsResponse(orgs: Map[String, Org], lastIndex: Int)
+final case class GetOrgStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfRegisteredNodes: Int, numberOfNodeMsgs: Int, numberOfAgbots: Int, numberOfAgbotAgreements: Int, numberOfAgbotMsgs: Int, dbSchemaVersion: Int)
+class OrgStatus() {
+  var msg: String = ""
+  var numberOfUsers: Int = 0
+  var numberOfNodes: Int = 0
+  var numberOfNodeAgreements: Int = 0
+  var numberOfRegisteredNodes: Int = 0
+  var numberOfNodeMsgs: Int = 0
+  var numberOfAgbots: Int = 0
+  var numberOfAgbotAgreements: Int = 0
+  var numberOfAgbotMsgs: Int = 0
+  var dbSchemaVersion: Int = 0
+  def toGetOrgStatusResponse: GetOrgStatusResponse = GetOrgStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements,numberOfRegisteredNodes, numberOfNodeMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs, dbSchemaVersion)
+}
 final case class GetOrgAttributeResponse(attribute: String, value: String)
 
 /** Input format for PUT /orgs/<org-id> */
@@ -165,7 +179,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   */
 
   // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
-  def orgsRoutes: Route = orgsGetRoute ~ orgGetRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ nodeGetAllErrorsRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute ~ orgsGetMaxChangeIdRoute ~ myOrgsPostRoute ~ agbotAgreementConfirmRoute
+  def orgsRoutes: Route = orgsGetRoute ~ orgGetRoute ~ orgStatusRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ nodeGetAllErrorsRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute ~ orgsGetMaxChangeIdRoute ~ myOrgsPostRoute ~ agbotAgreementConfirmRoute
 
   // ====== GET /orgs ================================
 
@@ -327,7 +341,69 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       }) // end of complete
     }   // end of exchAuth
   }
-
+  // ====== GET /orgs/{orgid}/status ================================
+  @GET
+  @Path("orgs/{orgid}/status")
+  @Operation(summary = "Returns summary status of the org", description = "Returns the totals of key resources in the org. Can be run by any id in this org or a hub admin.",
+    parameters = Array(
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(new Content(schema = new Schema(implementation = classOf[GetOrgStatusResponse])))),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def orgStatusRoute: Route = (path("orgs" / Segment /"status") & get ) { (orgId) =>
+    exchAuth(TOrg(orgId), Access.READ) { ident =>
+      logger.debug(s"GET /orgs/$orgId/status")
+      complete({
+        val statusResp = new OrgStatus()
+        //perf: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
+        db.run(UsersTQ.getAllUsers(orgId).length.result.asTry.flatMap({
+          case Success(v) => statusResp.numberOfUsers = v
+            NodesTQ.getAllNodes(orgId).length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfNodes = v
+            AgbotsTQ.getAllAgbots(orgId).length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfAgbots = v
+            NodeAgreementsTQ.getAgreementsWithState(orgId).length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfRegisteredNodes = v
+            NodesTQ.getRegisteredServicesForOrg(orgId).length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfNodeAgreements = v
+            AgbotAgreementsTQ.rows.length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfAgbotAgreements = v
+            NodeMsgsTQ.rows.length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfNodeMsgs = v
+            AgbotMsgsTQ.rows.length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfAgbotMsgs = v
+            SchemaTQ.getSchemaVersion.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        })).map({
+          case Success(v) => statusResp.dbSchemaVersion = v.head
+            statusResp.msg = ExchMsg.translate("exchange.server.operating.normally")
+            (HttpCode.OK, statusResp.toGetOrgStatusResponse)
+          case Failure(t: org.postgresql.util.PSQLException) =>
+            if (t.getMessage.contains("An I/O error occurred while sending to the backend")) (HttpCode.BAD_GW, statusResp.toGetOrgStatusResponse)
+            else (HttpCode.INTERNAL_ERROR, statusResp.toGetOrgStatusResponse)
+          case Failure(t) => statusResp.msg = t.getMessage
+            (HttpCode.INTERNAL_ERROR, statusResp.toGetOrgStatusResponse)
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
   // ====== POST /orgs/{orgid} ================================
   @POST
   @Path("orgs/{orgid}")

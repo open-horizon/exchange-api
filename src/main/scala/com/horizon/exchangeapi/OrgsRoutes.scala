@@ -45,7 +45,11 @@ import scala.concurrent.ExecutionContext
 
 /** Output format for GET /orgs */
 final case class GetOrgsResponse(orgs: Map[String, Org], lastIndex: Int)
+<<<<<<< HEAD
 final case class GetOrgStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfRegisteredNodes: Int, numberOfNodeMsgs: Int,SchemaVersion: Int)
+=======
+final case class GetOrgStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfRegisteredNodes: Int, numberOfNodeMsgs: Int, numberOfAgbots: Int, numberOfAgbotAgreements: Int, numberOfAgbotMsgs: Int, dbSchemaVersion: Int)
+>>>>>>> 5646d59 (Added API to fetch org specific info)
 class OrgStatus() {
   var msg: String = ""
   var numberOfUsers: Int = 0
@@ -53,8 +57,16 @@ class OrgStatus() {
   var numberOfNodeAgreements: Int = 0
   var numberOfRegisteredNodes: Int = 0
   var numberOfNodeMsgs: Int = 0
+<<<<<<< HEAD
   var dbSchemaVersion: Int = 0
   def toGetOrgStatusResponse: GetOrgStatusResponse = GetOrgStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements,numberOfRegisteredNodes, numberOfNodeMsgs, dbSchemaVersion)
+=======
+  var numberOfAgbots: Int = 0
+  var numberOfAgbotAgreements: Int = 0
+  var numberOfAgbotMsgs: Int = 0
+  var dbSchemaVersion: Int = 0
+  def toGetOrgStatusResponse: GetOrgStatusResponse = GetOrgStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements,numberOfRegisteredNodes, numberOfNodeMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs, dbSchemaVersion)
+>>>>>>> 5646d59 (Added API to fetch org specific info)
 }
 final case class GetOrgAttributeResponse(attribute: String, value: String)
 
@@ -362,6 +374,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfNodes = v
+<<<<<<< HEAD
             NodeAgreementsTQ.getAgreementsWithState(orgId).length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
@@ -374,6 +387,32 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfNodeMsgs = v
+=======
+            AgbotsTQ.getAllAgbots(orgId).length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfAgbots = v
+            NodeAgreementsTQ.getAgreementsWithState(orgId).length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfRegisteredNodes = v
+            NodesTQ.getRegisteredServicesForOrg(orgId).length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfNodeAgreements = v
+            AgbotAgreementsTQ.rows.length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfAgbotAgreements = v
+            NodeMsgsTQ.rows.length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfNodeMsgs = v
+            AgbotMsgsTQ.rows.length.result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfAgbotMsgs = v
+>>>>>>> 5646d59 (Added API to fetch org specific info)
             SchemaTQ.getSchemaVersion.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         })).map({

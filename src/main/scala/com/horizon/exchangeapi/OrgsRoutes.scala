@@ -45,7 +45,7 @@ import scala.concurrent.ExecutionContext
 
 /** Output format for GET /orgs */
 final case class GetOrgsResponse(orgs: Map[String, Org], lastIndex: Int)
-final case class GetOrgStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfRegisteredNodes: Int, numberOfNodeMsgs: Int, numberOfAgbots: Int, numberOfAgbotAgreements: Int, numberOfAgbotMsgs: Int, dbSchemaVersion: Int)
+final case class GetOrgStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfRegisteredNodes: Int, numberOfNodeMsgs: Int, numberOfAgbots: Int,SchemaVersion: Int)
 class OrgStatus() {
   var msg: String = ""
   var numberOfUsers: Int = 0
@@ -54,10 +54,8 @@ class OrgStatus() {
   var numberOfRegisteredNodes: Int = 0
   var numberOfNodeMsgs: Int = 0
   var numberOfAgbots: Int = 0
-  var numberOfAgbotAgreements: Int = 0
-  var numberOfAgbotMsgs: Int = 0
   var dbSchemaVersion: Int = 0
-  def toGetOrgStatusResponse: GetOrgStatusResponse = GetOrgStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements,numberOfRegisteredNodes, numberOfNodeMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs, dbSchemaVersion)
+  def toGetOrgStatusResponse: GetOrgStatusResponse = GetOrgStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements,numberOfRegisteredNodes, numberOfNodeMsgs, numberOfAgbots, dbSchemaVersion)
 }
 final case class GetOrgAttributeResponse(attribute: String, value: String)
 
@@ -377,18 +375,10 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfNodeAgreements = v
-            AgbotAgreementsTQ.rows.length.result.asTry
-          case Failure(t) => DBIO.failed(t).asTry
-        }).flatMap({
-          case Success(v) => statusResp.numberOfAgbotAgreements = v
-            NodeMsgsTQ.rows.length.result.asTry
+            NodeMsgsTQ.getNodeMsgsInOrg(orgId).length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfNodeMsgs = v
-            AgbotMsgsTQ.rows.length.result.asTry
-          case Failure(t) => DBIO.failed(t).asTry
-        }).flatMap({
-          case Success(v) => statusResp.numberOfAgbotMsgs = v
             SchemaTQ.getSchemaVersion.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         })).map({

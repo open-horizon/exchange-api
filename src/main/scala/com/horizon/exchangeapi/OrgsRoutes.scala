@@ -366,7 +366,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfRegisteredNodes = v
-            NodesTQ.getRegisteredServicesForOrg(orgId).length.result.asTry
+            NodesTQ.getRegisteredNodesInOrg(orgId).length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfNodeAgreements = v

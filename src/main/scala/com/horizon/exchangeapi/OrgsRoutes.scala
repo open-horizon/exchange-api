@@ -45,7 +45,7 @@ import scala.concurrent.ExecutionContext
 
 /** Output format for GET /orgs */
 final case class GetOrgsResponse(orgs: Map[String, Org], lastIndex: Int)
-final case class GetOrgStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfRegisteredNodes: Int, numberOfNodeMsgs: Int, numberOfAgbots: Int,SchemaVersion: Int)
+final case class GetOrgStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfRegisteredNodes: Int, numberOfNodeMsgs: Int,SchemaVersion: Int)
 class OrgStatus() {
   var msg: String = ""
   var numberOfUsers: Int = 0
@@ -53,9 +53,8 @@ class OrgStatus() {
   var numberOfNodeAgreements: Int = 0
   var numberOfRegisteredNodes: Int = 0
   var numberOfNodeMsgs: Int = 0
-  var numberOfAgbots: Int = 0
   var dbSchemaVersion: Int = 0
-  def toGetOrgStatusResponse: GetOrgStatusResponse = GetOrgStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements,numberOfRegisteredNodes, numberOfNodeMsgs, numberOfAgbots, dbSchemaVersion)
+  def toGetOrgStatusResponse: GetOrgStatusResponse = GetOrgStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements,numberOfRegisteredNodes, numberOfNodeMsgs, dbSchemaVersion)
 }
 final case class GetOrgAttributeResponse(attribute: String, value: String)
 
@@ -363,10 +362,6 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfNodes = v
-            AgbotsTQ.getAllAgbots(orgId).length.result.asTry
-          case Failure(t) => DBIO.failed(t).asTry
-        }).flatMap({
-          case Success(v) => statusResp.numberOfAgbots = v
             NodeAgreementsTQ.getAgreementsWithState(orgId).length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({

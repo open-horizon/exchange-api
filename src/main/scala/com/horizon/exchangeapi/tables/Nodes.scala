@@ -175,7 +175,7 @@ object NodesTQ {
   def getAllNodesId(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.id)
   def getNodeTypeNodes(orgid: String, nodeType: String): Query[Nodes, NodeRow, Seq] = rows.filter(r => {r.orgid === orgid && r.nodeType === nodeType})
   def getNonPatternNodes(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(r => {r.orgid === orgid && r.pattern === ""})
-  def getRegisteredServicesForOrg(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(node => {node.orgid === orgid && node.publicKey =!= ""})
+  def getRegisteredNodesInOrg(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(node => {node.orgid === orgid && node.publicKey =!= ""})
   def getNode(id: String): Query[Nodes, NodeRow, Seq] = rows.filter(_.id === id)
   def getToken(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.token)
   def getOwner(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.owner)

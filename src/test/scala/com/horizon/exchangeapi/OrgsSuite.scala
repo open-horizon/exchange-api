@@ -145,6 +145,14 @@ class OrgsSuite extends AnyFunSuite {
     assert(orgsList.orgs.contains(orgid))
   }
 
+  test("GET/orgs/" + orgid + "/status"){
+    val response = Http(URL + "/" + orgid + "/status").method("get").headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("code: "+response.code)
+    assert(response.code == HttpCode.OK.intValue)
+    val getResp = parse(response.body).extract[GetOrgStatusResponse]
+    assert(getResp.msg.contains("operating normally"))
+  }
+
   test("POST /orgs/" + orgid2) {
     val limits = OrgLimits(exchangeMaxNodes-5)
     // orgType, label, description, tags, limits, heartbeatIntervals

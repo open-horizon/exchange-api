@@ -719,7 +719,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         responseCode = "201", 
         description = "resource add/updated - response body:", 
         content = Array(
-          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+          new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse]))
         )
       ),
       new responses.ApiResponse(
@@ -937,7 +937,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -1067,7 +1067,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         responseCode = "201",
         description = "response body",
         content = Array(
-          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+          new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse]))
         )
       ),
       new responses.ApiResponse(
@@ -1173,7 +1173,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -1208,7 +1208,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[NodeError])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[NodeError])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -1275,7 +1275,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         responseCode = "201",
         description = "response body",
         content = Array(
-          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+          new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse]))
         )
       ),
       new responses.ApiResponse(
@@ -1481,7 +1481,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         responseCode = "201",
         description = "response body",
         content = Array(
-          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+          new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse]))
         )
       ),
       new responses.ApiResponse(
@@ -1577,7 +1577,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[NodePolicy])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[NodePolicy])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -1648,7 +1648,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         responseCode = "201",
         description = "response body",
         content = Array(
-          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+          new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse]))
         )
       ),
       new responses.ApiResponse(
@@ -1936,7 +1936,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         responseCode = "201",
         description = "response body",
         content = Array(
-          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+          new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse]))
         )
       ),
       new responses.ApiResponse(
@@ -2147,7 +2147,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         responseCode = "201",
         description = "response body",
         content = Array(
-          new Content(schema = new Schema(implementation = classOf[ApiResponse]))
+          new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse]))
         )
       ),
       new responses.ApiResponse(
@@ -2223,7 +2223,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     ),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetNodeMsgsResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[GetNodeMsgsResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -2267,7 +2267,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                               in = ParameterIn.PATH,
                                               name = "orgid",
                                               required = true)),
-             responses = Array(new responses.ApiResponse(content = Array(new Content(schema = new Schema(implementation = classOf[GetNodeMsgsResponse]))),
+             responses = Array(new responses.ApiResponse(content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[GetNodeMsgsResponse]))),
                                                          description = "response body",
                                                          responseCode = "200"),
                                new responses.ApiResponse(description = "bad input",

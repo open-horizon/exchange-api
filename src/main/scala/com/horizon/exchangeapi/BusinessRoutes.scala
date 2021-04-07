@@ -403,7 +403,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "resource created - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))
       ),
       new responses.ApiResponse(
         responseCode = "400",
@@ -563,7 +563,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -702,7 +702,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),

@@ -170,7 +170,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
     DebuggingDirectives.logRequestResult(requestResponseLogging _) {
       pathPrefix("v1") {
         respondWithDefaultHeaders(RawHeader("Cache-Control", "max-age=0, must-revalidate, no-cache, no-store"),
-                                  RawHeader("Content-Control", "application/json; charset=UTF-8"),
+                                  RawHeader("Content-Type", "application/json; charset=UTF-8"),
                                   // RawHeader("Strict-Transport-Security", "max-age=15768000"), // 6 months
                                   RawHeader("X-Content-Type-Options", "nosniff")) {
           adminRoutes ~

@@ -263,9 +263,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 - Added mulitple response headers to all Http responses.
   - `Cache-Control: max-age=0, must-revalidate, no-cache, no-store`
-  - `Content-Control: application/json; charset=UTF-8`
+  - `Content-Type: application/json; charset=UTF-8`
   - `X-Content-Type-Options: nosniff`
 - Removed `Server` response header from all Http responses.
+- Added `application/json` mediatype to all http 200 and 201 responses in the OpenAPI 3.0 Swagger documentation.
 
 ## Changes in 2.68.0
 

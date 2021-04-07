@@ -8,7 +8,6 @@ package com.horizon.exchangeapi
 
 import java.sql.Timestamp
 import java.util.Optional
-
 import akka.Done
 import akka.actor.{Actor, ActorSystem, Cancellable, CoordinatedShutdown, Props}
 import akka.event.{Logging, LoggingAdapter}
@@ -24,6 +23,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
@@ -166,8 +166,28 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   def testRoute = { path("test") { get { logger.debug("In /test"); complete(testResp("OK")) } } }
 
   //someday: use directive https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
-  lazy val routes: Route = DebuggingDirectives.logRequestResult(requestResponseLogging _) { pathPrefix("v1") { testRoute ~ orgsRoutes ~ usersRoutes ~ nodesRoutes ~ agbotsRoutes ~ servicesRoutes ~ patternsRoutes ~ businessRoutes ~ catalogRoutes ~ adminRoutes ~ SwaggerDocService.routes ~ swaggerUiRoutes } }
-
+  lazy val routes: Route =
+    DebuggingDirectives.logRequestResult(requestResponseLogging _) {
+      pathPrefix("v1") {
+        respondWithDefaultHeaders(RawHeader("Cache-Control", "max-age=0, must-revalidate, no-cache, no-store"),
+                                  RawHeader("Content-Control", "application/json; charset=UTF-8"),
+                                  // RawHeader("Strict-Transport-Security", "max-age=15768000"), // 6 months
+                                  RawHeader("X-Content-Type-Options", "nosniff")) {
+          adminRoutes ~
+          agbotsRoutes ~
+          businessRoutes ~
+          catalogRoutes ~
+          nodesRoutes ~
+          orgsRoutes ~
+          patternsRoutes ~
+          servicesRoutes ~
+          SwaggerDocService.routes ~
+          swaggerUiRoutes ~
+          testRoute ~
+          usersRoutes
+        }
+      }
+    }
   // Load the db backend. The db access info must be in config.json
   // https://www.mchange.com/projects/c3p0/#configuration_properties
   

@@ -377,7 +377,7 @@ class UsersSuite extends AnyFunSuite {
 
 
   test("GET /orgs/" + orgid + "/status") {
-    val response: HttpResponse[String] = Http(URL + "/status").headers(ACCEPT).headers(HUBADMINAUTH).asString
+    val response: HttpResponse[String] = Http(URL + "/status").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)

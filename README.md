@@ -259,6 +259,19 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.69.0
+
+- Added mulitple response headers to all Http responses.
+  - `Cache-Control: max-age=0, must-revalidate, no-cache, no-store`
+  - `Content-Type: application/json; charset=UTF-8`
+  - `X-Content-Type-Options: nosniff`
+- Removed `Server` response header from all Http responses.
+- Added `application/json` mediatype to all http 200 and 201 responses in the OpenAPI 3.0 Swagger documentation.
+
+## Changes in 2.68.0
+
+- No changes, version bump.
+
 ## Changes in 2.67.0
 
 - `ApiTime` string methods are wrapped with `fixFormatting()` to remove the issue where seconds or milliseconds get removed

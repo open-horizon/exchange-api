@@ -946,6 +946,15 @@ class NodesSuite extends AnyFunSuite {
     deleteNodeTestPolicy(nodeId8)  // clean up policy
   }
 
+  test("GET /orgs/" + orgid + "/status") {
+    val response: HttpResponse[String] = Http(URL + "/status").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val getUserResp = parse(response.body).extract[GetOrgStatusResponse]
+    assert(getUserResp.numberOfRegisteredNodes === 4)
+  }
+
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/heartbeat") {
     val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("post").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

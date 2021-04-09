@@ -365,11 +365,11 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             NodeAgreementsTQ.getAgreementsWithState(orgId).length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
-          case Success(v) => statusResp.numberOfRegisteredNodes = v
+          case Success(v) => statusResp.numberOfNodeAgreements = v
             NodesTQ.getRegisteredNodesInOrg(orgId).length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
-          case Success(v) => statusResp.numberOfNodeAgreements = v
+          case Success(v) => statusResp.numberOfRegisteredNodes = v
             NodeMsgsTQ.getNodeMsgsInOrg(orgId).length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({

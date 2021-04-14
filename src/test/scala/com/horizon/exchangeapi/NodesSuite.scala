@@ -1818,14 +1818,16 @@ class NodesSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
+
   test("GET /orgs/" + orgid + "/status - verify number of node agreements") {
     val response: HttpResponse[String] = Http(URL + "/status").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val getUserResp = parse(response.body).extract[GetOrgStatusResponse]
-    assert(getUserResp.numberOfNodeAgreements === 1)
+    assert(getUserResp.numberOfNodeAgreements === 2)
   }
+
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement") {
     patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
     val input = PostPatternSearchRequest(arch = None,

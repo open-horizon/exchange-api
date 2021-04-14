@@ -946,7 +946,7 @@ class NodesSuite extends AnyFunSuite {
     deleteNodeTestPolicy(nodeId8)  // clean up policy
   }
 
-  test("GET /orgs/" + orgid + "/status") {
+  test("GET /orgs/" + orgid + "/status - verify number of registered nodes") {
     val response: HttpResponse[String] = Http(URL + "/status").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -1775,6 +1775,7 @@ class NodesSuite extends AnyFunSuite {
     assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "nodeagreements")}))
   }
 
+
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " agreement creation not seen by agbot") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
@@ -1800,7 +1801,14 @@ class NodesSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  test("GET /orgs/" + orgid + "/status - verify number of node agreements") {
+    val response: HttpResponse[String] = Http(URL + "/status").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val getUserResp = parse(response.body).extract[GetOrgStatusResponse]
+    assert(getUserResp.numberOfNodeAgreements === 1)
+  }
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - with "+nodeId+" in agreement") {
     patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
     val input = PostPatternSearchRequest(arch = None,

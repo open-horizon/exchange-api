@@ -13,11 +13,11 @@ final case class ServiceRef(url: String, org: String, version: Option[String], v
 final case class ServiceRef2(url: String, org: String, versionRange: String, arch: String)
 
 // This is the service table minus the key - used as the data structure to return to the REST clients
-class Service(var owner: String, var label: String, var description: String, var public: Boolean, var documentation: String, var url: String, var version: String, var arch: String, var sharable: String, var matchHardware: Map[String,Any], var requiredServices: List[ServiceRef], var userInput: List[Map[String,String]], var deployment: String, var deploymentSignature: String, var clusterDeployment: String, var clusterDeploymentSignature: String, var imageStore: Map[String,Any], var lastUpdated: String) {
-  def copy = new Service(owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, clusterDeployment, clusterDeploymentSignature, imageStore, lastUpdated)
+class Service(var owner: String, var label: String, var description: String, var public: Boolean, var documentation: String, var url: String, var version: String, var arch: String, var sharable: String, var matchHardware: Map[String,Any], var requiredServices: List[ServiceRef], var userInput: List[Map[String,String]], var secrets: List[Map[String,String]], var deployment: String, var deploymentSignature: String, var clusterDeployment: String, var clusterDeploymentSignature: String, var imageStore: Map[String,Any], var lastUpdated: String) {
+  def copy = new Service(owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, secrets, deployment, deploymentSignature, clusterDeployment, clusterDeploymentSignature, imageStore, lastUpdated)
 }
 
-final case class ServiceRow(service: String, orgid: String, owner: String, label: String, description: String, public: Boolean, documentation: String, url: String, version: String, arch: String, sharable: String, matchHardware: String, requiredServices: String, userInput: String, deployment: String, deploymentSignature: String, clusterDeployment: String, clusterDeploymentSignature: String, imageStore: String, lastUpdated: String) {
+final case class ServiceRow(service: String, orgid: String, owner: String, label: String, description: String, public: Boolean, documentation: String, url: String, version: String, arch: String, sharable: String, matchHardware: String, requiredServices: String, userInput: String, secrets: String,deployment: String, deploymentSignature: String, clusterDeployment: String, clusterDeploymentSignature: String, imageStore: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toService: Service = {
@@ -30,8 +30,9 @@ final case class ServiceRow(service: String, orgid: String, owner: String, label
     })
 
     val input: List[Map[String, String]] = if (userInput != "") read[List[Map[String,String]]](userInput) else List[Map[String,String]]()
+    val sec: List[Map[String, String]] = if (secrets != "") read[List[Map[String,String]]](secrets) else List[Map[String,String]]()
     val p: Map[String, Any] = if (imageStore != "") read[Map[String,Any]](imageStore) else Map[String,Any]()
-    new Service(owner, label, description, public, documentation, url, version, arch, sharable, mh, rs2, input, deployment, deploymentSignature, clusterDeployment, clusterDeploymentSignature, p, lastUpdated)
+    new Service(owner, label, description, public, documentation, url, version, arch, sharable, mh, rs2, input,sec, deployment, deploymentSignature, clusterDeployment, clusterDeploymentSignature, p, lastUpdated)
   }
 
   // update returns a DB action to update this row
@@ -57,6 +58,7 @@ class Services(tag: Tag) extends Table[ServiceRow](tag, "services") {
   def matchHardware = column[String]("matchhardware")
   def requiredServices = column[String]("requiredservices")
   def userInput = column[String]("userinput")
+  def secrets = column[String]("secret")
   def deployment = column[String]("deployment")
   def deploymentSignature = column[String]("deploymentsignature")
   def clusterDeployment = column[String]("clusterdeployment")
@@ -64,7 +66,7 @@ class Services(tag: Tag) extends Table[ServiceRow](tag, "services") {
   def imageStore = column[String]("imagestore")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (service, orgid, owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, clusterDeployment, clusterDeploymentSignature, imageStore, lastUpdated).<>(ServiceRow.tupled, ServiceRow.unapply)
+  def * = (service, orgid, owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput,secrets, deployment, deploymentSignature, clusterDeployment, clusterDeploymentSignature, imageStore, lastUpdated).<>(ServiceRow.tupled, ServiceRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -97,6 +99,7 @@ object ServicesTQ {
   def getMatchHardware(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.matchHardware)
   def getRequiredServices(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.requiredServices)
   def getUserInput(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.userInput)
+  def getUserSecrets(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.secrets)
   def getDeployment(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.deployment)
   def getDeploymentSignature(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.deploymentSignature)
   def getClusterDeployment(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.clusterDeployment)
@@ -121,6 +124,7 @@ object ServicesTQ {
       case "matchHardware" => filter.map(_.matchHardware)
       case "requiredServices" => filter.map(_.requiredServices)
       case "userInput" => filter.map(_.userInput)
+      case "secrets" => filter.map(_.secrets)
       case "deployment" => filter.map(_.deployment)
       case "deploymentSignature" => filter.map(_.deploymentSignature)
       case "clusterDeployment" => filter.map(_.clusterDeployment)

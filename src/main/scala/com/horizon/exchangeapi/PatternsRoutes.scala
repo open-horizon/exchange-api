@@ -475,7 +475,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "resource created - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))
       ),
       new responses.ApiResponse(
         responseCode = "400",
@@ -662,7 +662,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     )),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "resource created - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -852,7 +852,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     )),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -1052,7 +1052,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[PostPatternSearchResponse])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[PostPatternSearchResponse])))
       ),
       new responses.ApiResponse(
         responseCode = "401",
@@ -1311,7 +1311,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[List[String]])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[List[String]])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -1340,7 +1340,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "keyid", in = ParameterIn.PATH, description = "Signing public key/certificate identifier.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[String])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[String])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -1389,7 +1389,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))

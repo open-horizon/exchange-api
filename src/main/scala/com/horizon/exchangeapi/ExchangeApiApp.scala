@@ -24,6 +24,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
@@ -169,14 +170,29 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   lazy val routes: Route =
     DebuggingDirectives.logRequestResult(requestResponseLogging _) {
       pathPrefix("v1") {
-        handleExceptions(myExceptionHandler) {
-          handleRejections(myRejectionHandler) {
-            testRoute ~ orgsRoutes ~ usersRoutes ~ nodesRoutes ~ agbotsRoutes ~ servicesRoutes ~ patternsRoutes ~ businessRoutes ~ catalogRoutes ~ adminRoutes ~ SwaggerDocService.routes ~ swaggerUiRoutes
+        respondWithDefaultHeaders(RawHeader("Cache-Control", "max-age=0, must-revalidate, no-cache, no-store"),
+                                  RawHeader("Content-Type", "application/json; charset=UTF-8"),
+                                  // RawHeader("Strict-Transport-Security", "max-age=15768000"), // 6 months
+                                  RawHeader("X-Content-Type-Options", "nosniff")) {
+          handleExceptions(myExceptionHandler) {
+            handleRejections(myRejectionHandler) {
+              adminRoutes ~
+              agbotsRoutes ~
+              businessRoutes ~
+              catalogRoutes ~
+              nodesRoutes ~
+              orgsRoutes ~
+              patternsRoutes ~
+              servicesRoutes ~
+              SwaggerDocService.routes ~
+              swaggerUiRoutes ~
+              testRoute ~
+              usersRoutes
+            }
           }
         }
       }
     }
-
   // Load the db backend. The db access info must be in config.json
   // https://www.mchange.com/projects/c3p0/#configuration_properties
   
@@ -298,7 +314,7 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
 
 
   // Start serving client requests
-  val serverBinding: Future[Http.ServerBinding] = Http().newServerAt(ExchangeApi.serviceHost, ExchangeApi.servicePort).bind(routes)
+  val serverBinding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, ExchangeApi.serviceHost, ExchangeApi.servicePort)
 
   // Configure graceful termination. See: https://doc.akka.io/docs/akka-http/current/server-side/graceful-termination.html
   // But also see: https://discuss.lightbend.com/t/graceful-termination-on-sigterm-using-akka-http/1619

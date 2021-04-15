@@ -8,6 +8,7 @@ package com.horizon.exchangeapi
 
 import java.sql.Timestamp
 import java.util.Optional
+
 import akka.Done
 import akka.actor.{Actor, ActorSystem, Cancellable, CoordinatedShutdown, Props}
 import akka.event.{Logging, LoggingAdapter}
@@ -173,18 +174,22 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
                                   RawHeader("Content-Type", "application/json; charset=UTF-8"),
                                   // RawHeader("Strict-Transport-Security", "max-age=15768000"), // 6 months
                                   RawHeader("X-Content-Type-Options", "nosniff")) {
-          adminRoutes ~
-          agbotsRoutes ~
-          businessRoutes ~
-          catalogRoutes ~
-          nodesRoutes ~
-          orgsRoutes ~
-          patternsRoutes ~
-          servicesRoutes ~
-          SwaggerDocService.routes ~
-          swaggerUiRoutes ~
-          testRoute ~
-          usersRoutes
+          handleExceptions(myExceptionHandler) {
+            handleRejections(myRejectionHandler) {
+              adminRoutes ~
+              agbotsRoutes ~
+              businessRoutes ~
+              catalogRoutes ~
+              nodesRoutes ~
+              orgsRoutes ~
+              patternsRoutes ~
+              servicesRoutes ~
+              SwaggerDocService.routes ~
+              swaggerUiRoutes ~
+              testRoute ~
+              usersRoutes
+            }
+          }
         }
       }
     }

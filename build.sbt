@@ -8,8 +8,8 @@ import com.typesafe.sbt.packager.docker._
 enablePlugins(JavaAppPackaging, DockerPlugin)
 
 // For latest versions, see https://mvnrepository.com/
-lazy val akkaHttpVersion = "10.1.10"  // as of 11/19/2019 this is the latest version
-lazy val akkaVersion    = "2.5.26"  // released 10/2019. Version 2.6.0 was released 11/2019
+lazy val akkaHttpVersion = "[10.2.2,)"  // as of 11/19/2019 this is the latest version
+lazy val akkaVersion    = "[2.6.10,)"  // released 10/2019. Version 2.6.0 was released 11/2019
 
 // Red Hat certification Docker labels.
 lazy val release = settingKey[String]("A number used to identify the specific build for this image.")
@@ -33,7 +33,7 @@ lazy val root = (project in file("."))
         organization                  := "com.horizon",
         release                       := versionFunc(),
         resolvers                     += Classpaths.typesafeReleases,
-        scalaVersion                  := "2.13.3",
+        scalaVersion                  := "2.13.5",
         summary                       := "'Open Horizon exchange-api image'",
         vendor                        := "'Open Horizon'",
         version                       := versionFunc(),
@@ -43,51 +43,49 @@ lazy val root = (project in file("."))
 
         // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
         libraryDependencies ++= Seq(
-            "com.typesafe.akka" %% "akka-http"            % akkaHttpVersion, 
-            "com.typesafe.akka" %% "akka-http-xml"        % akkaHttpVersion, 
-            "com.typesafe.akka" %% "akka-stream"          % akkaVersion, 
-            //"com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion,
-            "de.heikoseeberger" %% "akka-http-jackson" % "1.29.1",  // version 1.30.0 pulls in akka 2.6.1 and akkahttp 10.1.11
-            //"com.typesafe.akka" %% "akka-http-jackson" % akkaHttpVersion, <- can not find any recent documentation on how to use this
-
-            "org.json4s" %% "json4s-native" % "3.7.0-M2",  // Version 3.7.0-M3 is incompatible.
-            "org.json4s" %% "json4s-jackson" % "3.7.0-M2",  // Version 3.7.0-M3 is incompatible.
-
-            "javax.ws.rs" % "javax.ws.rs-api" % "2.0.1",  // this is from 8/2014. Version 2.1.1 from 9/2018 gets an error loading
-            "org.glassfish.jersey.core" % "jersey-common" % "latest.release",  // required at runtime by javax.ws.rs-api
-            "com.github.swagger-akka-http" %% "swagger-akka-http" % "2.0.4",  // Version 2.0.5 now requires v10.1.11 Akka modules.
-            "com.github.swagger-akka-http" %% "swagger-scala-module" % "latest.release",
-            "io.swagger.core.v3" % "swagger-core" % "2.1.2", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-core
-            "io.swagger.core.v3" % "swagger-annotations" % "2.1.2", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
-            "io.swagger.core.v3" % "swagger-models" % "2.1.2", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-models
-            "io.swagger.core.v3" % "swagger-jaxrs2" % "2.1.2", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-jaxrs2
-
-            "com.typesafe.slick" %% "slick" % "latest.release", 
-            "com.typesafe.slick" %% "slick-hikaricp" % "latest.release", 
-            "com.github.tminglei" %% "slick-pg" % "latest.release", 
-            "com.github.tminglei" %% "slick-pg_json4s" % "latest.release", 
-            "org.postgresql" % "postgresql" % "42.2.16",
-            "com.zaxxer" % "HikariCP" % "latest.release", 
-            //"org.slf4j" % "slf4j-api" % "1.7.26", // was gettting error SLF4J providers found with this level
-            //"ch.qos.logback" % "logback-classic" % "1.2.3", 
-            "org.slf4j" % "slf4j-api" % "latest.release", // these 2 seem to be needed by slick
-            "ch.qos.logback" % "logback-classic" % "latest.release", 
-            "com.mchange" % "c3p0" % "latest.release", 
-            "org.scalaj" %% "scalaj-http" % "latest.release", 
-            "com.typesafe" % "config" % "1.3.5-RC1",
-            "org.mindrot" % "jbcrypt" % "latest.release", 
-            "com.pauldijou" %% "jwt-core" % "latest.release", 
-            "com.github.cb372" %% "scalacache-guava" % "latest.release", 
-            "com.osinka.i18n" %% "scala-i18n" % "latest.release", 
-
-            "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpVersion % Test, 
-            "com.typesafe.akka" %% "akka-testkit"         % akkaVersion     % Test, 
-            "com.typesafe.akka" %% "akka-stream-testkit"  % akkaVersion     % Test, 
-
-            "org.scalatest" %% "scalatest" % "latest.release" % "test", 
-            "org.scalatestplus" %% "junit-4-12" % "latest.release" % "test", 
-            "org.scalacheck" %% "scalacheck" % "latest.release" % "test", 
-            "junit" % "junit" % "latest.release" % "test"
+          "com.typesafe.akka" %% "akka-http"            % "[10.2.2]",
+          "com.typesafe.akka" %% "akka-http-xml"        % "[10.2.2]",
+          // "com.typesafe.akka" %% "akka-stream"          % "[2.6.10,)",
+          // "com.typesafe.akka" %% "akka-http-spray-json" % "[10.2.1,)",
+          "de.heikoseeberger" %% "akka-http-jackson" % "[1.35.3,)",  // version 1.35.3 pulls in akka 2.6.10 and akkahttp 10.2.2
+          // "com.typesafe.akka" %% "akka-http-jackson" % "[10.2.1,)", //<- can not find any recent documentation on how to use this
+          
+          "org.json4s" %% "json4s-native" % "3.6.6",  // Version 3.7.0-M3 is incompatible.
+          "org.json4s" %% "json4s-jackson" % "3.6.6",  // Version 3.7.0-M3 is incompatible.
+  
+          "javax.ws.rs" % "javax.ws.rs-api" % "[2.1.1,)",  // this is from 8/2014. Version 2.1.1 from 9/2018 gets an error loading
+          //"org.glassfish.jersey.core" % "jersey-common" % "1.2.1",  // required at runtime by javax.ws.rs-api
+          "com.github.swagger-akka-http" %% "swagger-akka-http" % "[2.2.0,)",  // Version 2.0.5 now requires v10.1.11 Akka modules.
+          "com.github.swagger-akka-http" %% "swagger-scala-module" % "[1.0.6,)",
+          "io.swagger.core.v3" % "swagger-core" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-core
+          "io.swagger.core.v3" % "swagger-annotations" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
+          "io.swagger.core.v3" % "swagger-models" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-models
+          "io.swagger.core.v3" % "swagger-jaxrs2" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-jaxrs2
+  
+          "com.typesafe.slick" %% "slick" % "[3.3.3,)",
+          "com.typesafe.slick" %% "slick-hikaricp" % "[3.3.3,)",
+          "com.github.tminglei" %% "slick-pg" % "[0.19.3,)",
+          "com.github.tminglei" %% "slick-pg_json4s" % "[0.19.3,)",
+          "org.postgresql" % "postgresql" % "42.2.19",  // Version number must be manually specified to prevent Maven from selecting a jre6/7 version of this dependency.
+          //"com.zaxxer" % "HikariCP" % "[3.4.5,)",
+          "org.slf4j" % "slf4j-simple" % "[1.7.30]", // Needed by scalacache, slick, and swagger.
+          //"ch.qos.logback" % "logback-classic" % "1.3.0-alpha5",
+          "com.mchange" % "c3p0" % "[0.9.5.5,)",
+          "org.scalaj" %% "scalaj-http" % "[2.4.2,)",
+          "com.typesafe" % "config" % "[1.4.0,)",
+          "org.mindrot" % "jbcrypt" % "[0.4,)",
+          "com.pauldijou" %% "jwt-core" % "[4.3.0,)",
+          "com.github.cb372" %% "scalacache-guava" % "[0.28.0,)",
+          "com.osinka.i18n" %% "scala-i18n" % "[1.0.3,)",
+  
+          "com.typesafe.akka" %% "akka-http-testkit"    % "[10.2.2]"     % Test,
+          "com.typesafe.akka" %% "akka-testkit"         % "[2.6.10,)"     % Test,
+          "com.typesafe.akka" %% "akka-stream-testkit"  % "[2.6.10,)"     % Test,
+  
+          "org.scalatest" %% "scalatest" % "[3.3.0-SNAP2,)" % "test",
+          "org.scalatestplus" %% "junit-4-12" % "[3.3.0.0-SNAP2,)" % "test",
+          "org.scalacheck" %% "scalacheck" % "[1.15.0-M1,)" % "test",
+          "junit" % "junit" % "[4.13.1,)" % "test"
         ), 
         scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
         //javaOptions ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config", "-Djava.security.policy=src/main/resources/auth.policy")

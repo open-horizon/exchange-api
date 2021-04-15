@@ -259,6 +259,11 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changed in 2.70.0
+
+- Fixed issue 423: Upgrade Exchange To Use Akka v2.6.x.
+- Also updated sbt, scala, and project dependencies.
+
 ## Changes in 2.69.0
 
 - Added mulitple response headers to all Http responses.

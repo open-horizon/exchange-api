@@ -53,6 +53,7 @@ export EXCHANGE_ROOTPW=myrootpw
 ```
 export EXCHANGE_KEY_PW=<pass-phrase>
 make gen-key
+Note : pass-phrase can be any alphanumeric string
 ```
 
 - Otherwise, get files `exchangecert.pem`, `keypassword`, and `keystore` from the person who created them and put them in `./keys/etc`.
@@ -65,9 +66,12 @@ make gen-key
 - To try a simple rest method curl: `curl -X GET "http://localhost:8080/v1/admin/version"`. You should get the exchange version number as the response.  
 - When testing the exchange in an OpenShift Cluster the variables `EXCHANGE_IAM_ORG`, `EXCHANGE_IAM_KEY` and `EXCHANGE_MULT_ACCOUNT_ID` must be set accordingly.
 - A convenience script `src/test/bash/primedb.sh` can be run to prime the DB with some exchange resources to use in manually testing:
+- Before exporting below environment variables manually set them in `src/test/bash/primedb.sh`
+
 ```
 export EXCHANGE_USER=<my-user-in-IBM-org>
 export EXCHANGE_PW=<my-pw-in-IBM-org>
+export  EXCHANGE_ROOTPW = <Exchange root password (Must be similar to what is set in exchange's config.json)>
 src/test/bash/primedb.sh
 ```
 - `primedb.sh` will only create what doesn't already exist, so it can be run again to restore some resources you have deleted.

@@ -99,7 +99,7 @@ object ServicesTQ {
   def getMatchHardware(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.matchHardware)
   def getRequiredServices(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.requiredServices)
   def getUserInput(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.userInput)
-  def getUserSecrets(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.secrets)
+  def getSecrets(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.secrets)
   def getDeployment(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.deployment)
   def getDeploymentSignature(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.deploymentSignature)
   def getClusterDeployment(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.clusterDeployment)

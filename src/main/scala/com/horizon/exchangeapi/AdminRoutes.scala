@@ -90,7 +90,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Tells the exchange reread its config file", description = """Directs the exchange server to reread /etc/horizon/exchange/config.json and continue running with those new settings. Can only be run by the root user.""",
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def adminReloadRoute: Route = (path("admin" / "reload") & post) {
@@ -130,7 +130,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))
       ),
       new responses.ApiResponse(
         responseCode = "401",
@@ -186,7 +186,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Gets a 1-time token for deleting the DB", description = """Returns a timed token that can be given to POST /admin/dropdb. The token is good for 10 minutes. Since dropping the DB tables deletes all of their data, this is a way of confirming you really want to do it. This can only be run as root.""",
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[AdminDropdbTokenResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[AdminDropdbTokenResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def adminGetDbTokenRoute: Route = (path("admin" / "dropdb" / "token") & get) {
@@ -204,7 +204,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Deletes the tables from the DB", description = """Deletes the tables from the Exchange DB. **Warning: this will delete the data too!** Because this is a dangerous method, you must first get a 1-time token using GET /admin/dropdb/token, and use that to authenticate to this REST API method. Can only be run by the root user.""",
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def adminDropDbRoute: Route = (path("admin" / "dropdb") & post) {
@@ -231,7 +231,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Creates the table schema in the DB", description = """Creates the tables with the necessary schema in the Exchange DB. This is now called at exchange startup, if necessary. Can only be run by the root user.""",
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def adminInitDbRoute: Route = (path("admin" / "initdb") & post) {
@@ -259,7 +259,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Returns the version of the Exchange server", description = """Returns the version of the Exchange server as a simple string (no JSON or quotes). Can be run by anyone.""",
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[String]))))))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[String]))))))
   def adminGetVersionRoute: Route = (path("admin" / "version") & get) {
     logger.debug("Doing POST /admin/version")
     val version: String = ExchangeApi.adminVersion() + "\n"
@@ -273,7 +273,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Returns status of the Exchange server", description = """Returns a dictionary of statuses/statistics. Can be run by any user.""",
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetAdminStatusResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[GetAdminStatusResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def adminGetStatusRoute: Route = (path("admin" / "status") & get) {
@@ -330,7 +330,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Returns the org-specific status of the Exchange server", description = """Returns a dictionary of statuses/statistics. Can be run by superuser, hub admins, and org admins.""",
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetAdminOrgStatusResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[GetAdminOrgStatusResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def adminGetOrgStatusRoute: Route = (path("admin" / "orgstatus") & get) {

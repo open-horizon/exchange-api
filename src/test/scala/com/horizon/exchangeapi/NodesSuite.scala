@@ -745,11 +745,28 @@ class NodesSuite extends AnyFunSuite {
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
   }
 
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - change config state of sdr reg svc") {
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - change config state of sdr reg svc and test lastUpdated field changed") {
+    val response1: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response1.code)
+    assert(response1.code === HttpCode.OK.intValue)
+    val getDevResp = parse(response1.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    val dev = getDevResp.nodes(orgnodeId)
+    val initialLastUpdated = dev.lastUpdated
+
     val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "suspended")
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
+
+    val response2: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response2.code)
+    assert(response2.code === HttpCode.OK.intValue)
+    val getDevResp2 = parse(response2.body).extract[GetNodesResponse]
+    assert(getDevResp2.nodes.contains(orgnodeId))
+    val dev2 = getDevResp2.nodes(orgnodeId)
+    val newLastUpdated = dev2.lastUpdated
+    assert(newLastUpdated > initialLastUpdated)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " services_configstate was created and stored") {

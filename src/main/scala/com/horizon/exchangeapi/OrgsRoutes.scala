@@ -196,7 +196,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Returns all orgs", description = "Returns some or all org definitions. Can be run by any user if filter orgType=IBM is used, otherwise can only be run by the root user or a hub admin.",
     parameters = Array(
       new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this org type. A common org type is 'IBM'.",
-        content = Array(new Content(schema = new Schema(implementation = classOf[String], allowableValues = Array("IBM"))))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[String], allowableValues = Array("IBM"))))),
       new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this label (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
@@ -437,7 +437,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "resource created - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))
       ),
       new responses.ApiResponse(
         responseCode = "400",
@@ -519,7 +519,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     ))),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -591,7 +591,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -697,7 +697,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[PostNodeErrorResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[PostNodeErrorResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -733,7 +733,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[AllNodeErrorsInOrgResp])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[AllNodeErrorsInOrgResp])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -1039,7 +1039,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "changes returned - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ResourceChangesRespObject])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ResourceChangesRespObject])))
       ),
       new responses.ApiResponse(
         responseCode = "400",
@@ -1149,7 +1149,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Returns the max changeid of the resource changes", description = "Returns the max changeid of the resource changes. Can be run by any user, node, or agbot.",
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[MaxChangeIdResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[MaxChangeIdResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
@@ -1296,7 +1296,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))
       ),
       new responses.ApiResponse(
         responseCode = "401",

@@ -49,6 +49,7 @@ final case class PostPutUsersRequest(password: String, admin: Boolean, hubAdmin:
     else if (!hubAdmin.getOrElse(false) && orgid == "root") Some(ExchMsg.translate("user.cannot.be.in.root.org"))
     // hub admins can only create hub admins or admins, or modify a user to be a hub admin or admin
     else if (ident.isHubAdmin && !ident.isSuperUser && !hubAdmin.getOrElse(false) && !admin) Some(ExchMsg.translate("hub.admins.only.write.admins"))
+    else if (admin && hubAdmin.getOrElse(false)) Some("User cannot be admin and hubAdmin at the same time") //TODO: Translate this error message
     else None // None means no problems with input
   }
 }
@@ -71,6 +72,7 @@ final case class PatchUsersRequest(password: Option[String], admin: Option[Boole
     // Hub admins can only modify a user to be a hub admin or admin. This check unfortunately prevents a hub admin from changing the
     // password or email, but those are rarely done, so this is better than no check at all.
     else if (ident.isHubAdmin && !ident.isSuperUser && !hubAdmin.getOrElse(false) && !admin.getOrElse(false)) Some(ExchMsg.translate("hub.admins.only.write.admins"))
+    else if (admin.getOrElse(false) && hubAdmin.getOrElse(false)) Some("User cannot be admin and hubAdmin at the same time") //TODO: Translate this error message
     else None // None means no problems with input
   }
 
@@ -276,7 +278,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "resource created - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))
       ),
       new responses.ApiResponse(
         responseCode = "400",
@@ -350,7 +352,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -407,7 +409,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     )),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "resource updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -541,7 +543,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "password updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))
       ),
       new responses.ApiResponse(
         responseCode = "400",

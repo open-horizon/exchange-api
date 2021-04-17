@@ -336,7 +336,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "200",
         description = "resource add/updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))
       ),
       new responses.ApiResponse(
         responseCode = "400",
@@ -420,7 +420,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     ))),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "resource updated - response body:",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -515,7 +515,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to be updated.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -687,7 +687,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
           responseCode = "201", 
           description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
       new responses.ApiResponse(
           responseCode = "401", 
           description = "invalid credentials"),
@@ -960,7 +960,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))
       ),
       new responses.ApiResponse(
         responseCode = "401",
@@ -1259,7 +1259,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))
       ),
       new responses.ApiResponse(
         responseCode = "401",
@@ -1437,7 +1437,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "201",
         description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[ApiResponse])))
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))
       ),
       new responses.ApiResponse(
         responseCode = "401",
@@ -1510,7 +1510,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     ),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotMsgsResponse])))),
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[GetAgbotMsgsResponse])))),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
@@ -1554,7 +1554,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
                                               in = ParameterIn.PATH,
                                               name = "orgid",
                                               required = true)),
-             responses = Array(new responses.ApiResponse(content = Array(new Content(schema = new Schema(implementation = classOf[GetAgbotMsgsResponse]))),
+             responses = Array(new responses.ApiResponse(content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[GetAgbotMsgsResponse]))),
                                                          description = "response body",
                                                          responseCode = "200"),
                                new responses.ApiResponse(description = "bad input",

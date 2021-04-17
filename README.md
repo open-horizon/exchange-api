@@ -294,6 +294,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 - New translation files, and file name fixes
 - travis.yml updates
 
+## Changes in 2.65.0
+
+- Issue 493: Added route GET/orgs/{orgid}/status to fetch org specific information
+
 ## Changes in 2.64.0
 
 - Patch added to fix for issue 448. Missed one log message.

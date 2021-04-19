@@ -18,19 +18,22 @@ final case class PDataVerification(enabled: Boolean, URL: String, user: String, 
 final case class OneUserInputService(serviceOrgid: String, serviceUrl: String, serviceArch: Option[String], serviceVersionRange: Option[String], inputs: List[OneUserInputValue])
 final case class OneUserInputValue(name: String, value: Any)
 
+final case class OneSecretBindingService(serviceOrgid: String, serviceUrl: String, serviceArch: Option[String], serviceVersionRange: Option[String],serviceContainer: Option[String],bindings: List[Map[String,OneSecretBindingValue]])
+final case class OneSecretBindingValue(vaultSecret: String)
 // This is the pattern table minus the key - used as the data structure to return to the REST clients
-class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var services: List[PServices], var userInput: List[OneUserInputService], var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {
-  def copy = new Pattern(owner, label, description, public, services, userInput, agreementProtocols, lastUpdated)
+class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var services: List[PServices], var userInput: List[OneUserInputService], var secretBinding: List[OneSecretBindingService],var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {
+  def copy = new Pattern(owner, label, description, public, services, userInput, secretBinding, agreementProtocols, lastUpdated)
 }
 
-final case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, services: String, userInput: String, agreementProtocols: String, lastUpdated: String) {
+final case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, services: String, userInput: String, secretBinding: String, agreementProtocols: String, lastUpdated: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toPattern: Pattern = {
     val svc: List[PServices] = if (services == "") List[PServices]() else read[List[PServices]](services)
     val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
+    val bind: List[OneSecretBindingService] = if (secretBinding != "") read[List[OneSecretBindingService]](secretBinding) else List[OneSecretBindingService]()
     val agproto: List[Map[String, String]] = if (agreementProtocols != "") read[List[Map[String,String]]](agreementProtocols) else List[Map[String,String]]()
-    new Pattern(owner, label, description, public, svc, input, agproto, lastUpdated)
+    new Pattern(owner, label, description, public, svc, input, bind, agproto,lastUpdated)
   }
 
   // update returns a DB action to update this row
@@ -50,10 +53,11 @@ class Patterns(tag: Tag) extends Table[PatternRow](tag, "patterns") {
   def public = column[Boolean]("public")
   def services = column[String]("services")
   def userInput = column[String]("userinput")
+  def secretBinding = column[String]("secretbinding")
   def agreementProtocols = column[String]("agreementProtocols")
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
-  def * = (pattern, orgid, owner, label, description, public, services, userInput, agreementProtocols, lastUpdated).<>(PatternRow.tupled, PatternRow.unapply)
+  def * = (pattern, orgid, owner, label, description, public, services, userInput,secretBinding, agreementProtocols, lastUpdated).<>(PatternRow.tupled, PatternRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -104,6 +108,7 @@ object PatternsTQ {
   def getServices(pattern: String): Query[Rep[String], String, Seq] = rows.filter(_.pattern === pattern).map(_.services)
   def getServicesFromString(services: String): List[PServices] = if (services == "") List[PServices]() else read[List[PServices]](services)
   def getUserInput(pattern: String): Query[Rep[String], String, Seq] = rows.filter(_.pattern === pattern).map(_.userInput)
+  def getSecretBindings(pattern: String): Query[Rep[String],String, Seq] = rows.filter(_.pattern === pattern).map(_.secretBinding)
   def getAgreementProtocols(pattern: String): Query[Rep[String], String, Seq] = rows.filter(_.pattern === pattern).map(_.agreementProtocols)
   def getLastUpdated(pattern: String): Query[Rep[String], String, Seq] = rows.filter(_.pattern === pattern).map(_.lastUpdated)
 
@@ -118,6 +123,7 @@ object PatternsTQ {
       case "public" => filter.map(_.public)
       case "services" => filter.map(_.services)
       case "userInput" => filter.map(_.userInput)
+      case "secretBinding" => filter.map(_.secretBinding)
       case "agreementProtocols" => filter.map(_.agreementProtocols)
       case "lastUpdated" => filter.map(_.lastUpdated)
       case _ => null

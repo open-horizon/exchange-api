@@ -310,7 +310,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
-  def servicesGetRoute: Route = (path("orgs" / Segment / "services") & get & parameter((Symbol("owner").?, Symbol("public").?, Symbol("url").?, Symbol("version").?, Symbol("arch").?, Symbol("nodetype").?, Symbol("requiredurl").?))) { (orgid, owner, public, url, version, arch, nodetype, requiredurl) =>
+  def servicesGetRoute: Route = (path("orgs" / Segment / "services") & get & parameter("owner".?, "public".?, "url".?, "version".?, "arch".?, "nodetype".?, "requiredurl".?)) { (orgid, owner, public, url, version, arch, nodetype, requiredurl) =>
     exchAuth(TService(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validateWithMsg(GetServicesUtils.getServicesProblem(public, version, nodetype)) {
         complete({
@@ -454,7 +454,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
-  def serviceGetRoute: Route = (path("orgs" / Segment / "services" / Segment) & get & parameter((Symbol("attribute").?))) { (orgid, service, attribute) =>
+  def serviceGetRoute: Route = (path("orgs" / Segment / "services" / Segment) & get & parameter("attribute".?)) { (orgid, service, attribute) =>
     val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.READ) { _ =>
       complete({
@@ -832,12 +832,21 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       "defaultValue": "bar"      // if empty then the node owner must provide a value at registration time
     }
   ],
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> master
    "secrets": [
     "secret1": {
       "type": "string",
       "description": "string"
    }
   ],
+<<<<<<< HEAD
+=======
+>>>>>>> Updated patterns to include secretbindings
+>>>>>>> master
   // Information about how to deploy the docker images for this service
   "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",         // container deployment info on edge devices. Can be omitted if does not apply
   "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                                 // filled in by the Horizon signing process

@@ -528,11 +528,11 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       "defaultValue": "bar"      // if empty then the node owner must provide a value at registration time
     }
   ],
-  "secrets": {
+  "secrets": [
   "secret1": {
     "type": "string",
     "description": "string"
- }
+ ]
 },
   // Information about how to deploy the docker images for this service
   "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",         // container deployment info on edge devices. Can be omitted if does not apply
@@ -832,21 +832,12 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       "defaultValue": "bar"      // if empty then the node owner must provide a value at registration time
     }
   ],
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
->>>>>>> master
    "secrets": [
     "secret1": {
       "type": "string",
       "description": "string"
    }
   ],
-<<<<<<< HEAD
-=======
->>>>>>> Updated patterns to include secretbindings
->>>>>>> master
   // Information about how to deploy the docker images for this service
   "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",         // container deployment info on edge devices. Can be omitted if does not apply
   "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                                 // filled in by the Horizon signing process

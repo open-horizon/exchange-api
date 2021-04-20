@@ -260,7 +260,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
     
     
-## Changes in 2.70.0
+## Changes in 2.71.0
 
 - Issue 493: Added route GET/orgs/{orgid}/status to fetch org specific information.
 

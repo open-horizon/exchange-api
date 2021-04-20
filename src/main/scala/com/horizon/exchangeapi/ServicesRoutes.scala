@@ -300,7 +300,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
-  def servicesGetRoute: Route = (path("orgs" / Segment / "services") & get & parameter((Symbol("owner").?, Symbol("public").?, Symbol("url").?, Symbol("version").?, Symbol("arch").?, Symbol("nodetype").?, Symbol("requiredurl").?))) { (orgid, owner, public, url, version, arch, nodetype, requiredurl) =>
+  def servicesGetRoute: Route = (path("orgs" / Segment / "services") & get & parameter("owner".?, "public".?, "url".?, "version".?, "arch".?, "nodetype".?, "requiredurl".?)) { (orgid, owner, public, url, version, arch, nodetype, requiredurl) =>
     exchAuth(TService(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validateWithMsg(GetServicesUtils.getServicesProblem(public, version, nodetype)) {
         complete({
@@ -436,7 +436,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service")
-  def serviceGetRoute: Route = (path("orgs" / Segment / "services" / Segment) & get & parameter((Symbol("attribute").?))) { (orgid, service, attribute) =>
+  def serviceGetRoute: Route = (path("orgs" / Segment / "services" / Segment) & get & parameter("attribute".?)) { (orgid, service, attribute) =>
     val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.READ) { _ =>
       complete({

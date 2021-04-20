@@ -264,6 +264,11 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 - Issue 493: Added route GET/orgs/{orgid}/status to fetch org specific information.
 
+## Changed in 2.70.0
+
+- Fixed issue 423: Upgrade Exchange To Use Akka v2.6.x.
+- Also updated sbt, scala, and project dependencies.
+
 ## Changes in 2.69.0
 
 - Added mulitple response headers to all Http responses.

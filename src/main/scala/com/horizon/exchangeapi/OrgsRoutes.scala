@@ -236,7 +236,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgsGetRoute: Route = (path("orgs") & get & parameter((Symbol("orgtype").?, Symbol("label").?))) { (orgType, label) =>
+  def orgsGetRoute: Route = (path("orgs") & get & parameter("orgtype".?, "label".?)) { (orgType, label) =>
     logger.debug(s"Doing GET /orgs with orgType:$orgType, label:$label")
     // If filter is orgType=IBM then it is a different access required than reading all orgs
     val access: exchangeapi.Access.Value = if (orgType.getOrElse("").contains("IBM")) Access.READ_IBM_ORGS else Access.READ_OTHER_ORGS
@@ -311,7 +311,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def orgGetRoute: Route = (path("orgs" / Segment) & get & parameter(Symbol("attribute").?)) { (orgId, attribute) =>
+  def orgGetRoute: Route = (path("orgs" / Segment) & get & parameter("attribute".?)) { (orgId, attribute) =>
     exchAuth(TOrg(orgId), Access.READ) { ident =>
       logger.debug(s"GET /orgs/$orgId ident: ${ident.getIdentity}")
       complete({

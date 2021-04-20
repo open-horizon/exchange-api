@@ -228,7 +228,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
-  def patternsGetRoute: Route = (path("orgs" / Segment / "patterns") & get & parameter((Symbol("idfilter").?, Symbol("owner").?, Symbol("public").?, Symbol("label").?, Symbol("description").?))) { (orgid, idfilter, owner, public, label, description) =>
+  def patternsGetRoute: Route = (path("orgs" / Segment / "patterns") & get & parameter("idfilter".?, "owner".?, "public".?, "label".?, "description".?)) { (orgid, idfilter, owner, public, label, description) =>
     exchAuth(TPattern(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
         complete({
@@ -336,7 +336,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
-  def patternGetRoute: Route = (path("orgs" / Segment / "patterns" / Segment) & get & parameter((Symbol("attribute").?))) { (orgid, pattern, attribute) =>
+  def patternGetRoute: Route = (path("orgs" / Segment / "patterns" / Segment) & get & parameter("attribute".?)) { (orgid, pattern, attribute) =>
     val compositeId: String = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId), Access.READ) { _ =>
       complete({

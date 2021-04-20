@@ -458,7 +458,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-   "secretBinding": [
+  "secretBinding": [
      {
        "serviceOrgid": "string",
         "serviceUrl": "string",

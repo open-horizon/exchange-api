@@ -20,6 +20,7 @@ final case class OneUserInputValue(name: String, value: Any)
 
 final case class OneSecretBindingService(serviceOrgid: String, serviceUrl: String, serviceArch: Option[String], serviceVersionRange: Option[String], secrets: List[OneSecretBindingValue])
 final case class OneSecretBindingValue(vaultSecret: String, value: Any)
+
 // This is the pattern table minus the key - used as the data structure to return to the REST clients
 class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var services: List[PServices], var userInput: List[OneUserInputService], var secretBinding: List[OneSecretBindingService],var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {
   def copy = new Pattern(owner, label, description, public, services, userInput, secretBinding, agreementProtocols, lastUpdated)

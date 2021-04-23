@@ -8,8 +8,10 @@ import slick.jdbc.PostgresProfile.api.Database
 class TestDBConnection {
   ExchConfig.load() // get config file, normally in /etc/horizon/exchange/config.json
   ExchConfig.getHostAndPort match {
-    case (h, p) => ExchangeApi.serviceHost = h;
-      ExchangeApi.servicePort = p
+    case (h, pe, pu) =>
+      ExchangeApi.serviceHost = h
+      ExchangeApi.servicePortEncrypted = pe
+      ExchangeApi.servicePortUnencrypted = pu
   }
   
   val maxPoolSizeConfig: Int = ExchConfig.getInt("api.db.maxPoolSize")

@@ -8,9 +8,8 @@ package com.horizon.exchangeapi
 
 import java.sql.Timestamp
 import java.util.Optional
-
 import akka.Done
-import akka.actor.{Actor, ActorSystem, Cancellable, CoordinatedShutdown, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Cancellable, CoordinatedShutdown, Props}
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.javadsl.model
 
@@ -22,16 +21,20 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
-import akka.http.scaladsl.Http
+import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `must-revalidate`, `no-cache`, `no-store`}
+import akka.http.scaladsl.model.headers.{RawHeader, `Cache-Control`}
 import akka.http.scaladsl.server._
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{ExceptionHandler, Route}
 import akka.stream.ActorMaterializer
 import com.horizon.exchangeapi.tables.{AgbotMsgsTQ, NodeMsgsTQ, ResourceChangesTQ}
 import org.json4s._
 import slick.jdbc.TransactionIsolation.Serializable
 
+import java.io.{FileInputStream, InputStream}
+import java.security.{KeyStore, SecureRandom}
+import javax.net.ssl.{KeyManagerFactory, SSLContext, SSLEngine, TrustManagerFactory}
 import scala.io.{BufferedSource, Source}
 import scala.concurrent.duration._
 
@@ -40,7 +43,8 @@ object ExchangeApi {
   // Global vals - these values are stored here instead of in ExchangeApiApp, because the latter extends DelayedInit, so the compiler checking wouldn't know when they are available. See https://stackoverflow.com/questions/36710169/why-are-implicit-variables-not-initialized-in-scala-when-called-from-unit-test/36710170
   // But putting them here and using them from here implies we have to manually verify that we set them before they are used
   var serviceHost = ""
-  var servicePort = 0
+  var servicePortEncrypted: Option[Int] = scala.None
+  var servicePortUnencrypted: Option[Int] = scala.None
   var defaultExecutionContext: ExecutionContext = _
   var defaultLogger: LoggingAdapter = _
 
@@ -62,7 +66,17 @@ object ExchangeApiConstants {
 /**
  * Main akka server for the Exchange REST API.
  */
-object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRoutes with AgbotsRoutes with ServicesRoutes with PatternsRoutes with BusinessRoutes with CatalogRoutes with AdminRoutes with SwaggerUiService {
+object ExchangeApiApp extends App
+  with AdminRoutes
+  with AgbotsRoutes
+  with BusinessRoutes
+  with CatalogRoutes
+  with NodesRoutes
+  with OrgsRoutes
+  with PatternsRoutes
+  with ServicesRoutes
+  with SwaggerUiService
+  with UsersRoutes {
 
   // An example of using Spray to marshal/unmarshal json. We chose not to use it because it requires an implicit be defined for every class that needs marshalling
   //protected implicit val jsonFormats: Formats = DefaultFormats
@@ -77,7 +91,12 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   println(s"Running with java arguments: ${ApiUtils.getJvmArgs}")
   ExchConfig.load() // get config file, normally in /etc/horizon/exchange/config.json
   //(ExchangeApi.serviceHost, ExchangeApi.servicePort) = ExchConfig.getHostAndPort  // <- scala does not support this
-  ExchConfig.getHostAndPort match { case (h, p) => ExchangeApi.serviceHost = h; ExchangeApi.servicePort = p }
+  ExchConfig.getHostAndPort match {
+    case (h, pe, pu) =>
+      ExchangeApi.serviceHost = h
+      ExchangeApi.servicePortEncrypted = pe
+      ExchangeApi.servicePortUnencrypted = pu
+  }
   //val actorConfig = ConfigFactory.parseString("akka.loglevel=" + ExchConfig.getLogLevel)
   implicit val system: ActorSystem = ActorSystem("actors", ExchConfig.getAkkaConfig)  // includes the loglevel
   implicit val materializer: ActorMaterializer = ActorMaterializer()
@@ -143,11 +162,11 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       val authId: String = encodedAuth match {
         case "" => "<no-auth>"
         case basicAuthRegex(basicAuthEncoded) =>
-          AuthenticationSupport.parseCreds(basicAuthEncoded).map(_.id).getOrElse("<invalid-auth-format>")
+          AuthenticationSupport.parseCreds(basicAuthEncoded).fold("<invalid-auth-format>")(_.id)
         case _ => "<invalid-auth-format>"
       }
       // Now log all the info
-      Some(LogEntry(s"${req.uri.authority.host.address}:$authId ${req.method.name} ${req.uri}: ${res.status}", Logging.InfoLevel))
+      Option(LogEntry(s"${req.uri.authority.host.address}:$authId ${req.method.name} ${req.uri}: ${res.status}", Logging.InfoLevel))
     //case Rejected(rejections) => Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with: $rejections", Logging.InfoLevel)) // <- left here for when you temporarily want to see the full list of rejections that akka produces
     case Rejected(rejections) =>
       // Sometimes akka produces a bunch of MethodRejection objects (for http methods in the routes that didn't match) and then
@@ -158,22 +177,32 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
         case _ => true
       })
       if (interestingRejections.isEmpty) interestingRejections = scala.collection.immutable.Seq(NotFoundRejection("unrecognized route"))
-      Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with: $interestingRejections", Logging.InfoLevel))
-    case _ => None
+      Option(LogEntry(s"${req.method.name} ${req.uri}: rejected with: $interestingRejections", Logging.InfoLevel))
+    case _ => scala.None
   }
 
   // Create all of the routes and concat together
-  final case class testResp(result: String)
-  def testRoute = { path("test") { get { logger.debug("In /test"); complete(testResp("OK")) } } }
-
+  final case class testResp(result: String = "OK")
+  
+  def testRoute = {
+    path("test") {
+      get {
+        logger.debug("In /test")
+        
+        complete(testResp())
+      }
+    }
+  }
+  
   //someday: use directive https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
   lazy val routes: Route =
     DebuggingDirectives.logRequestResult(requestResponseLogging _) {
       pathPrefix("v1") {
-        respondWithDefaultHeaders(RawHeader("Cache-Control", "max-age=0, must-revalidate, no-cache, no-store"),
-                                  RawHeader("Content-Type", "application/json; charset=UTF-8"),
-                                  // RawHeader("Strict-Transport-Security", "max-age=15768000"), // 6 months
-                                  RawHeader("X-Content-Type-Options", "nosniff")) {
+        respondWithDefaultHeaders(`Cache-Control`(Seq(`max-age`(0), `must-revalidate`, `no-cache`, `no-store`)),
+                                  RawHeader("Content-Type", "application/json"/*; charset=UTF-8"*/),
+                                  RawHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload"), // 2 years
+                                  RawHeader("X-Content-Type-Options", "nosniff"),
+                                  RawHeader("X-XSS-Protection", "1; mode=block")) {
           handleExceptions(myExceptionHandler) {
             handleRejections(myRejectionHandler) {
               adminRoutes ~
@@ -213,12 +242,12 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   cpds.setUser(ExchConfig.getString("api.db.user"))
 
   // maxConnections, maxThreads, and minThreads should all be the same size.
-  val maxConns = ExchConfig.getInt("api.db.maxPoolSize")
+  val maxConns: Int = ExchConfig.getInt("api.db.maxPoolSize")
   val db: Database =
     if (cpds != null) {
       Database.forDataSource(
         cpds,
-        Some(maxConns),
+        Option(maxConns),
         AsyncExecutor("ExchangeExecutor", maxConns, maxConns, ExchConfig.getInt("api.db.queueSize"), maxConns))
     } else null
 
@@ -283,9 +312,9 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       case _ => logger.debug("invalid case sent to ChangesCleanupActor")
     }
   }
-  val changesCleanupActor = system.actorOf(Props(classOf[ChangesCleanupActor]))
+  val changesCleanupActor: ActorRef = system.actorOf(Props(classOf[ChangesCleanupActor]))
   var changesCleanup : Cancellable = _
-  val cleanupInterval = ExchConfig.getInt("api.resourceChanges.cleanupInterval")
+  val cleanupInterval: Int = ExchConfig.getInt("api.resourceChanges.cleanupInterval")
   logger.info("Resource changes cleanup Interval: " + cleanupInterval.toString)
 
   /** Task for removing expired nodemsgs and agbotmsgs */
@@ -307,51 +336,113 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
       case _ => logger.debug("invalid case sent to MsgsCleanupActor")
     }
   }
-  val msgsCleanupActor = system.actorOf(Props(classOf[MsgsCleanupActor]))
-  var msgsCleanup : Cancellable = _
-  val msgsCleanupInterval = ExchConfig.getInt("api.defaults.msgs.expired_msgs_removal_interval")
+  val msgsCleanupActor: ActorRef = system.actorOf(Props(classOf[MsgsCleanupActor]))
+  var msgsCleanup: Cancellable = _
+  val msgsCleanupInterval: Int = ExchConfig.getInt("api.defaults.msgs.expired_msgs_removal_interval")
   logger.info("Remove expired msgs cleanup Interval: " + msgsCleanupInterval.toString)
-
-
-  // Start serving client requests
-  val serverBinding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, ExchangeApi.serviceHost, ExchangeApi.servicePort)
-
-  // Configure graceful termination. See: https://doc.akka.io/docs/akka-http/current/server-side/graceful-termination.html
-  // But also see: https://discuss.lightbend.com/t/graceful-termination-on-sigterm-using-akka-http/1619
-  // Note: can't test this in sbt. Instead use 'make runexecutable' and then ctrl-c
-  val secondsToWait = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete")  // ExchConfig.getAkkaConfig() also makes the akka unbind phase this long
-  CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "http_shutdown") { () =>
-    serverBinding.flatMap({ s =>
-      println(s"Exchange server unbound, waiting up to $secondsToWait seconds for in-flight requests to complete...")
-      msgsCleanup.cancel()    // This cancels further deletions of node and agbot msgs
-      changesCleanup.cancel()   // This cancels further Cleanups to be sent
-      s.terminate(hardDeadline = secondsToWait.seconds)
-    }).map { _ =>
-      println("Exchange server exiting.")
-      Done
+  
+  val secondsToWait: Int = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete") // ExchConfig.getAkkaConfig() also makes the akka unbind phase this long
+  
+  var serverBindingHttp: Future[Http.ServerBinding] = null
+  var serverBindingHttps: Future[Http.ServerBinding] = null
+  
+  if(ExchangeApi.servicePortEncrypted.isDefined) {
+    val keyStore: KeyStore = KeyStore.getInstance("PKCS12")
+    val keyManager: KeyManagerFactory = KeyManagerFactory.getInstance("PKIX")
+    val sslContext: SSLContext = SSLContext.getInstance("TLSv1.3")
+    val trustManager: TrustManagerFactory = TrustManagerFactory.getInstance("PKIX")
+    
+    try {
+      keyStore.load(new FileInputStream(ExchConfig.getString("api.tls.truststore")),
+                                        ExchConfig.getString("api.tls.password").toCharArray)
+      keyManager.init(keyStore, ExchConfig.getString("api.tls.password").toCharArray)
+      trustManager.init(keyStore)
+      sslContext.init(keyManager.getKeyManagers,
+                      trustManager.getTrustManagers,
+                      new SecureRandom)
+  
+      // Start serving client requests
+      serverBindingHttps = akka.http.scaladsl.Http().newServerAt(ExchangeApi.serviceHost, ExchangeApi.servicePortEncrypted.get)
+                                                    .enableHttps(ConnectionContext.httpsServer(() => {               // Custom TLS parameters
+                                                      val engine: SSLEngine = sslContext.createSSLEngine()
+                                                      
+                                                      engine.setEnabledProtocols(Array("TLSv1.3"))
+                                                      engine.setEnabledCipherSuites(Array("TLS_AES_256_GCM_SHA384")) // "TLS_CHACHA20_POLY1305_SHA256" available in Java 14
+                                                      engine.setUseClientMode(false)
+                                                      engine
+                                                    }))
+                                                    .bind(routes)
+                                                    .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
+      serverBindingHttps.onComplete {
+        case Success(bound) =>
+          logger.info(ExchMsg.translate("server.start", s"https://${ExchangeApi.serviceHost}:${bound.localAddress.getPort}/")) // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
+        case Failure(e) =>
+          logger.error(ExchMsg.translate("server.start.failure.https"))
+          e.printStackTrace()
+          system.terminate()
+      }
+    }
+    catch {
+      case pkcs12NotFound: java.io.FileNotFoundException =>
+        logger.error(ExchMsg.translate("pkcs12.not.found", pkcs12NotFound.getMessage))
+        system.terminate()
+      case _: java.io.IOException =>
+        logger.error(ExchMsg.translate("pkcs12.password.incorrect"))
+        system.terminate()
+    }
+    
+    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "https-unbound") {
+      () =>
+        logger.info(s"Exchange HTTPS server unbound, waiting up to $secondsToWait seconds for in-flight requests to complete...")
+        Future {Done}
     }
   }
-
-  // When the server has initialized
-  serverBinding.onComplete {
-    case Success(bound) =>
-      println(s"Server online at http://${bound.localAddress.getHostString}:${bound.localAddress.getPort}/")
-      // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
-      changesCleanup = system.scheduler.schedule(cleanupInterval.seconds, cleanupInterval.seconds, changesCleanupActor, Cleanup)
-      msgsCleanup = system.scheduler.schedule(0.seconds, msgsCleanupInterval.seconds, msgsCleanupActor, CleanupExpiredMessages)
-    case Failure(e) =>
-      Console.err.println(s"Server could not start!")
-      e.printStackTrace()
-      system.terminate()
+  
+  if(ExchangeApi.servicePortUnencrypted.isDefined) {
+    serverBindingHttp = akka.http.scaladsl.Http().newServerAt(ExchangeApi.serviceHost, ExchangeApi.servicePortUnencrypted.get)
+                                                 .bind(routes)
+                                                 .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
+    serverBindingHttp.onComplete {
+      case Success(bound) =>
+        logger.info(ExchMsg.translate("server.start", s"http://${ExchangeApi.serviceHost}:${bound.localAddress.getPort}/")) // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
+      case Failure(e) =>
+        logger.error(ExchMsg.translate("server.start.failure.http"))
+        e.printStackTrace()
+        system.terminate()
+    }
+    
+    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "http-unbound") {
+      () =>
+        logger.info(s"Exchange HTTP server unbound, waiting up to $secondsToWait seconds for in-flight requests to complete...")
+        Future {Done}
+    }
   }
-
+  
+  if(serverBindingHttp.value.isDefined ||
+     serverBindingHttps.value.isDefined) {
+    changesCleanup = system.scheduler.schedule(cleanupInterval.seconds, cleanupInterval.seconds, changesCleanupActor, Cleanup)
+    logger.debug(ExchMsg.translate("message.cleanup.scheduled", cleanupInterval.seconds, cleanupInterval.seconds))
+    
+    msgsCleanup = system.scheduler.schedule(0.seconds, msgsCleanupInterval.seconds, msgsCleanupActor, CleanupExpiredMessages)
+    logger.debug(ExchMsg.translate("changes.cleanup.scheduled", msgsCleanupInterval.seconds))
+  }
+  
+  CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseBeforeActorSystemTerminate, "cancel-scheduled-tasks") {
+    () =>
+      msgsCleanup.cancel()    // This cancels further deletions of node and agbot msgs
+      logger.debug(ExchMsg.translate("message.cleanup.cancel"))
+      
+      changesCleanup.cancel()   // This cancels further Cleanups to be sent
+      logger.debug(ExchMsg.translate("changes.cleanup.cancel"))
+      
+      Future {Done}
+  }
+  
+  CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseBeforeActorSystemTerminate, "exchange-exit") {
+    () =>
+      logger.info("Exchange server exiting.")
+      Future {Done}
+  }
+  
   Await.result(system.whenTerminated, Duration.Inf)
-
-  /* this is from the akka graceful termination doc, but gets run as soon as the server completes initializing. They left out the key part of how to get this invoked at the right time.
-  val onceAllConnectionsTerminated: Future[Http.HttpTerminated] =
-  Await.result(serverBinding, 10.seconds)
-    .terminate(hardDeadline = 3.seconds)
-  // when the above future completes, exit
-  onceAllConnectionsTerminated.flatMap { _ => println("Exchange API exiting..."); system.terminate() } */
 }
-

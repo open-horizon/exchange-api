@@ -283,6 +283,7 @@ class UsersSuite extends AnyFunSuite {
     assert(response.code === HttpCode.OK.intValue)
   }
 
+
   test("PUT /orgs/" + orgid + "/users/" + user + " - try to give himself admin privilege - should fail") {
     val input = PostPutUsersRequest(pw, admin = true, Some(false), user + "@msn.com")
     var response = Http(URL + "/users/" + user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -374,6 +375,19 @@ class UsersSuite extends AnyFunSuite {
     assert(u.email === user + "@gmail.com")
   }
 
+
+  test("GET /orgs/" + orgid + "/status") {
+    val response: HttpResponse[String] = Http(URL + "/status").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
+    // info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val getUserResp = parse(response.body).extract[GetOrgStatusResponse]
+    assert(getUserResp.numberOfUsers === 1)
+    assert(getUserResp.numberOfNodes === 0)
+  }
+
+
+
   test("GET /orgs/" + orgid + "/users - as admin " + user) {
     val response: HttpResponse[String] = Http(URL + "/users").headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
@@ -395,7 +409,7 @@ class UsersSuite extends AnyFunSuite {
     assert(u.email === user + "@gmail.com")
   }
 
-  test("PUT /orgs/" + orgid + "/users/" + user + " - update normal with creds") {
+test("PUT /orgs/" + orgid + "/users/" + user + " - update normal with creds") {
     val input = PostPutUsersRequest(pw, admin = true, Some(false), user + "-updated@gmail.com")
     val response = Http(URL + "/users/" + user).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)

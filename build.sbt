@@ -8,8 +8,8 @@ import com.typesafe.sbt.packager.docker._
 enablePlugins(JavaAppPackaging, DockerPlugin)
 
 // For latest versions, see https://mvnrepository.com/
-lazy val akkaHttpVersion = "[10.2.2,)"  // as of 11/19/2019 this is the latest version
-lazy val akkaVersion    = "[2.6.10,)"  // released 10/2019. Version 2.6.0 was released 11/2019
+lazy val akkaHttpVersion = "[10.2.4]"  // as of 11/19/2019 this is the latest version
+lazy val akkaVersion    = "[2.6.14]"  // released 10/2019. Version 2.6.0 was released 11/2019
 
 // Red Hat certification Docker labels.
 lazy val release = settingKey[String]("A number used to identify the specific build for this image.")
@@ -37,15 +37,15 @@ lazy val root = (project in file("."))
         summary                       := "'Open Horizon exchange-api image'",
         vendor                        := "'Open Horizon'",
         version                       := versionFunc(),
-        //scapegoatVersion in ThisBuild := "1.4.4",
+        //ThisBuild / scapegoatVersion := "1.4.4",
         //coverageEnabled               := false,
         
 
         // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
         libraryDependencies ++= Seq(
-          "com.typesafe.akka" %% "akka-http"            % "[10.2.2]",
-          "com.typesafe.akka" %% "akka-http-xml"        % "[10.2.2]",
-          // "com.typesafe.akka" %% "akka-stream"          % "[2.6.10,)",
+          "com.typesafe.akka" %% "akka-http"            % "[10.2.4]",
+          "com.typesafe.akka" %% "akka-http-xml"        % "[10.2.4]",
+          // "com.typesafe.akka" %% "akka-stream"          % "[2.6.14,)",
           // "com.typesafe.akka" %% "akka-http-spray-json" % "[10.2.1,)",
           "de.heikoseeberger" %% "akka-http-jackson" % "[1.35.3,)",  // version 1.35.3 pulls in akka 2.6.10 and akkahttp 10.2.2
           // "com.typesafe.akka" %% "akka-http-jackson" % "[10.2.1,)", //<- can not find any recent documentation on how to use this
@@ -55,7 +55,7 @@ lazy val root = (project in file("."))
   
           "javax.ws.rs" % "javax.ws.rs-api" % "[2.1.1,)",  // this is from 8/2014. Version 2.1.1 from 9/2018 gets an error loading
           //"org.glassfish.jersey.core" % "jersey-common" % "1.2.1",  // required at runtime by javax.ws.rs-api
-          "com.github.swagger-akka-http" %% "swagger-akka-http" % "[2.2.0,)",  // Version 2.0.5 now requires v10.1.11 Akka modules.
+          "com.github.swagger-akka-http" %% "swagger-akka-http" % "[2.4.0,)",  // Version 2.0.5 now requires v10.1.11 Akka modules.
           "com.github.swagger-akka-http" %% "swagger-scala-module" % "[1.0.6,)",
           "io.swagger.core.v3" % "swagger-core" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-core
           "io.swagger.core.v3" % "swagger-annotations" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
@@ -78,9 +78,9 @@ lazy val root = (project in file("."))
           "com.github.cb372" %% "scalacache-guava" % "[0.28.0,)",
           "com.osinka.i18n" %% "scala-i18n" % "[1.0.3,)",
   
-          "com.typesafe.akka" %% "akka-http-testkit"    % "[10.2.2]"     % Test,
-          "com.typesafe.akka" %% "akka-testkit"         % "[2.6.10,)"     % Test,
-          "com.typesafe.akka" %% "akka-stream-testkit"  % "[2.6.10,)"     % Test,
+          "com.typesafe.akka" %% "akka-http-testkit"    % "[10.2.4]"     % Test,
+          "com.typesafe.akka" %% "akka-testkit"         % "[2.6.14]"     % Test,
+          "com.typesafe.akka" %% "akka-stream-testkit"  % "[2.6.14]"     % Test,
   
           "org.scalatest" %% "scalatest" % "[3.3.0-SNAP2,)" % "test",
           "org.scalatestplus" %% "junit-4-12" % "[3.3.0.0-SNAP2,)" % "test",
@@ -91,16 +91,16 @@ lazy val root = (project in file("."))
         //javaOptions ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config", "-Djava.security.policy=src/main/resources/auth.policy")
 
         // These settings are for the Docker subplugin within sbt-native-packager. See: https://sbt-native-packager.readthedocs.io/en/stable/formats/docker.html
-        version in Docker        := versionFunc(), // overwrite this setting to build a test version of the exchange with a custom tag in docker, defaults to exchange version
-        packageName in Docker    := "openhorizon/" ++ name.value,
-        daemonUser in Docker     := "exchangeuser", 
-        daemonGroup in Docker    := "exchangegroup", 
-        daemonGroupGid in Docker := some("1001"), 
-        dockerExposedPorts      ++= Seq(8080), 
-        dockerBaseImage          := "registry.access.redhat.com/ubi8-minimal:latest",
+        Docker / version        := versionFunc(), // overwrite this setting to build a test version of the exchange with a custom tag in docker, defaults to exchange version
+        Docker / packageName    := "openhorizon/" ++ name.value,
+        Docker / daemonUser     := "exchangeuser",
+        Docker / daemonGroup    := "exchangegroup",
+        Docker / daemonGroupGid := some("1001"),
+        dockerExposedPorts     ++= Seq(8080),
+        dockerBaseImage         := "registry.access.redhat.com/ubi8-minimal:latest",
         dockerEnvVars := Map("JAVA_OPTS" -> ""),   // this is here so JAVA_OPTS can be overridden on the docker run cmd with a value like: -Xmx1G
         //dockerEntrypoint ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config")  // <- had trouble getting this to work
-        mappings in Docker ++= Seq((baseDirectory.value / "LICENSE.txt") -> "/1/licenses/LICENSE.txt", 
+        Docker / mappings ++= Seq((baseDirectory.value / "LICENSE.txt") -> "/1/licenses/LICENSE.txt",
                                    (baseDirectory.value / "config" / "exchange-api.tmpl") -> "/2/etc/horizon/exchange/exchange-api.tmpl"
                                   ), 
         dockerCommands           := Seq(Cmd("FROM", dockerBaseImage.value ++ " as stage0"), 
@@ -128,14 +128,14 @@ lazy val root = (project in file("."))
                                         Cmd("LABEL", "version=" ++ version.value), 
                                         Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs && microdnf install -y --nodocs shadow-utils gettext java-11-openjdk && microdnf clean all"),
                                         Cmd("USER", "root"), 
-                                        Cmd("RUN", "id -u " ++ (daemonUser in Docker).value ++ " 1>/dev/null 2>&1 || ((getent group 1001 1>/dev/null 2>&1 || (type groupadd 1>/dev/null 2>&1 && groupadd -g 1001 " ++ (daemonGroup in Docker).value ++ " || addgroup -g 1001 -S " ++ (daemonGroup in Docker).value ++ ")) && (type useradd 1>/dev/null 2>&1 && useradd --system --create-home --uid 1001 --gid 1001 " ++ (daemonUser in Docker).value ++ " || adduser -S -u 1001 -G " ++ (daemonGroup in Docker).value ++ " " ++ (daemonUser in Docker).value ++ "))"), 
+                                        Cmd("RUN", "id -u " ++ (Docker / daemonUser).value ++ " 1>/dev/null 2>&1 || ((getent group 1001 1>/dev/null 2>&1 || (type groupadd 1>/dev/null 2>&1 && groupadd -g 1001 " ++ (Docker / daemonGroup).value ++ " || addgroup -g 1001 -S " ++ (Docker / daemonGroup).value ++ ")) && (type useradd 1>/dev/null 2>&1 && useradd --system --create-home --uid 1001 --gid 1001 " ++ (Docker / daemonUser).value ++ " || adduser -S -u 1001 -G " ++ (Docker / daemonGroup).value ++ " " ++ (Docker / daemonUser).value ++ "))"),
                                         Cmd("WORKDIR", "/etc/horizon/exchange"), 
-                                        Cmd("COPY --from=stage0 --chown=" ++ (daemonUser in Docker).value ++ ":" ++ (daemonGroup in Docker).value, "/2/etc/horizon/exchange /etc/horizon/exchange"), 
+                                        Cmd("COPY --from=stage0 --chown=" ++ (Docker / daemonUser).value ++ ":" ++ (Docker / daemonGroup).value, "/2/etc/horizon/exchange /etc/horizon/exchange"),
                                         Cmd("WORKDIR", "/licenses"), 
-                                        Cmd("COPY --from=stage0 --chown=" ++ (daemonUser in Docker).value ++ ":" ++ (daemonGroup in Docker).value, "/1/licenses /licenses"), 
+                                        Cmd("COPY --from=stage0 --chown=" ++ (Docker / daemonUser).value ++ ":" ++ (Docker / daemonGroup).value, "/1/licenses /licenses"),
                                         Cmd("WORKDIR", "/opt/docker"), 
-                                        Cmd("COPY --from=stage0 --chown=" ++ (daemonUser in Docker).value ++ ":" ++ (daemonGroup in Docker).value, "/1/opt/docker /opt/docker"), 
-                                        Cmd("COPY --from=stage0 --chown=" ++ (daemonUser in Docker).value ++ ":" ++ (daemonGroup in Docker).value, "/2/opt/docker /opt/docker"), 
+                                        Cmd("COPY --from=stage0 --chown=" ++ (Docker / daemonUser).value ++ ":" ++ (Docker / daemonGroup).value, "/1/opt/docker /opt/docker"),
+                                        Cmd("COPY --from=stage0 --chown=" ++ (Docker / daemonUser).value ++ ":" ++ (Docker / daemonGroup).value, "/2/opt/docker /opt/docker"),
                                         Cmd("ENV", "JAVA_OPTS=''"),
                                         Cmd("ENV", "ENVSUBST_CONFIG=''"),
                                         Cmd("EXPOSE", "8080"), 

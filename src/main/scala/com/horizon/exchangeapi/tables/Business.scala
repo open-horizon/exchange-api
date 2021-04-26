@@ -16,19 +16,20 @@ final case class BService(name: String, org: String, arch: String, serviceVersio
 final case class BServiceVersions(version: String, priority: Option[Map[String,Int]], upgradePolicy: Option[Map[String,String]])
 
 // This is the businesspolicies table minus the key - used as the data structure to return to the REST clients
-class BusinessPolicy(var owner: String, var label: String, var description: String, var service: BService, var userInput: List[OneUserInputService], var properties: List[OneProperty], var constraints: List[String], var lastUpdated: String, var created: String) {
-  def copy = new BusinessPolicy(owner, label, description, service, userInput, properties, constraints, lastUpdated, created)
+class BusinessPolicy(var owner: String, var label: String, var description: String, var service: BService, var userInput: List[OneUserInputService],var secretBinding: List[OneSecretBindingService], var properties: List[OneProperty], var constraints: List[String], var lastUpdated: String, var created: String) {
+  def copy = new BusinessPolicy(owner, label, description, service, userInput,secretBinding, properties, constraints, lastUpdated, created)
 }
 
 // Note: if you add fields to this, you must also add them the update method below
-final case class BusinessPolicyRow(businessPolicy: String, orgid: String, owner: String, label: String, description: String, service: String, userInput: String, properties: String, constraints: String, lastUpdated: String, created: String) {
+final case class BusinessPolicyRow(businessPolicy: String, orgid: String, owner: String, label: String, description: String, service: String, userInput: String, secretBinding: String,properties: String, constraints: String, lastUpdated: String, created: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toBusinessPolicy: BusinessPolicy = {
     val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
+    val bind: List[OneSecretBindingService] = if (secretBinding != "") read[List[OneSecretBindingService]](secretBinding) else List[OneSecretBindingService]()
     val prop: List[OneProperty] = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
     val con: List[String] = if (constraints != "") read[List[String]](constraints) else List[String]()
-    new BusinessPolicy(owner, label, description, read[BService](service), input, prop, con, lastUpdated, created)
+    new BusinessPolicy(owner, label, description, read[BService](service), input,bind, prop, con, lastUpdated, created)
   }
 
   // update returns a DB action to update this row
@@ -48,12 +49,13 @@ class BusinessPolicies(tag: Tag) extends Table[BusinessPolicyRow](tag, "business
   def description = column[String]("description")
   def service = column[String]("service")
   def userInput = column[String]("userinput")
+  def secretBinding = column[String]("secretbinding")
   def properties = column[String]("properties")
   def constraints = column[String]("constraints")
   def lastUpdated = column[String]("lastupdated")
   def created = column[String]("created")
   // this describes what you get back when you return rows from a query
-  def * = (businessPolicy, orgid, owner, label, description, service, userInput, properties, constraints, lastUpdated, created).<>(BusinessPolicyRow.tupled, BusinessPolicyRow.unapply)
+  def * = (businessPolicy, orgid, owner, label, description, service, userInput,secretBinding, properties, constraints, lastUpdated, created).<>(BusinessPolicyRow.tupled, BusinessPolicyRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -100,6 +102,7 @@ object BusinessPoliciesTQ {
   def getService(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.service)
   def getServiceFromString(service: String): BService = read[BService](service)
   def getUserInput(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.userInput)
+  def getSecretBindings(businessPolicy: String): Query[Rep[String],String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.secretBinding)
   def getLastUpdated(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.lastUpdated)
 
   /** Returns a query for the specified businessPolicy attribute value. Returns null if an invalid attribute name is given. */
@@ -112,6 +115,7 @@ object BusinessPoliciesTQ {
       case "description" => filter.map(_.description)
       case "service" => filter.map(_.service)
       case "userInput" => filter.map(_.userInput)
+      case "secretBinding" => filter.map(_.secretBinding)
       case "properties" => filter.map(_.properties)
       case "constraints" => filter.map(_.constraints)
       case "lastUpdated" => filter.map(_.lastUpdated)

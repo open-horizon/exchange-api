@@ -175,6 +175,7 @@ object NodesTQ {
   def getAllNodesId(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.id)
   def getNodeTypeNodes(orgid: String, nodeType: String): Query[Nodes, NodeRow, Seq] = rows.filter(r => {r.orgid === orgid && r.nodeType === nodeType})
   def getNonPatternNodes(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(r => {r.orgid === orgid && r.pattern === ""})
+  def getRegisteredNodesInOrg(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(node => {node.orgid === orgid && node.publicKey =!= ""})
   def getNode(id: String): Query[Nodes, NodeRow, Seq] = rows.filter(_.id === id)
   def getToken(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.token)
   def getOwner(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.owner)
@@ -425,6 +426,7 @@ object NodeMsgsTQ {
   def getMsg(nodeId: String, msgId: Int): Query[NodeMsgs, NodeMsgRow, Seq] = rows.filter(r => {r.nodeId === nodeId && r.msgId === msgId} )
   def getMsgsExpired = rows.filter(_.timeExpires < ApiTime.nowUTC)
   def getNumOwned(nodeId: String): Rep[Int] = rows.filter(_.nodeId === nodeId).length
+  def getNodeMsgsInOrg(orgid: String): Query[NodeMsgs, NodeMsgRow, Seq] = rows.filter(a => {(a.nodeId like orgid + "/%")} )
 }
 
 final case class NodeMsg(msgId: Int, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String)

@@ -8,7 +8,7 @@ COMPILE_CLEAN ?= clean
 DOCKER_NAME ?= amd64_exchange-api
 DOCKER_NETWORK = exchange-api-network
 DOCKER_REGISTRY ?= openhorizon
-EXCHANGE_VERSION = $(shell cat src/main/resources/version.txt)
+VERSION = $(shell cat src/main/resources/version.txt)
 #todo: get this value from the target git branch
 TARGET_BRANCH ?=
 ifneq ($(TARGET_BRANCH),)
@@ -16,7 +16,7 @@ ifneq ($(TARGET_BRANCH),)
 else
   BRANCH =
 endif
-DOCKER_TAG ?= $(EXCHANGE_VERSION)$(BRANCH)
+DOCKER_TAG ?= $(VERSION)$(BRANCH)
 DOCKER_LATEST ?= latest$(BRANCH)
 DOCKER_OPTS ?= --no-cache
 IMAGE_STRING = $(DOCKER_REGISTRY)/$(ARCH)_exchange-api
@@ -26,8 +26,8 @@ EXCHANGE_API_DIR ?= /src/github.com/open-horizon/exchange-api
 # Location of config.json and icp/ca.crt in the container
 EXCHANGE_CONFIG_DIR ?= $(PROJECT_DIRECTORY)/target/etc/horizon/exchange
 EXCHANGE_CONTAINER_CONFIG_DIR ?= /etc/horizon/exchange
-EXCHANGE_CONTAINER_PORT_HTTP ?= null
-EXCHANGE_CONTAINER_PORT_HTTPS ?= 8080
+EXCHANGE_CONTAINER_PORT_HTTP ?= 8080
+EXCHANGE_CONTAINER_PORT_HTTPS ?= 8083
 # Note: this home dir in the container must match what is set for daemonUser in build.sbt
 EXCHANGE_CONTAINER_POSTGRES_CERT_FILE ?= $(EXCHANGE_HOST_POSTGRES_CERT_FILE)
 EXCHANGE_CONTAINER_TRUST_DIR ?= /etc/horizon/exchange
@@ -47,8 +47,8 @@ endif
 # HTTP and HTTPS must operate on different ports.
 # Exchange defaults to HTTPS when the same port number is given for both protocols.
 # Use 'null' to disable associated protocol.
-EXCHANGE_HOST_PORT_HTTP ?= null
-EXCHANGE_HOST_PORT_HTTPS ?= 8080
+EXCHANGE_HOST_PORT_HTTP ?= 8080
+EXCHANGE_HOST_PORT_HTTPS ?= 8083
 # The public cert we should use to connect to an ibm cloud postgres db
 EXCHANGE_HOST_POSTGRES_CERT_FILE ?= $(EXCHANGE_HOST_CONFIG_DIR)/postres-cert/root.crt
 # Directory location of the SSL truststore that is used to serve Https traffic. This need to be fully qualified, so docker can mount it into the container for the Exchange to access.
@@ -71,9 +71,12 @@ SCALA_VERSION ?= 2.13.5
 SCALA_VERSION_SHORT ?= 2.13
 
 
-# Altho the name is a little misleading, .docker-exec just means build the container used for running the exchange
+# Altho the name is a little misleading, "docker-run-icp" just means build the container used for running the exchange
 .PHONY: default
-default: docker-exec-run
+default: docker-run-icp
+
+.PHONY: all
+all: cleanest run-docker-icp-https test
 
 
 # Utility ---------------------------------------------------------------------
@@ -85,7 +88,7 @@ testmake:
 
 .PHONY: version
 version:
-	@echo $(EXCHANGE_VERSION)
+	@echo $(VERSION)
 
 
 # Pre-Compile -----------------------------------------------------------------
@@ -104,31 +107,50 @@ sync-swagger-ui:
 
 # Package ---------------------------------------------------------------------
 ## Package - Docker -------------------
-.PHONY: docker-exec
-docker-exec:
+target/docker/stage/Dockerfile: build.sbt
 	sbt docker:publishLocal
 
-.PHONY: docker
-docker: docker-exec
+target/docker/stage/1/licenses/LICENSE.txt: LICENSE.txt
+	sbt docker:publishLocal
 
-## Package - Jar    -------------------
-$(PROJECT_DIRECTORY)/target/universal/stage/bin/amd64_exchange-api:
+target/docker/stage/1/opt/docker/bin/amd64_exchange-api:
+	sbt docker:publishLocal
+
+target/docker/stage/2/etc/horizon/exchange/exchange-api.tmpl: config/exchange-api.tmpl
+	sbt docker:publishLocal
+
+target/docker/stage/2/opt/docker/lib/com.horizon.amd64_exchange-api-$(VERSION).jar: $(wildcard *.scala) $(wildcard *.java)
+	sbt docker:publishLocal
+
+.PHONY: package-dockerfile
+package-dockerfile: target/docker/stage/Dockerfile target/docker/stage/1/licenses/LICENSE.txt target/docker/stage/1/opt/docker/bin/amd64_exchange-api target/docker/stage/2/etc/horizon/exchange/exchange-api.tmpl target/docker/stage/2/opt/docker/lib/com.horizon.amd64_exchange-api-$(VERSION).jar
+
+## Package - Jar ----------------------
+target/scala-$(SCALA_VERSION_SHORT)/amd64_exchange-api_$(SCALA_VERSION_SHORT)-$(VERSION).jar: $(wildcard *.scala) $(wildcard *.java)
 	sbt stage
 
-.PHONY: stage
-stage: $(PROJECT_DIRECTORY)/target/universal/stage/bin/amd64_exchange-api
+target/universal/stage/bin/amd64_exchange-api:
+	sbt stage
+
+.PHONY: package-jar
+package-jar: target/scala-$(SCALA_VERSION_SHORT)/amd64_exchange-api_$(SCALA_VERSION_SHORT)-$(VERSION).jar target/universal/stage/bin/amd64_exchange-api
 
 
 # Pre-Run  --------------------------------------------------------------------
-.PHONY: docker-network
-docker-network:
+## Pre-run - Docker Network -----------
+target/docker/.docker-network: package-dockerfile
 	docker network create $(DOCKER_NETWORK)
+	@touch $@
 
-$(PROJECT_DIRECTORY)/target/postgres:
-	mkdir -p $(PROJECT_DIRECTORY)/target/postgres
+.PHONY: docker-network
+docker-network: target/docker/.docker-network
 
-# Creates a self-signed SSL certificate for localhost
-$(PROJECT_DIRECTORY)/target/postgres/postgres.crt: $(PROJECT_DIRECTORY)/target/postgres
+## Pre-run - Postgres -----------------
+target/postgres:
+	mkdir -p target/postgres
+
+## Creates a self-signed TLS certificate and private key for localhost
+target/postgres/postgres.crt: target/postgres
 	openssl req -x509 -days $(EXCHANGE_TRUST_DUR) -out $(PROJECT_DIRECTORY)/target/postgres/postgres.crt -keyout $(PROJECT_DIRECTORY)/target/postgres/postgres.key \
     -newkey rsa:4096 -nodes -sha512 \
     -subj '/CN=localhost' -extensions EXT -config <( \
@@ -136,10 +158,10 @@ $(PROJECT_DIRECTORY)/target/postgres/postgres.crt: $(PROJECT_DIRECTORY)/target/p
 	sudo chown 999:999 $(PROJECT_DIRECTORY)/target/postgres/postgres.crt $(PROJECT_DIRECTORY)/target/postgres/postgres.key
 
 .PHONY: truststore-postgres
-truststore-postgres: $(PROJECT_DIRECTORY)/target/postgres/postgres.crt
+truststore-postgres: target/postgres/postgres.crt
 
-.PHONY: docker-run-dev-db-postgres
-docker-run-dev-db-postgres: docker-network truststore-postgres
+## Start a PostreSQL database container with HTTPS
+target/docker/.run-docker-db-postgres-https: docker-network truststore-postgres
 	docker run \
       -d \
       -e POSTGRES_HOST_AUTH_METHOD=trust \
@@ -156,11 +178,16 @@ docker-run-dev-db-postgres: docker-network truststore-postgres
       -c ssl_ciphers=TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256\
       -c ssl_prefer_server_ciphers=true\
       -c ssl_min_protocol_version=TLSv1.3
+	@touch $@
 
+.PHONY: run-docker-db-postgres-https
+run-docker-db-postgres-https: target/docker/.run-docker-db-postgres-https
+
+## Pre-run - Exchange config.json -----
 $(EXCHANGE_CONFIG_DIR):
 	mkdir -p $(EXCHANGE_CONFIG_DIR)
 
-$(EXCHANGE_CONFIG_DIR)/config.json: $(EXCHANGE_CONFIG_DIR)
+$(EXCHANGE_CONFIG_DIR)/config-http.json: $(EXCHANGE_CONFIG_DIR)
 	: $${EXCHANGE_ROOTPW:?}
 	: $${EXCHANGE_TRUST_PW:?}
 	printf \
@@ -178,24 +205,52 @@ $(EXCHANGE_CONFIG_DIR)/config.json: $(EXCHANGE_CONFIG_DIR)
 '      "frontEndHeader": "$(EXCHANGE_FE_HEADER)"\n'\
 '    },\n'\
 '    "service": {\n'\
-'      "portEncrypted": $(EXCHANGE_CONTAINER_PORT_HTTPS),\n'\
-'      "portUnencrypted": $(EXCHANGE_CONTAINER_PORT_HTTP)\n'\
+'      "port": $(EXCHANGE_CONTAINER_PORT_HTTP),\n'\
+'      "portEncrypted": $(EXCHANGE_CONTAINER_PORT_HTTPS)\n'\
+'    },\n'\
+'    "tls": {\n'\
+'      "password": null,\n'\
+'      "truststore": null\n'\
+'    }\n'\
+'  }\n'\
+'}' > $(EXCHANGE_CONFIG_DIR)/config-http.json
+	chmod o+r $(EXCHANGE_CONFIG_DIR)/config-http.json
+
+$(EXCHANGE_CONFIG_DIR)/config-https.json: $(EXCHANGE_CONFIG_DIR)
+	: $${EXCHANGE_ROOTPW:?}
+	: $${EXCHANGE_TRUST_PW:?}
+	printf \
+'{\n'\
+'  "api": {\n'\
+'    "db": {\n'\
+'      "jdbcUrl": "jdbc:postgresql://$(POSTGRES_CONTAINER_ADDRESS):$(POSTGRES_DB_PORT)/$(POSTGRES_DB_NAME)",\n'\
+'      "user": "$(POSTGRES_DB_USER)"\n'\
+'    },\n'\
+'    "logging": {'\
+'      "level": "$(EXCHANGE_LOG_LEVEL)"'\
+'    },'\
+'    "root": {\n'\
+'      "password": "$(EXCHANGE_ROOTPW)",\n'\
+'      "frontEndHeader": "$(EXCHANGE_FE_HEADER)"\n'\
+'    },\n'\
+'    "service": {\n'\
+'      "port": $(EXCHANGE_CONTAINER_PORT_HTTP),\n'\
+'      "portEncrypted": $(EXCHANGE_CONTAINER_PORT_HTTPS)\n'\
 '    },\n'\
 '    "tls": {\n'\
 '      "password": "$(EXCHANGE_TRUST_PW)",\n'\
 '      "truststore": "$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12"\n'\
 '    }\n'\
 '  }\n'\
-'}' > $(EXCHANGE_CONFIG_DIR)/config.json
-	chmod o+r $(EXCHANGE_CONFIG_DIR)/config.json
+'}' > $(EXCHANGE_CONFIG_DIR)/config-https.json
+	chmod o+r $(EXCHANGE_CONFIG_DIR)/config-https.json
 
-## Pre-Run - TLS Truststore ------------
+## Pre-Run - TLS Truststore -----------
 ## Only do this once to create the exchange truststore for https (which includes the private key, and cert with multiple names).
 $(EXCHANGE_HOST_TRUST_DIR): $(EXCHANGE_CONFIG_DIR)
 	mkdir -p $(EXCHANGE_HOST_TRUST_DIR)
 
 ## Creates a self-signed TLS certificate for localhost
-
 $(EXCHANGE_HOST_TRUST_DIR)/localhost.crt: $(EXCHANGE_HOST_TRUST_DIR)
 	openssl req -x509 -days $(EXCHANGE_TRUST_DUR) -out $(EXCHANGE_HOST_TRUST_DIR)/localhost.crt -keyout $(EXCHANGE_HOST_TRUST_DIR)/localhost.key \
     -newkey rsa:4096 -nodes -sha512 \
@@ -212,41 +267,23 @@ truststore: $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12
 
 
 # Run -------------------------------------------------------------------------
-## Run - Docker ------------------------
-## config.json is renamed to exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
-.PHONY: .docker-exec-run
-docker-exec-run: docker-exec docker-network
-	@if [[ ! -f "$(EXCHANGE_HOST_TRUST_DIR)/localhost.p12"]]; then echo "Error: keystore and keypassword do not exist in $(EXCHANGE_HOST_TRUST_DIR). You must first copy them there or run 'make truststore'"; false; fi
+## Run - Docker -----------------------
+## For Continuous Integration testing
+/target/docker/.run-docker: $(EXCHANGE_CONFIG_DIR)/config-http.json docker-network
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
       -d -t \
-      -p $(EXCHANGE_HOST_PORT_HTTPS):$(EXCHANGE_CONTAINER_PORT_HTTPS) \
-      -e "JAVA_OPTS=$(JAVA_OPTS)" \
-      -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" \
-      -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl:ro \
-      -v $(EXCHANGE_HOST_ICP_CERT_FILE):$(EXCHANGE_ICP_CERT_FILE) \
-      -v $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12:$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12:ro \
-      # -v $(EXCHANGE_HOST_POSTGRES_CERT_FILE):$(EXCHANGE_CONTAINER_POSTGRES_CERT_FILE) \
+      -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
+      -v $(EXCHANGE_HOST_CONFIG_DIR)/config-http.json:$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl:ro \
       $(image-string):$(DOCKER_TAG)
+	@touch $@
 
-## Note: this target is used by Travis CI's automated testing
-## config.json is mounted into the container as exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Bind-mounting it with read-only permissions prevents the container from attempting to overwrite it.
-.PHONY: docker-run-dev
-docker-run-dev: $(EXCHANGE_CONFIG_DIR)/config.json docker-exec docker-run-dev-db-postgres truststore
-	docker run \
-      --name $(DOCKER_NAME) \
-      --network $(DOCKER_NETWORK) \
-      -d -t \
-      -p $(EXCHANGE_HOST_PORT_HTTPS):$(EXCHANGE_CONTAINER_PORT_HTTPS) \
-      -e "JAVA_OPTS=$(JAVA_OPTS)" \
-      -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl:ro \
-      -v $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12:$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12:ro \
-      $(IMAGE_STRING):$(DOCKER_TAG)
+.PHONY: run-docker
+run-docker: /target/docker/.run-docker
 
-## config.json is mounted into the container as exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Bind-mounting it with read-only permissions prevents the container from attempting to overwrite it.
-.PHONY: docker-run-dev-with-http
-docker-run-dev-with-http: $(EXCHANGE_CONFIG_DIR)/config.json docker-exec docker-run-dev-db-postgres truststore
+## config.json is renamed to exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
+target/docker/.run-docker-icp-https: $(EXCHANGE_CONFIG_DIR)/config-https.json docker-network docker-run-db-postgres-https truststore
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
@@ -254,34 +291,49 @@ docker-run-dev-with-http: $(EXCHANGE_CONFIG_DIR)/config.json docker-exec docker-
       -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
       -p $(EXCHANGE_HOST_PORT_HTTPS):$(EXCHANGE_CONTAINER_PORT_HTTPS) \
       -e "JAVA_OPTS=$(JAVA_OPTS)" \
-      -v $(EXCHANGE_HOST_CONFIG_DIR)/config.json:$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl:ro \
+      -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" \
+      -v $(EXCHANGE_HOST_CONFIG_DIR)/config-https.json:$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl:ro \
+      -v $(EXCHANGE_HOST_ICP_CERT_FILE):$(EXCHANGE_ICP_CERT_FILE) \
       -v $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12:$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12:ro \
+      -v $(EXCHANGE_HOST_POSTGRES_CERT_FILE):$(EXCHANGE_CONTAINER_POSTGRES_CERT_FILE) \
+      $(image-string):$(DOCKER_TAG)
+	@touch $@
+
+.PHONY: run-docker-icp-https
+run-docker-icp-https: target/docker/.run-docker-icp-https
+
+## config.json is mounted into the container as exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Bind-mounting it with read-only permissions prevents the container from attempting to overwrite it.
+target/docker/.run-docker-icp: $(EXCHANGE_CONFIG_DIR)/config-http.json docker-network
+	docker run \
+      --name $(DOCKER_NAME) \
+      --network $(DOCKER_NETWORK) \
+      -d -t \
+      -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
+      -e "JAVA_OPTS=$(JAVA_OPTS)" \
+      -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" \
+      -v $(EXCHANGE_HOST_CONFIG_DIR)/config-http.json:$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl:ro \
       $(IMAGE_STRING):$(DOCKER_TAG)
+	@touch $@
 
-.PHONY: travis-test
-travis-test: docker-exec docker-network
-	docker rm -f $(DOCKER_NAME) 2> /dev/null || :
-	docker run --name $(DOCKER_NAME) --network $(DOCKER_NETWORK) -d -t -p $(EXCHANGE_API_PORT):$(EXCHANGE_API_PORT) -e "JAVA_OPTS=$(JAVA_OPTS)" -v /etc/horizon/exchange/config.json:/etc/horizon/exchange/exchange-api.tmpl:ro $(image-string):$(DOCKER_TAG)
+.PHONY: run-docker-icp
+run-docker-icp: target/docker/.run-docker-icp
 
-## Run - Shell  ------------------------
-## Build the jar and run it locally in a shell (not .class files in sbt and not in a docker container)
+## Run - Shell  -----------------------
+## Build the jar and run it locally in a shell (not .class files in sbt, nor in a docker container)
 ## Note: this is the same way it is run inside the docker container
-.PHONY: runexecutable
-runexecutable: stage truststore
+.PHONY: run-executable
+run-executable: stage
 	./target/universal/stage/bin/amd64_exchange-api
 
 
 # Publish ---------------------------------------------------------------------
-## Publish - Docker Hub ----------------
+## Publish - Docker Hub ---------------
 ## Push the docker images to the registry w/o rebuilding them
 .PHONY: docker-push-only
 docker-push-only:
 	docker push $(IMAGE_STRING):$(DOCKER_TAG)
 	docker tag $(IMAGE_STRING):$(DOCKER_TAG) $(IMAGE_STRING):$(DOCKER_LATEST)
 	docker push $(IMAGE_STRING):$(DOCKER_LATEST)
-
-.PHONY: docker-push
-docker-push: docker docker-push-only
 
 ## Promote to prod by retagging to stable and pushing to the docker registry
 .PHONY: docker-push-to-prod
@@ -296,51 +348,55 @@ docker-push-version-only:
 
 
 # Test  -----------------------------------------------------------------------
+# Local test
+# Must an Exchange instance running locally or in docker
 .PHONY: test
 test:
 	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
 	sbt test
 
 
-# Cleanup ---------------------------------------------------------------------
-## Cleanup - Docker --------------------
-.PHONY: docker-clean
-docker-clean:
+# Cleanup -------------------------------------------------------------target/docker/.docker-run-icp--------
+## Cleanup - Docker -------------------
+.PHONY: clean-docker
+clean-docker:
 	docker rm -f $(DOCKER_NAME) 2> /dev/null || :
 	docker rm -f $(POSTGRES_CONTAINER_NAME) 2> /dev/null || :
 	docker network remove $(DOCKER_NETWORK) 2> /dev/null || :
-	sudo rm -fr ./target/postgres
+	rm -f target/docker/.docker-network target/docker/.run-docker target/docker/.run-docker-db-postgres-https target/docker/.run-docker-icp target/docker/.run-docker-icp-https
+	sudo rm -fr target/postgres
 
-.PHONY: docker-cleaner
-docker-cleaner: docker-clean
+.PHONY: cleaner-docker
+cleaner-docker: clean-docker
 	docker rmi -f $(IMAGE_STRING)
+	rm -fr target/docker
 
-.PHONY: docker-cleanest
-docker-cleanest: docker-cleaner
+.PHONY: cleanest-docker
+cleanest-docker: cleaner-docker
 	docker system prune -af
 
-## Cleanup - Truststore ----------------
-.PHONY: truststore-clean
-truststore-clean:
+## Cleanup - Truststore ---------------
+.PHONY: clean-truststore
+clean-truststore:
 	rm -f $(EXCHANGE_HOST_TRUST_DIR)/*.p12
 
-.PHONY: truststore-cleaner
-truststore-cleaner: truststore-clean
+.PHONY: cleaner-truststore
+cleaner-truststore: clean-truststore
 	rm -f $(EXCHANGE_HOST_TRUST_DIR)/*.crt $(EXCHANGE_HOST_TRUST_DIR)/*.key
 
-.PHONY: truststore-cleanest
-truststore-cleanest: truststore-cleaner
+.PHONY: cleanest-truststore
+cleanest-truststore: cleaner-truststore
 	rm -fr $(EXCHANGE_HOST_TRUST_DIR)
 
-## Cleanup - All -----------------------
+## Cleanup - All ----------------------
 .PHONY: clean
-clean: docker-clean truststore-clean
+clean: clean-docker clean-truststore
 	sbt clean
 
 .PHONY: cleaner
-cleaner: clean docker-cleaner truststore-cleaner
+cleaner: clean cleaner-docker cleaner-truststore
 	rm -fr $(EXCHANGE_CONFIG_DIR)
 
 .PHONY: cleanest
-cleanest: cleaner docker-cleanest truststore-cleanest
+cleanest: cleaner cleanest-docker cleanest-truststore
 	rm -fr ./target ./bin

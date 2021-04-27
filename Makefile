@@ -36,11 +36,11 @@ EXCHANGE_HOST_ALIAS ?= edge-fab-exchange
 
 ifeq ($(shell uname),Darwin)
   # Mac OS X
-  EXCHANGE_HOST_CONFIG_DIR ?= /private$(EXCHANGE_CONFIG_DIR)/docker
+  EXCHANGE_HOST_CONFIG_DIR ?= /private$(EXCHANGE_CONFIG_DIR)
   EXCHANGE_HOST_ICP_CERT_FILE ?= /private$(EXCHANGE_ICP_CERT_FILE)
 else
   # Assume Linux (could test by test if OS is Linux)
-  EXCHANGE_HOST_CONFIG_DIR ?= $(EXCHANGE_CONFIG_DIR)/docker
+  EXCHANGE_HOST_CONFIG_DIR ?= $(EXCHANGE_CONFIG_DIR)
   EXCHANGE_HOST_ICP_CERT_FILE ?= $(EXCHANGE_ICP_CERT_FILE)
 endif
 
@@ -111,22 +111,19 @@ target/docker/stage/Dockerfile:
 	sbt docker:publishLocal
 
 .PHONY: package-dockerfile
-package-dockerfile: target/docker/stage/Dockerfile target/docker/stage/1/licenses/LICENSE.txt target/docker/stage/1/opt/docker/bin/amd64_exchange-api target/docker/stage/2/etc/horizon/exchange/exchange-api.tmpl target/docker/stage/2/opt/docker/lib/com.horizon.amd64_exchange-api-$(VERSION).jar
+package-dockerfile: target/docker/stage/Dockerfile
 
 ## Package - Jar ----------------------
 target/scala-$(SCALA_VERSION_SHORT)/amd64_exchange-api_$(SCALA_VERSION_SHORT)-$(VERSION).jar: $(wildcard *.scala) $(wildcard *.java)
 	sbt stage
 
-target/universal/stage/bin/amd64_exchange-api:
-	sbt stage
-
 .PHONY: package-jar
-package-jar: target/scala-$(SCALA_VERSION_SHORT)/amd64_exchange-api_$(SCALA_VERSION_SHORT)-$(VERSION).jar target/universal/stage/bin/amd64_exchange-api
+package-jar: target/scala-$(SCALA_VERSION_SHORT)/amd64_exchange-api_$(SCALA_VERSION_SHORT)-$(VERSION).jar
 
 
 # Pre-Run  --------------------------------------------------------------------
 ## Pre-run - Docker Network -----------
-target/docker/.docker-network: package-dockerfile
+target/docker/.docker-network: target/docker/stage/Dockerfile
 	docker network create $(DOCKER_NETWORK)
 	@touch $@
 
@@ -149,7 +146,7 @@ target/postgres/postgres.crt: target/postgres
 truststore-postgres: target/postgres/postgres.crt
 
 ## Start a PostreSQL database container with HTTPS
-target/docker/.run-docker-db-postgres-https: docker-network truststore-postgres
+target/docker/.run-docker-db-postgres-https: target/docker/.docker-network target/postgres/postgres.crt
 	docker run \
       -d \
       -e POSTGRES_HOST_AUTH_METHOD=trust \
@@ -256,21 +253,21 @@ truststore: $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12
 # Run -------------------------------------------------------------------------
 ## Run - Docker -----------------------
 ## For Continuous Integration testing
-/target/docker/.run-docker: $(EXCHANGE_CONFIG_DIR)/config-http.json docker-network
+target/docker/.run-docker: $(EXCHANGE_CONFIG_DIR)/config-http.json target/docker/.docker-network
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
       -d -t \
       -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
       -v $(EXCHANGE_HOST_CONFIG_DIR)/config-http.json:$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl:ro \
-      $(image-string):$(DOCKER_TAG)
+      $(IMAGE_STRING):$(DOCKER_TAG)
 	@touch $@
 
 .PHONY: run-docker
-run-docker: /target/docker/.run-docker
+run-docker: target/docker/.run-docker
 
 ## config.json is renamed to exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
-target/docker/.run-docker-icp-https: $(EXCHANGE_CONFIG_DIR)/config-https.json docker-network docker-run-db-postgres-https truststore
+target/docker/.run-docker-icp-https: $(EXCHANGE_CONFIG_DIR)/config-https.json target/docker/.docker-network target/docker/.run-docker-db-postgres-https target/postgres/postgres.crt
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
@@ -283,14 +280,14 @@ target/docker/.run-docker-icp-https: $(EXCHANGE_CONFIG_DIR)/config-https.json do
       -v $(EXCHANGE_HOST_ICP_CERT_FILE):$(EXCHANGE_ICP_CERT_FILE) \
       -v $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12:$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12:ro \
       -v $(EXCHANGE_HOST_POSTGRES_CERT_FILE):$(EXCHANGE_CONTAINER_POSTGRES_CERT_FILE) \
-      $(image-string):$(DOCKER_TAG)
+      $(IMAGE_STRING):$(DOCKER_TAG)
 	@touch $@
 
 .PHONY: run-docker-icp-https
 run-docker-icp-https: target/docker/.run-docker-icp-https
 
 ## config.json is mounted into the container as exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Bind-mounting it with read-only permissions prevents the container from attempting to overwrite it.
-target/docker/.run-docker-icp: $(EXCHANGE_CONFIG_DIR)/config-http.json docker-network
+target/docker/.run-docker-icp: $(EXCHANGE_CONFIG_DIR)/config-http.json target/docker/.docker-network
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \

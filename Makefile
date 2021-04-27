@@ -107,19 +107,7 @@ sync-swagger-ui:
 
 # Package ---------------------------------------------------------------------
 ## Package - Docker -------------------
-target/docker/stage/Dockerfile: build.sbt
-	sbt docker:publishLocal
-
-target/docker/stage/1/licenses/LICENSE.txt: LICENSE.txt
-	sbt docker:publishLocal
-
-target/docker/stage/1/opt/docker/bin/amd64_exchange-api:
-	sbt docker:publishLocal
-
-target/docker/stage/2/etc/horizon/exchange/exchange-api.tmpl: config/exchange-api.tmpl
-	sbt docker:publishLocal
-
-target/docker/stage/2/opt/docker/lib/com.horizon.amd64_exchange-api-$(VERSION).jar: $(wildcard *.scala) $(wildcard *.java)
+target/docker/stage/Dockerfile:
 	sbt docker:publishLocal
 
 .PHONY: package-dockerfile
@@ -189,7 +177,6 @@ $(EXCHANGE_CONFIG_DIR):
 
 $(EXCHANGE_CONFIG_DIR)/config-http.json: $(EXCHANGE_CONFIG_DIR)
 	: $${EXCHANGE_ROOTPW:?}
-	: $${EXCHANGE_TRUST_PW:?}
 	printf \
 '{\n'\
 '  "api": {\n'\

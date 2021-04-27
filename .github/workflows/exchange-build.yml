@@ -20,7 +20,7 @@ jobs:
       EXCHANGE_ROOTPW: ci-password
       POSTGRES_DB_NAME: exchange
       POSTGRES_DB_PORT: 5432
-      POSTGRES_USER: admin
+      POSTGRES_DB_USER: admin
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -34,7 +34,7 @@ jobs:
           pwd
           java -version
           make docker-network
-          docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=POSTGRES_DB_NAME -e POSTGRES_USER=$POSTGRES_USER --network $DOCKER_NETWORK --name postgres postgres
+          docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=POSTGRES_DB_NAME -e POSTGRES_USER=$POSTGRES_DB_USER --network $DOCKER_NETWORK --name postgres postgres
           export POSTGRES_CONTAINER_ADDRESS=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres)
           make run-docker
           cat target/etc/horizon/exchange/config-http.json

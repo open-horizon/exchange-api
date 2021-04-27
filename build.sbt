@@ -126,7 +126,7 @@ lazy val root = (project in file("."))
                                         Cmd("LABEL", "summary=" ++ summary.value), 
                                         Cmd("LABEL", "vendor=" ++ vendor.value), 
                                         Cmd("LABEL", "version=" ++ version.value), 
-                                        Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs && microdnf install -y --nodocs shadow-utils gettext java-11-openjdk && microdnf clean all"),
+                                        Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs && microdnf install -y --nodocs shadow-utils gettext java-11-openjdk openssl && microdnf clean all"),
                                         Cmd("USER", "root"), 
                                         Cmd("RUN", "id -u " ++ (Docker / daemonUser).value ++ " 1>/dev/null 2>&1 || ((getent group 1001 1>/dev/null 2>&1 || (type groupadd 1>/dev/null 2>&1 && groupadd -g 1001 " ++ (Docker / daemonGroup).value ++ " || addgroup -g 1001 -S " ++ (Docker / daemonGroup).value ++ ")) && (type useradd 1>/dev/null 2>&1 && useradd --system --create-home --uid 1001 --gid 1001 " ++ (Docker / daemonUser).value ++ " || adduser -S -u 1001 -G " ++ (Docker / daemonGroup).value ++ " " ++ (Docker / daemonUser).value ++ "))"),
                                         Cmd("WORKDIR", "/etc/horizon/exchange"), 

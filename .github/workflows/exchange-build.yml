@@ -36,7 +36,7 @@ jobs:
           make docker-network
           docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=POSTGRES_DB_NAME -e POSTGRES_USER=$POSTGRES_USER --network $DOCKER_NETWORK --name postgres postgres
           export POSTGRES_CONTAINER_ADDRESS=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres)
-          make docker-run
+          make run-docker
           cat target/etc/horizon/exchange/config-http.json
           docker ps -a
           docker network ls

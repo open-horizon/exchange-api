@@ -11,7 +11,7 @@ import java.util.Optional
 import akka.Done
 import akka.actor.{Actor, ActorRef, ActorSystem, Cancellable, CoordinatedShutdown, Props}
 import akka.event.{Logging, LoggingAdapter}
-import akka.http.javadsl.model
+import akka.http.javadsl.model.HttpHeader
 
 import scala.util.matching.Regex
 import akka.http.scaladsl.server.RouteResult.Rejected
@@ -22,6 +22,7 @@ import slick.jdbc.PostgresProfile.api._
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
+import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `must-revalidate`, `no-cache`, `no-store`}
 import akka.http.scaladsl.model.headers.{RawHeader, `Cache-Control`}
@@ -157,7 +158,7 @@ object ExchangeApiApp extends App
   def requestResponseLogging(req: HttpRequest): RouteResult => Option[LogEntry] = {
     case RouteResult.Complete(res) =>
       // First decode the auth and get the org/id
-      val optionalEncodedAuth: Optional[model.HttpHeader] = req.getHeader("Authorization") // this is type: com.typesafe.config.Optional[akka.http.scaladsl.model.HttpHeader]
+      val optionalEncodedAuth: Optional[HttpHeader] = req.getHeader("Authorization")
       val encodedAuth: String = if (optionalEncodedAuth.isPresent) optionalEncodedAuth.get().value() else ""
       val authId: String = encodedAuth match {
         case "" => "<no-auth>"
@@ -343,17 +344,25 @@ object ExchangeApiApp extends App
   
   val secondsToWait: Int = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete") // ExchConfig.getAkkaConfig() also makes the akka unbind phase this long
   
-  var serverBindingHttp: Future[Http.ServerBinding] = null
-  var serverBindingHttps: Future[Http.ServerBinding] = null
+  var serverBindingHttp: Option[Http.ServerBinding] = None
+  var serverBindingHttps: Option[Http.ServerBinding] = None
   
-  if(ExchangeApi.servicePortEncrypted.isDefined) {
+  val truststore: Option[String] =
+    try {
+      Option(ExchConfig.getString("api.tls.truststore"))
+    }
+    catch {
+      case _: Exception => None
+    }
+  
+  if(truststore.isDefined) {
     val keyStore: KeyStore = KeyStore.getInstance("PKCS12")
     val keyManager: KeyManagerFactory = KeyManagerFactory.getInstance("PKIX")
     val sslContext: SSLContext = SSLContext.getInstance("TLSv1.3")
     val trustManager: TrustManagerFactory = TrustManagerFactory.getInstance("PKIX")
     
     try {
-      keyStore.load(new FileInputStream(ExchConfig.getString("api.tls.truststore")),
+      keyStore.load(new FileInputStream(truststore.get),
                                         ExchConfig.getString("api.tls.password").toCharArray)
       keyManager.init(keyStore, ExchConfig.getString("api.tls.password").toCharArray)
       trustManager.init(keyStore)
@@ -362,25 +371,26 @@ object ExchangeApiApp extends App
                       new SecureRandom)
   
       // Start serving client requests
-      serverBindingHttps = akka.http.scaladsl.Http().newServerAt(ExchangeApi.serviceHost, ExchangeApi.servicePortEncrypted.get)
-                                                    .enableHttps(ConnectionContext.httpsServer(() => {               // Custom TLS parameters
-                                                      val engine: SSLEngine = sslContext.createSSLEngine()
-                                                      
-                                                      engine.setEnabledProtocols(Array("TLSv1.3"))
-                                                      engine.setEnabledCipherSuites(Array("TLS_AES_256_GCM_SHA384")) // "TLS_CHACHA20_POLY1305_SHA256" available in Java 14
-                                                      engine.setUseClientMode(false)
-                                                      engine
-                                                    }))
-                                                    .bind(routes)
-                                                    .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
-      serverBindingHttps.onComplete {
-        case Success(bound) =>
-          logger.info(ExchMsg.translate("server.start", s"https://${ExchangeApi.serviceHost}:${bound.localAddress.getPort}/")) // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
-        case Failure(e) =>
-          logger.error(ExchMsg.translate("server.start.failure.https"))
-          e.printStackTrace()
-          system.terminate()
-      }
+      Http().newServerAt(ExchangeApi.serviceHost, ExchangeApi.servicePortEncrypted.get)
+            .enableHttps(ConnectionContext.httpsServer(() => {               // Custom TLS parameters
+              val engine: SSLEngine = sslContext.createSSLEngine()
+              
+              engine.setEnabledProtocols(Array("TLSv1.3"))
+              engine.setEnabledCipherSuites(Array("TLS_AES_256_GCM_SHA384")) // "TLS_CHACHA20_POLY1305_SHA256" available in Java 14
+              engine.setUseClientMode(false)
+              engine
+            }))
+            .bind(routes)
+            .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
+            .onComplete {
+              case Success(binding) =>
+                logger.info(ExchMsg.translate("server.start", s"https://${ExchangeApi.serviceHost}:${binding.localAddress.getPort}/")) // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
+                serverBindingHttps = Option(binding)
+              case Failure(e) =>
+                logger.error(ExchMsg.translate("server.start.failure.https"))
+                e.printStackTrace()
+                system.terminate()
+            }
     }
     catch {
       case pkcs12NotFound: java.io.FileNotFoundException =>
@@ -399,17 +409,18 @@ object ExchangeApiApp extends App
   }
   
   if(ExchangeApi.servicePortUnencrypted.isDefined) {
-    serverBindingHttp = akka.http.scaladsl.Http().newServerAt(ExchangeApi.serviceHost, ExchangeApi.servicePortUnencrypted.get)
-                                                 .bind(routes)
-                                                 .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
-    serverBindingHttp.onComplete {
-      case Success(bound) =>
-        logger.info(ExchMsg.translate("server.start", s"http://${ExchangeApi.serviceHost}:${bound.localAddress.getPort}/")) // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
-      case Failure(e) =>
-        logger.error(ExchMsg.translate("server.start.failure.http"))
-        e.printStackTrace()
-        system.terminate()
-    }
+    Http().newServerAt(ExchangeApi.serviceHost, ExchangeApi.servicePortUnencrypted.get)
+          .bind(routes)
+          .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
+          .onComplete {
+            case Success(binding) =>
+              logger.info(ExchMsg.translate("server.start", s"http://${ExchangeApi.serviceHost}:${binding.localAddress.getPort}/")) // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
+              serverBindingHttp = Option(binding)
+            case Failure(e) =>
+              logger.error(ExchMsg.translate("server.start.failure.http"))
+              e.printStackTrace()
+              system.terminate()
+          }
     
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "http-unbound") {
       () =>
@@ -418,8 +429,8 @@ object ExchangeApiApp extends App
     }
   }
   
-  if(serverBindingHttp.value.isDefined ||
-     serverBindingHttps.value.isDefined) {
+  if(serverBindingHttp.isDefined ||
+     serverBindingHttps.isDefined) {
     changesCleanup = system.scheduler.schedule(cleanupInterval.seconds, cleanupInterval.seconds, changesCleanupActor, Cleanup)
     logger.debug(ExchMsg.translate("message.cleanup.scheduled", cleanupInterval.seconds, cleanupInterval.seconds))
     

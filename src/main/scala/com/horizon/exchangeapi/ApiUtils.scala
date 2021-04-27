@@ -256,19 +256,16 @@ object ExchConfig {
     }
     val portUnencrypted: Option[Int] = {
       try {
-        Option(config.getInt("api.service.portUnencrypted"))
+        Option(config.getInt("api.service.port"))
       }
       catch {
         case _: Exception => None
       }
     }
-  
-    println("portEncrypted: " + portEncrypted.getOrElse("None"))
-    println("portUnencrypted: " + portUnencrypted.getOrElse("None"))
     
     (portEncrypted, portUnencrypted) match {
-      case (None, None) => (host, Option(8080), portUnencrypted)
-      case (a, b) if (a == b) => (host, portEncrypted, None)
+      case (None, None) => (host, None, Option(8080))
+      case (a, b) if (a == b) => (host, None, portUnencrypted)
       case _ => (host, portEncrypted, portUnencrypted)
     }
   }

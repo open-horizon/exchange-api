@@ -85,8 +85,8 @@
     },
     "service": {
       "host": "0.0.0.0",
-      "portEncrypted": 8080,                   // Services HTTPS traffic
-      "portUnencrypted": null,                 // Services HTTP traffic
+      "port": 8080,                 // Services HTTP traffic
+      "portEncrypted": 8083,                   // Services HTTPS traffic
       "shutdownWaitForRequestsToComplete": 60  // number of seconds to let in-flight requests complete before exiting the server
     },
     "tls": {

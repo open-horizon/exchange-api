@@ -251,7 +251,7 @@ truststore: $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12
 ## For Continuous Integration testing
 #$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl2
 target/docker/.run-docker: /etc/horizon/exchange/config-http.json target/docker/.docker-network
-	sudo -- bash -c "/etc/horizon/exchange/config-http.json > /etc/horizon/exchange/config.json"
+	sudo -- bash -c "cp /etc/horizon/exchange/config-http.json /etc/horizon/exchange/config.json"
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
@@ -266,7 +266,7 @@ run-docker: target/docker/.run-docker
 
 ## config.json is renamed to exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
 target/docker/.run-docker-icp-https: /etc/horizon/exchange/config-https.json target/docker/.docker-network target/docker/.run-docker-db-postgres-https target/postgres/postgres.crt
-	sudo -- bash -c "/etc/horizon/exchange/config-https.json > /etc/horizon/exchange/config.json"
+	sudo -- bash -c "cp /etc/horizon/exchange/config-https.json /etc/horizon/exchange/config.json"
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
@@ -288,7 +288,7 @@ run-docker-icp-https: target/docker/.run-docker-icp-https
 ## config.json is mounted into the container as exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Bind-mounting it with read-only permissions prevents the container from attempting to overwrite it.
 #
 target/docker/.run-docker-icp: /etc/horizon/exchange/config-http.json target/docker/.docker-network
-	sudo -- bash -c "/etc/horizon/exchange/config-http.json > /etc/horizon/exchange/config.json"
+	sudo -- bash -c "cp /etc/horizon/exchange/config-http.json /etc/horizon/exchange/config.json"
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \

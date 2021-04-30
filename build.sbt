@@ -138,7 +138,8 @@ lazy val root = (project in file("."))
                                         Cmd("COPY --from=stage0 --chown=" ++ (Docker / daemonUser).value ++ ":" ++ (Docker / daemonGroup).value, "/2/opt/docker /opt/docker"),
                                         Cmd("ENV", "JAVA_OPTS=''"),
                                         Cmd("ENV", "ENVSUBST_CONFIG=''"),
-                                        Cmd("EXPOSE", "8080"), 
+                                        Cmd("EXPOSE", "8080"),
+                                        Cmd("EXPOSE", "8083"),
                                         Cmd("USER", "1001:1001"), 
                                         /*
                                          * If bind-mounting your own config.json rename the configuration file in the container's filesystem to exchange-api.tmpl. This will overwrite the 

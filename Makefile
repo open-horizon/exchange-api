@@ -196,7 +196,7 @@ run-docker-db-postgres-https: target/docker/.run-docker-db-postgres-https
 '}' > /etc/horizon/exchange/config-http.json"
 	sudo chmod o+r /etc/horizon/exchange/config-http.json
 
-/etc/horizon/exchange/config-https.json: /etc/horizon/exchange
+/etc/horizon/exchange/config.json: /etc/horizon/exchange
 	: $${EXCHANGE_ROOTPW:?}
 	: $${EXCHANGE_TRUST_PW:?}
 	sudo -- bash -c "printf \
@@ -251,12 +251,13 @@ truststore: $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12
 ## For Continuous Integration testing
 #$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl2
 target/docker/.run-docker: /etc/horizon/exchange/config-http.json target/docker/.docker-network
+	sudo -- bash -c "/etc/horizon/exchange/config-http.json > /etc/horizon/exchange/config.json"
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
       -d -t \
       -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
-      -v /etc/horizon/exchange/config-http.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
+      -v /etc/horizon/exchange/config.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
       $(IMAGE_STRING):$(DOCKER_TAG)
 	@touch $@
 
@@ -265,6 +266,7 @@ run-docker: target/docker/.run-docker
 
 ## config.json is renamed to exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
 target/docker/.run-docker-icp-https: /etc/horizon/exchange/config-https.json target/docker/.docker-network target/docker/.run-docker-db-postgres-https target/postgres/postgres.crt
+	sudo -- bash -c "/etc/horizon/exchange/config-https.json > /etc/horizon/exchange/config.json"
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
@@ -273,7 +275,7 @@ target/docker/.run-docker-icp-https: /etc/horizon/exchange/config-https.json tar
       -p $(EXCHANGE_HOST_PORT_HTTPS):$(EXCHANGE_CONTAINER_PORT_HTTPS) \
       -e "JAVA_OPTS=$(JAVA_OPTS)" \
       -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" \
-      -v /etc/horizon/exchange/config-https.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
+      -v /etc/horizon/exchange/config.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
       -v $(EXCHANGE_HOST_ICP_CERT_FILE):$(EXCHANGE_ICP_CERT_FILE) \
       -v $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12:$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12:ro \
       -v $(EXCHANGE_HOST_POSTGRES_CERT_FILE):$(EXCHANGE_CONTAINER_POSTGRES_CERT_FILE) \
@@ -286,6 +288,7 @@ run-docker-icp-https: target/docker/.run-docker-icp-https
 ## config.json is mounted into the container as exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Bind-mounting it with read-only permissions prevents the container from attempting to overwrite it.
 #
 target/docker/.run-docker-icp: /etc/horizon/exchange/config-http.json target/docker/.docker-network
+	sudo -- bash -c "/etc/horizon/exchange/config-http.json > /etc/horizon/exchange/config.json"
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
@@ -293,7 +296,7 @@ target/docker/.run-docker-icp: /etc/horizon/exchange/config-http.json target/doc
       -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
       -e "JAVA_OPTS=$(JAVA_OPTS)" \
       -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" \
-      -v /etc/horizon/exchange/config-http.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
+      -v /etc/horizon/exchange/config.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
       $(IMAGE_STRING):$(DOCKER_TAG)
 	@touch $@
 
@@ -377,7 +380,7 @@ clean: clean-docker clean-truststore
 
 .PHONY: cleaner
 cleaner: clean cleaner-docker cleaner-truststore
-	sudo rm -fr /etc/horizon/exchange/config-http*.json
+	sudo rm -fr /etc/horizon/exchange/config*.json
 
 .PHONY: cleanest
 cleanest: cleaner cleanest-docker cleanest-truststore

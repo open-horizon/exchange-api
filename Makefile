@@ -6,7 +6,7 @@ SHELL = /bin/bash -e
 ARCH ?= amd64
 COMPILE_CLEAN ?= clean
 DOCKER_NAME ?= amd64_exchange-api
-DOCKER_NETWORK = exchange-api-network
+DOCKER_NETWORK ?= exchange-api-network
 DOCKER_REGISTRY ?= openhorizon
 VERSION = $(shell cat src/main/resources/version.txt)
 #todo: get this value from the target git branch

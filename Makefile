@@ -24,7 +24,7 @@ EXCHANGE_API_DIR ?= /src/github.com/open-horizon/exchange-api
 # This version corresponds to the Version variable in project/build.scala
 # EXCHANGE_API_WAR_VERSION ?= 0.1.0
 # Location of config.json and icp/ca.crt in the container
-EXCHANGE_CONFIG_DIR ?= $(PROJECT_DIRECTORY)/target/etc/horizon/exchange
+EXCHANGE_CONFIG_DIR ?= /etc/horizon/exchange#$(PROJECT_DIRECTORY)/target/etc/horizon/exchange
 EXCHANGE_CONTAINER_CONFIG_DIR ?= /etc/horizon/exchange
 EXCHANGE_CONTAINER_PORT_HTTP ?= 8080
 EXCHANGE_CONTAINER_PORT_HTTPS ?= 8083
@@ -169,69 +169,65 @@ target/docker/.run-docker-db-postgres-https: target/docker/.docker-network targe
 run-docker-db-postgres-https: target/docker/.run-docker-db-postgres-https
 
 ## Pre-run - Exchange config.json -----
-$(EXCHANGE_CONFIG_DIR):
-	mkdir -p $(EXCHANGE_CONFIG_DIR)
+/etc/horizon/exchange:
+	sudo mkdir -p /etc/horizon/exchange
 
-$(EXCHANGE_CONFIG_DIR)/config-http.json: $(EXCHANGE_CONFIG_DIR)
+/etc/horizon/exchange/config-http.json: /etc/horizon/exchange
 	: $${EXCHANGE_ROOTPW:?}
-	printf \
+	sudo -- bash -c "printf \
 '{\n'\
-'  "api": {\n'\
-'    "db": {\n'\
-'      "jdbcUrl": "jdbc:postgresql://$(POSTGRES_CONTAINER_ADDRESS):$(POSTGRES_DB_PORT)/$(POSTGRES_DB_NAME)",\n'\
-'      "user": "$(POSTGRES_DB_USER)"\n'\
+'  \"api\": {\n'\
+'    \"db\": {\n'\
+'      \"jdbcUrl\": \"jdbc:postgresql://$(POSTGRES_CONTAINER_ADDRESS):$(POSTGRES_DB_PORT)/$(POSTGRES_DB_NAME)\",\n'\
+'      \"user\": \"$(POSTGRES_DB_USER)\"\n'\
 '    },\n'\
-'    "logging": {'\
-'      "level": "$(EXCHANGE_LOG_LEVEL)"'\
-'    },'\
-'    "root": {\n'\
-'      "password": "$(EXCHANGE_ROOTPW)",\n'\
-'      "frontEndHeader": "$(EXCHANGE_FE_HEADER)"\n'\
+'    \"logging\": {\n'\
+'      \"level\": \"$(EXCHANGE_LOG_LEVEL)\"\n'\
 '    },\n'\
-'    "service": {\n'\
-'      "port": $(EXCHANGE_CONTAINER_PORT_HTTP),\n'\
-'      "portEncrypted": $(EXCHANGE_CONTAINER_PORT_HTTPS)\n'\
+'    \"root\": {\n'\
+'      \"password\": \"$(EXCHANGE_ROOTPW)\",\n'\
+'      \"frontEndHeader\": \"$(EXCHANGE_FE_HEADER)\"\n'\
 '    },\n'\
-'    "tls": {\n'\
-'      "password": null,\n'\
-'      "truststore": null\n'\
+'    \"service\": {\n'\
+'      \"port\": $(EXCHANGE_CONTAINER_PORT_HTTP),\n'\
+'      \"portEncrypted\": null\n'\
 '    }\n'\
 '  }\n'\
-'}' > $(EXCHANGE_CONFIG_DIR)/config-http.json
-	chmod o+r $(EXCHANGE_CONFIG_DIR)/config-http.json
+'}' > /etc/horizon/exchange/config-http.json"
+	sudo chmod o+r /etc/horizon/exchange/config-http.json
 
-$(EXCHANGE_CONFIG_DIR)/config-https.json: $(EXCHANGE_CONFIG_DIR)
+/etc/horizon/exchange/config-https.json: /etc/horizon/exchange
 	: $${EXCHANGE_ROOTPW:?}
 	: $${EXCHANGE_TRUST_PW:?}
-	printf \
+	sudo -- bash -c "printf \
 '{\n'\
-'  "api": {\n'\
-'    "db": {\n'\
-'      "jdbcUrl": "jdbc:postgresql://$(POSTGRES_CONTAINER_ADDRESS):$(POSTGRES_DB_PORT)/$(POSTGRES_DB_NAME)",\n'\
-'      "user": "$(POSTGRES_DB_USER)"\n'\
+'  \"api\": {\n'\
+'    \"db\": {\n'\
+'      \"jdbcUrl\": \"jdbc:postgresql://$(POSTGRES_CONTAINER_ADDRESS):$(POSTGRES_DB_PORT)/$(POSTGRES_DB_NAME)\",\n'\
+'      \"user\": \"$(POSTGRES_DB_USER)\"\n'\
 '    },\n'\
-'    "logging": {'\
-'      "level": "$(EXCHANGE_LOG_LEVEL)"'\
-'    },'\
-'    "root": {\n'\
-'      "password": "$(EXCHANGE_ROOTPW)",\n'\
-'      "frontEndHeader": "$(EXCHANGE_FE_HEADER)"\n'\
+'    \"logging\": {\n'\
+'      \"level\": \"$(EXCHANGE_LOG_LEVEL)\"\n'\
 '    },\n'\
-'    "service": {\n'\
-'      "port": $(EXCHANGE_CONTAINER_PORT_HTTP),\n'\
-'      "portEncrypted": $(EXCHANGE_CONTAINER_PORT_HTTPS)\n'\
+'    \"root\": {\n'\
+'      \"password\": \"$(EXCHANGE_ROOTPW)\",\n'\
+'      \"frontEndHeader\": \"$(EXCHANGE_FE_HEADER)\"\n'\
 '    },\n'\
-'    "tls": {\n'\
-'      "password": "$(EXCHANGE_TRUST_PW)",\n'\
-'      "truststore": "$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12"\n'\
+'    \"service\": {\n'\
+'      \"port\": $(EXCHANGE_CONTAINER_PORT_HTTP),\n'\
+'      \"portEncrypted\": $(EXCHANGE_CONTAINER_PORT_HTTPS)\n'\
+'    },\n'\
+'    \"tls\": {\n'\
+'      \"password\": \"$(EXCHANGE_TRUST_PW)\",\n'\
+'      \"truststore\": \"$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12\"\n'\
 '    }\n'\
 '  }\n'\
-'}' > $(EXCHANGE_CONFIG_DIR)/config-https.json
-	chmod o+r $(EXCHANGE_CONFIG_DIR)/config-https.json
+'}' > /etc/horizon/exchange/config-https.json"
+	sudo chmod o+r /etc/horizon/exchange/config-https.json
 
 ## Pre-Run - TLS Truststore -----------
 ## Only do this once to create the exchange truststore for https (which includes the private key, and cert with multiple names).
-$(EXCHANGE_HOST_TRUST_DIR): $(EXCHANGE_CONFIG_DIR)
+$(EXCHANGE_HOST_TRUST_DIR): /etc/horizon/exchange
 	mkdir -p $(EXCHANGE_HOST_TRUST_DIR)
 
 ## Creates a self-signed TLS certificate for localhost
@@ -253,13 +249,14 @@ truststore: $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12
 # Run -------------------------------------------------------------------------
 ## Run - Docker -----------------------
 ## For Continuous Integration testing
-target/docker/.run-docker: $(EXCHANGE_CONFIG_DIR)/config-http.json target/docker/.docker-network
+#$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl2
+target/docker/.run-docker: /etc/horizon/exchange/config-http.json target/docker/.docker-network
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
       -d -t \
       -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
-      -v $(EXCHANGE_HOST_CONFIG_DIR)/config-http.json:$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl:ro \
+      -v /etc/horizon/exchange/config-http.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
       $(IMAGE_STRING):$(DOCKER_TAG)
 	@touch $@
 
@@ -267,7 +264,7 @@ target/docker/.run-docker: $(EXCHANGE_CONFIG_DIR)/config-http.json target/docker
 run-docker: target/docker/.run-docker
 
 ## config.json is renamed to exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
-target/docker/.run-docker-icp-https: $(EXCHANGE_CONFIG_DIR)/config-https.json target/docker/.docker-network target/docker/.run-docker-db-postgres-https target/postgres/postgres.crt
+target/docker/.run-docker-icp-https: /etc/horizon/exchange/config-https.json target/docker/.docker-network target/docker/.run-docker-db-postgres-https target/postgres/postgres.crt
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
@@ -276,7 +273,7 @@ target/docker/.run-docker-icp-https: $(EXCHANGE_CONFIG_DIR)/config-https.json ta
       -p $(EXCHANGE_HOST_PORT_HTTPS):$(EXCHANGE_CONTAINER_PORT_HTTPS) \
       -e "JAVA_OPTS=$(JAVA_OPTS)" \
       -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" \
-      -v $(EXCHANGE_HOST_CONFIG_DIR)/config-https.json:$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl:ro \
+      -v /etc/horizon/exchange/config-https.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
       -v $(EXCHANGE_HOST_ICP_CERT_FILE):$(EXCHANGE_ICP_CERT_FILE) \
       -v $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12:$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12:ro \
       -v $(EXCHANGE_HOST_POSTGRES_CERT_FILE):$(EXCHANGE_CONTAINER_POSTGRES_CERT_FILE) \
@@ -287,7 +284,8 @@ target/docker/.run-docker-icp-https: $(EXCHANGE_CONFIG_DIR)/config-https.json ta
 run-docker-icp-https: target/docker/.run-docker-icp-https
 
 ## config.json is mounted into the container as exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Bind-mounting it with read-only permissions prevents the container from attempting to overwrite it.
-target/docker/.run-docker-icp: $(EXCHANGE_CONFIG_DIR)/config-http.json target/docker/.docker-network
+#
+target/docker/.run-docker-icp: /etc/horizon/exchange/config-http.json target/docker/.docker-network
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
@@ -295,7 +293,7 @@ target/docker/.run-docker-icp: $(EXCHANGE_CONFIG_DIR)/config-http.json target/do
       -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
       -e "JAVA_OPTS=$(JAVA_OPTS)" \
       -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" \
-      -v $(EXCHANGE_HOST_CONFIG_DIR)/config-http.json:$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl:ro \
+      -v /etc/horizon/exchange/config-http.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
       $(IMAGE_STRING):$(DOCKER_TAG)
 	@touch $@
 
@@ -366,7 +364,7 @@ clean-truststore:
 
 .PHONY: cleaner-truststore
 cleaner-truststore: clean-truststore
-	rm -f $(EXCHANGE_HOST_TRUST_DIR)/*.crt $(EXCHANGE_HOST_TRUST_DIR)/*.key
+	sudo rm -f $(EXCHANGE_HOST_TRUST_DIR)/*.crt $(EXCHANGE_HOST_TRUST_DIR)/*.key
 
 .PHONY: cleanest-truststore
 cleanest-truststore: cleaner-truststore
@@ -379,7 +377,7 @@ clean: clean-docker clean-truststore
 
 .PHONY: cleaner
 cleaner: clean cleaner-docker cleaner-truststore
-	rm -fr $(EXCHANGE_CONFIG_DIR)
+	sudo rm -fr /etc/horizon/exchange/config-http*.json
 
 .PHONY: cleanest
 cleanest: cleaner cleanest-docker cleanest-truststore

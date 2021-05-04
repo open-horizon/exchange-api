@@ -258,7 +258,6 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
-  
 
 ## Changes in 2.72.0
 
@@ -266,7 +265,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 ## Changes in 2.71.0
 
-- Issue 174: Added route GET/orgs/{orgid}/status to fetch org specific information.
+- Issue 493: Added route GET/orgs/{orgid}/status to fetch org specific information.
 
 ## Changed in 2.70.0
 

@@ -260,6 +260,14 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
     
     
+## Changes in 2.72.0
+- Issue 259: Added TLS support to the Exchange.
+- Updated Akka: 2.6.10 -> 2.6.14.
+- Updated Akka-Http: 10.2.2 -> 10.2.4.
+- Updated Swagger UI to version 3.47.1.
+- Updated Exchange's Swagger. APIs now sort by Tag -> API -> Method.
+- Remade Makefile.
+
 ## Changes in 2.71.0
 
 - Issue 493: Added route GET/orgs/{orgid}/status to fetch org specific information.

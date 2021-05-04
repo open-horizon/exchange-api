@@ -61,7 +61,7 @@ EXCHANGE_TRUST_DUR ?= 1
 # Use this to pass args to the exchange svr JVM by overriding JAVA_OPTS in your environment
 JAVA_OPTS ?=#-Xmx1G
 POSTGRES_CONTAINER_ADDRESS ?= $(shell docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(POSTGRES_CONTAINER_NAME))
-POSTGRES_CONTAINER_NAME ?= exchange-postgres
+POSTGRES_CONTAINER_NAME ?= postgres
 POSTGRES_DB_NAME ?= exchange
 POSTGRES_DB_PORT ?= 5432
 POSTGRES_DB_USER ?= admin
@@ -135,32 +135,34 @@ target/postgres:
 	mkdir -p target/postgres
 
 ## Creates a self-signed TLS certificate and private key for localhost
-target/postgres/postgres.crt: target/postgres
-	openssl req -x509 -days $(EXCHANGE_TRUST_DUR) -out $(PROJECT_DIRECTORY)/target/postgres/postgres.crt -keyout $(PROJECT_DIRECTORY)/target/postgres/postgres.key \
+/postgres.crt:
+	openssl req -x509 -days $(EXCHANGE_TRUST_DUR) -out target/postgres.crt -keyout target/postgres.key \
     -newkey rsa:4096 -nodes -sha512 \
     -subj '/CN=localhost' -extensions EXT -config <( \
     printf "[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltName=DNS:localhost\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth")
-	sudo chown 999:999 $(PROJECT_DIRECTORY)/target/postgres/postgres.crt $(PROJECT_DIRECTORY)/target/postgres/postgres.key
+	sudo cp target/postgres.crt /postgres.crt
+	sudo cp target/postgres.key /postgres.key
+	sudo chown 999:999 /postgres.crt /postgres.key
 
 .PHONY: truststore-postgres
-truststore-postgres: target/postgres/postgres.crt
+truststore-postgres: /postgres.crt
 
 ## Start a PostreSQL database container with HTTPS
-target/docker/.run-docker-db-postgres-https: target/docker/.docker-network target/postgres/postgres.crt
+## -c ssl_ciphers=TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256 cannot control accepted ciphers with tls v1.3
+target/docker/.run-docker-db-postgres-https: target/docker/.docker-network /postgres.crt
 	docker run \
       -d \
       -e POSTGRES_HOST_AUTH_METHOD=trust \
       -e POSTGRES_DB=$(POSTGRES_DB_NAME) \
       -e POSTGRES_USER=$(POSTGRES_DB_USER) \
-      -v $(PROJECT_DIRECTORY)/target/postgres/postgres.crt:/postgres.crt:ro \
-      -v $(PROJECT_DIRECTORY)/target/postgres/postgres.key:/postgres.key:ro \
+      -v /postgres.crt:/postgres.crt:ro \
+      -v /postgres.key:/postgres.key:ro \
       --network $(DOCKER_NETWORK) \
       --name $(POSTGRES_CONTAINER_NAME) \
       postgres \
       -c ssl=true\
       -c ssl_cert_file=/postgres.crt\
       -c ssl_key_file=/postgres.key\
-      -c ssl_ciphers=TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256\
       -c ssl_prefer_server_ciphers=true\
       -c ssl_min_protocol_version=TLSv1.3
 	@touch $@
@@ -196,7 +198,7 @@ run-docker-db-postgres-https: target/docker/.run-docker-db-postgres-https
 '}' > /etc/horizon/exchange/config-http.json"
 	sudo chmod o+r /etc/horizon/exchange/config-http.json
 
-/etc/horizon/exchange/config.json: /etc/horizon/exchange
+/etc/horizon/exchange/config-https.json: /etc/horizon/exchange target/docker/.run-docker-db-postgres-https
 	: $${EXCHANGE_ROOTPW:?}
 	: $${EXCHANGE_TRUST_PW:?}
 	sudo -- bash -c "printf \
@@ -219,7 +221,7 @@ run-docker-db-postgres-https: target/docker/.run-docker-db-postgres-https
 '    },\n'\
 '    \"tls\": {\n'\
 '      \"password\": \"$(EXCHANGE_TRUST_PW)\",\n'\
-'      \"truststore\": \"$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12\"\n'\
+'      \"truststore\": \"/etc/horizon/exchange/localhost.p12\"\n'\
 '    }\n'\
 '  }\n'\
 '}' > /etc/horizon/exchange/config-https.json"
@@ -231,19 +233,21 @@ $(EXCHANGE_HOST_TRUST_DIR): /etc/horizon/exchange
 	mkdir -p $(EXCHANGE_HOST_TRUST_DIR)
 
 ## Creates a self-signed TLS certificate for localhost
-$(EXCHANGE_HOST_TRUST_DIR)/localhost.crt: $(EXCHANGE_HOST_TRUST_DIR)
-	openssl req -x509 -days $(EXCHANGE_TRUST_DUR) -out $(EXCHANGE_HOST_TRUST_DIR)/localhost.crt -keyout $(EXCHANGE_HOST_TRUST_DIR)/localhost.key \
+target/localhost.crt: target/docker/stage/Dockerfile
+	openssl req -x509 -days $(EXCHANGE_TRUST_DUR) -out target/localhost.crt -keyout target/localhost.key \
     -newkey rsa:4096 -nodes -sha512 \
     -subj '/CN=localhost' -extensions EXT -config <( \
     printf "[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltName=DNS:localhost\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth")
 
 
-$(EXCHANGE_HOST_TRUST_DIR)/localhost.p12: $(EXCHANGE_HOST_TRUST_DIR)/localhost.crt
-	openssl pkcs12 -export -out $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12 -in $(EXCHANGE_HOST_TRUST_DIR)/localhost.crt -inkey $(EXCHANGE_HOST_TRUST_DIR)/localhost.key -aes-256-cbc -passout env:EXCHANGE_TRUST_PW
-	chmod o+r $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12
+/etc/horizon/exchange/localhost.p12: target/localhost.crt
+	openssl pkcs12 -export -out target/localhost.p12 -in target/localhost.crt -inkey target/localhost.key -aes-256-cbc -passout env:EXCHANGE_TRUST_PW
+	chmod o+r target/localhost.p12
+	sudo chown root:root target/localhost.p12
+	sudo cp -f target/localhost.p12 /etc/horizon/exchange/localhost.p12
 
 .PHONY: truststore
-truststore: $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12
+truststore: /etc/horizon/exchange/localhost.p12
 
 
 # Run -------------------------------------------------------------------------
@@ -265,7 +269,7 @@ target/docker/.run-docker: /etc/horizon/exchange/config-http.json target/docker/
 run-docker: target/docker/.run-docker
 
 ## config.json is renamed to exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
-target/docker/.run-docker-icp-https: /etc/horizon/exchange/config-https.json target/docker/.docker-network target/docker/.run-docker-db-postgres-https target/postgres/postgres.crt
+target/docker/.run-docker-icp-https: /etc/horizon/exchange/config-https.json target/docker/.docker-network /etc/horizon/exchange/localhost.p12 target/docker/.run-docker-db-postgres-https
 	sudo -- bash -c "cp /etc/horizon/exchange/config-https.json /etc/horizon/exchange/config.json"
 	docker run \
       --name $(DOCKER_NAME) \
@@ -349,7 +353,7 @@ clean-docker:
 	docker rm -f $(POSTGRES_CONTAINER_NAME) 2> /dev/null || :
 	docker network remove $(DOCKER_NETWORK) 2> /dev/null || :
 	rm -f target/docker/.docker-network target/docker/.run-docker target/docker/.run-docker-db-postgres-https target/docker/.run-docker-icp target/docker/.run-docker-icp-https
-	sudo rm -fr target/postgres
+	sudo rm -fr /postgres.crt /postgres.key target/postgres.crt target/postgres.key
 
 .PHONY: cleaner-docker
 cleaner-docker: clean-docker
@@ -363,15 +367,14 @@ cleanest-docker: cleaner-docker
 ## Cleanup - Truststore ---------------
 .PHONY: clean-truststore
 clean-truststore:
-	rm -f $(EXCHANGE_HOST_TRUST_DIR)/*.p12
+	sudo rm -f target/*.p12 /etc/horizon/exchange/*.p12
 
 .PHONY: cleaner-truststore
 cleaner-truststore: clean-truststore
-	sudo rm -f $(EXCHANGE_HOST_TRUST_DIR)/*.crt $(EXCHANGE_HOST_TRUST_DIR)/*.key
+	sudo rm -f target/*.crt target/*.key
 
 .PHONY: cleanest-truststore
 cleanest-truststore: cleaner-truststore
-	rm -fr $(EXCHANGE_HOST_TRUST_DIR)
 
 ## Cleanup - All ----------------------
 .PHONY: clean
@@ -384,4 +387,4 @@ cleaner: clean cleaner-docker cleaner-truststore
 
 .PHONY: cleanest
 cleanest: cleaner cleanest-docker cleanest-truststore
-	rm -fr ./target ./bin
+	sudo rm -fr ./target ./bin

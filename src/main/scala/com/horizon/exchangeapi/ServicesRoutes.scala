@@ -264,7 +264,6 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
      "secrets": [
       "secret1":
         {
-          "type": "string",
           "description": "string"
         }
       ],
@@ -409,7 +408,6 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       ],
       "secrets": [
       "secret1": {
-          "type": "string",
           "description": "string"
         }
       ],
@@ -530,7 +528,6 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
   ],
   "secrets": [
   "secret1": {
-    "type": "string",
     "description": "string"
  ]
 },
@@ -834,7 +831,6 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
   ],
    "secrets": [
     "secret1": {
-      "type": "string",
       "description": "string"
    }
   ],

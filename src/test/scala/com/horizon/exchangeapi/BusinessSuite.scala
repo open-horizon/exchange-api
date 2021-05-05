@@ -207,12 +207,13 @@ class BusinessSuite extends AnyFunSuite {
     val input = PostPutBusinessPolicyRequest(businessPolicy, Some("desc"),
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
+
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("business policy '"+orgBusinessPolicy+"' created"))
   }
@@ -261,7 +262,7 @@ class BusinessSuite extends AnyFunSuite {
     val input = PostPutBusinessPolicyRequest(businessPolicy3, Some("desc"),
       BService(svcurl, orgid, "", List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -275,7 +276,7 @@ class BusinessSuite extends AnyFunSuite {
     val input = PostPutBusinessPolicyRequest(businessPolicy4, Some("desc"),
       BService(svcurl, orgid, "*", List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -322,7 +323,7 @@ class BusinessSuite extends AnyFunSuite {
     val input = PostPutBusinessPolicyRequest(businessPolicy, Some("desc updated"),
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
       Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(OneProperty("purpose",None,"location2"))), Some(List("a == c"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

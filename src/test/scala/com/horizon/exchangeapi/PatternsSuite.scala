@@ -335,7 +335,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern, Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), None, None)), None, None )),
       Some(List( OneUserInputService(orgid, svcurl, None, Some("[9.9.9,9.9.9]"), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -347,7 +347,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern, Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -372,7 +372,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern+" ", Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+pattern+"  ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -387,7 +387,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest("  "+pattern+" ", Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+"  "+pattern+" ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -401,7 +401,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern5, Some("desc"), Some(true),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
@@ -415,7 +415,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern3, Some("desc"), Some(false),
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
@@ -429,7 +429,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern4, Some("desc"), None,
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL2+"/patterns/"+pattern4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
@@ -464,7 +464,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern+" amd64", None, None,
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -536,7 +536,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern5, None, Some(false),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
@@ -548,7 +548,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern5, None, Some(true),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
@@ -564,7 +564,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern5, None, Some(true),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
@@ -579,7 +579,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern3, None, Some(true),
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
@@ -591,7 +591,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern4, None, Some(false),
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, None, List(Map("secret" -> OneSecretBindingValue("secret1")))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL2+"/patterns/"+pattern4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString

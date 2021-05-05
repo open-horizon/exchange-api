@@ -18,7 +18,7 @@ final case class PDataVerification(enabled: Boolean, URL: String, user: String, 
 final case class OneUserInputService(serviceOrgid: String, serviceUrl: String, serviceArch: Option[String], serviceVersionRange: Option[String], inputs: List[OneUserInputValue])
 final case class OneUserInputValue(name: String, value: Any)
 
-final case class OneSecretBindingService(serviceOrgid: String, serviceUrl: String, serviceArch: Option[String], serviceVersionRange: Option[String],serviceContainer: Option[String],bindings: List[Map[String,OneSecretBindingValue]])
+final case class OneSecretBindingService(serviceOrgid: String, serviceUrl: String, serviceArch: Option[String], serviceVersionRange: Option[String], secrets: List[OneSecretBindingValue])
 final case class OneSecretBindingValue(vaultSecret: String)
 // This is the pattern table minus the key - used as the data structure to return to the REST clients
 class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var services: List[PServices], var userInput: List[OneUserInputService], var secretBinding: List[OneSecretBindingService],var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {

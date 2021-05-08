@@ -463,7 +463,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
        "serviceOrgid": "string",
         "serviceUrl": "string",
         "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
+        "serviceVersionRange": "[0.0.0,INFINITY)",
          "secrets": [
          { "vaultSecret": "string" }
          ]
@@ -665,7 +665,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
        "serviceOrgid": "string",
         "serviceUrl": "string",
         "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
+        "serviceVersionRange": "[0.0.0,INFINITY)",
          "secrets": [
          { "vaultSecret": "string" }
          ]
@@ -866,7 +866,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
        "serviceOrgid": "string",
         "serviceUrl": "string",
         "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
+        "serviceVersionRange": "[0.0.0,INFINITY)",
          "secrets": [
          { "vaultSecret": "string" }
          ]

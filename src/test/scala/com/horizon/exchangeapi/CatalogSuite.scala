@@ -133,22 +133,22 @@ class CatalogSuite extends AnyFunSuite {
 
   // Create a service in each org and an extra private service
   test("POST /orgs/"+orgid+"/services - add services in each org") {
-    var input = PostPutServiceRequest("", None, public = true, None, svcUrl, svcVersion, svcArch, "multiple", None, None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
+    var input = PostPutServiceRequest("", None, public = true, None, svcUrl, svcVersion, svcArch, "multiple", None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
     var response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    input = PostPutServiceRequest("", None, public = false, None, svcUrlPriv, svcVersionPriv, svcArchPriv, "multiple", None, None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
+    input = PostPutServiceRequest("", None, public = false, None, svcUrlPriv, svcVersionPriv, svcArchPriv, "multiple", None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
     response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    input = PostPutServiceRequest("", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
+    input = PostPutServiceRequest("", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
     response = Http(URL2+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    input = PostPutServiceRequest("", None, public = true, None, svcUrl3, svcVersion3, svcArch3, "multiple", None, None, None,None, Some("{\"services\":{}}"),Some("a"),None, None, None)
+    input = PostPutServiceRequest("", None, public = true, None, svcUrl3, svcVersion3, svcArch3, "multiple", None, None, None,Some("{\"services\":{}}"),Some("a"),None, None, None)
     response = Http(URL3+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH3).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -238,7 +238,7 @@ class CatalogSuite extends AnyFunSuite {
   val ibmOrgPattern = "IBM/"+ibmPattern
 
   test("POST /orgs/IBM/services - add IBM service so patterns can reference it") {
-    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, None, Some("{\"services\":{}}"),Some("a"), None, None, None)
+    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, Some("{\"services\":{}}"),Some("a"), None, None, None)
     val response = Http(IBMURL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)

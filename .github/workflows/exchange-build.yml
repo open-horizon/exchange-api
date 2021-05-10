@@ -10,7 +10,7 @@ jobs:
   # This workflow contains a single job called "build"
   build:
     # The type of runner that the job will run on
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     env:
       GOPATH: /home/runner/work/anax/anax/go
       DEBIAN_FRONTEND: noninteractive
@@ -18,9 +18,9 @@ jobs:
       DOCKER_REGISTRY: openhorizon
       EXCHANGE_FE_HEADER: issuer
       EXCHANGE_ROOTPW: ci-password
-      POSTGRES_DB: exchange
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: admin
+      POSTGRES_DB_NAME: exchange
+      POSTGRES_DB_PORT: 5432
+      POSTGRES_DB_USER: admin
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -33,16 +33,11 @@ jobs:
         run: |
           pwd
           java -version
-          
-          make .docker-network
-          docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER --network $DOCKER_NETWORK --name postgres postgres
-          export POSTGRES_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres)
-          sudo mkdir -p /etc/horizon/exchange
-          sudo bash -c "echo '{ \"api\": { \"db\": { \"jdbcUrl\": \"jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB\",\"user\": \"$POSTGRES_USER\" }, \"root\": { \"password\": \"$EXCHANGE_ROOTPW\",\"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" } } }' > /etc/horizon/exchange/config.json"
-          
-          unset SBT_OPTS
-          make travis-test
-          cat /etc/horizon/exchange/config.json
+          make docker-network
+          docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=$POSTGRES_DB_NAME -e POSTGRES_USER=$POSTGRES_DB_USER --network $DOCKER_NETWORK --name postgres postgres
+          export POSTGRES_CONTAINER_ADDRESS=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres)
+          make run-docker
+          cat /etc/horizon/exchange/config-http.json
           docker ps -a
           docker network ls
           make test

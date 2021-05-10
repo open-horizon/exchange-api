@@ -55,7 +55,7 @@ object SharableVals extends Enumeration {
 }
 
 /** Input format for POST /orgs/{orgid}/services or PUT /orgs/{orgid}/services/<service-id> */
-final case class PostPutServiceRequest(label: String, description: Option[String], public: Boolean, documentation: Option[String], url: String, version: String, arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]],secrets: Option[List[Map[String,String]]],deployment: Option[String], deploymentSignature: Option[String], clusterDeployment: Option[String], clusterDeploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
+final case class PostPutServiceRequest(label: String, description: Option[String], public: Boolean, documentation: Option[String], url: String, version: String, arch: String, sharable: String, matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], clusterDeployment: Option[String], clusterDeploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
   require(label!=null && url!=null && version!=null && arch!=null && sharable!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem(orgid: String, serviceId: String): Option[String] = {
@@ -102,10 +102,10 @@ final case class PostPutServiceRequest(label: String, description: Option[String
 
   def formId(orgid: String): String = ServicesTQ.formId(orgid, url, version, arch)
 
-  def toServiceRow(service: String, orgid: String, owner: String): ServiceRow = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, documentation.getOrElse(""), url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), write(secrets),deployment.getOrElse(""), deploymentSignature.getOrElse(""), clusterDeployment.getOrElse(""), clusterDeploymentSignature.getOrElse(""), write(imageStore), ApiTime.nowUTC)
+  def toServiceRow(service: String, orgid: String, owner: String): ServiceRow = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, documentation.getOrElse(""), url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment.getOrElse(""), deploymentSignature.getOrElse(""), clusterDeployment.getOrElse(""), clusterDeploymentSignature.getOrElse(""), write(imageStore), ApiTime.nowUTC)
 }
 
-final case class PatchServiceRequest(label: Option[String], description: Option[String], public: Option[Boolean], documentation: Option[String], url: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], secrets: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], clusterDeployment: Option[String], clusterDeploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
+final case class PatchServiceRequest(label: Option[String], description: Option[String], public: Option[Boolean], documentation: Option[String], url: Option[String], version: Option[String], arch: Option[String], sharable: Option[String], matchHardware: Option[Map[String,Any]], requiredServices: Option[List[ServiceRef]], userInput: Option[List[Map[String,String]]], deployment: Option[String], deploymentSignature: Option[String], clusterDeployment: Option[String], clusterDeploymentSignature: Option[String], imageStore: Option[Map[String,Any]]) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -128,7 +128,6 @@ final case class PatchServiceRequest(label: Option[String], description: Option[
     matchHardware match { case Some(mh) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.matchHardware,d.lastUpdated)).update((service, write(mh), lastUpdated)), "matchHardware"); case _ => ; }
     requiredServices match { case Some(rs) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.requiredServices,d.lastUpdated)).update((service, write(rs), lastUpdated)), "requiredServices"); case _ => ; }
     userInput match { case Some(ui) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.userInput,d.lastUpdated)).update((service, write(ui), lastUpdated)), "userInput"); case _ => ; }
-    secrets match { case Some(ser) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.secrets,d.lastUpdated)).update((service, write(ser), lastUpdated)), "secrets"); case _ => ; }
     deployment match { case Some(dep) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.deployment,d.lastUpdated)).update((service, dep, lastUpdated)), "deployment"); case _ => ; }
     deploymentSignature match { case Some(depsig) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.deploymentSignature,d.lastUpdated)).update((service, depsig, lastUpdated)), "deploymentSignature"); case _ => ; }
     imageStore match { case Some(p) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.imageStore,d.lastUpdated)).update((service, write(p), lastUpdated)), "imageStore"); case _ => ; }
@@ -225,7 +224,6 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       "matchHardware": {},
       "requiredServices": [],
       "userInput": [],
-      "secrets":[],
       "deployment": "string",
       "deploymentSignature": "string",
       "clusterDeployment": "",
@@ -261,12 +259,6 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           "defaultValue": "bar"
         }
       ],
-     "secrets": [
-      "secret1":
-        {
-          "description": "string"
-        }
-      ],
       "deployment": "string",
       "deploymentSignature": "string",
       "clusterDeployment": "",
@@ -287,7 +279,6 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       "matchHardware": {},
       "requiredServices": [],
       "userInput": [],
-      "secrets": [],
       "deployment": "",
       "deploymentSignature": "",
       "clusterDeployment": "",
@@ -370,7 +361,6 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       "matchHardware": {},
       "requiredServices": [],
       "userInput": [],
-      "secrets": [],
       "deployment": "string",
       "deploymentSignature": "string",
       "clusterDeployment": "",
@@ -406,11 +396,6 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           "defaultValue": "bar"
         }
       ],
-      "secrets": [
-      "secret1": {
-          "description": "string"
-        }
-      ],
       "deployment": "string",
       "deploymentSignature": "string",
       "clusterDeployment": "",
@@ -431,7 +416,6 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       "matchHardware": {},
       "requiredServices": [],
       "userInput": [],
-      "secrets": [],
       "deployment": "",
       "deploymentSignature": "",
       "clusterDeployment": "",
@@ -526,11 +510,6 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       "defaultValue": "bar"      // if empty then the node owner must provide a value at registration time
     }
   ],
-  "secrets": [
-  "secret1": {
-    "description": "string"
- ]
-},
   // Information about how to deploy the docker images for this service
   "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",         // container deployment info on edge devices. Can be omitted if does not apply
   "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                                 // filled in by the Horizon signing process
@@ -828,11 +807,6 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       "type": "string",          // ["boolean", "float", "int", "list of strings", "string"]
       "defaultValue": "bar"      // if empty then the node owner must provide a value at registration time
     }
-  ],
-   "secrets": [
-    "secret1": {
-      "description": "string"
-   }
   ],
   // Information about how to deploy the docker images for this service
   "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",         // container deployment info on edge devices. Can be omitted if does not apply

@@ -80,8 +80,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                    sharable                   = "multiple",
                    url                        = "svc1",
                    userInput                  = "",
-                   version                    = "1.0.0",
-                   secrets                    = ""))
+                   version                    = "1.0.0"))
   private val TESTUSER: UserRow =
     UserRow(admin       = false,
             hubAdmin    = false,

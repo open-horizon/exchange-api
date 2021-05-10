@@ -79,7 +79,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
       }
       var response = Http(URL + "/orgs/" + org + "/agbots/" + AGBOT).postData(write(PutAgbotsRequest("password", AGBOT, None, "password"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       assert(response.code == HttpCode.PUT_OK.intValue)
-      response = Http(URL + "/orgs/" + org + "/services").postData(write(PostPutServiceRequest(SERVICE, None, true, None, URL + "/orgs/" + org + "/services/" + SERVICE, "0.0.1", "test-arch", "multiple", None, None, None, None, None, None, None, None, None ))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(URL + "/orgs/" + org + "/services").postData(write(PostPutServiceRequest(SERVICE, None, true, None, URL + "/orgs/" + org + "/services/" + SERVICE, "0.0.1", "test-arch", "multiple", None, None, None, None, None, None, None, None ))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       assert(response.code == HttpCode.POST_OK.intValue)
       response = Http(URL + "/orgs/" + org + "/patterns/" + PATTERN).postData(write(PostPutPatternRequest(PATTERN, Some("AdminSuite Test Pattern"), None, List(PServices(URL + "/orgs/" + org + "/services/" + SERVICE, org, "test-arch", None, List(PServiceVersions("0.0.1", None, None, None, None)), None, None)), None, None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       assert(response.code == HttpCode.POST_OK.intValue)

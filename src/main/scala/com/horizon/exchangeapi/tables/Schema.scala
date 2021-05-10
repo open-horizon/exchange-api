@@ -179,12 +179,9 @@ object SchemaTQ {
         sqlu"alter table servicepolicies add column description character varying not null default ''"
       )
       case 41 => DBIO.seq(
-        sqlu"alter table services add column secret character varying not null default ''",
-      )
-      case 42 => DBIO.seq(
         sqlu"alter table patterns add column secretbinding character varying not null default ''"
       )
-      case 43 => DBIO.seq(
+      case 42 => DBIO.seq(
         sqlu"alter table businesspolicies add column secretbinding character varying not null default ''"
       )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB

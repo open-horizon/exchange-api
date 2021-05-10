@@ -165,7 +165,7 @@ class BusinessSuite extends AnyFunSuite {
   }
 
   test("Add service for future tests") {
-    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))),Some(List(Map("secret1" -> ""))), Some("{\"services\":{}}"),Some("a"),None, None, None)
+    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None, None)
     val svcResponse = Http(URL+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
     assert(svcResponse.code === HttpCode.POST_OK.intValue)
@@ -650,7 +650,7 @@ class BusinessSuite extends AnyFunSuite {
   //~~~~~ Create create service in org2 and update business policy to reference it ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("POST /orgs/"+orgid2+"/services - add "+orgid2+" service so business policies can reference it") {
-    val input = PostPutServiceRequest("TestSvc", Some("desc"), public = true, None, svcurl2, svcversion2, svcarch2, "singleton", None, None, None, None, Some("{\"services\":{}}"), Some("a"), None, None, None)
+    val input = PostPutServiceRequest("TestSvc", Some("desc"), public = true, None, svcurl2, svcversion2, svcarch2, "singleton", None, None, None, Some("{\"services\":{}}"), Some("a"), None, None, None)
     val response = Http(URL2+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)

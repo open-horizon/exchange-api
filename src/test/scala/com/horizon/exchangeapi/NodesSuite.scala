@@ -271,21 +271,21 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/services - add "+svcid+" so pattern can reference it") {
 
-    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion, svcarch, "multiple", None, None, None, None, Some(""), Some(""), None, None, None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion, svcarch, "multiple", None, None, None, Some(""), Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid2+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, NETSPEEDSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, None, Some(""), Some(""), None, None, None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, NETSPEEDSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, Some(""), Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/IBM/services - add " + ibmService + " to be used in search later") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, ibmService, svcversion2, svcarch2, "multiple", None, None, None, None, Some(""), Some(""), None, None, None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, ibmService, svcversion2, svcarch2, "multiple", None, None, None, Some(""), Some(""), None, None, None)
     val response = Http(urlRoot + "/v1/orgs/IBM/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -2241,7 +2241,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" as user so we can grab it from /changes route") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some(List(Map("secret" -> ""))), Some("{\"services\":{}}"),Some("a"),None, None, None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -2252,7 +2252,7 @@ class NodesSuite extends AnyFunSuite {
   val org2service = authpref2+service
 
   test("POST /orgs/"+orgid2+"/services - add public "+service+" as root in second org to check that its in response") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = true, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, None, Some(List(Map("name" -> "foo"))),Some(List(Map("secret" -> ""))), Some("{\"services\":{}}"),Some("a"),None, None, None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = true, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None, None)
     val response = Http(URL2+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)

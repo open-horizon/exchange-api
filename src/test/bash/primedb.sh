@@ -8,11 +8,11 @@ if [[ $1 == "-h" || $1 == "--help" ]]; then
 Usage: $0
 
 Required Environment Variables:
-    EXCHANGE_ROOTPW: 123456
-
+     EXCHANGE_ROOTPW: Exchange root password (Must be similar to what is set in exchange's config.json)
+     
 Optional Environment Variables:
-    EXCHANGE_USER: megha
-    EXCHANGE_PW: 123456
+    EXCHANGE_USER: User in IBM org (Set it to anything to simply run tests)
+    EXCHANGE_PW: Password in IBM org (Set it to anything to simply run tests)
     EXCHANGE_IAM_ORG: (Recommended when running in Openshift)
     EXCHANGE_IAM_KEY: (Recommended when running in Openshift)
     EXCHANGE_MULT_ACCOUNT_ID: (Recommended when running in Openshift)

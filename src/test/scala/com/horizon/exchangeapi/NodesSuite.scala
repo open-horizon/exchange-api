@@ -270,6 +270,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid+" so pattern can reference it") {
+
     val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion, svcarch, "multiple", None, None, None, Some(""), Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -297,7 +298,7 @@ class NodesSuite extends AnyFunSuite {
         PServices(SDRSPEC_URL, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ),
         PServices(NETSPEEDSPEC_URL, orgid, svcarch2, Some(true), List(PServiceVersions(svcversion2, None, None, None, None)), None, None )
       ),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+patid).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -307,7 +308,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+" - add "+businessPolicySdr+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPolicySdr, Some("desc"),
       BService(SDRSPEC_URL, orgid, "*", List(BServiceVersions(svcversion, None, None)), None ),
-      None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
+      None, None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicySdr).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -317,7 +318,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr2+" - add "+businessPolicySdr2+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPolicySdr2, Some("desc"),
       BService(SDRSPEC_URL, orgid, "", List(BServiceVersions(svcversion, None, None)), None ),
-      None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
+      None, None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicySdr2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -333,7 +334,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+" - add "+businessPolicyNS+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPolicyNS, Some("desc"),
       BService(NETSPEEDSPEC_URL, orgid, "amd64", List(BServiceVersions(svcversion, None, None)), None ),
-      None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
+      None, None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicyNS).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -2841,7 +2842,7 @@ class NodesSuite extends AnyFunSuite {
       List(
         PServices(SDRSPEC_URL, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None ),
       ),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+searchPattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

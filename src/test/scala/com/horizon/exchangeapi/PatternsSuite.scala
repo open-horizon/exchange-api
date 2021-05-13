@@ -245,7 +245,7 @@ class PatternsSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" before service exists - should fail") {
     val input = PostPutPatternRequest(pattern, None, None,
       List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -255,7 +255,7 @@ class PatternsSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" without services field -- see if this works") {
     val input = PostPutPatternRequest(pattern, None, None,
       List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -270,14 +270,14 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   test("Add service for future tests -- non IBM org") {
-    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None, None)
+    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None,None)
     val svcResponse = Http(URL2+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
     assert(svcResponse.code === HttpCode.POST_OK.intValue)
   }
 
   test("Add service for future tests -- second IBM org") {
-    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None, None)
+    val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))),Some("{\"services\":{}}"),Some("a"),None, None, None)
     val svcResponse = Http(URL3+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
     assert(svcResponse.code === HttpCode.POST_OK.intValue)
@@ -286,7 +286,7 @@ class PatternsSuite extends AnyFunSuite {
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update pattern that is not there yet - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", None, None,
       List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -297,7 +297,7 @@ class PatternsSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" that is not signed - should fail") {
     val input = PostPutPatternRequest(pattern, None, None,
       List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, Some("{\"services\":{}}"), None, None, None)), None, None )),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -335,6 +335,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern, Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), None, None)), None, None )),
       Some(List( OneUserInputService(orgid, svcurl, None, Some("[9.9.9,9.9.9]"), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -346,6 +347,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern, Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -370,6 +372,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern+" ", Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+pattern+"  ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -384,6 +387,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest("  "+pattern+" ", Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+"  "+pattern+" ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -397,6 +401,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern5, Some("desc"), Some(true),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
@@ -410,6 +415,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern3, Some("desc"), Some(false),
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
@@ -423,6 +429,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern4, Some("desc"), None,
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL2+"/patterns/"+pattern4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
@@ -435,7 +442,7 @@ class PatternsSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid2+"/patterns/"+pattern3+" - add "+pattern3+" public=true, non IBM org - should fail") {
     val input = PostPutPatternRequest("Public Pattern Non IBM", None, Some(true),
       List( PServices(svcurl, orgid2, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
-      None, None
+      None, None, None
     )
     val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -446,7 +453,7 @@ class PatternsSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" again - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", None, None,
       List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -457,6 +464,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern+" amd64", None, None,
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -478,7 +486,7 @@ class PatternsSuite extends AnyFunSuite {
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as 2nd user - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", Some("desc"), None,
       List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -488,7 +496,7 @@ class PatternsSuite extends AnyFunSuite {
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as agbot - should fail") {
     val input = PostPutPatternRequest("Bad Pattern", None, None,
       List( PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -507,7 +515,7 @@ class PatternsSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as node - should fail") {
     val input = PostPutPatternRequest("Bad Pattern2", None, None,
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -517,7 +525,7 @@ class PatternsSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as 2nd user") {
     val input = PostPutPatternRequest(pattern2+" amd64", None, Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -528,6 +536,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern5, None, Some(false),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
@@ -539,6 +548,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern5, None, Some(true),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
@@ -554,6 +564,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern5, None, Some(true),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
@@ -568,6 +579,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern3, None, Some(true),
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
@@ -579,6 +591,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern4, None, Some(false),
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1"))))),
       None
     )
     val response = Http(URL2+"/patterns/"+pattern4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
@@ -932,7 +945,7 @@ class PatternsSuite extends AnyFunSuite {
   test("POST /orgs/IBM/patterns/"+ibmPattern+" - add "+ibmPattern+" as root") {
     val input = PostPutPatternRequest(ibmPattern, None, Some(true),
       List( PServices(ibmSvcUrl, "IBM", ibmSvcArch, None, List(PServiceVersions(ibmSvcVersion, None, None, None, None)), None, None )),
-      None, None
+      None, None, None
     )
     val response = Http(IBMURL+"/patterns/"+ibmPattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -970,7 +983,7 @@ class PatternsSuite extends AnyFunSuite {
   // the test to try to get an IBM pattern that doesn't exist is at the end when we are cleaning up
 
   test("POST /orgs/"+orgid+"/services - add "+svcid2+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
+   val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -984,7 +997,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid4+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, PWSSPEC_URL, svcversion4, svcarch4, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
+   val input = PostPutServiceRequest("test-service", None, public = false, None, PWSSPEC_URL, svcversion4, svcarch4, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1004,7 +1017,7 @@ class PatternsSuite extends AnyFunSuite {
         PServices(SDRSPEC_URL, orgid, svcarch2, None, List(PServiceVersions(svcversion2, None, None, None, None)), None, None ),
         PServices(NETSPEEDSPEC_URL, orgid, svcarch3, Some(true), List(PServiceVersions(svcversion3, None, None, None, None)), None, None )
       ),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+patid).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1019,7 +1032,7 @@ class PatternsSuite extends AnyFunSuite {
         PServices(NETSPEEDSPEC_URL, orgid, svcarch3, Some(true), List(PServiceVersions(svcversion3, None, None, None, None)), None, None ),
         PServices(PWSSPEC_URL, orgid, svcarch4, None, List(PServiceVersions(svcversion4, None, None, None, None)), None, None ),
       ),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+patid2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1034,7 +1047,7 @@ class PatternsSuite extends AnyFunSuite {
         PServices(SDRSPEC_URL, orgid, svcarch5, None, List(PServiceVersions(svcversion5, None, None, None, None)), None, None ),
 
       ),
-      None, None
+      None, None, None
     )
     val response = Http(URL+"/patterns/"+patid3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

@@ -936,7 +936,7 @@ class PatternsSuite extends AnyFunSuite {
   // IBM pattern tests ==============================================
 
   test("POST /orgs/IBM/services - add IBM service so patterns can reference it") {
-    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, None, Some("{\"services\":{}}"),Some("a"), None, None)
+    val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, Some("{\"services\":{}}"),Some("a"), None, None, None)
     val response = Http(IBMURL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -983,28 +983,28 @@ class PatternsSuite extends AnyFunSuite {
   // the test to try to get an IBM pattern that doesn't exist is at the end when we are cleaning up
 
   test("POST /orgs/"+orgid+"/services - add "+svcid2+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, None, Some("") ,Some(""), None, None)
+   val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid3+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, NETSPEEDSPEC_URL, svcversion3, svcarch3, "multiple", None, None, None, None, Some("") ,Some(""), None, None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid4+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, PWSSPEC_URL, svcversion4, svcarch4, "multiple", None, None, None,None, Some("") ,Some(""), None, None)
+   val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid5+" so pattern can reference it") {
-    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion5, svcarch5, "multiple", None, None, None, None, Some("") ,Some(""), None, None)
+    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)

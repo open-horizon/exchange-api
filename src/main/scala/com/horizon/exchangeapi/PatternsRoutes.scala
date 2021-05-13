@@ -449,7 +449,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -463,7 +463,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
        "serviceOrgid": "string",
         "serviceUrl": "string",
         "serviceArch": "amd64",
-        "serviceVersionRange": "[0.0.0,INFINITY)",
+        "serviceVersionRange": "x.y.z",
          "secrets": [
          { "vaultSecret": "string" }
          ]
@@ -651,7 +651,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceVersionRange": "x.y.z", // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -665,7 +665,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
        "serviceOrgid": "string",
         "serviceUrl": "string",
         "serviceArch": "amd64",
-        "serviceVersionRange": "[0.0.0,INFINITY)",
+        "serviceVersionRange":"x.y.z",
          "secrets": [
          { "vaultSecret": "string" }
          ]
@@ -852,7 +852,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -866,7 +866,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
        "serviceOrgid": "string",
         "serviceUrl": "string",
         "serviceArch": "amd64",
-        "serviceVersionRange": "[0.0.0,INFINITY)",
+        "serviceVersionRange": "x.y.z",
          "secrets": [
          { "vaultSecret": "string" }
          ]

@@ -5,12 +5,10 @@ import java.io.File
 import java.lang.management.{ManagementFactory, RuntimeMXBean}
 import java.time._
 import java.util
-
 import akka.event.LoggingAdapter
 
 import scala.jdk.CollectionConverters.{CollectionHasAsScala, MapHasAsJava, MapHasAsScala}
 import scala.util.matching.Regex
-
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server._
 import com.horizon.exchangeapi.tables.{OrgRow, UserRow}
@@ -21,11 +19,9 @@ import slick.jdbc.PostgresProfile.api._
 import scala.collection.immutable._
 import scala.util._
 import java.util.{Base64, Properties}
-
 import scala.concurrent.ExecutionContext
-
 import com.horizon.exchangeapi.auth.AuthException
-
+import org.json4s.JsonAST.JValue
 import org.json4s._
 import org.json4s.jackson.Serialization.write
 
@@ -174,7 +170,7 @@ object ExchMsg {
   def translate(key: String, args: Any*): String = {
     try {
       //todo: remove these 2 debug statements
-      val exchLang = sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en"))
+      val exchLang: String = sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en"))
       if (exchLang.startsWith("zh") || exchLang.startsWith("pt")) println("using lang for msgs: "+exchLang)
 
       implicit val userLang: Lang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en")))
@@ -246,11 +242,32 @@ object ExchConfig {
     }
   }
 
-  def getHostAndPort: (String, Int) = {
+  def getHostAndPort: (String, Option[Int], Option[Int]) = {
     var host: String = config.getString("api.service.host")
-    if (host == "") host = "0.0.0.0"
-    val port: Int = try {config.getInt("api.service.port") } catch { case _: Exception => 8080 }
-    (host, port)
+    if (host.isEmpty) host = "0.0.0.0"
+    
+    val portEncrypted: Option[Int] = {
+      try {
+        Option(config.getInt("api.service.portEncrypted"))
+      }
+      catch {
+        case _: Exception => None
+      }
+    }
+    val portUnencrypted: Option[Int] = {
+      try {
+        Option(config.getInt("api.service.port"))
+      }
+      catch {
+        case _: Exception => None
+      }
+    }
+    
+    (portEncrypted, portUnencrypted) match {
+      case (None, None) => (host, None, Option(8080))
+      case (a, b) if (a == b) => (host, None, portUnencrypted)
+      case _ => (host, portEncrypted, portUnencrypted)
+    }
   }
 
   // Get relevant values from our config file to create the akka config
@@ -510,7 +527,7 @@ final case class VersionRange(range: String) {
 
   // If this range is a single version (e.g. [1.2.3,1.2.3] ) return that version, otherwise None
   def singleVersion: Option[Version] = {
-    if (floor == ceiling) Some(floor)
+    if (floor == ceiling) Option(floor)
     else None
   }
 

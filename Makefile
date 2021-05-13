@@ -233,7 +233,7 @@ $(EXCHANGE_HOST_TRUST_DIR): /etc/horizon/exchange
 	mkdir -p $(EXCHANGE_HOST_TRUST_DIR)
 
 ## Creates a self-signed TLS certificate for localhost
-target/localhost.crt:# target/docker/stage/Dockerfile
+target/localhost.crt: target/docker/stage/Dockerfile
 	openssl req -x509 -days $(EXCHANGE_TRUST_DUR) -out target/localhost.crt -keyout target/localhost.key \
     -newkey rsa:4096 -nodes -sha512 \
     -subj '/CN=localhost' -extensions EXT -config <( \
@@ -253,7 +253,6 @@ truststore: /etc/horizon/exchange/localhost.p12
 # Run -------------------------------------------------------------------------
 ## Run - Docker -----------------------
 ## For Continuous Integration testing
-#$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl2
 target/docker/.run-docker: /etc/horizon/exchange/config-http.json target/docker/.docker-network
 	sudo -- bash -c "cp /etc/horizon/exchange/config-http.json /etc/horizon/exchange/config.json"
 	docker run \

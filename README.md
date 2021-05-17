@@ -299,10 +299,13 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
-## Changes in 2.73.0
 
+## Changes in 2.74.0
 - Readme Update: Added section on using TLS with the Exchange.
 
+## Changes in 2.73.0
+- Issue 491: Updated the service definition, deployment policy and pattern definitions to support vault based secrets to be used with Open Horizon.
+     
 ## Changes in 2.72.0
 - Issue 259: Added TLS support to the Exchange.
 - Updated Akka: 2.6.10 -> 2.6.14.
@@ -312,16 +315,13 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 - Remade Makefile.
 
 ## Changes in 2.71.0
-
 - Issue 493: Added route GET/orgs/{orgid}/status to fetch org specific information.
 
 ## Changed in 2.70.0
-
 - Fixed issue 423: Upgrade Exchange To Use Akka v2.6.x.
 - Also updated sbt, scala, and project dependencies.
 
 ## Changes in 2.69.0
-
 - Added mulitple response headers to all Http responses.
   - `Cache-Control: max-age=0, must-revalidate, no-cache, no-store`
   - `Content-Type: application/json; charset=UTF-8`

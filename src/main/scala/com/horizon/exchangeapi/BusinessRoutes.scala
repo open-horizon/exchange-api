@@ -50,7 +50,7 @@ object BusinessUtils {
 }
 
 /** Input format for POST/PUT /orgs/{orgid}/business/policies/<bus-pol-id> */
-final case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+final case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, userInput: Option[List[OneUserInputService]],secretBinding: Option[List[OneSecretBindingService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   require(label!=null && service!=null && service.name!=null && service.org!=null && service.arch!=null && service.serviceVersions!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
 
@@ -70,15 +70,15 @@ final case class PostPutBusinessPolicyRequest(label: String, description: Option
 
   // Note: write() handles correctly the case where the optional fields are None.
   def getDbInsert(businessPolicy: String, orgid: String, owner: String): DBIO[_] = {
-    BusinessPolicyRow(businessPolicy, orgid, owner, label, description.getOrElse(label), write(defaultNodeHealth(service)), write(userInput), write(properties), write(constraints), ApiTime.nowUTC, ApiTime.nowUTC).insert
+    BusinessPolicyRow(businessPolicy, orgid, owner, label, description.getOrElse(label), write(defaultNodeHealth(service)), write(userInput),write(secretBinding), write(properties), write(constraints), ApiTime.nowUTC, ApiTime.nowUTC).insert
   }
 
   def getDbUpdate(businessPolicy: String, orgid: String, owner: String): DBIO[_] = {
-    BusinessPolicyRow(businessPolicy, orgid, owner, label, description.getOrElse(label), write(defaultNodeHealth(service)), write(userInput), write(properties), write(constraints), ApiTime.nowUTC, "").update
+    BusinessPolicyRow(businessPolicy, orgid, owner, label, description.getOrElse(label), write(defaultNodeHealth(service)), write(userInput),write(secretBinding),write(properties), write(constraints), ApiTime.nowUTC, "").update
   }
 }
 
-final case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], userInput: Option[List[OneUserInputService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+final case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], userInput: Option[List[OneUserInputService]],secretBinding:Option[List[OneSecretBindingService]] , properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -168,6 +168,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         }
       },
       "userInput": [],
+      "secretBinding": [],
       "properties": [
         {
           "name": "string",
@@ -253,6 +254,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         }
       },
       "userInput": [],
+      "secretBinding": [],
       "properties": [
         {
           "name": "string",
@@ -370,7 +372,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -379,6 +381,20 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
+  "secretBinding": [
+     {
+       "serviceOrgid": "string",
+        "serviceUrl": "string",
+        "serviceArch": "amd64",
+        "serviceVersionRange": "x.y.z",
+         "secrets": [
+          { 
+           "FirstSecret": "secret1" 
+           "Foo": "Bar"
+          }
+         ]
+      },
+   ],
   "properties": [
     {
       "name": "mypurpose",
@@ -534,7 +550,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -543,6 +559,20 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
+  "secretBinding": [
+     {
+       "serviceOrgid": "string",
+        "serviceUrl": "string",
+        "serviceArch": "amd64",
+        "serviceVersionRange": "x.y.z",
+         "secrets": [
+         { 
+           "FirstSecret": "secret1" 
+           "Foo": "Bar"
+          }
+         ]
+      },
+   ],
   "properties": [
     {
       "name": "mypurpose",
@@ -673,7 +703,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -682,6 +712,20 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
+    "secretBinding": [
+     {
+       "serviceOrgid": "string",
+        "serviceUrl": "string",
+        "serviceArch": "amd64",
+        "serviceVersionRange": "x.y.z",
+         "secrets": [
+          { 
+           "FirstSecret": "secret1" 
+           "Foo": "Bar"
+          }
+         ]
+      },
+   ],
   "properties": [
     {
       "name": "mypurpose",

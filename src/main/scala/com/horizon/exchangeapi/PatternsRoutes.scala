@@ -465,7 +465,10 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
         "serviceArch": "amd64",
         "serviceVersionRange": "x.y.z",
          "secrets": [
-         { "vaultSecret": "string" }
+          { 
+           "FirstSecret": "secret1" 
+           "Foo": "Bar"
+          }
          ]
       },
    ],
@@ -667,7 +670,10 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
         "serviceArch": "amd64",
         "serviceVersionRange":"x.y.z",
          "secrets": [
-         { "vaultSecret": "string" }
+          { 
+           "FirstSecret": "secret1" 
+           "Foo": "Bar"
+          }
          ]
       },
    ],
@@ -868,7 +874,10 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
         "serviceArch": "amd64",
         "serviceVersionRange": "x.y.z",
          "secrets": [
-         { "vaultSecret": "string" }
+          { 
+           "FirstSecret": "secret1" 
+           "Foo": "Bar"
+          }
          ]
       },
    ],

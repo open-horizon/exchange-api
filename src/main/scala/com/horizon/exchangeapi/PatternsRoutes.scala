@@ -65,7 +65,7 @@ object PatternUtils {
 }
 
 /** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
-final case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], services: List[PServices], userInput: Option[List[OneUserInputService]], agreementProtocols: Option[List[Map[String,String]]]) {
+final case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], services: List[PServices], userInput: Option[List[OneUserInputService]], secretBinding: Option[List[OneSecretBindingService]] ,agreementProtocols: Option[List[Map[String,String]]]) {
   require(label!=null && services!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
 
@@ -91,11 +91,11 @@ final case class PostPutPatternRequest(label: String, description: Option[String
       services
     }
     val agreementProtocols2: Option[List[Map[String, String]]] = agreementProtocols.orElse(Some(List(Map("name" -> "Basic"))))
-    PatternRow(pattern, orgid, owner, label, description.getOrElse(label), public.getOrElse(false), write(services2), write(userInput), write(agreementProtocols2), ApiTime.nowUTC)
+    PatternRow(pattern, orgid, owner, label, description.getOrElse(label), public.getOrElse(false), write(services2), write(userInput),write(secretBinding), write(agreementProtocols2),ApiTime.nowUTC)
   }
 }
 
-final case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], services: Option[List[PServices]], userInput: Option[List[OneUserInputService]], agreementProtocols: Option[List[Map[String,String]]]) {
+final case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], services: Option[List[PServices]], userInput: Option[List[OneUserInputService]], secretBinding:Option[List[OneSecretBindingService]] , agreementProtocols: Option[List[Map[String,String]]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -113,6 +113,7 @@ final case class PatchPatternRequest(label: Option[String], description: Option[
     public match { case Some(pub) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.public,d.lastUpdated)).update((pattern, pub, lastUpdated)), "public"); case _ => ; }
     services match { case Some(svc) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.services,d.lastUpdated)).update((pattern, write(svc), lastUpdated)), "services"); case _ => ; }
     userInput match { case Some(input) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.userInput,d.lastUpdated)).update((pattern, write(input), lastUpdated)), "userInput"); case _ => ; }
+    secretBinding match {case Some(bind) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.secretBinding,d.lastUpdated)).update((pattern, write(bind), lastUpdated)), "secretBinding"); case _ => ; }
     agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "agreementProtocols"); case _ => ; }
     (null, null)
   }
@@ -207,6 +208,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
         }
       ],
       "userInput": [],
+      "secretBinding": [],
       "agreementProtocols": [
         {
           "name": "Basic"
@@ -316,6 +318,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
         }
       ],
       "userInput": [],
+      "secretBinding": [],
       "agreementProtocols": [
         {
           "name": "Basic"
@@ -446,7 +449,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -455,6 +458,20 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
+   "secretBinding": [
+     {
+       "serviceOrgid": "string",
+        "serviceUrl": "string",
+        "serviceArch": "amd64",
+        "serviceVersionRange": "x.y.z",
+         "secrets": [
+          { 
+           "FirstSecret": "secret1" 
+           "Foo": "Bar"
+          }
+         ]
+      },
+   ],
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [  // can be omitted
     {
@@ -637,7 +654,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceVersionRange": "x.y.z", // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -646,6 +663,20 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
+  "secretBinding": [
+     {
+       "serviceOrgid": "string",
+        "serviceUrl": "string",
+        "serviceArch": "amd64",
+        "serviceVersionRange":"x.y.z",
+         "secrets": [
+          { 
+           "FirstSecret": "secret1" 
+           "Foo": "Bar"
+          }
+         ]
+      },
+   ],
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [  // can be omitted
     {
@@ -827,7 +858,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -836,6 +867,20 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
+  "secretBinding": [
+     {
+       "serviceOrgid": "string",
+        "serviceUrl": "string",
+        "serviceArch": "amd64",
+        "serviceVersionRange": "x.y.z",
+         "secrets": [
+          { 
+           "FirstSecret": "secret1" 
+           "Foo": "Bar"
+          }
+         ]
+      },
+   ],
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [  // can be omitted
     {

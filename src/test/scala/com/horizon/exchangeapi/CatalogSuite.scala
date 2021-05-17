@@ -148,7 +148,7 @@ class CatalogSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    input = PostPutServiceRequest("", None, public = true, None, svcUrl3, svcVersion3, svcArch3, "multiple", None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
+    input = PostPutServiceRequest("", None, public = true, None, svcUrl3, svcVersion3, svcArch3, "multiple", None, None, None,Some("{\"services\":{}}"),Some("a"),None, None, None)
     response = Http(URL3+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH3).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -183,22 +183,22 @@ class CatalogSuite extends AnyFunSuite {
 
   // Create a pattern in each org and an extra private pattern
   test("POST /orgs/"+orgid+"/patterns - add patterns in each org") {
-    var input = PostPutPatternRequest(pattern, Some(pattern), Some(true), List( PServices(svcUrl, orgid, svcArch, None, List(PServiceVersions(svcVersion, None, None, None, None)), None, None )), None, None)
+    var input = PostPutPatternRequest(pattern, Some(pattern), Some(true), List( PServices(svcUrl, orgid, svcArch, None, List(PServiceVersions(svcVersion, None, None, None, None)), None, None )), None, None, None)
     var response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    input = PostPutPatternRequest(patternPriv, Some(patternPriv), Some(false), List( PServices(svcUrlPriv, orgid, svcArchPriv, None, List(PServiceVersions(svcVersionPriv, None, None, None, None)), None, None )), None, None)
+    input = PostPutPatternRequest(patternPriv, Some(patternPriv), Some(false), List( PServices(svcUrlPriv, orgid, svcArchPriv, None, List(PServiceVersions(svcVersionPriv, None, None, None, None)), None, None )), None, None, None)
     response = Http(URL+"/patterns/"+patternPriv).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    input = PostPutPatternRequest(pattern2, Some(pattern2), Some(true), List( PServices(svcUrl2, orgid2, svcArch2, None, List(PServiceVersions(svcVersion2, None, None, None, None)), None, None )), None, None)
+    input = PostPutPatternRequest(pattern2, Some(pattern2), Some(true), List( PServices(svcUrl2, orgid2, svcArch2, None, List(PServiceVersions(svcVersion2, None, None, None, None)), None, None )), None, None, None)
     response = Http(URL2+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    input = PostPutPatternRequest(pattern3, Some(pattern3), Some(false), List( PServices(svcUrl3, orgid3, svcArch3, None, List(PServiceVersions(svcVersion3, None, None, None, None)), None, None )), None, None)
+    input = PostPutPatternRequest(pattern3, Some(pattern3), Some(false), List( PServices(svcUrl3, orgid3, svcArch3, None, List(PServiceVersions(svcVersion3, None, None, None, None)), None, None )), None, None, None)
     response = Http(URL3+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH3).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -247,7 +247,7 @@ class CatalogSuite extends AnyFunSuite {
   test("POST /orgs/IBM/patterns/"+ibmPattern+" - add "+ibmPattern+" as root") {
     val input = PostPutPatternRequest(ibmPattern, None, Some(true),
       List( PServices(ibmSvcUrl, "IBM", ibmSvcArch, None, List(PServiceVersions(ibmSvcVersion, None, None, None, None)), None, None )),
-      None, None
+      None, None, None
     )
     val response = Http(IBMURL+"/patterns/"+ibmPattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

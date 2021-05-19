@@ -58,6 +58,7 @@ EXCHANGE_ICP_CERT_FILE ?= /etc/horizon/exchange/icp/ca.crt
 EXCHANGE_LOG_LEVEL ?= DEBUG#INFO
 # Number of days the SSL certificate is valid for
 EXCHANGE_TRUST_DUR ?= 1
+EXCHANGE_TRUST_PW ?=
 # Use this to pass args to the exchange svr JVM by overriding JAVA_OPTS in your environment
 JAVA_OPTS ?=#-Xmx1G
 POSTGRES_CONTAINER_ADDRESS ?= $(shell docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(POSTGRES_CONTAINER_NAME))
@@ -200,7 +201,6 @@ run-docker-db-postgres-https: target/docker/.run-docker-db-postgres-https
 
 /etc/horizon/exchange/config-https.json: /etc/horizon/exchange target/docker/.run-docker-db-postgres-https
 	: $${EXCHANGE_ROOTPW:?}
-	: $${EXCHANGE_TRUST_PW:?}
 	sudo -- bash -c "printf \
 '{\n'\
 '  \"api\": {\n'\
@@ -241,7 +241,7 @@ target/localhost.crt: target/docker/stage/Dockerfile
 
 
 /etc/horizon/exchange/localhost.p12: target/localhost.crt
-	openssl pkcs12 -export -out target/localhost.p12 -in target/localhost.crt -inkey target/localhost.key -aes-256-cbc -passout env:EXCHANGE_TRUST_PW
+	openssl pkcs12 -export -out target/localhost.p12 -in target/localhost.crt -inkey target/localhost.key -aes-256-cbc -passout pass:$(EXCHANGE_TRUST_PW)
 	chmod o+r target/localhost.p12
 	sudo chown root:root target/localhost.p12
 	sudo cp -f target/localhost.p12 /etc/horizon/exchange/localhost.p12
@@ -253,7 +253,6 @@ truststore: /etc/horizon/exchange/localhost.p12
 # Run -------------------------------------------------------------------------
 ## Run - Docker -----------------------
 ## For Continuous Integration testing
-#$(EXCHANGE_CONTAINER_CONFIG_DIR)/exchange-api.tmpl2
 target/docker/.run-docker: /etc/horizon/exchange/config-http.json target/docker/.docker-network
 	sudo -- bash -c "cp /etc/horizon/exchange/config-http.json /etc/horizon/exchange/config.json"
 	docker run \

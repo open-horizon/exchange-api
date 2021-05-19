@@ -237,6 +237,46 @@ If you want to reduce the attack surface of the exchange, you can disable the ex
 
 Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horizon/exchange/config.json`.
 
+## Using TLS With The Exchange
+
+- You need a PKCIS #12 cryptographic store (.pk12). https://en.wikipedia.org/wiki/PKCS_12
+  - See Makefile targets `target/localhost.crt` (line 236), `/etc/horizon/exchange/localhost.p12` (line 243), and `truststore` (line 250) for a skeleton to use with OpenSSL.
+  - OpenSSL is used for the creation of (1) self-signed certificate stating the application server is who it says it is, (2) the server's private key, and (3) the PKCS #12 which is just a portable secure store for everything.
+  - The PKCS #12 is password protected. Set the environmental variable `EXCHANGE_TRUST_PW` when using the Makefile.
+    - Set `export EXCHANGE_TRUST_PW=` when wishing to not have a password on the PKCS #12
+- Set `api.tls.truststore` and `api.tls.password` in the Exchange's `/etc/horizon/echange/config.json` file.
+  - `truststore` expects the absolute (full) path to your intended PCKS #12 as a string.
+    - Setting this is the mechanism by which the Exchange knows to attempt to set up TLS in the application server.
+    - Use `"truststore": null` to disable.
+  - `password` expects the PKCS #12's password.
+    - The Exchange will throw an error and self terminate on start if this password is not set or set `null`.
+    - `api.tls.password` defaults to `null`.
+    - When using a PKCS #12 that does not have a set password, set `api.tls.password` to `"password": "",` in the `/etc/horizon/exchange/config.json`.
+  - See Makefile target `/etc/horizon/exchange/config-https.json` (line 201) for an idea.
+- The default ports are `8080` for unencrypted traffic and `8083` for Encrypted.
+  - These can be adjusted in the Exchange's `/etc/horizon/echange/config.json` file.
+  - `api.service.portEncrypted` for changing the port listening for encrypted traffic.
+  - `api.service.port` for changing the port listening for unencrypted traffic.
+  - See Makefile target `/etc/horizon/exchange/config-https.json` (line 201) for an idea.
+  - The Exchange is capable of hosting both HTTP and HTTPS traffic at the same time as well as mutually exclusively one. Freedom to mix-and-match.
+    - HTTP and HTTPS are required to run on different ports. The Exchange always defaults to HTTP exclusively when in conflict.
+    - If ports are manually undefined in the Exchange's `/etc/horizon/echange/config.json` file then HTTP on port `8080` is defaulted.
+  - The Exchange does not support mixing HTTP and HTTPS traffic on either port.
+- Only `TLSv1.3` HTTPS traffic is supported by the Exchange with TLS enabled.
+  - `TLS_AES_256_GCM_SHA384` is the only supported cipher in the Exchange.
+  - The cipher `TLS_CHACHA20_POLY1305_SHA256` is available starting in Java 14.
+- [Optional] When using HTTPS with the Exchange the PostgreSQL database can also be configured with TLS turned on.
+  - The Exchange does not require an SSL enabled PostgreSQL database to function with TLS enabled. 
+  - See https://www.postgresql.org/docs/13/runtime-config-connection.html#RUNTIME-CONFIG-CONNECTION-SSL for more information.
+  - Requires separate certificate (.cert) and private key (.key) files.
+    - See Makefile target `/postgres.crt` (line 138) for an idea.
+  - Requires flag `ssl=true` to be set.
+  - Requires flag `ssl_min_protocol_version=TLSv1.3` to be set.
+  - See makefile target `target/docker/.run-docker-db-postgres-https` for an idea and how to do this for a PostgreSQL Docker container.
+- The Exchange does not support HTTP traffic redirects to HTTPS server-side. HTTPS traffic must be intended client-side.
+- See the Makefile target chain `target/docker/.run-docker-icp-https` (line 272) for idea of a running Exchange and database in docker containers using TLS.
+- Do to technical limitations the Swagger page will only refer to the Exchange's HTTPS traffic port.
+
 ## Todos that may be done in future versions
 
 - Granular (per org) service ACL support:
@@ -259,8 +299,11 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
-## Changes in 2.73.0
 
+## Changes in 2.74.0
+- Readme Update: Added section on using TLS with the Exchange.
+
+## Changes in 2.73.0
 - Issue 491: Updated the service definition, deployment policy and pattern definitions to support vault based secrets to be used with Open Horizon.
      
 ## Changes in 2.72.0
@@ -272,16 +315,13 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 - Remade Makefile.
 
 ## Changes in 2.71.0
-
 - Issue 493: Added route GET/orgs/{orgid}/status to fetch org specific information.
 
 ## Changed in 2.70.0
-
 - Fixed issue 423: Upgrade Exchange To Use Akka v2.6.x.
 - Also updated sbt, scala, and project dependencies.
 
 ## Changes in 2.69.0
-
 - Added mulitple response headers to all Http responses.
   - `Cache-Control: max-age=0, must-revalidate, no-cache, no-store`
   - `Content-Type: application/json; charset=UTF-8`

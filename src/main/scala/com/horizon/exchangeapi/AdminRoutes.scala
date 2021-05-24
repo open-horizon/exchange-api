@@ -38,18 +38,19 @@ final case class AdminConfigRequest(varPath: String, value: String) {
 
 final case class AdminDropdbTokenResponse(token: String)
 
-final case class GetAdminStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfNodeMsgs: Int, numberOfAgbots: Int, numberOfAgbotAgreements: Int, numberOfAgbotMsgs: Int, dbSchemaVersion: Int)
+final case class GetAdminStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfUnregisteredNodes: Int, numberOfNodeAgreements: Int, numberOfNodeMsgs: Int, numberOfAgbots: Int, numberOfAgbotAgreements: Int, numberOfAgbotMsgs: Int, dbSchemaVersion: Int)
 class AdminStatus() {
   var msg: String = ""
   var numberOfUsers: Int = 0
   var numberOfNodes: Int = 0
+  var numberOfUnregisteredNodes: Int = 0
   var numberOfNodeAgreements: Int = 0
   var numberOfNodeMsgs: Int = 0
   var numberOfAgbots: Int = 0
   var numberOfAgbotAgreements: Int = 0
   var numberOfAgbotMsgs: Int = 0
   var dbSchemaVersion: Int = 0
-  def toGetAdminStatusResponse: GetAdminStatusResponse = GetAdminStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements, numberOfNodeMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs, dbSchemaVersion)
+  def toGetAdminStatusResponse: GetAdminStatusResponse = GetAdminStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfUnregisteredNodes, numberOfNodeAgreements, numberOfNodeMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs, dbSchemaVersion)
 }
 
 final case class GetAdminOrgStatusResponse(msg: String, nodes: Map[String, Int])
@@ -288,6 +289,10 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfNodes = v
+            NodesTQ.getUnregisteredNodes().result.asTry
+          case Failure(t) => DBIO.failed(t).asTry
+        }).flatMap({
+          case Success(v) => statusResp.numberOfUnregisteredNodes = v
             AgbotsTQ.rows.length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({

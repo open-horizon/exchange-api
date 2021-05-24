@@ -171,11 +171,13 @@ object NodesTQ {
     (DBIO.sequence(actions.toVector), svcRefs.toVector)      // convert the list of actions to a DBIO sequence
   }
 
+
   def getAllNodes(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(_.orgid === orgid)
   def getAllNodesId(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.id)
   def getNodeTypeNodes(orgid: String, nodeType: String): Query[Nodes, NodeRow, Seq] = rows.filter(r => {r.orgid === orgid && r.nodeType === nodeType})
   def getNonPatternNodes(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(r => {r.orgid === orgid && r.pattern === ""})
   def getRegisteredNodesInOrg(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(node => {node.orgid === orgid && node.publicKey =!= ""})
+  def getAllRegisteredNodes(): Query[Nodes, NodeRow, Seq] = rows.filter(node => {node.publicKey =!= ""})
   def getNode(id: String): Query[Nodes, NodeRow, Seq] = rows.filter(_.id === id)
   def getToken(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.token)
   def getOwner(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.owner)
@@ -194,6 +196,16 @@ object NodesTQ {
   def setLastHeartbeat(id: String, lastHeartbeat: String): FixedSqlAction[Int, NoStream, Effect.Write] = rows.filter(_.id === id).map(_.lastHeartbeat).update(Some(lastHeartbeat))
   def setLastUpdated(id: String, lastUpdated: String): FixedSqlAction[Int, NoStream, Effect.Write] = rows.filter(_.id === id).map(_.lastUpdated).update(lastUpdated)
 
+  // Function to calculate unregistered nodes i.e. unused nodes in exchange UnusedNodes = TotalNodes - RegisteredNodes
+  def getUnregisteredNodes(): Int = {
+    var unregisteredNodes: Int = 0
+    var registeredNodes: Int = 0
+    var totalNodes: Int = 0
+    totalNodes = NodesTQ.rows.length
+    registeredNodes = NodesTQ.getAllRegisteredNodes().length
+    unregisteredNodes = totalNodes - registeredNodes
+    return unregisteredNodes
+  }
 
   /** Returns a query for the specified node attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(id: String, attrName: String): Query[_,_,Seq] = {

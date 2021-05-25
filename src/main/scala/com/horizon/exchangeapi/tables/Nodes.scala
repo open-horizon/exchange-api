@@ -201,8 +201,8 @@ object NodesTQ {
     var unregisteredNodes: Int = 0
     var registeredNodes: Int = 0
     var totalNodes: Int = 0
-    totalNodes = NodesTQ.rows.length
-    registeredNodes = NodesTQ.getAllRegisteredNodes().length
+    totalNodes = NodesTQ.rows.length.asInstanceOf[Int]
+    registeredNodes = NodesTQ.getAllRegisteredNodes().length.asInstanceOf[Int]
     unregisteredNodes = totalNodes - registeredNodes
     return unregisteredNodes
   }

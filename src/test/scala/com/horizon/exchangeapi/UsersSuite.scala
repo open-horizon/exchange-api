@@ -699,7 +699,7 @@ test("PUT /orgs/" + orgid + "/users/" + user + " - update normal with creds") {
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" as not public in 1st org") {
-    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, Some(""), Some(""), None, None, None)
+    val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, None, Some(""), Some(""), None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -746,7 +746,7 @@ test("PUT /orgs/" + orgid + "/users/" + user + " - update normal with creds") {
 
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as not public in 1st org") {
-    val input = PostPutPatternRequest("Pattern", None, None, List(PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion,None,None,None,None)), None, None)), None, None )
+    val input = PostPutPatternRequest("Pattern", None, None, List(PServices(svcurl, orgid, svcarch, None, List(PServiceVersions(svcversion,None,None,None,None)), None, None)), None, None, None)
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -919,7 +919,7 @@ test("PUT /orgs/" + orgid + "/users/" + user + " - update normal with creds") {
   }
 
   test("POST /orgs/"+orgid+"/business/policies/"+"mybuspol"+" - add "+"mybuspol"+" as user") {
-    val input = PostPutBusinessPolicyRequest("mybuspol", None, BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None ), None, None, None )
+    val input = PostPutBusinessPolicyRequest("mybuspol", None, BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None ), None, None, None, None)
     val response = Http(URL+"/business/policies/"+"mybuspol").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1043,7 +1043,7 @@ test("PUT /orgs/" + orgid + "/users/" + user + " - update normal with creds") {
       // Can only add resources to an ibm public cloud org that we created (the icp org is the one in the cluster)
       if (iamAccountId.nonEmpty) {
         // ensure we can add a service to check acls to other objects
-        val inputSvc = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, "s1", "1.2.3", "amd64", "single", None, None, None, Some("a"), Some("b"), None, None, None)
+        val inputSvc = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, "s1", "1.2.3", "amd64", "single", None, None, None,None , Some("a"), Some("b"), None, None)
         response = Http(CLOUDURL + "/services").postData(write(inputSvc)).method("post").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
         info("code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.POST_OK.intValue)

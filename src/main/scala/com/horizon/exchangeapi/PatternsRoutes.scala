@@ -449,7 +449,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -463,12 +463,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
        "serviceOrgid": "string",
         "serviceUrl": "string",
         "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
-        "serviceContainer": "string",
-        "bindings": [
-         "secret1": {
-                 "vaultSecret": "string"
-            }
+        "serviceVersionRange":"x.y.z",
+         "secrets": [
+          {
+           "FirstSecret": "secret1"
+           "Foo": "Bar"
+          }
          ]
       },
    ],
@@ -654,7 +654,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceVersionRange": "x.y.z", // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -668,12 +668,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
        "serviceOrgid": "string",
         "serviceUrl": "string",
         "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
-        "serviceContainer": "string",
-        "bindings": [
-         "secret1": {
-                 "vaultSecret": "string"
-            }
+        "serviceVersionRange":"x.y.z",
+         "secrets": [
+          { 
+           "FirstSecret": "secret1" 
+           "Foo": "Bar"
+          }
          ]
       },
    ],
@@ -858,7 +858,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -867,17 +867,17 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-  "secretBinding": [
+   "secretBinding": [
      {
        "serviceOrgid": "string",
         "serviceUrl": "string",
         "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
-        "serviceContainer": "string",
-        "bindings": [
-         "secret1": {
-                 "vaultSecret": "string"
-            }
+        "serviceVersionRange":"x.y.z",
+         "secrets": [
+          {
+           "FirstSecret": "secret1"
+           "Foo": "Bar"
+          }
          ]
       },
    ],

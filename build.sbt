@@ -88,6 +88,12 @@ lazy val root = (project in file("."))
           "junit" % "junit" % "[4.13.1,)" % "test"
         ), 
         scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
+        
+        // Used when running test suites with HTTPS.
+        // Requires path to your PKCS #12 cryptographic store and its password.
+        // fork := true,
+        // javaOptions ++= Seq("-Djavax.net.ssl.trustStore=/home/someuser/git/exchange-api/target/localhost.p12", "-Djavax.net.ssl.trustStorePassword=truststore-password"),
+      
         //javaOptions ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config", "-Djava.security.policy=src/main/resources/auth.policy")
 
         // These settings are for the Docker subplugin within sbt-native-packager. See: https://sbt-native-packager.readthedocs.io/en/stable/formats/docker.html

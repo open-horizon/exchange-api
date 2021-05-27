@@ -381,24 +381,17 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
- "secretBinding": [
-     {
-       "serviceOrgid": "string",
-        "serviceUrl": "string",
-        "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
-         "secrets": [
-          {
-               "value": "FirstSecret",
-               "vaultSecret": "secret1"
-          },
-          {
-               "value": "Foo",
-               "vaultSecret": "Bar"
-          }
-         ]
-      },
-   ]
+"secretBinding": [
+  {
+    "serviceOrgid": "myorg",
+    "serviceUrl": "myservice",
+    "serviceArch": "amd64",
+    "serviceVersionRange": "x.y.z",
+    "secrets": [
+  { "MyServiceSecretName": "MyVaultSecretName" },
+    ]
+  },
+]
   "properties": [
     {
       "name": "mypurpose",
@@ -564,23 +557,16 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     }
   ],
  "secretBinding": [
-     {
-       "serviceOrgid": "string",
-        "serviceUrl": "string",
-        "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
-         "secrets": [
-          {
-               "value": "FirstSecret",
-               "vaultSecret": "secret1"
-          },
-          {
-               "value": "Foo",
-               "vaultSecret": "Bar"
-          }
-         ]
-      },
-   ]
+  {
+    "serviceOrgid": "myorg",
+    "serviceUrl": "myservice",
+    "serviceArch": "amd64",
+    "serviceVersionRange": "x.y.z",
+    "secrets": [
+  { "MyServiceSecretName": "MyVaultSecretName" },
+    ]
+  },
+]
   "properties": [
     {
       "name": "mypurpose",
@@ -721,23 +707,16 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     }
   ],
    "secretBinding": [
-     {
-       "serviceOrgid": "string",
-        "serviceUrl": "string",
-        "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
-         "secrets": [
-          {
-               "value": "FirstSecret",
-               "vaultSecret": "secret1"
-          },
-          {
-               "value": "Foo",
-               "vaultSecret": "Bar"
-          }
-         ]
-      },
-   ]
+  {
+    "serviceOrgid": "myorg",
+    "serviceUrl": "myservice",
+    "serviceArch": "amd64",
+    "serviceVersionRange": "x.y.z",
+    "secrets": [
+  { "MyServiceSecretName": "MyVaultSecretName" },
+    ]
+  },
+]
   "properties": [
     {
       "name": "mypurpose",

@@ -459,16 +459,16 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     }
   ],
 "secretBinding": [
-  {
-    "serviceOrgid": "myorg",
-    "serviceUrl": "myservice",
-    "serviceArch": "amd64",
-    "serviceVersionRange": "x.y.z",
-    "secrets": [
-  { "MyServiceSecretName": "MyVaultSecretName" },
-    ]
-  },
-]
+   {
+      "serviceOrgid": "myorg",
+      "serviceUrl": "myservice",
+      "serviceArch": "amd64",
+      "serviceVersionRange": "x.y.z",
+      "secrets": [
+        { "MyServiceSecretName": "MyVaultSecretName" },
+      ]
+    },
+  ]
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [  // can be omitted
     {
@@ -661,16 +661,16 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     }
   ],
   "secretBinding": [
-  {
-    "serviceOrgid": "myorg",
-    "serviceUrl": "myservice",
-    "serviceArch": "amd64",
-    "serviceVersionRange": "x.y.z",
-    "secrets": [
-  { "MyServiceSecretName": "MyVaultSecretName" },
-    ]
-  },
-]
+   {
+      "serviceOrgid": "myorg",
+      "serviceUrl": "myservice",
+      "serviceArch": "amd64",
+      "serviceVersionRange": "x.y.z",
+      "secrets": [
+        { "MyServiceSecretName": "MyVaultSecretName" },
+      ]
+    },
+  ]
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [  // can be omitted
     {
@@ -862,16 +862,16 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     }
   ],
  "secretBinding": [
-  {
-    "serviceOrgid": "myorg",
-    "serviceUrl": "myservice",
-    "serviceArch": "amd64",
-    "serviceVersionRange": "x.y.z",
-    "secrets": [
-  { "MyServiceSecretName": "MyVaultSecretName" },
-    ]
-  },
-]
+   {
+      "serviceOrgid": "myorg",
+      "serviceUrl": "myservice",
+      "serviceArch": "amd64",
+      "serviceVersionRange": "x.y.z",
+      "secrets": [
+        { "MyServiceSecretName": "MyVaultSecretName" },
+      ]
+    },
+  ]
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [  // can be omitted
     {

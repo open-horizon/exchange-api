@@ -382,16 +382,16 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     }
   ],
 "secretBinding": [
-  {
-    "serviceOrgid": "myorg",
-    "serviceUrl": "myservice",
-    "serviceArch": "amd64",
-    "serviceVersionRange": "x.y.z",
-    "secrets": [
-  { "MyServiceSecretName": "MyVaultSecretName" },
-    ]
-  },
-]
+   {
+      "serviceOrgid": "myorg",
+      "serviceUrl": "myservice",
+      "serviceArch": "amd64",
+      "serviceVersionRange": "x.y.z",
+      "secrets": [
+        { "MyServiceSecretName": "MyVaultSecretName" },
+      ]
+    },
+  ]
   "properties": [
     {
       "name": "mypurpose",
@@ -556,17 +556,17 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
- "secretBinding": [
-  {
-    "serviceOrgid": "myorg",
-    "serviceUrl": "myservice",
-    "serviceArch": "amd64",
-    "serviceVersionRange": "x.y.z",
-    "secrets": [
-  { "MyServiceSecretName": "MyVaultSecretName" },
-    ]
-  },
-]
+"secretBinding": [
+   {
+      "serviceOrgid": "myorg",
+      "serviceUrl": "myservice",
+      "serviceArch": "amd64",
+      "serviceVersionRange": "x.y.z",
+      "secrets": [
+        { "MyServiceSecretName": "MyVaultSecretName" },
+      ]
+    },
+  ]
   "properties": [
     {
       "name": "mypurpose",
@@ -706,17 +706,17 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-   "secretBinding": [
-  {
-    "serviceOrgid": "myorg",
-    "serviceUrl": "myservice",
-    "serviceArch": "amd64",
-    "serviceVersionRange": "x.y.z",
-    "secrets": [
-  { "MyServiceSecretName": "MyVaultSecretName" },
-    ]
-  },
-]
+"secretBinding": [
+   {
+      "serviceOrgid": "myorg",
+      "serviceUrl": "myservice",
+      "serviceArch": "amd64",
+      "serviceVersionRange": "x.y.z",
+      "secrets": [
+        { "MyServiceSecretName": "MyVaultSecretName" },
+      ]
+    },
+  ]
   "properties": [
     {
       "name": "mypurpose",

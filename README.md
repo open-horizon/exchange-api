@@ -262,9 +262,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - HTTP and HTTPS are required to run on different ports. The Exchange always defaults to HTTP exclusively when in conflict.
     - If ports are manually undefined in the Exchange's `/etc/horizon/echange/config.json` file then HTTP on port `8080` is defaulted.
   - The Exchange does not support mixing HTTP and HTTPS traffic on either port.
-- Only `TLSv1.3` HTTPS traffic is supported by the Exchange with TLS enabled.
-  - `TLS_AES_256_GCM_SHA384` is the only supported cipher in the Exchange.
-  - The cipher `TLS_CHACHA20_POLY1305_SHA256` is available starting in Java 14.
+- Only `TLSv1.3` and `TLSv1.2` HTTPS traffic is supported by the Exchange with TLS enabled.
+  - `TLS_AES_256_GCM_SHA384` is the only supported TLSv1.3 cipher in the Exchange.
+  - The `TLSv1.3` cipher `TLS_CHACHA20_POLY1305_SHA256` is available starting in Java 14.
+  - The supported ciphers for `TLSv1.2` are `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384` and `TLS_DHE_RSA_WITH_AES_256_GCM_SHA384`.
 - [Optional] When using HTTPS with the Exchange the PostgreSQL database can also be configured with TLS turned on.
   - The Exchange does not require an SSL enabled PostgreSQL database to function with TLS enabled. 
   - See https://www.postgresql.org/docs/13/runtime-config-connection.html#RUNTIME-CONFIG-CONNECTION-SSL for more information.
@@ -299,6 +300,8 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.75.0
+- Enabled support for TLSv1.2. TLSv1.2 is in support of OpenShift 4.6. The 4.6 HAPoxy router is built on top of RHEL7 which does not support TLSv1.3.
 
 ## Changes in 2.74.0
 - Readme Update: Added section on using TLS with the Exchange.
@@ -330,32 +333,26 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 - Added `application/json` mediatype to all http 200 and 201 responses in the OpenAPI 3.0 Swagger documentation.
 
 ## Changes in 2.68.0
-
 - No changes, version bump.
 
 ## Changes in 2.67.0
-
 - `ApiTime` string methods are wrapped with `fixFormatting()` to remove the issue where seconds or milliseconds get removed
 
 ## Changes in 2.66.0
-
 - HubAdmins now have permission to `READ_ALL_AGBOTS` and `WRITE_ALL_AGBOTS` to facilitate org creation through hzn cli
 - Users can no longer be a HubAdmin and an OrgAdmin at the same time
 - New translation files
 - travis.yml updates 
 
 ## Changes in 2.65.0
-
 - Updating `lastUpdated` field of node on `POST /services_configstate` route
 - New translation files, and file name fixes
 - travis.yml updates
 
 ## Changes in 2.64.0
-
 - Patch added to fix for issue 448. Missed one log message.
 
 ## Changes in 2.63.0
-
 - Fixed issue 418: POST ​/v1​/orgs​/{orgid}​/agbots​/{id}​/agreements​/confirm wrong in swagger
 - Added new translation files
 - Fixed issue 448: Remove node token from log messages
@@ -365,7 +362,6 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
   - Analyzed the DB query code, adding many comments along the way. Did not find any problems
 
 ## Changes in 2.62.0
-
 - Fixed issue 464: NPE in Exchange on PATCH business policies with incorrect payload returns incorrect HTTP status code - doesn't tell user what is wrong
 - Fixed issue 176: When user or org is deleted, delete all corresponding auth cache entries
 - Fixed issue 440: Add max parameter on GET /msgs calls

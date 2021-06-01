@@ -11,7 +11,8 @@ services in the exchange.
 - [Install scala](http://www.scala-lang.org/download/install.html)
 - [Install sbt](https://www.scala-sbt.org/1.x/docs/Setup.html)
 - (optional) Install conscript and giter8 if you want to get example code from scalatra.org
-- Install postgresql locally (unless you have a remote instance you are using). Instructions for installing on Mac OS X:
+- Install postgresql locally (unless you have a remote instance you are using). 
+  - Instructions for installing on Mac OS X:
     - Install: `brew install postgresql`
     - Note: when running/testing the exchange svr in a docker container, it can't reach your postgres instance on `localhost`, so configure it to also listen on your local IP:
       - set this to your IP: `export MY_IP=<my-ip>`
@@ -24,6 +25,13 @@ services in the exchange.
       - `brew services start postgresql` or if it is already running `brew services restart postgresql`
     - Or you can run postgresql in a container and connect it to the docker network `exchange-api-network`
     - Test: `psql "host=$MY_IP dbname=postgres user=<myuser> password=''"`
+
+  - Instructions for installing on Ubuntu:
+    - Install: `sudo apt install postgresql postgresql-contrib`
+    - Configure your postgres instance to listen on your local IP: Update the listen_addresses connection settings in postgres.conf file with a `*` in place of `$MY_IP` and pg_hba.conf with `0.0.0.0/0` in place of `$MY_IP/32`.
+    - Run `sudo -u postgres psql`
+    - Test: `psql "host=$MY_IP dbname=postgres user=<myuser> password=''"`
+    
 - Add a configuration file on your development system at `/etc/horizon/exchange/config.json` with at minimum the following content (this is needed for the automated tests. Defaults and the full list of configuration variables are in `src/main/resources/config.json`):
 
   ```

@@ -449,7 +449,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
+      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -458,20 +458,17 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-   "secretBinding": [
-     {
-       "serviceOrgid": "string",
-        "serviceUrl": "string",
-        "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
-         "secrets": [
-          { 
-           "FirstSecret": "secret1" 
-           "Foo": "Bar"
-          }
-         ]
-      },
-   ],
+"secretBinding": [
+   {
+      "serviceOrgid": "myorg",
+      "serviceUrl": "myservice",
+      "serviceArch": "amd64",
+      "serviceVersionRange": "x.y.z",
+      "secrets": [
+        { "MyServiceSecretName": "MyVaultSecretName" },
+      ]
+    },
+  ]
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [  // can be omitted
     {
@@ -654,7 +651,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "x.y.z", // or omit to mean all versions
+      "serviceVersionRange": "[0.0.0,INFINITY)", // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -664,19 +661,16 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     }
   ],
   "secretBinding": [
-     {
-       "serviceOrgid": "string",
-        "serviceUrl": "string",
-        "serviceArch": "amd64",
-        "serviceVersionRange":"x.y.z",
-         "secrets": [
-          { 
-           "FirstSecret": "secret1" 
-           "Foo": "Bar"
-          }
-         ]
-      },
-   ],
+   {
+      "serviceOrgid": "myorg",
+      "serviceUrl": "myservice",
+      "serviceArch": "amd64",
+      "serviceVersionRange": "x.y.z",
+      "secrets": [
+        { "MyServiceSecretName": "MyVaultSecretName" },
+      ]
+    },
+  ]
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [  // can be omitted
     {
@@ -858,7 +852,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
+      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -867,20 +861,17 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-  "secretBinding": [
-     {
-       "serviceOrgid": "string",
-        "serviceUrl": "string",
-        "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
-         "secrets": [
-          { 
-           "FirstSecret": "secret1" 
-           "Foo": "Bar"
-          }
-         ]
-      },
-   ],
+ "secretBinding": [
+   {
+      "serviceOrgid": "myorg",
+      "serviceUrl": "myservice",
+      "serviceArch": "amd64",
+      "serviceVersionRange": "x.y.z",
+      "secrets": [
+        { "MyServiceSecretName": "MyVaultSecretName" },
+      ]
+    },
+  ]
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [  // can be omitted
     {

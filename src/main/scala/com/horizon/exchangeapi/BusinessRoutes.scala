@@ -373,7 +373,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
+      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -501,7 +501,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       } // end of validateWithMsg
     } // end of exchAuth
   }
-
+  
   // =========== PUT /orgs/{orgid}/business/policies/{policy} ===============================
   @PUT
   @Path("{policy}")
@@ -551,7 +551,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
+      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",
@@ -704,7 +704,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
       "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "x.y.z",  // or omit to mean all versions
+      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
       "inputs": [
         {
           "name": "foo",

@@ -95,6 +95,7 @@ final case class PatchBusinessPolicyRequest(label: Option[String], description: 
     description match { case Some(desc) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.description,d.lastUpdated)).update((businessPolicy, desc, lastUpdated)), "description"); case _ => ; }
     service match { case Some(svc) => return ((for {d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.service,d.lastUpdated)).update((businessPolicy, write(svc), lastUpdated)), "service"); case _ => ; }
     userInput match { case Some(input) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.userInput,d.lastUpdated)).update((businessPolicy, write(input), lastUpdated)), "userInput"); case _ => ; }
+    secretBinding match {case Some(bind) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.secretBinding,d.lastUpdated)).update((businessPolicy, write(bind), lastUpdated)), "secretBinding"); case _ => ; }
     properties match { case Some(prop) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.properties,d.lastUpdated)).update((businessPolicy, write(prop), lastUpdated)), "properties"); case _ => ; }
     constraints match { case Some(con) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.constraints,d.lastUpdated)).update((businessPolicy, write(con), lastUpdated)), "constraints"); case _ => ; }
     (null, null)
@@ -393,7 +394,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
            "Foo": "Bar"
           }
          ]
-      },
+      }
    ],
   "properties": [
     {
@@ -571,7 +572,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
            "Foo": "Bar"
           }
          ]
-      },
+      }
    ],
   "properties": [
     {
@@ -724,7 +725,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
            "Foo": "Bar"
           }
          ]
-      },
+      }
    ],
   "properties": [
     {

@@ -389,10 +389,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         "serviceArch": "amd64",
         "serviceVersionRange": "x.y.z",
          "secrets": [
-          { 
-           "FirstSecret": "secret1" 
-           "Foo": "Bar"
-          }
+            {"<service-secret-name1>": "<vault-secret-name1>"},
+            {"<service-secret-name2>": "<vault-secret-name2>"}
          ]
       }
    ],
@@ -567,10 +565,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         "serviceArch": "amd64",
         "serviceVersionRange": "x.y.z",
          "secrets": [
-         { 
-           "FirstSecret": "secret1" 
-           "Foo": "Bar"
-          }
+            {"<service-secret-name1>": "<vault-secret-name1>"},
+            {"<service-secret-name2>": "<vault-secret-name2>"}
          ]
       }
    ],
@@ -720,10 +716,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         "serviceArch": "amd64",
         "serviceVersionRange": "x.y.z",
          "secrets": [
-          { 
-           "FirstSecret": "secret1" 
-           "Foo": "Bar"
-          }
+            {"<service-secret-name1>": "<vault-secret-name1>"},
+            {"<service-secret-name2>": "<vault-secret-name2>"}
          ]
       }
    ],

@@ -34,7 +34,7 @@ final case class BusinessPolicyRow(businessPolicy: String, orgid: String, owner:
 
   // update returns a DB action to update this row
   //todo: we should not update the 'created' field, but we also don't want to list out all of the other fields, because it is error prone
-  def update: DBIO[_] = (for { m <- BusinessPoliciesTQ.rows if m.businessPolicy === businessPolicy } yield (m.businessPolicy,m.orgid,m.owner,m.label,m.description,m.service,m.userInput,m.properties,m.constraints,m.lastUpdated)).update((businessPolicy,orgid,owner,label,description,service,userInput,properties,constraints,lastUpdated))
+  def update: DBIO[_] = (for { m <- BusinessPoliciesTQ.rows if m.businessPolicy === businessPolicy } yield (m.businessPolicy,m.orgid,m.owner,m.label,m.description,m.service,m.userInput,m.secretBinding,m.properties,m.constraints,m.lastUpdated)).update((businessPolicy,orgid,owner,label,description,service,userInput,secretBinding,properties,constraints,lastUpdated))
 
   // insert returns a DB action to insert this row
   def insert: DBIO[_] = BusinessPoliciesTQ.rows += this

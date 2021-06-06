@@ -335,7 +335,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern, Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), None, None)), None, None )),
       Some(List( OneUserInputService(orgid, svcurl, None, Some("[9.9.9,9.9.9]"), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -347,7 +347,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern, Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -372,7 +372,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern+" ", Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+pattern+"  ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -387,7 +387,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest("  "+pattern+" ", Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+"  "+pattern+" ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -401,7 +401,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern5, Some("desc"), Some(true),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
@@ -415,7 +415,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern3, Some("desc"), Some(false),
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
@@ -429,7 +429,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern4, Some("desc"), None,
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL2+"/patterns/"+pattern4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
@@ -464,7 +464,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern+" amd64", None, None,
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -536,7 +536,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern5, None, Some(false),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       None
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
@@ -548,7 +548,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern5, None, Some(true),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       None
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
@@ -564,7 +564,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern5, None, Some(true),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid3, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       None
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
@@ -579,7 +579,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern3, None, Some(true),
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       None
     )
     val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
@@ -591,7 +591,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern4, None, Some(false),
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       None
     )
     val response = Http(URL2+"/patterns/"+pattern4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
@@ -599,6 +599,130 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
+//   test("POST /orgs/"+orgid+"/patterns/Pattern - add Pattern with secretBinding field") {
+//     val input ="""{
+//                     "label": "name of the edge pattern",  
+//                     "description": "descriptive text",    
+//                     "public": false,                      
+//                     "services": [{"serviceUrl": "mydomain.com.weather","serviceOrgid": "myorg","serviceArch": "amd64","agreementLess": false,
+//                     "serviceVersions": [{"version": "1.0.1","deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+//                     "deployment_overrides_signature": "","priority": {"priority_value": 50,"retries": 1,"retry_durations": 3600,"verified_durations": 52},
+//                     "upgradePolicy": {"lifecycle": "immediate","time": "01:00AM"}}],
+//                     "dataVerification": {"enabled": true,"URL": "","user": "","password": "","interval": 480,"check_rate": 15,"metering": {"tokens": 1,"per_time_unit": "min","notification_interval": 30}},
+//                     "nodeHealth": {"missing_heartbeat_interval": 600, "check_agreement_status": 120}}],
+//                     "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+//                     "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}],
+//                     "agreementProtocols":[{"name":"Basic"}]
+// }""".stripMargin
+//     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+//     info("code: "+response.code+", response.body: "+response.body)
+//     assert(response.code === HttpCode.POST_OK.intValue)
+//  }
+
+  test("POST /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with invalid secretBinding - should fail") {
+    val input = """{
+                      "label": "name of the edge pattern",  
+                      "description": "descriptive text",    
+                      "public": false,                      
+                      "services": [{"serviceUrl": "mydomain.com.weather","serviceOrgid": "myorg","serviceArch": "amd64","agreementLess": false,
+                      "serviceVersions": [{"version": "1.0.1","deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+                      "deployment_overrides_signature": "","priority": {"priority_value": 50,"retries": 1,"retry_durations": 3600,"verified_durations": 52},
+                      "upgradePolicy": {"lifecycle": "immediate","time": "01:00AM"}}],
+                      "dataVerification": {"enabled": true,"URL": "","user": "","password": "","interval": 480,"check_rate": 15,"metering": {"tokens": 1,"per_time_unit": "min","notification_interval": 30}},
+                      "nodeHealth": {"missing_heartbeat_interval": 600, "check_agreement_status": 120}}],
+                      "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+                      "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": { "FirstSecret": "secret1","Foo": "Bar" }}],
+                      "agreementProtocols":[{"name":"Basic"}]
+                      }""".stripMargin
+    val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
+//   test("POST /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with no secretBinding - should pass") {
+//     val input = """{
+//     "label": "name of the edge pattern",  
+//     "description": "descriptive text",    
+//     "public": false,                      
+//     "services": [{"serviceUrl": "mydomain.com.weather","serviceOrgid": "myorg","serviceArch": "amd64","agreementLess": false,
+//     "serviceVersions": [{"version": "1.0.1","deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+//     "deployment_overrides_signature": "","priority": {"priority_value": 50,"retries": 1,"retry_durations": 3600,"verified_durations": 52},
+//     "upgradePolicy": {"lifecycle": "immediate","time": "01:00AM"}}],
+//     "dataVerification": {"enabled": true,"URL": "","user": "","password": "","interval": 480,"check_rate": 15,"metering": {"tokens": 1,"per_time_unit": "min","notification_interval": 30}},
+//     "nodeHealth": {"missing_heartbeat_interval": 600, "check_agreement_status": 120}}],
+//     "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+//     "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}],
+//     "agreementProtocols":[{"name":"Basic"}]
+// }""".stripMargin
+//     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+//     info("code: "+response.code+", response.body: "+response.body)
+//     assert(response.code === HttpCode.POST_OK.intValue)
+//   }
+   
+//   test("PUT /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with secretBinding field") {
+//     val input = """{
+//     "label": "name of the edge pattern",  
+//     "description": "descriptive text",    
+//     "public": false,                      
+//     "services": [{"serviceUrl": "mydomain.com.weather","serviceOrgid": "myorg","serviceArch": "amd64","agreementLess": false,
+//     "serviceVersions": [{"version": "1.0.1","deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+//     "deployment_overrides_signature": "","priority": {"priority_value": 50,"retries": 1,"retry_durations": 3600,"verified_durations": 52},
+//     "upgradePolicy": {"lifecycle": "immediate","time": "01:00AM"}}],
+//     "dataVerification": {"enabled": true,"URL": "","user": "","password": "","interval": 480,"check_rate": 15,"metering": {"tokens": 1,"per_time_unit": "min","notification_interval": 30}},
+//     "nodeHealth": {"missing_heartbeat_interval": 600, "check_agreement_status": 120}}],
+//     "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+//     "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}],
+//     "agreementProtocols":[{"name":"Basic"}]
+// }""".stripMargin
+//     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+//     info("code: "+response.code+", response.body: "+response.body)
+//     assert(response.code === HttpCode.POST_OK.intValue)
+//     //assert(response.body.contains("No usable value for service"))
+//   }
+
+  // test("PUT /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with no secretBinding field") {
+  //       val input = """{
+  //                   "label":"PatternNoService",
+  //                   "description":"Test pattern with no service section to see if this is possible",
+  //                   "public":false,
+  //                   "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+  //                   "secretBinding": [],
+  //                   "agreementProtocols":[{"name":"Basic"}]
+  //                 }""".stripMargin
+  //   val response = Http(URL+"/patterns/PatternNoService").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+  //   info("code: "+response.code+", response.body: "+response.body)
+  //   assert(response.code === HttpCode.POST_OK.intValue)
+  //   //assert(response.body.contains("No usable value for service"))
+  // }
+
+  // test("PUT /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with bad response body") {
+  //   val input = """{
+  //                   "label":"PatternNoService",
+  //                   "description":"Test pattern with no service section to see if this is possible",
+  //                   "public":false,
+  //                   "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+  //                   "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets":  { "FirstSecret": "secret1","Foo": "Bar" }}],
+  //                   "agreementProtocols":[{"name":"Basic"}]
+  //                 }""".stripMargin
+  //   val response = Http(URL+"/patterns/PatternNoService").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+  //   info("code: "+response.code+", response.body: "+response.body)
+  //   assert(response.code === HttpCode.BAD_INPUT.intValue)
+  //   //assert(response.body.contains("No usable value for service"))
+  // }
+
+  //   test("PATCH /orgs/"+orgid+"/patterns/PatternNoService - secretBinding field") {
+  //   var jsonInput = """{"secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}]}"""
+  //   val response = Http(URL+"/patterns/PatternNoService").postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+  //   info("code: "+response.code+", response.body: "+response.body)
+  //   assert(response.code === HttpCode.PUT_OK.intValue)
+  // }
+
+  // test("PATCH /orgs/"+orgid+"/patterns/PatternNoService - secretBinding with invalid format") {
+  //   var jsonInput = """{"secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets":  { "FirstSecret": "secret1","Foo": "Bar" }}]}"""
+  //   val response = Http(URL+"/patterns/PatternNoService").postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+  //   info("code: "+response.code+", response.body: "+response.body)
+  //   assert(response.code === HttpCode.BAD_INPUT.intValue)
+  // }
   /*someday: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
   test("POST /orgs/"+orgid+"/patterns - with low maxPatterns - should fail") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode

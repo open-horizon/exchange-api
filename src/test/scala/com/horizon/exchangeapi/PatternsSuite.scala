@@ -710,19 +710,20 @@ class PatternsSuite extends AnyFunSuite {
   //   //assert(response.body.contains("No usable value for service"))
   // }
 
-  //   test("PATCH /orgs/"+orgid+"/patterns/PatternNoService - secretBinding field") {
-  //   var jsonInput = """{"secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}]}"""
-  //   val response = Http(URL+"/patterns/PatternNoService").postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-  //   info("code: "+response.code+", response.body: "+response.body)
-  //   assert(response.code === HttpCode.PUT_OK.intValue)
-  // }
+    test("PATCH /orgs/"+orgid+"/patterns/" +pattern+ "- secretBinding field") {
+    var jsonInput = """{"secretBinding": [{ "serviceOrgid":"PatternuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}]}"""
+    val response = Http(URL+"/patterns/"+ pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
 
-  // test("PATCH /orgs/"+orgid+"/patterns/PatternNoService - secretBinding with invalid format") {
-  //   var jsonInput = """{"secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets":  { "FirstSecret": "secret1","Foo": "Bar" }}]}"""
-  //   val response = Http(URL+"/patterns/PatternNoService").postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-  //   info("code: "+response.code+", response.body: "+response.body)
-  //   assert(response.code === HttpCode.BAD_INPUT.intValue)
-  // }
+  test("PATCH /orgs/"+orgid+"/patterns/" +pattern+ "- secretBinding with invalid format") {
+    var jsonInput = """{"secretBinding": [{ "serviceOrgid":"PatternSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets":  { "FirstSecret": "secret1","Foo": "Bar" }}]}"""
+    val response = Http(URL+"/patterns/" + pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
   /*someday: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
   test("POST /orgs/"+orgid+"/patterns - with low maxPatterns - should fail") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode

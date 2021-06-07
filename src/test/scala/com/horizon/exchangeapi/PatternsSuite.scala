@@ -617,7 +617,7 @@ class PatternsSuite extends AnyFunSuite {
 //     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
 //     info("code: "+response.code+", response.body: "+response.body)
 //     assert(response.code === HttpCode.POST_OK.intValue)
- // }
+//  }
 
   test("POST /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with invalid secretBinding - should fail") {
     val input = """{
@@ -639,34 +639,46 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
-  // test("POST /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with no secretBinding - should pass") {
-  //   val input = """{
-  //                   "label":"PatternNoService",
-  //                   "description":"Test pattern with no service section to see if this is possible",
-  //                   "public":false,
-  //                   "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
-  //                   "secretBinding": [],
-  //                   "agreementProtocols":[{"name":"Basic"}]
-  //                 }""".stripMargin
-  //   val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-  //   info("code: "+response.code+", response.body: "+response.body)
-  //   assert(response.code === HttpCode.BAD_INPUT.intValue)
-  // }
+//   test("POST /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with no secretBinding - should pass") {
+//     val input = """{
+//     "label": "name of the edge pattern",  
+//     "description": "descriptive text",    
+//     "public": false,                      
+//     "services": [{"serviceUrl": "mydomain.com.weather","serviceOrgid": "myorg","serviceArch": "amd64","agreementLess": false,
+//     "serviceVersions": [{"version": "1.0.1","deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+//     "deployment_overrides_signature": "","priority": {"priority_value": 50,"retries": 1,"retry_durations": 3600,"verified_durations": 52},
+//     "upgradePolicy": {"lifecycle": "immediate","time": "01:00AM"}}],
+//     "dataVerification": {"enabled": true,"URL": "","user": "","password": "","interval": 480,"check_rate": 15,"metering": {"tokens": 1,"per_time_unit": "min","notification_interval": 30}},
+//     "nodeHealth": {"missing_heartbeat_interval": 600, "check_agreement_status": 120}}],
+//     "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+//     "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}],
+//     "agreementProtocols":[{"name":"Basic"}]
+// }""".stripMargin
+//     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+//     info("code: "+response.code+", response.body: "+response.body)
+//     assert(response.code === HttpCode.POST_OK.intValue)
+//   }
    
-  // test("PUT /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with secretBinding field") {
-  //   val input = """{
-  //                   "label":"PatternNoService",
-  //                   "description":"Test pattern with no service section to see if this is possible",
-  //                   "public":false,
-  //                   "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
-  //                   "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}],
-  //                   "agreementProtocols":[{"name":"Basic"}]
-  //                 }""".stripMargin
-  //   val response = Http(URL+"/patterns/PatternNoService").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-  //   info("code: "+response.code+", response.body: "+response.body)
-  //   assert(response.code === HttpCode.POST_OK.intValue)
-  //   //assert(response.body.contains("No usable value for service"))
-  // }
+//   test("PUT /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with secretBinding field") {
+//     val input = """{
+//     "label": "name of the edge pattern",  
+//     "description": "descriptive text",    
+//     "public": false,                      
+//     "services": [{"serviceUrl": "mydomain.com.weather","serviceOrgid": "myorg","serviceArch": "amd64","agreementLess": false,
+//     "serviceVersions": [{"version": "1.0.1","deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
+//     "deployment_overrides_signature": "","priority": {"priority_value": 50,"retries": 1,"retry_durations": 3600,"verified_durations": 52},
+//     "upgradePolicy": {"lifecycle": "immediate","time": "01:00AM"}}],
+//     "dataVerification": {"enabled": true,"URL": "","user": "","password": "","interval": 480,"check_rate": 15,"metering": {"tokens": 1,"per_time_unit": "min","notification_interval": 30}},
+//     "nodeHealth": {"missing_heartbeat_interval": 600, "check_agreement_status": 120}}],
+//     "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+//     "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}],
+//     "agreementProtocols":[{"name":"Basic"}]
+// }""".stripMargin
+//     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+//     info("code: "+response.code+", response.body: "+response.body)
+//     assert(response.code === HttpCode.POST_OK.intValue)
+//     //assert(response.body.contains("No usable value for service"))
+//   }
 
   // test("PUT /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with no secretBinding field") {
   //       val input = """{
@@ -698,19 +710,20 @@ class PatternsSuite extends AnyFunSuite {
   //   //assert(response.body.contains("No usable value for service"))
   // }
 
-  //   test("PATCH /orgs/"+orgid+"/patterns/PatternNoService - secretBinding field") {
-  //   var jsonInput = """{"secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}]}"""
-  //   val response = Http(URL+"/patterns/PatternNoService").postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-  //   info("code: "+response.code+", response.body: "+response.body)
-  //   assert(response.code === HttpCode.PUT_OK.intValue)
-  // }
+    test("PATCH /orgs/"+orgid+"/patterns/" +pattern+ "- secretBinding field") {
+    var jsonInput = """{"secretBinding": [{ "serviceOrgid":"PatternuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}]}"""
+    val response = Http(URL+"/patterns/"+ pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
 
-  // test("PATCH /orgs/"+orgid+"/patterns/PatternNoService - secretBinding with invalid format") {
-  //   var jsonInput = """{"secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets":  { "FirstSecret": "secret1","Foo": "Bar" }}]}"""
-  //   val response = Http(URL+"/patterns/PatternNoService").postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-  //   info("code: "+response.code+", response.body: "+response.body)
-  //   assert(response.code === HttpCode.BAD_INPUT.intValue)
-  // }
+  test("PATCH /orgs/"+orgid+"/patterns/" +pattern+ "- secretBinding with invalid format") {
+    var jsonInput = """{"secretBinding": [{ "serviceOrgid":"PatternSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets":  { "FirstSecret": "secret1","Foo": "Bar" }}]}"""
+    val response = Http(URL+"/patterns/" + pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
   /*someday: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
   test("POST /orgs/"+orgid+"/patterns - with low maxPatterns - should fail") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode

@@ -495,16 +495,30 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.ALREADY_EXISTS.intValue)
   }
 
-  test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as same user, w/o dataVerification or nodeHealth fields") {
+  test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as same user, w/o dataVerification or nodeHealth fields and vault secret") {
     val input = PostPutPatternRequest(pattern+" amd64", None, None,
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
       Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, Some(svcarch), Some(ALL_VERSIONS), List(Map("service-secret1"->"vault-secret1updated"))))),
       None
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" check if secrets are updated") {
+    val response = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(USERAUTH).param("attribute","secretBinding").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetPatternAttributeResponse]
+    assert(respObj.attribute === "secretBinding")
+    val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
+    //info("ui: "+ui.toString())
+    val uisElem = uis.head
+    val inp = uisElem.secrets
+    var inpElem = inp.head.get("service-secret1")
+    assert((inpElem !== null) && (inpElem === Some("vault-secret1updated")))
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + " was updated and stored") {
@@ -660,6 +674,20 @@ class PatternsSuite extends AnyFunSuite {
     val response = Http(URL+"/patterns/"+ pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" check if secrets are updated for patch") {
+    val response = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(USERAUTH).param("attribute","secretBinding").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetPatternAttributeResponse]
+    assert(respObj.attribute === "secretBinding")
+    val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
+    //info("ui: "+ui.toString())
+    val uisElem = uis.head
+    val inp = uisElem.secrets
+    var inpElem = inp.head.get("secret1")
+    assert((inpElem !== null) && (inpElem === Some("vaultsecret1")))
   }
 
   test("PATCH /orgs/"+orgid+"/patterns/" +pattern+ "- secretBinding with invalid format") {

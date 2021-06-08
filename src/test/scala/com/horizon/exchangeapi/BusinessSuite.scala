@@ -353,16 +353,30 @@ class BusinessSuite extends AnyFunSuite {
     assert(response.code === HttpCode.ALREADY_EXISTS.intValue)
   }
 
-  test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as same user, w/o priority, upgradePolicy, nodeHealth") {
+  test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as same user, w/o priority, upgradePolicy, nodeHealth, secretbinding ") {
     val input = PostPutBusinessPolicyRequest(businessPolicy, Some("desc updated"),
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
       Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("servicesecret1"->"vaultsecret1"))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("servicesecret1"->"vaultsecretupdated"))))),
       Some(List(OneProperty("purpose",None,"location2"))), Some(List("a == c"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid2+"/business/policies/"+businessPolicy+" check patch 2 if secrets are set") {
+    val response = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(USERAUTH).param("attribute","secretBinding").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetBusinessPolicyAttributeResponse]
+    assert(respObj.attribute === "secretBinding")
+    val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
+    //info("ui: "+ui.toString())
+    val uisElem = uis.head
+    val inp = uisElem.secrets
+    var inpElem = inp.head.get("servicesecret1")
+    assert((inpElem !== null) && (inpElem === Some("vaultsecretupdated")))
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was updated and stored") {
@@ -735,6 +749,20 @@ class BusinessSuite extends AnyFunSuite {
     var response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid+"/business/policies/"+businessPolicy+" check if secrets are set in case of patch request") {
+    val response = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(USERAUTH).param("attribute","secretBinding").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetBusinessPolicyAttributeResponse]
+    assert(respObj.attribute === "secretBinding")
+    val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
+    //info("ui: "+ui.toString())
+    val uisElem = uis.head
+    val inp = uisElem.secrets
+    var inpElem = inp.head.get("secret1")
+    assert((inpElem !== null) && (inpElem === Some("vaultsecret1")))
   }
 
   test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - the secretBinding in invalid format") {

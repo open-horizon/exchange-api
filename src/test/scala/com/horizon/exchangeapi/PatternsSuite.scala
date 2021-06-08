@@ -346,8 +346,8 @@ class PatternsSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as user") {
     val input = PostPutPatternRequest(pattern, Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
-      Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
+      Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(svcversion), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, Some(svcarch), Some(svcversion), List(Map("servicesecret1"->"vaultsecret1"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -356,6 +356,24 @@ class PatternsSuite extends AnyFunSuite {
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("pattern '"+orgpattern+"' created"))
   }
+
+  test("GET /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" check if secrets are set") {
+    val response = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(USERAUTH).param("attribute","secretBinding").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetPatternAttributeResponse]
+    assert(respObj.attribute === "secretBinding")
+    val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
+    //info("ui: "+ui.toString())
+    val uisElem = uis.head
+    assert(uisElem.serviceUrl === svcurl)
+    assert(uisElem.serviceArch.getOrElse("") === svcarch)
+    assert(uisElem.serviceVersionRange.getOrElse("") === svcversion)
+    val inp = uisElem.secrets
+    var inpElem = inp.head.get("servicesecret1")
+    assert((inpElem !== null) && (inpElem === Some("vaultsecret1")))
+  }
+
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + " was created and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
@@ -414,8 +432,8 @@ class PatternsSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid2+"/patterns/"+pattern3+" - add "+pattern3+" public=false, non IBM org") {
     val input = PostPutPatternRequest(pattern3, Some("desc"), Some(false),
       List( PServices(svcurl, orgid2, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
-      Some(List( OneUserInputService(orgid2, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
+      Some(List( OneUserInputService(orgid2, svcurl, Some(svcarch), Some(svcversion), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid2,svcurl, Some(svcarch), Some(svcversion), List(Map("servicesecret3"->"vaultsecret3"))))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
@@ -423,6 +441,23 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("pattern '"+org2pattern3+"' created"))
+  }
+
+  test("GET /orgs/"+orgid2+"/patterns/"+pattern3+" - add "+pattern3+" check if secrets are set for non IBM org") {
+    val response = Http(URL2+"/patterns/"+pattern3).headers(ACCEPT).headers(USER3AUTH).param("attribute","secretBinding").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetPatternAttributeResponse]
+    assert(respObj.attribute === "secretBinding")
+    val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
+    //info("ui: "+ui.toString())
+    val uisElem = uis.head
+    assert(uisElem.serviceUrl === svcurl)
+    assert(uisElem.serviceArch.getOrElse("") === svcarch)
+    assert(uisElem.serviceVersionRange.getOrElse("") === svcversion)
+    val inp = uisElem.secrets
+    var inpElem = inp.head.get("servicesecret3")
+    assert((inpElem !== null) && (inpElem === Some("vaultsecret3")))
   }
 
   test("POST /orgs/"+orgid2+"/patterns/"+pattern4+" - add "+pattern4+" public=None, non IBM org") {
@@ -599,25 +634,6 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-//   test("POST /orgs/"+orgid+"/patterns/Pattern - add Pattern with secretBinding field") {
-//     val input ="""{
-//                     "label": "name of the edge pattern",  
-//                     "description": "descriptive text",    
-//                     "public": false,                      
-//                     "services": [{"serviceUrl": "mydomain.com.weather","serviceOrgid": "myorg","serviceArch": "amd64","agreementLess": false,
-//                     "serviceVersions": [{"version": "1.0.1","deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-//                     "deployment_overrides_signature": "","priority": {"priority_value": 50,"retries": 1,"retry_durations": 3600,"verified_durations": 52},
-//                     "upgradePolicy": {"lifecycle": "immediate","time": "01:00AM"}}],
-//                     "dataVerification": {"enabled": true,"URL": "","user": "","password": "","interval": 480,"check_rate": 15,"metering": {"tokens": 1,"per_time_unit": "min","notification_interval": 30}},
-//                     "nodeHealth": {"missing_heartbeat_interval": 600, "check_agreement_status": 120}}],
-//                     "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
-//                     "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}],
-//                     "agreementProtocols":[{"name":"Basic"}]
-// }""".stripMargin
-//     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-//     info("code: "+response.code+", response.body: "+response.body)
-//     assert(response.code === HttpCode.POST_OK.intValue)
-//  }
 
   test("POST /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with invalid secretBinding - should fail") {
     val input = """{
@@ -638,78 +654,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
-
-//   test("POST /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with no secretBinding - should pass") {
-//     val input = """{
-//     "label": "name of the edge pattern",  
-//     "description": "descriptive text",    
-//     "public": false,                      
-//     "services": [{"serviceUrl": "mydomain.com.weather","serviceOrgid": "myorg","serviceArch": "amd64","agreementLess": false,
-//     "serviceVersions": [{"version": "1.0.1","deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-//     "deployment_overrides_signature": "","priority": {"priority_value": 50,"retries": 1,"retry_durations": 3600,"verified_durations": 52},
-//     "upgradePolicy": {"lifecycle": "immediate","time": "01:00AM"}}],
-//     "dataVerification": {"enabled": true,"URL": "","user": "","password": "","interval": 480,"check_rate": 15,"metering": {"tokens": 1,"per_time_unit": "min","notification_interval": 30}},
-//     "nodeHealth": {"missing_heartbeat_interval": 600, "check_agreement_status": 120}}],
-//     "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
-//     "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}],
-//     "agreementProtocols":[{"name":"Basic"}]
-// }""".stripMargin
-//     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-//     info("code: "+response.code+", response.body: "+response.body)
-//     assert(response.code === HttpCode.POST_OK.intValue)
-//   }
-   
-//   test("PUT /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with secretBinding field") {
-//     val input = """{
-//     "label": "name of the edge pattern",  
-//     "description": "descriptive text",    
-//     "public": false,                      
-//     "services": [{"serviceUrl": "mydomain.com.weather","serviceOrgid": "myorg","serviceArch": "amd64","agreementLess": false,
-//     "serviceVersions": [{"version": "1.0.1","deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-//     "deployment_overrides_signature": "","priority": {"priority_value": 50,"retries": 1,"retry_durations": 3600,"verified_durations": 52},
-//     "upgradePolicy": {"lifecycle": "immediate","time": "01:00AM"}}],
-//     "dataVerification": {"enabled": true,"URL": "","user": "","password": "","interval": 480,"check_rate": 15,"metering": {"tokens": 1,"per_time_unit": "min","notification_interval": 30}},
-//     "nodeHealth": {"missing_heartbeat_interval": 600, "check_agreement_status": 120}}],
-//     "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
-//     "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}],
-//     "agreementProtocols":[{"name":"Basic"}]
-// }""".stripMargin
-//     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-//     info("code: "+response.code+", response.body: "+response.body)
-//     assert(response.code === HttpCode.POST_OK.intValue)
-//     //assert(response.body.contains("No usable value for service"))
-//   }
-
-  // test("PUT /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with no secretBinding field") {
-  //       val input = """{
-  //                   "label":"PatternNoService",
-  //                   "description":"Test pattern with no service section to see if this is possible",
-  //                   "public":false,
-  //                   "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
-  //                   "secretBinding": [],
-  //                   "agreementProtocols":[{"name":"Basic"}]
-  //                 }""".stripMargin
-  //   val response = Http(URL+"/patterns/PatternNoService").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-  //   info("code: "+response.code+", response.body: "+response.body)
-  //   assert(response.code === HttpCode.POST_OK.intValue)
-  //   //assert(response.body.contains("No usable value for service"))
-  // }
-
-  // test("PUT /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with bad response body") {
-  //   val input = """{
-  //                   "label":"PatternNoService",
-  //                   "description":"Test pattern with no service section to see if this is possible",
-  //                   "public":false,
-  //                   "userInput":[{"serviceOrgid":"PatternsSuiteTests","serviceUrl":"https://horizon/services/netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
-  //                   "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets":  { "FirstSecret": "secret1","Foo": "Bar" }}],
-  //                   "agreementProtocols":[{"name":"Basic"}]
-  //                 }""".stripMargin
-  //   val response = Http(URL+"/patterns/PatternNoService").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-  //   info("code: "+response.code+", response.body: "+response.body)
-  //   assert(response.code === HttpCode.BAD_INPUT.intValue)
-  //   //assert(response.body.contains("No usable value for service"))
-  // }
-
+  
     test("PATCH /orgs/"+orgid+"/patterns/" +pattern+ "- secretBinding field") {
     var jsonInput = """{"secretBinding": [{ "serviceOrgid":"PatternuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}]}"""
     val response = Http(URL+"/patterns/"+ pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString

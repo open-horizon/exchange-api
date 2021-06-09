@@ -465,10 +465,11 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceArch": "amd64",
       "serviceVersionRange": "x.y.z",
       "secrets": [
-        { "MyServiceSecretName": "MyVaultSecretName" },
-      ]
-    },
-  ]
+            {"<service-secret-name1>": "<vault-secret-name1>"},
+            {"<service-secret-name2>": "<vault-secret-name2>"}
+         ]
+      }
+   ],
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [  // can be omitted
     {
@@ -660,17 +661,18 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-  "secretBinding": [
+"secretBinding": [
    {
       "serviceOrgid": "myorg",
       "serviceUrl": "myservice",
       "serviceArch": "amd64",
       "serviceVersionRange": "x.y.z",
       "secrets": [
-        { "MyServiceSecretName": "MyVaultSecretName" },
-      ]
-    },
-  ]
+            {"<service-secret-name1>": "<vault-secret-name1>"},
+            {"<service-secret-name2>": "<vault-secret-name2>"}
+         ]
+      }
+   ],
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [  // can be omitted
     {
@@ -868,10 +870,11 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "serviceArch": "amd64",
       "serviceVersionRange": "x.y.z",
       "secrets": [
-        { "MyServiceSecretName": "MyVaultSecretName" },
-      ]
-    },
-  ]
+            {"<service-secret-name1>": "<vault-secret-name1>"},
+            {"<service-secret-name2>": "<vault-secret-name2>"}
+         ]
+      }
+   ],
   // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
   "agreementProtocols": [  // can be omitted
     {

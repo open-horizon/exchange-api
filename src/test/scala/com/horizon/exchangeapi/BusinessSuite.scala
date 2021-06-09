@@ -206,8 +206,8 @@ class BusinessSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPolicy, Some("desc"),
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
-      Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(svcversion), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, Some(svcarch), Some(svcversion), List(Map("servicesecret1"->"vaultsecret1"))))),
       Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -216,6 +216,23 @@ class BusinessSuite extends AnyFunSuite {
 
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("business policy '"+orgBusinessPolicy+"' created"))
+  }
+
+  test("GET /orgs/"+orgid+"/business/policies/"+businessPolicy+" check patch if secrets are set") {
+    val response = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(USERAUTH).param("attribute","secretBinding").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetBusinessPolicyAttributeResponse]
+    assert(respObj.attribute === "secretBinding")
+    val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
+    //info("ui: "+ui.toString())
+    val uisElem = uis.head
+    assert(uisElem.serviceUrl === svcurl)
+    assert(uisElem.serviceArch.getOrElse("") === svcarch)
+    assert(uisElem.serviceVersionRange.getOrElse("") === svcversion)
+    val inp = uisElem.secrets
+    var inpElem = inp.head.get("servicesecret1")
+    assert((inpElem !== null) && (inpElem === Some("vaultsecret1")))
   }
 
   test("POST /orgs/"+orgid+"/business/policies/BusPolNoService - add BusPolNoService as user -- test if service field required") {
@@ -261,8 +278,8 @@ class BusinessSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy3+" - add "+businessPolicy3+" as user with service.arch=\"\"") {
     val input = PostPutBusinessPolicyRequest(businessPolicy3, Some("desc"),
       BService(svcurl, orgid, "", List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
-      Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(svcversion), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
+      Some(List( OneSecretBindingService(orgid,svcurl, Some(svcarch), Some(svcversion), List(Map("servicesecret"->"vaultsecret"))))),
       Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -272,11 +289,28 @@ class BusinessSuite extends AnyFunSuite {
     assert(respObj.msg.contains("business policy '"+orgBusinessPolicy3+"' created"))
   }
 
+  test("GET /orgs/"+orgid2+"/business/policies/"+businessPolicy3+" check patch 2 if secrets are set") {
+    val response = Http(URL+"/business/policies/"+businessPolicy3).headers(ACCEPT).headers(USERAUTH).param("attribute","secretBinding").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetBusinessPolicyAttributeResponse]
+    assert(respObj.attribute === "secretBinding")
+    val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
+    //info("ui: "+ui.toString())
+    val uisElem = uis.head
+    assert(uisElem.serviceUrl === svcurl)
+    assert(uisElem.serviceArch.getOrElse("") === svcarch)
+    assert(uisElem.serviceVersionRange.getOrElse("") === svcversion)
+    val inp = uisElem.secrets
+    var inpElem = inp.head.get("servicesecret")
+    assert((inpElem !== null) && (inpElem === Some("vaultsecret")))
+  }
+
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy4+" - add "+businessPolicy4+" as user with service.arch=\"*\"") {
     val input = PostPutBusinessPolicyRequest(businessPolicy4, Some("desc"),
       BService(svcurl, orgid, "*", List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
       Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("service-secret1"->"vault-secret1"))))),
       Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -319,16 +353,30 @@ class BusinessSuite extends AnyFunSuite {
     assert(response.code === HttpCode.ALREADY_EXISTS.intValue)
   }
 
-  test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as same user, w/o priority, upgradePolicy, nodeHealth") {
+  test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as same user, w/o priority, upgradePolicy, nodeHealth, secretbinding ") {
     val input = PostPutBusinessPolicyRequest(businessPolicy, Some("desc updated"),
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
       Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(OneSecretBindingValue("secret1",""))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("servicesecret1"->"vaultsecretupdated"))))),
       Some(List(OneProperty("purpose",None,"location2"))), Some(List("a == c"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid2+"/business/policies/"+businessPolicy+" check patch 2 if secrets are set") {
+    val response = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(USERAUTH).param("attribute","secretBinding").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetBusinessPolicyAttributeResponse]
+    assert(respObj.attribute === "secretBinding")
+    val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
+    //info("ui: "+ui.toString())
+    val uisElem = uis.head
+    val inp = uisElem.secrets
+    var inpElem = inp.head.get("servicesecret1")
+    assert((inpElem !== null) && (inpElem === Some("vaultsecretupdated")))
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was updated and stored") {
@@ -664,6 +712,64 @@ class BusinessSuite extends AnyFunSuite {
     val response = Http(URL+"/business/policies/"+businessPolicy2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
+  }
+  
+  test("POST /orgs/"+orgid+"/business/policies/buspol - add buspol Business Policy -- test the bad request body") {
+    val input = """{
+                      "label":"buspol",
+                      "description":"Test buspol with bad response body",
+                      "service":{"name":"""+svcurl+""","arch":"""+svcarch+""","org":"""+orgid+""","serviceVersions":[{"version":"""+svcversion+"""}]},
+                      "userInput":[{"serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+                      "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets":  { "FirstSecret": "secret1","Foo": "Bar" }}],
+                      "properties":[{"name":"purpose","value":"location"}],
+                      "constraints":["a == b"]
+                  }""".stripMargin
+    val response = Http(URL+"/business/policies/buspol").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
+  test("PUT /orgs/"+orgid+"/business/policies/SB3 - add SB3 Business Policy -- test the bad request body") {
+    val input = """{
+                      "label":"SB1",
+                      "description":"Test buspol with bad response body",
+                      "service":{"name":"""+svcurl+""","arch":"""+svcarch+""","org":"""+orgid+""","serviceVersions":[{"version":"""+svcversion+"""}]},
+                      "userInput":[{"serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],
+                      "secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets":  { "FirstSecret": "secret1","Foo": "Bar" }}],
+                      "properties":[{"name":"purpose","value":"location"}],
+                      "constraints":["a == b"]
+                  }""".stripMargin
+    val response = Http(URL+"/business/policies/SB3").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
+    test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - the secretBinding") {
+    var jsonInput = """{"secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}]}"""
+    var response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid+"/business/policies/"+businessPolicy+" check if secrets are set in case of patch request") {
+    val response = Http(URL+"/business/policies/"+businessPolicy).headers(ACCEPT).headers(USERAUTH).param("attribute","secretBinding").asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val respObj = parse(response.body).extract[GetBusinessPolicyAttributeResponse]
+    assert(respObj.attribute === "secretBinding")
+    val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
+    //info("ui: "+ui.toString())
+    val uisElem = uis.head
+    val inp = uisElem.secrets
+    var inpElem = inp.head.get("secret1")
+    assert((inpElem !== null) && (inpElem === Some("vaultsecret1")))
+  }
+
+  test("PATCH /orgs/"+orgid+"/business/policies/"+businessPolicy+" - the secretBinding in invalid format") {
+    var jsonInput = """{"secretBinding": [{ "serviceOrgid":"BusinessSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets":  { "FirstSecret": "secret1","Foo": "Bar" }}]}"""
+    var response = Http(URL+"/business/policies/"+businessPolicy).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   /*

@@ -215,8 +215,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
         }
       ],
       "lastUpdated": "2019-05-14T16:34:34.194Z[UTC]"
-    },
-      ...
+    }
   },
   "lastIndex": 0
 }"""
@@ -392,38 +391,33 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "label": "name of the edge pattern",  // this will be displayed in the node registration UI
-  "description": "descriptive text",    // optional
-  "public": false,                      // typically patterns are not appropriate to share across orgs because they contain policy choices
-  // The services that should be deployed to the edge for this pattern. (The services must exist before creating this pattern.)
+  "label": "name of the edge pattern",
+  "description": "descriptive text",
+  "public": false,
   "services": [
     {
       "serviceUrl": "mydomain.com.weather",
       "serviceOrgid": "myorg",
       "serviceArch": "amd64",
-      "agreementLess": false,                // only set to true if the same svc is both top level and required by another svc (optional)
-      // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
+      "agreementLess": false,
       "serviceVersions": [
         {
           "version": "1.0.1",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "",  // filled in by the Horizon signing process
-          "priority": {                          // can be omitted
+          "deployment_overrides_signature": "",
+          "priority": {
             "priority_value": 50,
             "retries": 1,
             "retry_durations": 3600,
             "verified_durations": 52
           },
-          // When Horizon should upgrade nodes to newer service versions. Can be set to {} to take the default of immediate.
-          "upgradePolicy": {           // can be omitted
+          "upgradePolicy": {
             "lifecycle": "immediate",
-            "time": "01:00AM"          // reserved for future use
+            "time": "01:00AM"
           }
         }
       ],
-      // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the service is sending data.
-      // If not using this, the dataVerification field can be set to {} or omitted completely.
-      "dataVerification": {            // can be omitted
+      "dataVerification": {
         "enabled": true,
         "URL": "",
         "user": "",
@@ -436,20 +430,18 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
           "notification_interval": 30
         }
       },
-      // If not using agbot node health check, this field can be set to {} or omitted completely.
-      "nodeHealth": {                       // can be omitted
-        "missing_heartbeat_interval": 600,  // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
-        "check_agreement_status": 120       // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
+      "nodeHealth": {
+        "missing_heartbeat_interval": 600,
+        "check_agreement_status": 120
       }
     }
   ],
-  // Override or set user input variables that are defined in the services used by this pattern.
-  "userInput": [                            // optional section
+  "userInput": [
     {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
-      "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceArch": "",
+      "serviceVersionRange": "[0.0.0,INFINITY)",
       "inputs": [
         {
           "name": "foo",
@@ -470,8 +462,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
          ]
       }
    ],
-  // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
-  "agreementProtocols": [  // can be omitted
+  "agreementProtocols": [
     {
       "name": "Basic"
     }
@@ -595,38 +586,33 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
         examples = Array(
           new ExampleObject(
             value = """{
-  "label": "name of the edge pattern",  // this will be displayed in the node registration UI
-  "description": "descriptive text",    // optional
-  "public": false,                      // typically patterns are not appropriate to share across orgs because they contain policy choices
-  // The services that should be deployed to the edge for this pattern. (The services must exist before creating this pattern.)
+  "label": "name of the edge pattern",
+  "description": "descriptive text",
+  "public": false,
   "services": [
     {
       "serviceUrl": "mydomain.com.weather",
       "serviceOrgid": "myorg",
       "serviceArch": "amd64",
-      "agreementLess": false,                // only set to true if the same svc is both top level and required by another svc (optional)
-      // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
+      "agreementLess": false,
       "serviceVersions": [
         {
           "version": "1.0.1",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "",  // filled in by the Horizon signing process
-          "priority": {                          // can be omitted
+          "deployment_overrides_signature": "",
+          "priority": {
             "priority_value": 50,
             "retries": 1,
             "retry_durations": 3600,
             "verified_durations": 52
           },
-          // When Horizon should upgrade nodes to newer service versions. Can be set to {} to take the default of immediate.
-          "upgradePolicy": {           // can be omitted
+          "upgradePolicy": {
             "lifecycle": "immediate",
-            "time": "01:00AM"          // reserved for future use
+            "time": "01:00AM"
           }
         }
       ],
-      // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the service is sending data.
-      // If not using this, the dataVerification field can be set to {} or omitted completely.
-      "dataVerification": {            // can be omitted
+      "dataVerification": {
         "enabled": true,
         "URL": "",
         "user": "",
@@ -639,20 +625,18 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
           "notification_interval": 30
         }
       },
-      // If not using agbot node health check, this field can be set to {} or omitted completely.
-      "nodeHealth": {                       // can be omitted
-        "missing_heartbeat_interval": 600,  // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
-        "check_agreement_status": 120       // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
+      "nodeHealth": {
+        "missing_heartbeat_interval": 600,
+        "check_agreement_status": 120
       }
     }
   ],
-  // Override or set user input variables that are defined in the services used by this pattern.
-  "userInput": [                                  // optional section
+  "userInput": [
     {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
-      "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)", // or omit to mean all versions
+      "serviceArch": "",
+      "serviceVersionRange": "[0.0.0,INFINITY)",
       "inputs": [
         {
           "name": "foo",
@@ -673,8 +657,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
          ]
       }
    ],
-  // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
-  "agreementProtocols": [  // can be omitted
+  "agreementProtocols": [
     {
       "name": "Basic"
     }
@@ -797,38 +780,33 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
         examples = Array(
           new ExampleObject(
             value = """{
-  "label": "name of the edge pattern",  // this will be displayed in the node registration UI
+  "label": "name of the edge pattern",
   "description": "descriptive text",
-  "public": false,                      // typically patterns are not appropriate to share across orgs because they contain policy choices
-  // The services that should be deployed to the edge for this pattern. (The services must exist before creating this pattern.)
+  "public": false,
   "services": [
     {
       "serviceUrl": "mydomain.com.weather",
       "serviceOrgid": "myorg",
       "serviceArch": "amd64",
-      "agreementLess": false,                // only set to true if the same svc is both top level and required by another svc
-      // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
+      "agreementLess": false,
       "serviceVersions": [
         {
           "version": "1.0.1",
           "deployment_overrides": "{\"services\":{\"location\":{\"environment\":[\"USE_NEW_STAGING_URL=false\"]}}}",
-          "deployment_overrides_signature": "",  // filled in by the Horizon signing process
-          "priority": {                          // can be omitted
+          "deployment_overrides_signature": "",
+          "priority": {
             "priority_value": 50,
             "retries": 1,
             "retry_durations": 3600,
             "verified_durations": 52
           },
-          // When Horizon should upgrade nodes to newer service versions. Can be set to {} to take the default of immediate.
-          "upgradePolicy": {           // can be omitted
+          "upgradePolicy": {
             "lifecycle": "immediate",
-            "time": "01:00AM"          // reserved for future use
+            "time": "01:00AM"
           }
         }
       ],
-      // Fill in this section if the Horizon agbot should run a REST API of the cloud data ingest service to confirm the service is sending data.
-      // If not using this, the dataVerification field can be set to {} or omitted completely.
-      "dataVerification": {            // can be omitted
+      "dataVerification": {
         "enabled": true,
         "URL": "",
         "user": "",
@@ -841,20 +819,18 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
           "notification_interval": 30
         }
       },
-      // If not using agbot node health check, this field can be set to {} or omitted completely.
-      "nodeHealth": {                       // can be omitted
-        "missing_heartbeat_interval": 600,  // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
-        "check_agreement_status": 120       // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
+      "nodeHealth": {
+        "missing_heartbeat_interval": 600,
+        "check_agreement_status": 120
       }
     }
   ],
-  // Override or set user input variables that are defined in the services used by this pattern.
   "userInput": [
     {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
-      "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceArch": "",
+      "serviceVersionRange": "[0.0.0,INFINITY)",
       "inputs": [
         {
           "name": "foo",
@@ -875,8 +851,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
          ]
       }
    ],
-  // The Horizon agreement protocol(s) to use. "Basic" means make agreements w/o a blockchain. "Citizen Scientist" means use ethereum to record the agreement.
-  "agreementProtocols": [  // can be omitted
+  "agreementProtocols": [
     {
       "name": "Basic"
     }
@@ -1073,10 +1048,10 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "arch": "arm",                            // (optional), Defaults to all architectures
-  "nodeOrgids": [ "org1", "org2", "..." ],  // (optional), Defaults to the same org the pattern is in
-  "secondsStale": 60,                       // (optional), Maximum number of seconds since the last heartbeat from a node
-  "serviceUrl": "myorg/mydomain.com.sdr"    // The service that the node does not have an agreement with yet. Composite service url (organization/service)
+  "arch": "arm",
+  "nodeOrgids": [ "org1", "org2", "..." ],
+  "secondsStale": 60,
+  "serviceUrl": "myorg/mydomain.com.sdr"
 }
 """
             )
@@ -1254,8 +1229,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "lastTime": "2017-09-28T13:51:36.629Z[UTC]",   // only return nodes that have changed since this time, empty string returns all
-  "nodeOrgids": ["org1", "org2", "..."]          // if not specified, defaults to the same org the pattern is in
+  "lastTime": "2017-09-28T13:51:36.629Z[UTC]",
+  "nodeOrgids": ["org1", "org2", "..."]
 }
 """
             )
@@ -1281,11 +1256,9 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       "agreements": {
         "string": {
           "lastUpdated": "string"
-        },
-          ...
+        }
       }
-    },
-      ...
+    }
   }
 }
 """
@@ -1417,7 +1390,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
         examples = Array(
           new ExampleObject(
             value = """{
-  "key": "string",
+  "key": "string"
 }
 """
           )

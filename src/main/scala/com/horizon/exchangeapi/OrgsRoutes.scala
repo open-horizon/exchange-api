@@ -232,8 +232,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         "maxInterval": 0,
         "intervalAdjustment": 0
       }
-    }.
-      ...
+    }
   },
   "lastIndex": 0
 }
@@ -447,20 +446,20 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "orgType": "my org type",   // (optional)
+  "orgType": "my org type",
   "label": "My org",
   "description": "blah blah",
-  "tags": {   // (optional)
+  "tags": {
     "ibmcloud_id": "abc123def456",
     "cloud_id": "<account-id-here>"
   },
-  "limits": { // optional
+  "limits": {
     "maxNodes": 50
   },
-  "heartbeatIntervals": {     // default values (in seconds) if not set in the node resource. This section can be omitted
-    "minInterval": 10,        // the initial heartbeat interval
-    "maxInterval": 120,       // the max the interval will ever become
-    "intervalAdjustment": 10  // how much to increase the interval if there has been no activity for a while
+  "heartbeatIntervals": {
+    "minInterval": 10,
+    "maxInterval": 120,
+    "intervalAdjustment": 10
   }
 }
 """
@@ -535,19 +534,19 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       examples = Array(
         new ExampleObject(
           value = """{
-  "orgType": "my org type",   // (optional)
+  "orgType": "my org type",
   "label": "My org",
   "description": "blah blah",
-  "tags": {   // (optional)
+  "tags": {
     "cloud_id": "<account-id-here>"
   },
-  "limits": { // optional
+  "limits": {
     "maxNodes": 50
   },
-  "heartbeatIntervals": {     // default values (in seconds) if not set in the node resource. This section can be omitted
-    "minInterval": 10,        // the initial heartbeat interval
-    "maxInterval": 120,       // the max the interval will ever become
-    "intervalAdjustment": 10  // how much to increase the interval if there has been no activity for a while
+  "heartbeatIntervals": {
+    "minInterval": 10,
+    "maxInterval": 120,
+    "intervalAdjustment": 10
   }
 }
 """
@@ -615,10 +614,10 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   "limits": {
     "maxNodes": 0
   },
-  "heartbeatIntervals": {     // default values (in seconds) if not set in the node resource. This section can be omitted
-    "minInterval": 10,        // the initial heartbeat interval
-    "maxInterval": 120,       // the max the interval will ever become
-    "intervalAdjustment": 10  // how much to increase the interval if there has been no activity for a while
+  "heartbeatIntervals": {
+    "minInterval": 10,
+    "maxInterval": 120,
+    "intervalAdjustment": 10
   }
 }
 """
@@ -823,7 +822,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "orgid": "string",          // orgid of the service to be searched on
+  "orgid": "string",
   "serviceURL": "string",
   "serviceVersion": "string",
   "serviceArch": "string"
@@ -925,7 +924,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array.apply(
             new ExampleObject(
               value = """{
-  "lastTime": "2017-09-28T13:51:36.629Z[UTC]"  // only return nodes that have changed since this time, empty string returns all
+  "lastTime": "2017-09-28T13:51:36.629Z[UTC]"
 }
 """
             )
@@ -951,11 +950,9 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       "agreements": {
         "string": {
           "lastUpdated": "string"
-        },
-          ...
+        }
       }
-    },
-      ...
+    }
   }
 }
 """
@@ -1061,10 +1058,10 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "changeId": <number-here>,
-  "lastUpdated": "<time-here>",  // (optional) only use if the caller doesn't know what changeId to use
-  "maxRecords": <number-here>,   // (required) the maximum number of records the caller wants returned to them
-  "orgList": ["", "", ""]        // (optional) just for agbots, this should be the list of orgs the agbot is responsible for
+  "changeId": 1234,
+  "lastUpdated": "2019-05-14T16:34:36.295Z[UTC]",
+  "maxRecords": 100,
+  "orgList": ["", "", ""]
 }"""
             )
           ),
@@ -1219,14 +1216,14 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             new ExampleObject(
               value = """[
   {
-    "id": "<string-id-here>",
-    "name": "<string-account-name>",
+    "id": "orgid",
+    "name": "MyOrg",
     "description": "String Description for Account",
     "createdOn": "2020-09-15T00:20:43.853Z"
   },
   {
-    "id": "<string-id-here>",
-    "name": "<string-account-name>",
+    "id": "orgid2",
+    "name": "otherOrg",
     "description": "String Description for Account",
     "createdOn": "2020-09-15T00:20:43.853Z"
   }
@@ -1260,8 +1257,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         "maxInterval": 0,
         "intervalAdjustment": 0
       }
-    }.
-      ...
+    }
   },
   "lastIndex": 0
 }

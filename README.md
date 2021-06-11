@@ -299,6 +299,9 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
   
+## Changes in 2.77.0
+- Removed line comments from Swagger request/response body examples. Preventing proper rendering of the JSON examples.
+
 ## Changes in 2.76.0
 - Added test cases in PatternSuite and BusinessSuite to ensure secrets are added as expected.  
 

@@ -285,8 +285,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       "clusterDeploymentSignature": "",
       "imageStore": {},
       "lastUpdated": "2019-12-13T15:38:57.679Z[UTC]"
-    },
-      ...
+    }
   },
   "lastIndex": 0
 }"""
@@ -484,39 +483,36 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "label": "Location for amd64",                                                            // this will be displayed in the node registration UI
+  "label": "Location for amd64",
   "description": "blah blah",
-  "public": true,                                                                           // whether or not it can be viewed by other organizations
-  "documentation": "https://console.cloud.ibm.com/docs/services/edge-fabric/poc/sdr.html",  // description of what this service does and how to use it
-  "url": "github.com.open-horizon.examples.sdr2msghub",                                     // the unique identifier of this service
+  "public": true,
+  "documentation": "https://console.cloud.ibm.com/docs/services/edge-fabric/poc/sdr.html",
+  "url": "github.com.open-horizon.examples.sdr2msghub",
   "version": "1.0.0",
   "arch": "amd64",
-  "sharable": "singleton",        // if multiple services require this service, how many instances are deployed: ["exclusive", "singleton", "multiple"]
-  // The other services this service requires. (The other services must exist in the exchange before creating this service.)
+  "sharable": "singleton",
   "requiredServices": [
     {
       "org": "myorg",
       "url": "mydomain.com.gps",
-      "version": "[1.0.0,INFINITY)",  // an OSGI-formatted version range
+      "version": "[1.0.0,INFINITY)",
       "arch": "amd64"
     }
   ],
-  // Values the node owner will be prompted for and will be set as env vars to the container.
   "userInput": [
     {
       "name": "foo",
       "label": "The Foo Value",
-      "type": "string",          // ["boolean", "float", "int", "list of strings", "string"]
-      "defaultValue": "bar"      // if empty then the node owner must provide a value at registration time
+      "type": "string",
+      "defaultValue": "bar"
     }
   ],
-  // Information about how to deploy the docker images for this service
-  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",         // container deployment info on edge devices. Can be omitted if does not apply
-  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                                 // filled in by the Horizon signing process
-  "clusterDeployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",  // container deployment info on edge clusters. Can be omitted if does not apply
-  "clusterDeploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                          // filled in by the Horizon signing process
-  "imageStore": {                                                                                                      // can be omitted
-    "storeType": "dockerRegistry"                                                                                      // dockerRegistry is the only supported value right now, and is the default
+  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",
+  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",
+  "clusterDeployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",
+  "clusterDeploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",
+  "imageStore": {
+    "storeType": "dockerRegistry"
   }
 }
 """
@@ -645,39 +641,36 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
         examples = Array(
           new ExampleObject(
             value = """{
-  "label": "Location for amd64",                                                            // this will be displayed in the node registration UI
+  "label": "Location for amd64",
   "description": "blah blah",
-  "public": true,                                                                           // whether or not it can be viewed by other organizations
-  "documentation": "https://console.cloud.ibm.com/docs/services/edge-fabric/poc/sdr.html",  // description of what this service does and how to use it
-  "url": "github.com.open-horizon.examples.sdr2msghub",                                     // the unique identifier of this service
+  "public": true,
+  "documentation": "https://console.cloud.ibm.com/docs/services/edge-fabric/poc/sdr.html",
+  "url": "github.com.open-horizon.examples.sdr2msghub",
   "version": "1.0.0",
   "arch": "amd64",
-  "sharable": "singleton",        // if multiple services require this service, how many instances are deployed: ["exclusive", "singleton", "multiple"]
-  // The other services this service requires. (The other services must exist in the exchange before creating this service.)
+  "sharable": "singleton",
   "requiredServices": [
     {
       "org": "myorg",
       "url": "mydomain.com.gps",
-      "version": "[1.0.0,INFINITY)",  // an OSGI-formatted version range
+      "version": "[1.0.0,INFINITY)",
       "arch": "amd64"
     }
   ],
-  // Values the node owner will be prompted for and will be set as env vars to the container.
   "userInput": [
     {
       "name": "foo",
       "label": "The Foo Value",
-      "type": "string",          // ["boolean", "float", "int", "list of strings", "string"]
-      "defaultValue": "bar"      // if empty then the node owner must provide a value at registration time
+      "type": "string",
+      "defaultValue": "bar"
     }
   ],
-  // Information about how to deploy the docker images for this service
-  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",         // container deployment info on edge devices. Can be omitted if does not apply
-  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                                 // filled in by the Horizon signing process
-  "clusterDeployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",  // container deployment info on edge clusters. Can be omitted if does not apply
-  "clusterDeploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                          // filled in by the Horizon signing process
-  "imageStore": {                                                                                                      // can be omitted
-    "storeType": "dockerRegistry"                                                                                      // dockerRegistry is the only supported value right now, and is the default
+  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",
+  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",
+  "clusterDeployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",
+  "clusterDeploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",
+  "imageStore": {
+    "storeType": "dockerRegistry"
   }
 }
 """
@@ -782,39 +775,36 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
         examples = Array(
           new ExampleObject(
             value = """{
-  "label": "Location for amd64",                                                            // this will be displayed in the node registration UI
+  "label": "Location for amd64",
   "description": "blah blah",
-  "public": true,                                                                           // whether or not it can be viewed by other organizations
-  "documentation": "https://console.cloud.ibm.com/docs/services/edge-fabric/poc/sdr.html",  // description of what this service does and how to use it
-  "url": "github.com.open-horizon.examples.sdr2msghub",                                     // the unique identifier of this service
+  "public": true,
+  "documentation": "https://console.cloud.ibm.com/docs/services/edge-fabric/poc/sdr.html",
+  "url": "github.com.open-horizon.examples.sdr2msghub",
   "version": "1.0.0",
   "arch": "amd64",
-  "sharable": "singleton",        // if multiple services require this service, how many instances are deployed: ["exclusive", "singleton", "multiple"]
-  // The other services this service requires. (The other services must exist in the exchange before creating this service.)
+  "sharable": "singleton",
   "requiredServices": [
     {
       "org": "myorg",
       "url": "mydomain.com.gps",
-      "version": "[1.0.0,INFINITY)",  // an OSGI-formatted version range
+      "version": "[1.0.0,INFINITY)",
       "arch": "amd64"
     }
   ],
-  // Values the node owner will be prompted for and will be set as env vars to the container.
   "userInput": [
     {
       "name": "foo",
       "label": "The Foo Value",
-      "type": "string",          // ["boolean", "float", "int", "list of strings", "string"]
-      "defaultValue": "bar"      // if empty then the node owner must provide a value at registration time
+      "type": "string",
+      "defaultValue": "bar"
     }
   ],
-  // Information about how to deploy the docker images for this service
-  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",         // container deployment info on edge devices. Can be omitted if does not apply
-  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                                 // filled in by the Horizon signing process
-  "clusterDeployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",  // container deployment info on edge clusters. Can be omitted if does not apply
-  "clusterDeploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",                                                          // filled in by the Horizon signing process
-  "imageStore": {                                                                                                      // can be omitted
-    "storeType": "dockerRegistry"                                                                                      // dockerRegistry is the only supported value right now, and is the default
+  "deployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",
+  "deploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",
+  "clusterDeployment": "{\"services\":{\"location\":{\"image\":\"summit.hovitos.engineering/x86/location:2.0.6\"}}}",
+  "clusterDeploymentSignature": "EURzSkDyk66qE6esYUDkLWLzM=",
+  "imageStore": {
+    "storeType": "dockerRegistry"
   }
 }
 """
@@ -1041,13 +1031,13 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "label": "human readable name of the service policy",  // this will be displayed in the UI
+  "label": "human readable name of the service policy",
   "description": "descriptive text",
   "properties": [
     {
       "name": "mypurpose",
-      "value": "myservice-testing"
-      "type": "string"              // (optional) [boolean, float, int, list of strings, string, version]
+      "value": "myservice-testing",
+      "type": "string"
     }
   ],
   "constraints": [
@@ -1260,7 +1250,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
         examples = Array(
           new ExampleObject(
             value = """{
-  "key": "string",
+  "key": "string"
 }
 """
           )
@@ -1443,10 +1433,9 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       "dockAuthId": 0,
       "registry": "string",
       "username": "string",
-      "token": string,
-      "lastUpdated": string
-    },
-      ...
+      "token": "string",
+      "lastUpdated": "string"
+    }
   ]
 """
               )
@@ -1534,7 +1523,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             new ExampleObject(
               value = """{
   "registry": "myregistry.com",
-  "username": "mydockeruser",   // optional
+  "username": "mydockeruser",
   "token": "mydockertoken"
 }
 """

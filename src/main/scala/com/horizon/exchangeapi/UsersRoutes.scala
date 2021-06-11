@@ -147,8 +147,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
       "email": "string",
       "lastUpdated": "string",
       "updatedBy": "string"
-    },
-      ...
+    }
   },
   "lastIndex": 0
 }
@@ -261,9 +260,9 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "password": "abc",       // the user password this new user should have
-  "admin": false,          // if true, this user will have full privilege within the organization
-  "email": "me@gmail.com"  // contact email address for this user
+  "password": "abc",
+  "admin": false,
+  "email": "me@gmail.com"
 }
 """
             )
@@ -339,9 +338,9 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
         examples = Array(
           new ExampleObject(
             value = """{
-  "password": "abc",       // the user password this new user should have
-  "admin": false,          // if true, this user will have full privilege within the organization
-  "email": "me@gmail.com"  // contact email address for this user
+  "password": "abc",
+  "admin": false,
+  "email": "me@gmail.com"
 }
 """
           )
@@ -396,9 +395,9 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
         examples = Array(
           new ExampleObject(
             value = """{
-  "password": "abc",       // the user password this new user should have
-  "admin": false,          // if true, this user will have full privilege within the organization
-  "email": "me@gmail.com"  // contact email address for this user
+  "password": "abc",
+  "admin": false,
+  "email": "me@gmail.com"
 }
 """
           )
@@ -529,7 +528,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "newPassword": "abc"  // the user password this user should have
+  "newPassword": "abc"
 }"""
             )
           ),

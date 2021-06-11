@@ -122,8 +122,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       "clusterDeploymentSignature": "",
       "imageStore": {},
       "lastUpdated": "2019-12-13T15:38:57.679Z[UTC]"
-    },
-      ...
+    }
   },
   "lastIndex": 0
 }"""
@@ -222,8 +221,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
         }
       ],
       "lastUpdated": "2019-05-14T16:34:34.194Z[UTC]"
-    },
-      ...
+    }
   },
   "lastIndex": 0
 }"""
@@ -349,8 +347,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       "clusterDeploymentSignature": "",
       "imageStore": {},
       "lastUpdated": "2019-12-13T15:38:57.679Z[UTC]"
-    },
-      ...
+    }
   },
   "lastIndex": 0
 }"""
@@ -478,8 +475,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
         }
       ],
       "lastUpdated": "2019-05-14T16:34:34.194Z[UTC]"
-    },
-      ...
+    }
   },
   "lastIndex": 0
 }"""

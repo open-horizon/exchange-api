@@ -458,8 +458,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         "intervalAdjustment": 0
       },
       "lastUpdated": "string"
-    },
-      ...
+    }
   },
   "lastIndex": 0
 }"""
@@ -661,33 +660,32 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "token": "abc",                // node token, set by user when adding this node.
-  "name": "rpi3",                // node name that you pick
-  "nodeType": "device",          // the type of edge node: device, or cluster
-  "pattern": "myorg/mypattern",  // (optional) points to a pattern resource that defines what services should be deployed to this type of node
-  "arch": "arm",                 // specifies the architecture of the node
-  "registeredServices": [        // list of data services you want to make available (optional section)
+  "token": "abc",
+  "name": "rpi3",
+  "nodeType": "device",
+  "pattern": "myorg/mypattern",
+  "arch": "arm",
+  "registeredServices": [
     {
       "url": "IBM/github.com.open-horizon.examples.cpu", 
-      "numAgreements": 1,                                 // for now always set this to 1
-      "policy": "{...}"                                   // the service policy file content as a json string blob
-      "properties": [                                     // list of properties to help agbots search for this, or requirements on the agbot
+      "numAgreements": 1,
+      "policy": "{}",
+      "properties": [
         {
-          "name": "arch",        // must at least include arch and version properties
-          "value": "arm",        // [arm, x86, *, ...] should always be a string (even for boolean and int). Use "*" for wildcard
-          "propType": "string",  // [string, list, version, boolean, int, wildcard]
-          "op": "="              // [=, >=, <=, in] must use the same op as the agbot search
+          "name": "arch",
+          "value": "arm",
+          "propType": "string",
+          "op": "="
         }
       ]
     }
   ],
-  // Override or set user input variables that are defined in the services used by this node. (optional section)
   "userInput": [
     {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
-      "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceArch": "",
+      "serviceVersionRange": "[0.0.0,INFINITY)",
       "inputs": [
         {
           "name": "foo",
@@ -696,13 +694,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-  "msgEndPoint": "",                         // not currently used, but may be in the future. Leave empty or omit to use the built-in Exchange msg service (optional field)
-  "softwareVersions": {"horizon": "1.2.3"},  // various software versions on the node, can omit (optional field)
-  "publicKey": "ABCDEF",                     // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
-  "heartbeatIntervals": {                    // All values in seconds. This section can be omitted (optional section)
-    "minInterval": 10,                       // the initial heartbeat interval
-    "maxInterval": 120,                      // the max the interval will ever become
-    "intervalAdjustment": 10                 // how much to increase the interval if there has been no activity for a while
+  "msgEndPoint": "",
+  "softwareVersions": {"horizon": "1.2.3"},
+  "publicKey": "ABCDEF",
+  "heartbeatIntervals": {
+    "minInterval": 10,
+    "maxInterval": 120,
+    "intervalAdjustment": 10
   }
 }
 """
@@ -884,33 +882,32 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         examples = Array(
           new ExampleObject(
             value = """{
-  "token": "abc",                // node token, set by user when adding this node.
-  "name": "rpi3",                // node name that you pick
-  "nodeType": "device",          // the type of edge node: device, or cluster
-  "pattern": "myorg/mypattern",  // points to a pattern resource that defines what services should be deployed to this type of node
-  "arch": "arm",                 // specifies the architecture of the node
-  "registeredServices": [        // list of data services you want to make available
+  "token": "abc",
+  "name": "rpi3",
+  "nodeType": "device",
+  "pattern": "myorg/mypattern",
+  "arch": "arm",
+  "registeredServices": [
     {
       "url": "IBM/github.com.open-horizon.examples.cpu",
-      "numAgreements": 1,                                 // for now always set this to 1
-      "policy": "{...}"                                   // the service policy file content as a json string blob
-      "properties": [                                     // list of properties to help agbots search for this, or requirements on the agbot
+      "numAgreements": 1,
+      "policy": "{}",
+      "properties": [
         {
-          "name": "arch",        // must at least include arch and version properties
-          "value": "arm",        // [arm, x86, *, ...] should always be a string (even for boolean and int). Use "*" for wildcard
-          "propType": "string",  // [string, list, version, boolean, int, wildcard]
-          "op": "="              // [=, >=, <=, in] must use the same op as the agbot search
+          "name": "arch",
+          "value": "arm",
+          "propType": "string",
+          "op": "="
         }
       ]
     }
   ],
-  // Override or set user input variables that are defined in the services used by this node.
   "userInput": [
     {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
-      "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceArch": "",
+      "serviceVersionRange": "[0.0.0,INFINITY)",
       "inputs": [
         {
           "name": "foo",
@@ -919,13 +916,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-  "msgEndPoint": "",                         // not currently used, but may be in the future. Leave empty or omit to use the built-in Exchange msg service
-  "softwareVersions": {"horizon": "1.2.3"},  // various software versions on the node, can omit
-  "publicKey": "ABCDEF",                     // used by agbots to encrypt msgs sent to this node using the built-in Exchange msg service
-  "heartbeatIntervals": {                    // All values in seconds. This section can be omitted
-    "minInterval": 10,                       // the initial heartbeat interval
-    "maxInterval": 120,                      // the max the interval will ever become
-    "intervalAdjustment": 10                 // how much to increase the interval if there has been no activity for a while
+  "msgEndPoint": "",
+  "softwareVersions": {"horizon": "1.2.3"},
+  "publicKey": "ABCDEF",
+  "heartbeatIntervals": {
+    "minInterval": 10,
+    "maxInterval": 120,
+    "intervalAdjustment": 10
   }
 }
 """
@@ -1049,9 +1046,9 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "org": "myorg",             // the org of services to be modified, or empty string for all orgs
-  "url": "myserviceurl",      // the url of services to be modified, or empty string for all urls
-  "configState": "suspended"  // [active, suspended]
+  "org": "myorg",
+  "url": "myserviceurl",
+  "configState": "suspended"
 }
 """
             )
@@ -1251,14 +1248,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  errors: [
+  "errors": [
    {
-     record_id: "string",
-     message: "string",
-     event_code: "string",
-     hidden: boolean
-   },
-    ...
+     "record_id": "string",
+     "message": "string",
+     "event_code": "string",
+     "hidden": false
+   }
   ]
 }
 """
@@ -1444,7 +1440,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "connectivity": {   // (optional)
+  "connectivity": {
     "string": true
   },
   "services": [
@@ -1462,8 +1458,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           "state": "running"
         }
       ],
-      "operatorStatus": {}, // (optional)
-      "configState": "active" // (optional)
+      "operatorStatus": {},
+      "configState": "active"
     }
   ]
 }
@@ -1621,13 +1617,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "label": "human readable name of the node policy",  // this will be displayed in the UI
+  "label": "human readable name of the node policy",
   "description": "descriptive text",
   "properties": [
     {
       "name": "mypurpose",
-      "value": "myservice-testing"
-      "type": "string"              // (optional) [boolean, float, int, list of strings, string, version]
+      "value": "myservice-testing",
+      "type": "string"
     }
   ],
   "constraints": [
@@ -1780,8 +1776,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   "agreements": {
     "agreementname": {
       "services": [
-        { "orgid": "string", "url": "string"},
-          ...
+        {"orgid": "string",
+         "url": "string"}
       ],
       "agrService": {
         "orgid": "string",
@@ -1790,8 +1786,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       },
       "state": "string",
       "lastUpdated": "string"
-    },
-      ...
+    }
   },
   "lastIndex": 0
 }
@@ -1839,8 +1834,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   "agreements": {
     "agreementname": {
       "services": [
-        { "orgid": "string", "url": "string"},
-          ...
+        {"orgid": "string",
+         "url": "string"}
       ],
       "agrService": {
         "orgid": "string",
@@ -1909,18 +1904,18 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             new ExampleObject(
               //name = "SomeExample",
               value = """{
-  "services": [                        // specify this for CS-type agreements (optional section)
+  "services": [
     {
      "orgid": "myorg", 
      "url": "mydomain.com.rtlsdr"
     }
   ],
-  "agreementService": {                // specify this for pattern-type agreements (optional section)
-    "orgid": "myorg",                  // currently set to the node id, but not used
-    "pattern": "myorg/mypattern",      // composite pattern (organization/pattern)
-    "url": "myorg/mydomain.com.sdr"    // composite service url (organization/service)
+  "agreementService": {
+    "orgid": "myorg",
+    "pattern": "myorg/mypattern",
+    "url": "myorg/mydomain.com.sdr"
   },
-  "state": "negotiating"               // current agreement state: [negotiating, signed, finalized, ...]
+  "state": "negotiating"
 }
 """
             )
@@ -2130,8 +2125,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs",  // msg to be sent to the node
-  "ttl": 86400                                                       // time-to-live of this msg, in seconds
+  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs",
+  "ttl": 86400
 }
 """
             )
@@ -2393,8 +2388,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   {
     "arch": "string",
     "connectivity": {
-      "string": boolean,
-      "string": boolean
+      "string": true,
+      "string": false
     },
     "constraints": [
       "string",
@@ -2404,7 +2399,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     "errors": [
       {
         "event_code": "string",
-        "hidden": boolean,
+        "hidden": true,
         "message": "string",
         "record_id": "string"
       }
@@ -2427,9 +2422,9 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     "orgid": "string",
     "pattern": "",
     "properties": [
-      "string": "string",
-      "string": "string",
-      "string": "string"
+      {"string": "string"},
+      {"string": "string"},
+      {"string": "string"}
     ],
     "publicKey": "string",
     "registeredServices": [
@@ -2452,7 +2447,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         "numAgreements": 0,
         "policy": "",
         "properties": [],
-        "url": "string",
+        "url": "string"
       }
     ],
     "runningServices": "|orgid/serviceid|",
@@ -2491,7 +2486,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         "serviceUrl": "string",
         "serviceVersionRange": "string"
       }
-    ],
+    ]
   }
 ]"""
               )

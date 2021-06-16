@@ -182,8 +182,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       ],
       "lastUpdated": "string",
       "created": "string"
-    },
-      ...
+    }
   },
   "lastIndex": 0
 }
@@ -335,45 +334,39 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         new Content(
           examples = Array(
             new ExampleObject(
-              value = """// (remove all of the comments like this before using)
-{
-  "label": "name of the business policy",  // this will be displayed in the UI
+              value = """{
+  "label": "name of the business policy",
   "description": "descriptive text",
-  // The services that this business policy applies to. (The services must exist before creating this business policy.)
   "service": {
     "name": "mydomain.com.weather",
     "org": "myorg",
-    "arch": "amd64",                 // can be set to "*" or "" to mean all architectures
-    // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
+    "arch": "amd64",
     "serviceVersions": [
       {
         "version": "1.0.1",
-        "priority": {               // can be omitted
+        "priority": {
           "priority_value": 50,
           "retries": 1,
           "retry_durations": 3600,
           "verified_durations": 52
         },
-        // When Horizon should upgrade nodes to newer service versions. Can be set to {} to take the default of immediate.
-        "upgradePolicy": {           // can be omitted
+        "upgradePolicy": {
           "lifecycle": "immediate",
-          "time": "01:00AM"          // reserved for future use
+          "time": "01:00AM"
         }
       }
     ],
-    // If not using agbot node health check, this field can be set to {} or omitted completely.
-    "nodeHealth": {                       // can be omitted
-      "missing_heartbeat_interval": 600,  // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
-      "check_agreement_status": 120       // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
+    "nodeHealth": {
+      "missing_heartbeat_interval": 600,
+      "check_agreement_status": 120
     }
   },
-  // Override or set user input variables that are defined in the services used by this business policy.
   "userInput": [
     {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
-      "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceArch": "",
+      "serviceVersionRange": "[0.0.0,INFINITY)",
       "inputs": [
         {
           "name": "foo",
@@ -398,7 +391,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     {
       "name": "mypurpose",
       "value": "myservice-testing",
-      "type": "string"               // (optional) [boolean, float, int, list of strings, string, version]
+      "type": "string"
     }
   ],
   "constraints": [
@@ -511,45 +504,40 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new Content(
         examples = Array(
           new ExampleObject(
-            value = """// (remove all of the comments like this before using)
+            value = """
 {
-  "label": "name of the business policy",  // this will be displayed in the UI
+  "label": "name of the business policy",
   "description": "descriptive text",
-  // The services that this business policy applies to. (The services must exist before creating this business policy.)
   "service": {
     "name": "mydomain.com.weather",
     "org": "myorg",
-    "arch": "amd64",                 // can be set to "*" or "" to mean all architectures
-    // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
+    "arch": "amd64",
     "serviceVersions": [
       {
         "version": "1.0.1",
-        "priority": {               // can be omitted
+        "priority": {
           "priority_value": 50,
           "retries": 1,
           "retry_durations": 3600,
           "verified_durations": 52
         },
-        // When Horizon should upgrade nodes to newer service versions. Can be set to {} to take the default of immediate.
-        "upgradePolicy": {           // can be omitted
+        "upgradePolicy": {
           "lifecycle": "immediate",
-          "time": "01:00AM"          // reserved for future use
+          "time": "01:00AM"
         }
       }
     ],
-    // If not using agbot node health check, this field can be set to {} or omitted completely.
-    "nodeHealth": {                       // can be omitted
-      "missing_heartbeat_interval": 600,  // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
-      "check_agreement_status": 120       // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
+    "nodeHealth": {
+      "missing_heartbeat_interval": 600,
+      "check_agreement_status": 120
     }
   },
-  // Override or set user input variables that are defined in the services used by this business policy.
   "userInput": [
     {
       "serviceOrgid": "IBM",
       "serviceUrl": "ibm.cpu2msghub",
-      "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
+      "serviceArch": "",
+      "serviceVersionRange": "[0.0.0,INFINITY)",
       "inputs": [
         {
           "name": "foo",
@@ -574,7 +562,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     {
       "name": "mypurpose",
       "value": "myservice-testing",
-      "type": "string"               // (optional) [boolean, float, int, list of strings, string, version]
+      "type": "string"
     }
   ],
   "constraints": [
@@ -662,53 +650,46 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new Content(
         examples = Array(
           new ExampleObject(
-            value = """// (remove all of the comments like this before using)
-{
-  "label": "name of the business policy",  // this will be displayed in the UI
+            value = """{
+  "label": "name of the business policy",
   "description": "descriptive text",
-  // The services that this business policy applies to. (The services must exist before creating this business policy.)
   "service": {
     "name": "mydomain.com.weather",
     "org": "myorg",
-    "arch": "amd64",                 // can be set to "*" or "" to mean all architectures
-    // If multiple service versions are listed, Horizon will try to automatically upgrade nodes to the version with the lowest priority_value number
+    "arch": "amd64",
     "serviceVersions": [
       {
         "version": "1.0.1",
-        "priority": {               // can be omitted
+        "priority": {
           "priority_value": 50,
           "retries": 1,
           "retry_durations": 3600,
           "verified_durations": 52
         },
-        // When Horizon should upgrade nodes to newer service versions. Can be set to {} to take the default of immediate.
-        "upgradePolicy": {           // can be omitted
+        "upgradePolicy": {
           "lifecycle": "immediate",
-          "time": "01:00AM"          // reserved for future use
+          "time": "01:00AM"
         }
       }
     ],
-    // If not using agbot node health check, this field can be set to {} or omitted completely.
-    "nodeHealth": {                       // can be omitted
-      "missing_heartbeat_interval": 600,  // How long a node heartbeat can be missing before cancelling its agreements (in seconds)
-      "check_agreement_status": 120       // How often to check that the node agreement entry still exists, and cancel agreement if not found (in seconds)
-    }
-  },
-  // Override or set user input variables that are defined in the services used by this business policy.
-  "userInput": [
-    {
-      "serviceOrgid": "IBM",
-      "serviceUrl": "ibm.cpu2msghub",
-      "serviceArch": "",                          // omit or leave blank to mean all architectures
-      "serviceVersionRange": "[0.0.0,INFINITY)",  // or omit to mean all versions
-      "inputs": [
-        {
-          "name": "foo",
-          "value": "bar"
-        }
-      ]
-    }
-  ],
+    "nodeHealth": {
+      "missing_heartbeat_interval": 600,
+      "check_agreement_status": 120
+    },
+    "userInput": [
+      {
+        "serviceOrgid": "IBM",
+        "serviceUrl": "ibm.cpu2msghub",
+        "serviceArch": "",
+        "serviceVersionRange": "[0.0.0,INFINITY)",
+        "inputs": [
+          {
+            "name": "foo",
+            "value": "bar"
+          }
+        ]
+      }
+    ],
     "secretBinding": [
      {
        "serviceOrgid": "string",
@@ -719,19 +700,20 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
             {"<service-secret-name1>": "<vault-secret-name1>"},
             {"<service-secret-name2>": "<vault-secret-name2>"}
          ]
+     }
+    ],
+    "properties": [
+      {
+        "name": "mypurpose",
+        "value": "myservice-testing",
+        "type": "string"
       }
-   ],
-  "properties": [
-    {
-      "name": "mypurpose",
-      "value": "myservice-testing",
-      "type": "string"               // (optional) [boolean, float, int, list of strings, string, version]
+    ],
+    "constraints": [
+      "a == b"
+      ]
     }
-  ],
-  "constraints": [
-    "a == b"
-  ]
-}
+  }
 """
           )
         ),
@@ -876,10 +858,10 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "changedSince": 123456L,                // [Long > 0L, 0L], Only return nodes that have changed since this Unix epoch time. Value 0L disables filter.
-  "nodeOrgids": ["org1", "org2", "..."],  // (optional), Defaults to the same organization the business policy is in
-  "numEntries": 100,                      // (optional) [Int > 0], Maximum number of nodes returned
-  "session": "token"                      // Constrains multiple Agbot instances to a singular search.
+  "changedSince": "123456L",
+  "nodeOrgids": ["org1", "org2", "..."],
+  "numEntries": 100,
+  "session": "token"
 }"""
             )
           ),

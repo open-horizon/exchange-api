@@ -192,8 +192,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       "msgEndPoint": "",
       "lastHeartbeat": "2020-05-27T19:01:10.713Z[UTC]",
       "publicKey": "string"
-    },
-      ...
+    }
   },
   "lastIndex": 0
 }
@@ -570,8 +569,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       "pattern": "string",
       "nodeOrgid": "string",
       "lastUpdated": "2019-05-14T16:34:36.397Z[UTC]"
-    },
-      ...
+    }
   }
 }
 """
@@ -672,8 +670,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
                     new ExampleObject(
                         value = """{
   "patternOrgid": "string",
-  "pattern": "string",    // can be "*" to mean all patterns in the org
-  "nodeOrgid": "string"   // (optional) if omitted it defaults to patternOrgid
+  "pattern": "string",
+  "nodeOrgid": "string"
 }"""
                     )
                 ), 
@@ -841,8 +839,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     "businessPol": "string",
     "nodeOrgid" : "string",
     "lastUpdated": "string"
-  },
-    ...
+  }
 }
 }"""
               )
@@ -944,8 +941,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
             new ExampleObject(
               value = """{
   "businessPolOrgid": "string",
-  "businessPol": "string",       // can be "*" to mean all business policies in the org
-  "nodeOrgid": "string"          // (optional) if omitted it defaults to businessPolOrgid (currently it can *not* be different from businessPolOrgid)
+  "businessPol": "string",
+  "nodeOrgid": "string"
 }
 """
             )
@@ -1124,8 +1121,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       "state": "string",
       "lastUpdated": "2019-05-14T16:34:37.173Z[UTC]",
       "dataLastReceived": ""
-    },
-      ...
+    }
   },
   "lastIndex": 0
 }
@@ -1421,8 +1417,8 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs",  // msg to be sent to the agbot
-  "ttl": 86400                                                       // time-to-live of this msg, in seconds
+  "message": "VW1RxzeEwTF0U7S96dIzSBQ/hRjyidqNvBzmMoZUW3hpd3hZDvs",
+  "ttl": 86400
 }
 """
             )

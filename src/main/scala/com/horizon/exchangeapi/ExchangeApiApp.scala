@@ -200,7 +200,7 @@ object ExchangeApiApp extends App
     DebuggingDirectives.logRequestResult(requestResponseLogging _) {
       pathPrefix("v1") {
         respondWithDefaultHeaders(`Cache-Control`(Seq(`max-age`(0), `must-revalidate`, `no-cache`, `no-store`)),
-                                  RawHeader("Content-Type", "application/json"/*; charset=UTF-8"*/),
+                                  // RawHeader("Content-Type", "application/json"/*; charset=UTF-8"*/),
                                   RawHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload"), // 2 years
                                   RawHeader("X-Content-Type-Options", "nosniff"),
                                   RawHeader("X-XSS-Protection", "1; mode=block")) {

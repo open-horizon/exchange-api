@@ -302,6 +302,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
   
 ## Changes in 2.77.0
 - Removed line comments from Swagger request/response body examples. Preventing proper rendering of the JSON examples.
+- Disabled response header Content-Type.
 
 ## Changes in 2.76.0
 - Added test cases in PatternSuite and BusinessSuite to ensure secrets are added as expected.  

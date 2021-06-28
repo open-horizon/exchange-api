@@ -9,7 +9,7 @@ package com.horizon.exchangeapi
 import java.sql.Timestamp
 import java.util.Optional
 import akka.Done
-import akka.actor.{Actor, ActorRef, ActorSystem, Cancellable, CoordinatedShutdown, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Cancellable, CoordinatedShutdown, Props, Timers}
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.javadsl.model.HttpHeader
 
@@ -299,7 +299,7 @@ object ExchangeApiApp extends App
     val timeExpires: Timestamp = ApiTime.pastUTCTimestamp(ExchConfig.getInt("api.resourceChanges.ttl"))
     db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.asTry).map({
       case Success(v) =>
-        if (v <= 0) logger.debug("nothing to delete")
+        if (v <= 0) logger.debug("No resource changes to trim")
         else logger.info("resourcechanges table trimmed, number of rows deleted: " + v.toString)
       case Failure(_) => logger.error("ERROR: could not trim resourcechanges table")
     })
@@ -307,8 +307,14 @@ object ExchangeApiApp extends App
 
   /** Variables and Akka Actor for trimming `resourcechanges` table */
   val Cleanup = "cleanup"
-  class ChangesCleanupActor extends Actor {
-    def receive: Receive = {
+  class ChangesCleanupActor extends Actor with Timers{
+    override def preStart(): Unit = {
+      timers.startPeriodicTimer(interval = cleanupInterval.seconds, key = "trimResourceChanges", msg = Cleanup)
+      logger.debug(ExchMsg.translate("changes.cleanup.scheduled", cleanupInterval.seconds))
+      super.preStart()
+    }
+    
+    override def receive: Receive = {
       case Cleanup => trimResourceChanges()
       case _ => logger.debug("invalid case sent to ChangesCleanupActor")
     }
@@ -320,19 +326,28 @@ object ExchangeApiApp extends App
 
   /** Task for removing expired nodemsgs and agbotmsgs */
   def removeExpiredMsgs(): Unit ={
-    db.run(NodeMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).flatMap({ xs =>
-      logger.debug("nodemsgs delete expired result: "+xs.toString)
-      AgbotMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).asTry
-    })).map({
+    db.run(NodeMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).asTry).map({
+      case Success(v) => logger.debug("nodemsgs delete expired result: "+ v.toString)
+      case Failure(_) => logger.error("ERROR: could remove expired node msgs")
+    })
+    db.run(AgbotMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).asTry).map({
       case Success(v) => logger.debug("agbotmsgs delete expired result: " + v.toString)
-      case Failure(_) => logger.error("ERROR: could remove expired msgs")
+      case Failure(_) => logger.error("ERROR: could remove expired agbot msgs")
     })
   }
 
   /** Variables and Akka Actor for removing expired nodemsgs and agbotmsgs */
   val CleanupExpiredMessages = "cleanupExpiredMessages"
-  class MsgsCleanupActor extends Actor {
-    def receive: Receive = {
+  
+  class MsgsCleanupActor extends Actor with Timers {
+    override def preStart(): Unit = {
+      timers.startSingleTimer(key = "removeExpiredMsgsOnStart", msg = CleanupExpiredMessages, timeout = 0.seconds)
+      timers.startPeriodicTimer(interval = msgsCleanupInterval.seconds, key = "removeExpiredMsgs", msg = CleanupExpiredMessages)
+      logger.debug(ExchMsg.translate("message.cleanup.scheduled", msgsCleanupInterval.seconds))
+      super.preStart()
+    }
+    
+    override def receive: Receive = {
       case CleanupExpiredMessages => removeExpiredMsgs()
       case _ => logger.debug("invalid case sent to MsgsCleanupActor")
     }
@@ -431,21 +446,9 @@ object ExchangeApiApp extends App
     }
   }
   
-  if(serverBindingHttp.isDefined ||
-     serverBindingHttps.isDefined) {
-    changesCleanup = system.scheduler.schedule(cleanupInterval.seconds, cleanupInterval.seconds, changesCleanupActor, Cleanup)
-    logger.debug(ExchMsg.translate("message.cleanup.scheduled", cleanupInterval.seconds, cleanupInterval.seconds))
-    
-    msgsCleanup = system.scheduler.schedule(0.seconds, msgsCleanupInterval.seconds, msgsCleanupActor, CleanupExpiredMessages)
-    logger.debug(ExchMsg.translate("changes.cleanup.scheduled", msgsCleanupInterval.seconds))
-  }
-  
   CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseBeforeActorSystemTerminate, "cancel-scheduled-tasks") {
     () =>
-      msgsCleanup.cancel()    // This cancels further deletions of node and agbot msgs
       logger.debug(ExchMsg.translate("message.cleanup.cancel"))
-      
-      changesCleanup.cancel()   // This cancels further Cleanups to be sent
       logger.debug(ExchMsg.translate("changes.cleanup.cancel"))
       
       Future {Done}

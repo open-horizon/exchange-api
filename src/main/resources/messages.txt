@@ -346,6 +346,6 @@ server.start=Server online at {0}
 server.start.failure.http=HTTP server could not start!
 server.start.failure.https=HTTPS server could not start!
 message.cleanup.cancel=Cancelled scheduled message cleanup
-message.cleanup.scheduled=Scheduling Agreement Bot message and Node message cleanup every {0} with a starting delay of {1}
+message.cleanup.scheduled=Scheduling Agreement Bot message and Node message cleanup every {0}
 changes.cleanup.cancel=Cancelled scheduled change record cleanup
 changes.cleanup.scheduled=Scheduling change record cleanup every {0}

@@ -328,11 +328,11 @@ object ExchangeApiApp extends App
   def removeExpiredMsgs(): Unit ={
     db.run(NodeMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).asTry).map({
       case Success(v) => logger.debug("nodemsgs delete expired result: "+ v.toString)
-      case Failure(_) => logger.error("ERROR: could remove expired node msgs")
+      case Failure(_) => logger.error("ERROR: could not remove expired node msgs")
     })
     db.run(AgbotMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).asTry).map({
       case Success(v) => logger.debug("agbotmsgs delete expired result: " + v.toString)
-      case Failure(_) => logger.error("ERROR: could remove expired agbot msgs")
+      case Failure(_) => logger.error("ERROR: could not remove expired agbot msgs")
     })
   }
 

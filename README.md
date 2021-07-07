@@ -11,7 +11,8 @@ services in the exchange.
 - [Install scala](http://www.scala-lang.org/download/install.html)
 - [Install sbt](https://www.scala-sbt.org/1.x/docs/Setup.html)
 - (optional) Install conscript and giter8 if you want to get example code from scalatra.org
-- Install postgresql locally (unless you have a remote instance you are using). Instructions for installing on Mac OS X:
+- Install postgresql locally (unless you have a remote instance you are using). 
+  - Instructions for installing on Mac OS X:
     - Install: `brew install postgresql`
     - Note: when running/testing the exchange svr in a docker container, it can't reach your postgres instance on `localhost`, so configure it to also listen on your local IP:
       - set this to your IP: `export MY_IP=<my-ip>`
@@ -24,6 +25,13 @@ services in the exchange.
       - `brew services start postgresql` or if it is already running `brew services restart postgresql`
     - Or you can run postgresql in a container and connect it to the docker network `exchange-api-network`
     - Test: `psql "host=$MY_IP dbname=postgres user=<myuser> password=''"`
+
+  - Instructions for installing on Ubuntu:
+    - Install: `sudo apt install postgresql postgresql-contrib`
+    - Configure your postgres instance to listen on your local IP: Update the listen_addresses connection settings in postgres.conf file with a `*` in place of `$MY_IP` and pg_hba.conf with `0.0.0.0/0` in place of `$MY_IP/32`.
+    - Run `sudo -u postgres psql`
+    - Test: `psql "host=$MY_IP dbname=postgres user=<myuser> password=''"`
+    
 - Add a configuration file on your development system at `/etc/horizon/exchange/config.json` with at minimum the following content (this is needed for the automated tests. Defaults and the full list of configuration variables are in `src/main/resources/config.json`):
 
   ```
@@ -53,6 +61,7 @@ export EXCHANGE_ROOTPW=myrootpw
 ```
 export EXCHANGE_KEY_PW=<pass-phrase>
 make gen-key
+Note : pass-phrase can be any alphanumeric string
 ```
 
 - Otherwise, get files `exchangecert.pem`, `keypassword`, and `keystore` from the person who created them and put them in `./keys/etc`.
@@ -65,9 +74,12 @@ make gen-key
 - To try a simple rest method curl: `curl -X GET "http://localhost:8080/v1/admin/version"`. You should get the exchange version number as the response.  
 - When testing the exchange in an OpenShift Cluster the variables `EXCHANGE_IAM_ORG`, `EXCHANGE_IAM_KEY` and `EXCHANGE_MULT_ACCOUNT_ID` must be set accordingly.
 - A convenience script `src/test/bash/primedb.sh` can be run to prime the DB with some exchange resources to use in manually testing:
+- Before exporting below environment variables manually set them in `src/test/bash/primedb.sh`
+
 ```
 export EXCHANGE_USER=<my-user-in-IBM-org>
 export EXCHANGE_PW=<my-pw-in-IBM-org>
+export  EXCHANGE_ROOTPW = <Exchange root password (Must be similar to what is set in exchange's config.json)>
 src/test/bash/primedb.sh
 ```
 - `primedb.sh` will only create what doesn't already exist, so it can be run again to restore some resources you have deleted.

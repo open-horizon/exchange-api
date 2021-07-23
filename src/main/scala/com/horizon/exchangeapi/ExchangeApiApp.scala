@@ -300,17 +300,17 @@ object ExchangeApiApp extends App
     db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.asTry).map({
       case Success(v) =>
         if (v <= 0) logger.debug("No resource changes to trim")
-        else logger.info("resourcechanges table trimmed, number of rows deleted: " + v.toString)
+        else logger.info("resourcechanges table trimmed, number of records deleted: " + v.toString)
       case Failure(_) => logger.error("ERROR: could not trim resourcechanges table")
     })
   }
 
   /** Variables and Akka Actor for trimming `resourcechanges` table */
-  val Cleanup = "cleanup"
-  class ChangesCleanupActor extends Actor with Timers{
+  val Cleanup = "cleanup";
+  class ChangesCleanupActor(timerInterval: Int = ExchConfig.getInt("api.resourceChanges.cleanupInterval")) extends Actor with Timers{
     override def preStart(): Unit = {
-      timers.startPeriodicTimer(interval = cleanupInterval.seconds, key = "trimResourceChanges", msg = Cleanup)
-      logger.debug(ExchMsg.translate("changes.cleanup.scheduled", cleanupInterval.seconds))
+      timers.startPeriodicTimer(interval = timerInterval.seconds, key = "trimResourceChanges", msg = Cleanup)
+      logger.info(ExchMsg.translate("changes.cleanup.scheduled", timerInterval.seconds))
       super.preStart()
     }
     
@@ -319,10 +319,7 @@ object ExchangeApiApp extends App
       case _ => logger.debug("invalid case sent to ChangesCleanupActor")
     }
   }
-  val changesCleanupActor: ActorRef = system.actorOf(Props(classOf[ChangesCleanupActor]))
-  var changesCleanup : Cancellable = _
-  val cleanupInterval: Int = ExchConfig.getInt("api.resourceChanges.cleanupInterval")
-  logger.info("Resource changes cleanup Interval: " + cleanupInterval.toString)
+  val changesCleanupActor: ActorRef = system.actorOf(Props(new ChangesCleanupActor()))
 
   /** Task for removing expired nodemsgs and agbotmsgs */
   def removeExpiredMsgs(): Unit ={
@@ -339,11 +336,11 @@ object ExchangeApiApp extends App
   /** Variables and Akka Actor for removing expired nodemsgs and agbotmsgs */
   val CleanupExpiredMessages = "cleanupExpiredMessages"
   
-  class MsgsCleanupActor extends Actor with Timers {
+  class MsgsCleanupActor(timerInterval: Int = ExchConfig.getInt("api.defaults.msgs.expired_msgs_removal_interval")) extends Actor with Timers {
     override def preStart(): Unit = {
       timers.startSingleTimer(key = "removeExpiredMsgsOnStart", msg = CleanupExpiredMessages, timeout = 0.seconds)
-      timers.startPeriodicTimer(interval = msgsCleanupInterval.seconds, key = "removeExpiredMsgs", msg = CleanupExpiredMessages)
-      logger.debug(ExchMsg.translate("message.cleanup.scheduled", msgsCleanupInterval.seconds))
+      timers.startPeriodicTimer(interval = timerInterval.seconds, key = "removeExpiredMsgs", msg = CleanupExpiredMessages)
+      logger.info(ExchMsg.translate("message.cleanup.scheduled", timerInterval.seconds))
       super.preStart()
     }
     
@@ -352,11 +349,7 @@ object ExchangeApiApp extends App
       case _ => logger.debug("invalid case sent to MsgsCleanupActor")
     }
   }
-  val msgsCleanupActor: ActorRef = system.actorOf(Props(classOf[MsgsCleanupActor]))
-  var msgsCleanup: Cancellable = _
-  val msgsCleanupInterval: Int = ExchConfig.getInt("api.defaults.msgs.expired_msgs_removal_interval")
-  logger.info("Remove expired msgs cleanup Interval: " + msgsCleanupInterval.toString)
-  
+  val msgsCleanupActor: ActorRef = system.actorOf(Props(new MsgsCleanupActor()))
   val secondsToWait: Int = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete") // ExchConfig.getAkkaConfig() also makes the akka unbind phase this long
   
   var serverBindingHttp: Option[Http.ServerBinding] = None
@@ -444,14 +437,6 @@ object ExchangeApiApp extends App
         logger.info(s"Exchange HTTP server unbound, waiting up to $secondsToWait seconds for in-flight requests to complete...")
         Future {Done}
     }
-  }
-  
-  CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseBeforeActorSystemTerminate, "cancel-scheduled-tasks") {
-    () =>
-      logger.debug(ExchMsg.translate("message.cleanup.cancel"))
-      logger.debug(ExchMsg.translate("changes.cleanup.cancel"))
-      
-      Future {Done}
   }
   
   CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseBeforeActorSystemTerminate, "exchange-exit") {

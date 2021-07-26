@@ -184,6 +184,21 @@ object ExchMsg {
   }
 }
 
+object NodeAgbotTokenValidation {
+  def isValid(token: String): Boolean = {
+    // Check if token is valid
+    // (?=.*[0-9]) digit must occur at least once
+    // (?=.*[a-z]) lowercase letter must occur at least once
+    // (?=.*[A-Z]) uppercase letter must occur at least once
+    // .{15,} minimum 15 chars
+    val pwRegex: Regex = """^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z]).{15,}$""".r
+    val valid = token match {
+      case reg(_*) => return true
+      case _ => return false
+    }
+  }
+}
+
 object LogLevel {
   val OFF = "OFF"
   val ERROR = "ERROR"

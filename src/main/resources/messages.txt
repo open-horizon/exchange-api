@@ -349,3 +349,4 @@ message.cleanup.cancel=Cancelled scheduled message cleanup
 message.cleanup.scheduled=Scheduling Agreement Bot message and Node message cleanup every {0}
 changes.cleanup.cancel=Cancelled scheduled change record cleanup
 changes.cleanup.scheduled=Scheduling change record cleanup every {0}
+invalid.password=Tokens must be at least 15 characters in length and contain at least one digit, one uppercase English alphabet letter, and one lowercase English alphabet letter. 

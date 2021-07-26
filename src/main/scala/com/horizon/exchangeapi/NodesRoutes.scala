@@ -253,9 +253,13 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
     val newRegSvcs: Seq[RegService] = regSvcs.map({ rs =>
       if (isMatch(rs.url)) {
         matchingSvcFound = true   // warning: intentional side effect (didnt know how else to do it)
+        // make sure user is not trying to overwrite existing version with ""
+        if (version.isDefined && version.getOrElse("") == "" && rs.version.getOrElse("")!= "") return DBIO.failed(new BadInputException(msg=ExchMsg.translate("cannot.overwrite.regservs.version"))).asTry
         val newConfigState = if (configState != rs.configState.getOrElse("")) Some(configState) else rs.configState
-        val newVersion = if (version.isDefined && version != "" && version.getOrElse("") != rs.version.getOrElse("")) Some(version.getOrElse("")) else rs.version
-        RegService(rs.url,rs.numAgreements, newConfigState, rs.policy, rs.properties, version)
+        // if the version is defined and its not the same as the existing one then update it
+        // covers the case of someone writing "" to a version that already has "" because if the two versions are the same, we keep the existing one
+        val newVersion = if (version.isDefined && version.getOrElse("") != rs.version.getOrElse("")) Some(version.getOrElse("")) else rs.version
+        RegService(rs.url,rs.numAgreements, newConfigState, rs.policy, rs.properties, newVersion)
       }
       else rs
     })
@@ -1135,6 +1139,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.services.updated", compositeId))) // there were no db errors, but determine if it actually found it or not
               else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
             case Failure(t: AuthException) => t.toComplete
+            case Failure(t: BadInputException) => t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage))
             case Failure(t) =>

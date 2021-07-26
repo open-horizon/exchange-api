@@ -217,7 +217,7 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
 }
 
 /** Input body for POST /orgs/{orgid}/nodes/{id}/services_configstate */
-final case class PostNodeConfigStateRequest(org: String, url: String, configState: String, version: String) {
+final case class PostNodeConfigStateRequest(org: String, url: String, configState: String, version: Option[String]) {
   require(org!=null && url!=null && configState!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   //def logger: Logger    // get access to the logger object in ExchangeApiApp 
@@ -254,7 +254,7 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
       if (isMatch(rs.url)) {
         matchingSvcFound = true   // warning: intentional side effect (didnt know how else to do it)
         val newConfigState = if (configState != rs.configState.getOrElse("")) Some(configState) else rs.configState
-        val newVersion = if (version != rs.version) version else rs.version
+        val newVersion = if (version.isDefined && version != "" && version.getOrElse("") != rs.version.getOrElse("")) Some(version.getOrElse("")) else rs.version
         RegService(rs.url,rs.numAgreements, newConfigState, rs.policy, rs.properties, version)
       }
       else rs

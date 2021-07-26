@@ -298,7 +298,11 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
-    
+
+## Changes in 2.80.0
+- Issue 494: Lower rounds for password hash for node tokens
+- Issue 518: Add version to the node registeredServices
+
 ## Changes in 2.79.0
 - Issue 517: Fix cases where message intervals are not pulled from the configuration file until after timers are set.
 

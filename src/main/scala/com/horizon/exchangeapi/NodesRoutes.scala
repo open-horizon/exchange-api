@@ -127,7 +127,7 @@ final case class PutNodesRequest(token: String,
   /** Get the db actions to insert or update all parts of the node */
   def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String, lastHeartbeat: Option[String] /*= Some(ApiTime.nowUTC)*/): DBIO[_] = {
     // default new field configState in registeredServices
-    val rsvc2: Seq[RegService] = registeredServices.getOrElse(List()).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
+    val rsvc2: Seq[RegService] = registeredServices.getOrElse(List()).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties, rs.version))
     NodeRow(id,
             orgid,
             hashedTok,
@@ -150,7 +150,7 @@ final case class PutNodesRequest(token: String,
    * because we can't let a node create new nodes. */
   def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String, lastHeartbeat: Option[String] /*= Some(ApiTime.nowUTC)*/): DBIO[_] = {
     // default new field configState in registeredServices
-    val rsvc2: Seq[RegService] = registeredServices.getOrElse(List()).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
+    val rsvc2: Seq[RegService] = registeredServices.getOrElse(List()).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties, rs.version))
     NodeRow(id,
             orgid,
             hashedTok,
@@ -217,10 +217,10 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
 }
 
 /** Input body for POST /orgs/{orgid}/nodes/{id}/services_configstate */
-final case class PostNodeConfigStateRequest(org: String, url: String, configState: String) {
+final case class PostNodeConfigStateRequest(org: String, url: String, configState: String, version: String) {
   require(org!=null && url!=null && configState!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
-  //def logger: Logger    // get access to the logger object in ExchangeApiApp
+  //def logger: Logger    // get access to the logger object in ExchangeApiApp 
 
   def getAnyProblem: Option[String] = {
     if (configState != "suspended" && configState != "active") Some(ExchMsg.translate("configstate.must.be.suspended.or.active"))
@@ -253,8 +253,9 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
     val newRegSvcs: Seq[RegService] = regSvcs.map({ rs =>
       if (isMatch(rs.url)) {
         matchingSvcFound = true   // warning: intentional side effect (didnt know how else to do it)
-        if (configState != rs.configState.getOrElse("")) RegService(rs.url,rs.numAgreements, Some(configState), rs.policy, rs.properties)
-        else rs
+        val newConfigState = if (configState != rs.configState.getOrElse("")) Some(configState) else rs.configState
+        val newVersion = if (version != rs.version) version else rs.version
+        RegService(rs.url,rs.numAgreements, newConfigState, rs.policy, rs.properties, version)
       }
       else rs
     })
@@ -408,21 +409,24 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           "numAgreements": 0,
           "configState": "active",
           "policy": "",
-          "properties": []
+          "properties": [],
+          "version": ""
         },
         {
           "url": "string",
           "numAgreements": 0,
           "configState": "active",
           "policy": "",
-          "properties": []
+          "properties": [],
+          "version": ""
         },
         {
           "url": "string",
           "numAgreements": 0,
           "configState": "active",
           "policy": "",
-          "properties": []
+          "properties": [],
+          "version": ""
         }
       ],
       "userInput": [
@@ -535,21 +539,24 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           "numAgreements": 0,
           "configState": "active",
           "policy": "",
-          "properties": []
+          "properties": [],
+          "version": ""
         },
         {
           "url": "string",
           "numAgreements": 0,
           "configState": "active",
           "policy": "",
-          "properties": []
+          "properties": [],
+          "version": ""
         },
         {
           "url": "string",
           "numAgreements": 0,
           "configState": "active",
           "policy": "",
-          "properties": []
+          "properties": [],
+          "version": ""
         }
       ],
       "userInput": [
@@ -623,7 +630,9 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                 logger.debug("GET /orgs/"+orgid+"/nodes/"+id+" result: "+list.size)
                 if (list.nonEmpty) {
                   //val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
+                  logger.debug("inside if list.nonEmpty")
                   val nodes: Map[String, Node] = list.map(e => e.id -> e.toNode(ident.isSuperUser)).toMap
+                  logger.debug("after nodes map made right before exit method")
                   (HttpCode.OK, GetNodesResponse(nodes, 0))
                 } else {
                   (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))     // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
@@ -749,6 +758,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
           var orgLimitMaxNodes = 0
           var fivePercentWarning = false
+          var hashedPw = ""
           val owner: String = ident match { case IUser(creds) => creds.id; case _ => "" }
           val patValidateAction = if (reqBody.pattern != "") PatternsTQ.getPattern(reqBody.pattern).length.result else DBIO.successful(1)
           val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced in userInput exist
@@ -840,16 +850,18 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(lastHeartbeat) => 
               lastHeartbeat.size match {
                   case 0 => val lastHB = if (noHB) None else Some(ApiTime.nowUTC)
+                    hashedPw = Password.fastHash(reqBody.token)
                     (if (owner == "")
                         // It seems like this case is an error (node doesn't exist yet, and client is not a user). The update will fail, but probably not with an error that will really explain what they did wrong.
-                        reqBody.getDbUpdate(compositeId, orgid, owner, Password.hash(reqBody.token), lastHB)
+                        reqBody.getDbUpdate(compositeId, orgid, owner, hashedPw, lastHB)
                       else 
-                        reqBody.getDbUpsert(compositeId, orgid, owner, Password.hash(reqBody.token), lastHB)).transactionally.asTry
+                        reqBody.getDbUpsert(compositeId, orgid, owner, hashedPw, lastHB)).transactionally.asTry
                   case 1 => val lastHB = if (noHB) lastHeartbeat.head else Some(ApiTime.nowUTC)
+                    hashedPw = Password.fastHash(reqBody.token)
                     (if (owner == "") 
-                        reqBody.getDbUpdate(compositeId, orgid, owner, Password.hash(reqBody.token), lastHB)
+                        reqBody.getDbUpdate(compositeId, orgid, owner, hashedPw, lastHB)
                       else 
-                        reqBody.getDbUpsert(compositeId, orgid, owner, Password.hash(reqBody.token), lastHB)).transactionally.asTry
+                        reqBody.getDbUpsert(compositeId, orgid, owner, hashedPw, lastHB)).transactionally.asTry
                   case _ => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", compositeId, "Unexpected result"))).asTry
                 }
             case Failure(t) => DBIO.failed(t).asTry
@@ -864,7 +876,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Check creation/update of node, and other errors
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " updating resource status table: " + v)
-              AuthCache.putNodeAndOwner(compositeId, Password.hash(reqBody.token), reqBody.token, owner)
+              AuthCache.putNodeAndOwner(compositeId, hashedPw, reqBody.token, owner)
               if (fivePercentWarning) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("num.nodes.near.org.limit", orgid, orgMaxNodes)))
               else (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))
             case Failure(t: DBProcessingError) =>
@@ -955,7 +967,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          val hashedPw: String = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
+          val hashedPw: String = if (reqBody.token.isDefined) Password.fastHash(reqBody.token.get) else "" // hash the token if that is what is being updated
           val (action, attrName) = reqBody.getDbUpdate(compositeId, hashedPw)
           if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.note.attr.specified")))
           else {
@@ -1065,7 +1077,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               value = """{
   "org": "myorg",
   "url": "myserviceurl",
-  "configState": "suspended"
+  "configState": "suspended",
+  "version": "1.0.0"
 }
 """
             )
@@ -2668,7 +2681,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                                if(node._13.isEmpty)
                                                  None
                                                else
-                                                 Some(read[List[RegService]](node._13).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))),
+                                                 Some(read[List[RegService]](node._13).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties, rs.version))),
                                              runningServices =
                                                if(node._19.isEmpty ||
                                                   node._19.get.services.isEmpty)

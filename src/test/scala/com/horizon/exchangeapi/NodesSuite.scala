@@ -384,11 +384,11 @@ class NodesSuite extends AnyFunSuite {
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
-          Prop("dataVerification","true","boolean","="))),
+          Prop("dataVerification","true","boolean","=")), ""),
         RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("cpus","2","int",">="),
-          Prop("version","1.0.0","version","in")))
+          Prop("version","1.0.0","version","in")), "")
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       None, Some(Map("horizon"->"3.2.3")), nodePubKey, None, Some(NodeHeartbeatIntervals(5,15,2)))
@@ -429,11 +429,11 @@ class NodesSuite extends AnyFunSuite {
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
-          Prop("dataVerification","true","boolean","="))),
+          Prop("dataVerification","true","boolean","=")), ""),
         RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("cpus","2","int",">="),
-          Prop("version","1.0.0","version","in")))
+          Prop("version","1.0.0","version","in")), "")
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       None, Some(Map("horizon"->"3.2.3")), "OLDNODEABC", None, None)
@@ -452,11 +452,11 @@ class NodesSuite extends AnyFunSuite {
           Prop("memory","300","int",">="),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
-          Prop("dataVerification","true","boolean","="))),
+          Prop("dataVerification","true","boolean","=")), ""),
         RegService(NETSPEEDSPEC,1,None,"{json policy for "+nodeId+" netspeed}",List(  // intentionally setting configState to None to make sure GET displays the default
           Prop("arch","arm","string","in"),
           Prop("agreementProtocols",agProto,"list","in"),
-          Prop("version","1.0.0","version","in")))
+          Prop("version","1.0.0","version","in")), "")
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       Some(""), Some(Map("horizon"->"3.2.1")), nodePubKey, Some("amd64"), Some(NodeHeartbeatIntervals(6,15,2)))
@@ -479,7 +479,7 @@ class NodesSuite extends AnyFunSuite {
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, nodePubKey, Some("amd64"), None)
+      Prop("dataVerification","true","boolean","=")), ""))), None, None, None, nodePubKey, Some("amd64"), None)
     val response = Http(URL+"/nodes/"+nodeId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -491,7 +491,7 @@ class NodesSuite extends AnyFunSuite {
       Prop("memory","300","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "", Some("amd64"), None)
+      Prop("dataVerification","true","boolean","=")), ""))), None, None, None, "", Some("amd64"), None)
     val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -502,7 +502,7 @@ class NodesSuite extends AnyFunSuite {
       Prop("arch","arm","string","in"),
       Prop("memory","400MB","int",">="),
       Prop("version","2.0.0","version","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, nodePubKey, Some("arm"), None)
+      Prop("dataVerification","true","boolean","=")), ""))), None, None, None, nodePubKey, Some("arm"), None)
     val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
@@ -541,7 +541,7 @@ class NodesSuite extends AnyFunSuite {
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, nodePubKey, Some("arm"), None)
+      Prop("dataVerification","true","boolean","=")), ""))), None, None, None, nodePubKey, Some("arm"), None)
     val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -676,7 +676,7 @@ class NodesSuite extends AnyFunSuite {
       Prop("memory","300","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "", Some("test"), None)
+      Prop("dataVerification","true","boolean","=")), ""))), None, None, None, "", Some("test"), None)
     val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -698,7 +698,7 @@ class NodesSuite extends AnyFunSuite {
       Prop("memory","300","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "", Some("amd64"), None)
+      Prop("dataVerification","true","boolean","=")), ""))), None, None, None, "", Some("amd64"), None)
     val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -715,21 +715,21 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - invalid config state - should fail") {
-    val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "foo")
+    val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "foo", "1.0.0")
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - nonexistant url - should return not found") {
-    val input = PostNodeConfigStateRequest(orgid, NOTTHERESPEC_URL, "suspended")
+    val input = PostNodeConfigStateRequest(orgid, NOTTHERESPEC_URL, "suspended", "1.0.0")
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - nonexistant org - should return not found") {
-    val input = PostNodeConfigStateRequest(orgnotthere, SDRSPEC_URL, "suspended")
+    val input = PostNodeConfigStateRequest(orgnotthere, SDRSPEC_URL, "suspended", "1.0.0")
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
@@ -755,7 +755,7 @@ class NodesSuite extends AnyFunSuite {
     val dev = getDevResp.nodes(orgnodeId)
     val initialLastUpdated = dev.lastUpdated
 
-    val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "suspended")
+    val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "suspended", "1.0.0")
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -767,7 +767,10 @@ class NodesSuite extends AnyFunSuite {
     assert(getDevResp2.nodes.contains(orgnodeId))
     val dev2 = getDevResp2.nodes(orgnodeId)
     val newLastUpdated = dev2.lastUpdated
+    val regServicesNode = dev2.registeredServices
+    info("regServicesNode: "+ regServicesNode)
     assert(newLastUpdated > initialLastUpdated)
+    assert(dev2.registeredServices.exists(m => m.version == "1.0.0"))
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " services_configstate was created and stored") {
@@ -793,7 +796,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - change config state of netspeed reg svc") {
-    val input = PostNodeConfigStateRequest("", NETSPEEDSPEC_URL, "suspended")
+    val input = PostNodeConfigStateRequest("", NETSPEEDSPEC_URL, "suspended", "1.0.0")
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -808,10 +811,47 @@ class NodesSuite extends AnyFunSuite {
     val dev = getDevResp.nodes(orgnodeId)
     assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.configState.contains("suspended")))
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("suspended")))
+    assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.version == "1.0.0"))
+  }
+
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - update version") {
+    val input = PostNodeConfigStateRequest("", NETSPEEDSPEC_URL, "suspended", "1.1.2")
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify reg services version update") {
+    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    val dev = getDevResp.nodes(orgnodeId)
+    info("regser: " + dev.registeredServices)
+    assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.version == "1.1.2"))
+  }
+
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - update version to empty string") {
+    val input = PostNodeConfigStateRequest("", NETSPEEDSPEC_URL, "suspended", "")
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify reg services version update to empty string") {
+    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    val dev = getDevResp.nodes(orgnodeId)
+    info("regser: " + dev.registeredServices)
+    assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.version == ""))
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - change config state of all reg svcs back to active") {
-    val input = PostNodeConfigStateRequest("", "", "active")
+    val input = PostNodeConfigStateRequest("", "", "active", "1.0.0")
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -888,7 +928,7 @@ class NodesSuite extends AnyFunSuite {
                                                                   Prop("memory","400","int",">="),
                                                                   Prop("version","2.0.0","version","in"),
                                                                   Prop("agreementProtocols",agProto,"list","in"),
-                                                                  Prop("dataVerification","true","boolean","="))))), 
+                                                                  Prop("dataVerification","true","boolean","=")), ""))), 
                                               None, 
                                               None, 
                                               None, 
@@ -932,7 +972,7 @@ class NodesSuite extends AnyFunSuite {
                                                       Prop("memory","400","int",">="),
                                                       Prop("version","2.0.0","version","in"),
                                                       Prop("agreementProtocols",agProto,"list","in"),
-                                                      Prop("dataVerification","true","boolean","="))))), 
+                                                      Prop("dataVerification","true","boolean","=")), ""))), 
                                   None, 
                                   None, 
                                   None, 
@@ -2362,7 +2402,7 @@ class NodesSuite extends AnyFunSuite {
       val input = PutNodesRequest(nodeToken, "rpi"+nodeId5+"-netspeed", None, compositePatid, Some(List(RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId5+" netspeed}",List(
         Prop("arch","arm","string","in"),
         Prop("version","1.0.0","version","in"),
-        Prop("agreementProtocols",agProto,"list","in"))))), None, None, None, nodePubKey, None, None)
+        Prop("agreementProtocols",agProto,"list","in")), ""))), None, None, None, nodePubKey, None, None)
       response = Http(URL+"/nodes/"+nodeId5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
@@ -2787,11 +2827,11 @@ class NodesSuite extends AnyFunSuite {
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
-          Prop("dataVerification","true","boolean","="))),
+          Prop("dataVerification","true","boolean","=")), ""),
         RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId7+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("cpus","2","int",">="),
-          Prop("version","1.0.0","version","in")))
+          Prop("version","1.0.0","version","in")), "")
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       None, Some(Map("horizon"->"3.2.3")), nodePubKey, None, None)
@@ -3025,11 +3065,11 @@ class NodesSuite extends AnyFunSuite {
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
-          Prop("dataVerification","true","boolean","="))),
+          Prop("dataVerification","true","boolean","=")), ""),
         RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("cpus","2","int",">="),
-          Prop("version","1.0.0","version","in")))
+          Prop("version","1.0.0","version","in")), "")
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       Some(""), Some(Map("horizon"->"3.2.3")), Some(nodePubKey), Some("amd64"), None)

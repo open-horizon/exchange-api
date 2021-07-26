@@ -254,7 +254,7 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
       if (isMatch(rs.url)) {
         matchingSvcFound = true   // warning: intentional side effect (didnt know how else to do it)
         // make sure user is not trying to overwrite existing version with ""
-        if (version.isDefined && version.getOrElse("") == "" && rs.version.getOrElse("")!= "") return DBIO.failed(new BadInputException(msg=ExchMsg.translate("cannot.overwrite.regservs.version"))).asTry
+        if (version.isDefined && version.getOrElse("") == "" && rs.version.getOrElse("")!= "") return DBIO.failed(new BadInputException(msg=ExchMsg.translate("cannot.overwrite.regservs.version")))
         val newConfigState = if (configState != rs.configState.getOrElse("")) Some(configState) else rs.configState
         // if the version is defined and its not the same as the existing one then update it
         // covers the case of someone writing "" to a version that already has "" because if the two versions are the same, we keep the existing one

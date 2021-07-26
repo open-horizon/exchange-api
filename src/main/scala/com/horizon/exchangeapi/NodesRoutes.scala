@@ -783,7 +783,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           })
           .flatMap({
             case Success(v) =>
-              // Check if node is using policy, then get num nodes already owned
+              // Check if node is using policy, then get org limits
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " policy related attrs: " + v)
               if (v.nonEmpty) {
                 val (existingPattern, existingPublicKey) = v.head
@@ -795,6 +795,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           })
           .flatMap({
             case Success(orgLimits) =>
+            // check total number of nodes
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " orgLimits: " + orgLimits)
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " orgLimits.head: " + orgLimits.head)
               val limits : OrgLimits = OrgLimits.toOrgLimit(orgLimits.head)
@@ -805,13 +806,21 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           })
           .flatMap({
             case Success(totalNodes) =>
+              // verify total nodes within org limit, then pass on success
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " total number of nodes in org: " + totalNodes)
               if (orgLimitMaxNodes == 0) NodesTQ.getNumOwned(owner).result.asTry // no limit set
               else if (totalNodes >= orgLimitMaxNodes) DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.org.max.limit.of.nodes", totalNodes, orgLimitMaxNodes))).asTry
               else if ((orgLimitMaxNodes-totalNodes) <= orgLimitMaxNodes*.05) { // if we are within 5% of the limit
                 fivePercentWarning = true // used for warning later
-                NodesTQ.getNumOwned(owner).result.asTry
-              } else NodesTQ.getNumOwned(owner).result.asTry
+                DBIO.successful(1).asTry
+              } else DBIO.successful(1).asTry
+            case Failure(t) => DBIO.failed(t).asTry
+          })
+          .flatMap({
+            case Success(v) =>
+              // Check if token is valid, then get num nodes owned
+              if (NodeAgbotTokenValidation.isValid(reqBody.token)) NodesTQ.getNumOwned(owner).result.asTry
+              else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.password"))).asTry //pattern not valid
             case Failure(t) => DBIO.failed(t).asTry
           })
           .flatMap({
@@ -961,7 +970,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               case Failure(t) => DBIO.failed(t).asTry
             }).flatMap({
               case Success(v) =>
-                // Check if referenced services exist, then get whether node is using policy
+                // Check if referenced services exist, then pass on success for token validation step
                 logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " service validation: " + v)
                 var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
                 breakable {
@@ -972,12 +981,20 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                     }
                   }
                 }
-                if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(compositeId).result.asTry
+                if (invalidIndex < 0) DBIO.successful(1).asTry
                 else {
                   val errStr: String = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
                   else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
                   DBIO.failed(new Throwable(errStr)).asTry
                 }
+              case Failure(t) => DBIO.failed(t).asTry
+            }).flatMap({
+              case Success(v) =>
+                // Check if token is valid, then get whether node is using policy
+                if (reqBody.token.isDefined) {
+                  if (NodeAgbotTokenValidation.isValid(reqBody.token)) NodesTQ.getNodeUsingPolicy(compositeId).result.asTry
+                  else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.password"))).asTry //pattern not valid
+                } else NodesTQ.getNodeUsingPolicy(compositeId).result.asTry // They aren't patching the token so nothing to check
               case Failure(t) => DBIO.failed(t).asTry
             }).flatMap({
               case Success(v) =>

@@ -832,14 +832,14 @@ class NodesSuite extends AnyFunSuite {
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.version.contains("1.1.2")))
   }
 
-  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - update version to empty string") {
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - verify cannot update version to empty string") {
     val input = PostNodeConfigStateRequest("", NETSPEEDSPEC_URL, "suspended", Some(""))
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify reg services version update to empty string") {
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify reg services version not updated to empty string") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK.intValue)
@@ -847,7 +847,7 @@ class NodesSuite extends AnyFunSuite {
     assert(getDevResp.nodes.contains(orgnodeId))
     val dev = getDevResp.nodes(orgnodeId)
     info("regser: " + dev.registeredServices)
-    assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.version.contains("")))
+    assert(!dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.version.contains("")))
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - change config state of all reg svcs back to active") {
@@ -857,14 +857,28 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-    test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - verify version isn't required") {
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify all reg svcs back to active") {
+    val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.OK.intValue)
+    val getDevResp = parse(response.body).extract[GetNodesResponse]
+    assert(getDevResp.nodes.contains(orgnodeId))
+    val dev = getDevResp.nodes(orgnodeId)
+    info(dev.registeredServices.toString)
+    assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.configState.contains("active")))
+    assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
+    assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.version.contains("1.0.0")))
+    assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.version.contains("1.0.0")))
+  }
+
+  test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - verify version isn't required") {
     val input = """{"org": "", "url": "", "configState": "active" }"""
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify all reg svcs back to active") {
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify all reg svcs back to active after no version in post body") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK.intValue)

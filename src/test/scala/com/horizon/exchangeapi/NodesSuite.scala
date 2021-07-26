@@ -768,7 +768,7 @@ class NodesSuite extends AnyFunSuite {
     val dev2 = getDevResp2.nodes(orgnodeId)
     val newLastUpdated = dev2.lastUpdated
     val regServicesNode = dev2.registeredServices
-    info("regServicesNode: "+ regServicesNode)
+    //info("regServicesNode: "+ regServicesNode)
     assert(newLastUpdated > initialLastUpdated)
     assert(dev2.registeredServices.exists(m => m.version.contains("1.0.0")))
   }
@@ -828,7 +828,7 @@ class NodesSuite extends AnyFunSuite {
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.contains(orgnodeId))
     val dev = getDevResp.nodes(orgnodeId)
-    info("regser: " + dev.registeredServices)
+    //info("regser: " + dev.registeredServices)
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.version.contains("1.1.2")))
   }
 
@@ -836,7 +836,7 @@ class NodesSuite extends AnyFunSuite {
     val input = PostNodeConfigStateRequest("", NETSPEEDSPEC_URL, "suspended", Some(""))
     val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify reg services version not updated to empty string") {
@@ -846,7 +846,7 @@ class NodesSuite extends AnyFunSuite {
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.contains(orgnodeId))
     val dev = getDevResp.nodes(orgnodeId)
-    info("regser: " + dev.registeredServices)
+    //info("regser: " + dev.registeredServices)
     assert(!dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.version.contains("")))
   }
 
@@ -864,7 +864,7 @@ class NodesSuite extends AnyFunSuite {
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.contains(orgnodeId))
     val dev = getDevResp.nodes(orgnodeId)
-    info(dev.registeredServices.toString)
+    //info(dev.registeredServices.toString)
     assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.configState.contains("active")))
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.version.contains("1.0.0")))
@@ -885,7 +885,7 @@ class NodesSuite extends AnyFunSuite {
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.contains(orgnodeId))
     val dev = getDevResp.nodes(orgnodeId)
-    info(dev.registeredServices.toString)
+    //info(dev.registeredServices.toString)
     assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.configState.contains("active")))
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.version.contains("1.0.0")))

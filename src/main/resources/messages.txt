@@ -349,4 +349,5 @@ message.cleanup.cancel=Cancelled scheduled message cleanup
 message.cleanup.scheduled=Scheduling Agreement Bot message and Node message cleanup every {0}
 changes.cleanup.cancel=Cancelled scheduled change record cleanup
 changes.cleanup.scheduled=Scheduling change record cleanup every {0}
-invalid.password=Tokens must be at least 15 characters in length and contain at least one digit, one uppercase English alphabet letter, and one lowercase English alphabet letter. 
+invalid.password=Tokens must be at least 15 characters in length and contain at least one digit, one uppercase English alphabet letter, and one lowercase English alphabet letter.
+cannot.overwrite.regservs.version=If the version attribute of the config state of a service is set, it cannot be overwritten with the empty string.

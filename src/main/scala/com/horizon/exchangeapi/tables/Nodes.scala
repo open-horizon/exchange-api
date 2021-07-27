@@ -47,7 +47,7 @@ trait RegServiceTrait {
 final case class RegServiceSearch(url: String, properties: List[Prop]) extends RegServiceTrait
 
 /** Contains the object representations of the DB tables related to nodes. */
-final case class RegService(url: String, numAgreements: Int, configState: Option[String], policy: String, properties: List[Prop]) extends RegServiceTrait
+final case class RegService(url: String, numAgreements: Int, configState: Option[String], policy: String, properties: List[Prop], version: Option[String]) extends RegServiceTrait
 
 final case class NodeHeartbeatIntervals(minInterval: Int, maxInterval: Int, intervalAdjustment: Int)
 
@@ -90,7 +90,7 @@ final case class NodeRow(id: String,
     val swv: Map[String, String] = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
     val rsvc: List[RegService] = if (regServices != "") read[List[RegService]](regServices) else List[RegService]()
     // Default new configState attr if it doesnt exist. This ends up being called by GET nodes, GET nodes/id, and POST search/nodes
-    val rsvc2: List[RegService] = rsvc.map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties))
+    val rsvc2: List[RegService] = rsvc.map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties, rs.version.orElse(Some(""))))
     val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
     val hbInterval: NodeHeartbeatIntervals = if (heartbeatIntervals != "") read[NodeHeartbeatIntervals](heartbeatIntervals) else NodeHeartbeatIntervals(0, 0, 0)
     new Node(tok, name, owner, nt, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat.orNull, publicKey, arch, hbInterval, lastUpdated)

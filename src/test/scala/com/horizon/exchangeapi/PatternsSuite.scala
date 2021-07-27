@@ -217,7 +217,7 @@ class PatternsSuite extends AnyFunSuite {
     val devInput = PutNodesRequest(nodeToken, "bc dev test", None, "", Some(List(RegService("foo", 1, None, "{}", List(
       Prop("arch", "arm", "string", "in"),
       Prop("version", "2.0.0", "version", "in"),
-      Prop("blockchainProtocols", "agProto", "list", "in"))))), None, None, None, "NODEABC", None, None)
+      Prop("blockchainProtocols", "agProto", "list", "in")), Some("")))), None, None, None, "NODEABC", None, None)
     val devResponse = Http(URL + "/nodes/" + nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK.intValue)
@@ -1159,11 +1159,11 @@ class PatternsSuite extends AnyFunSuite {
           Prop("arch","arm","string","in"),
           Prop("version","1.0.0","version","in"),
           Prop("agreementProtocols",agProto,"list","in"),
-          Prop("dataVerification","true","boolean","="))),
+          Prop("dataVerification","true","boolean","=")), Some("")),
         RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeIdSearchTest1+" netspeed}",List(
           Prop("arch","arm","string","in"),
           Prop("cpus","2","int",">="),
-          Prop("version","1.0.0","version","in")))
+          Prop("version","1.0.0","version","in")), Some(""))
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       None, Some(Map("horizon"->"3.2.3")), "NODEABC", None, None)
@@ -1180,7 +1180,7 @@ class PatternsSuite extends AnyFunSuite {
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", Some("amd64"), None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "NODE2ABC", Some("amd64"), None)
     val response = Http(URL + "/nodes/" + nodeId2SearchTest2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     //info("Heartbeat: " + Http(URL + "/nodes/" + nodeId2SearchTest2 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
@@ -1194,7 +1194,7 @@ class PatternsSuite extends AnyFunSuite {
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE2ABC", Some("amd64"), None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "NODE2ABC", Some("amd64"), None)
     val response = Http(URL + "/nodes/" + nodeId2SearchTest2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeId2SearchTest2 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
@@ -1227,7 +1227,7 @@ class PatternsSuite extends AnyFunSuite {
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE3ABC", None, None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "NODE3ABC", None, None)
     val response = Http(URL + "/nodes/" + nodeId3SearchTest3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeId3SearchTest3 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
@@ -1262,7 +1262,7 @@ class PatternsSuite extends AnyFunSuite {
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE4ABC", None, None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "NODE4ABC", None, None)
     val response = Http(URL + "/nodes/" + nodeId4SearchTest4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeId4SearchTest4 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
@@ -1304,7 +1304,7 @@ class PatternsSuite extends AnyFunSuite {
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE5ABC", Some("arm32"), None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "NODE5ABC", Some("arm32"), None)
     val response = Http(URL + "/nodes/" + nodeId5SearchTest5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("Hearbeat: " + Http(URL + "/nodes/" + nodeId5SearchTest5 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
@@ -1318,7 +1318,7 @@ class PatternsSuite extends AnyFunSuite {
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","="))))), None, None, None, "NODE6ABC", Some("amd64"), None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "NODE6ABC", Some("amd64"), None)
     val response = Http(URL + "/nodes/" + nodeId6SearchTest6).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeId6SearchTest6 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)

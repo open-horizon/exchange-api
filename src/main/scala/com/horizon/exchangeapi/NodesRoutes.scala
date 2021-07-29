@@ -1139,7 +1139,6 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.services.updated", compositeId))) // there were no db errors, but determine if it actually found it or not
               else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
             case Failure(t: AuthException) => t.toComplete
-            case Failure(t: BadInputException) => t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage))
             case Failure(t) =>

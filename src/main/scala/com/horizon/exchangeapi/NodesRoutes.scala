@@ -224,6 +224,8 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
 
   def getAnyProblem: Option[String] = {
     if (configState != "suspended" && configState != "active") Some(ExchMsg.translate("configstate.must.be.suspended.or.active"))
+    else if (org == "" && (url != "" || version.getOrElse("") != "")) Some(ExchMsg.translate("services.configstate.org.not.specified"))
+    else if (url == "" && version.getOrElse("") != "") Some(ExchMsg.translate("services.configstate.url.not.specified"))
     else None
   }
 
@@ -253,13 +255,10 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
     val newRegSvcs: Seq[RegService] = regSvcs.map({ rs =>
       if (isMatch(rs.url)) {
         matchingSvcFound = true   // warning: intentional side effect (didnt know how else to do it)
-        // make sure user is not trying to overwrite existing version with ""
-        if (version.isDefined && version.getOrElse("") == "" && rs.version.getOrElse("")!= "") return DBIO.failed(new BadInputException(msg=ExchMsg.translate("cannot.overwrite.regservs.version")))
-        val newConfigState = if (configState != rs.configState.getOrElse("")) Some(configState) else rs.configState
-        // if the version is defined and its not the same as the existing one then update it
-        // covers the case of someone writing "" to a version that already has "" because if the two versions are the same, we keep the existing one
-        val newVersion = if (version.isDefined && version.getOrElse("") != rs.version.getOrElse("")) Some(version.getOrElse("")) else rs.version
-        RegService(rs.url,rs.numAgreements, newConfigState, rs.policy, rs.properties, newVersion)
+        // Match the version, either the version sent in the request body matches exactly or the wildcard version ("") was sent in
+        val versionCheck = (version.getOrElse("") == rs.version.getOrElse("")) || (version.getOrElse("") == "")
+        val newConfigState = if (configState != rs.configState.getOrElse("") && versionCheck) Some(configState) else rs.configState
+        RegService(rs.url,rs.numAgreements, newConfigState, rs.policy, rs.properties, rs.version)
       }
       else rs
     })
@@ -634,9 +633,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                 logger.debug("GET /orgs/"+orgid+"/nodes/"+id+" result: "+list.size)
                 if (list.nonEmpty) {
                   //val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
-                  logger.debug("inside if list.nonEmpty")
                   val nodes: Map[String, Node] = list.map(e => e.id -> e.toNode(ident.isSuperUser)).toMap
-                  logger.debug("after nodes map made right before exit method")
                   (HttpCode.OK, GetNodesResponse(nodes, 0))
                 } else {
                   (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))     // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
@@ -1122,7 +1119,6 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.services.updated", compositeId))) // there were no db errors, but determine if it actually found it or not
               else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId)))
             case Failure(t: AuthException) => t.toComplete
-            case Failure(t: BadInputException) => t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.not.inserted.or.updated", compositeId, t.getMessage))
             case Failure(t) =>

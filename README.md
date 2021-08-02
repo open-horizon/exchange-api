@@ -299,6 +299,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.81.0
+- Issue 518 Fix: Updated functionality of `POST /services_configstate` no longer updates version, only filters by it
+- New translation files
+
 ## Changes in 2.80.0
 - Issue 494: Lower rounds for password hash for node tokens
 - Issue 518: Add version to the node registeredServices

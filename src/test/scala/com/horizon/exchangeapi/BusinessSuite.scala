@@ -53,10 +53,10 @@ class BusinessSuite extends AnyFunSuite {
   val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
   val nodeId = "9913"     // the 1st node created, that i will use to run some rest methods
-  val nodeToken = nodeId+"tok"
+  val nodeToken = nodeId+"TokAbcDefGh1234"
   val NODEAUTH = ("Authorization","Basic "+ApiUtils.encode(authpref+nodeId+":"+nodeToken))
   val agbotId = "9948"
-  val agbotToken = agbotId+"tok"
+  val agbotToken = agbotId+"TokAbcDefGh1234"
   val AGBOTAUTH = ("Authorization","Basic "+ApiUtils.encode(authpref+agbotId+":"+agbotToken))
   val svcurl = "ibm.netspeed"
   val svcarch = "amd64"

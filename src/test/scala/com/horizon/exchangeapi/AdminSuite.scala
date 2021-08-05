@@ -77,13 +77,13 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
         val response = Http(URL + "/orgs/" + org + "/users/" + user).postData(write(PostPutUsersRequest(password="password", admin=user.endsWith("admin") && org!="root", hubAdmin=Some(org=="root"), email=user + "@host.domain"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
         assert(response.code == HttpCode.POST_OK.intValue)
       }
-      var response = Http(URL + "/orgs/" + org + "/agbots/" + AGBOT).postData(write(PutAgbotsRequest("password", AGBOT, None, "password"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(URL + "/orgs/" + org + "/agbots/" + AGBOT).postData(write(PutAgbotsRequest("TokAbcDefGh1234", AGBOT, None, "password"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       assert(response.code == HttpCode.PUT_OK.intValue)
       response = Http(URL + "/orgs/" + org + "/services").postData(write(PostPutServiceRequest(SERVICE, None, true, None, URL + "/orgs/" + org + "/services/" + SERVICE, "0.0.1", "test-arch", "multiple", None, None, None, None, None, None, None, None ))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       assert(response.code == HttpCode.POST_OK.intValue)
       response = Http(URL + "/orgs/" + org + "/patterns/" + PATTERN).postData(write(PostPutPatternRequest(PATTERN, Some("AdminSuite Test Pattern"), None, List(PServices(URL + "/orgs/" + org + "/services/" + SERVICE, org, "test-arch", None, List(PServiceVersions("0.0.1", None, None, None, None)), None, None)), None, None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       assert(response.code == HttpCode.POST_OK.intValue)
-      response = Http(URL + "/orgs/" + org + "/nodes/" + NODE).postData(write(PutNodesRequest("password", NODE, None, org + "/" + PATTERN, None, None, None, None, "password", None, None))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(URL + "/orgs/" + org + "/nodes/" + NODE).postData(write(PutNodesRequest("TokAbcDefGh1234", NODE, None, org + "/" + PATTERN, None, None, None, None, "password", None, None))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       assert(response.code == HttpCode.PUT_OK.intValue)
     }
   }
@@ -113,7 +113,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
   for (org <- ORGS) {
     test("POST /admin/hashpw - " + org + "/" + AGBOT) {
       val input = AdminHashpwRequest("foobar")
-      val response = Http(URL + "/admin/hashpw").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + AGBOT + ":" + "password"))).asString
+      val response = Http(URL + "/admin/hashpw").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + AGBOT + ":" + "TokAbcDefGh1234"))).asString
       info("http status code: " + response.code)
       info("body: " + response.body)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
@@ -123,7 +123,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
   for (org <- ORGS) {
     test("POST /admin/hashpw - " + org + "/" + NODE) {
       val input = AdminHashpwRequest("foobar")
-      val response = Http(URL + "/admin/hashpw").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + NODE + ":" + "password"))).asString
+      val response = Http(URL + "/admin/hashpw").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + NODE + ":" + "TokAbcDefGh1234"))).asString
       info("http status code: " + response.code)
       info("body: " + response.body)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
@@ -186,7 +186,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
   // =============== Reload Configuration File ===============
   for (org <- ORGS) {
     test("POST /admin/reload - " + org + "/" + AGBOT) {
-      val response = Http(URL + "/admin/reload").method("post").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + AGBOT + ":" + "password"))).asString
+      val response = Http(URL + "/admin/reload").method("post").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + AGBOT + ":" + "TokAbcDefGh1234"))).asString
       info("http status code: " + response.code)
       info("body: " + response.body)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
@@ -197,7 +197,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   for (org <- ORGS) {
     test("POST /admin/reload - " + org + "/" + NODE) {
-      val response = Http(URL + "/admin/reload").method("post").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + NODE + ":" + "password"))).asString
+      val response = Http(URL + "/admin/reload").method("post").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + NODE + ":" + "TokAbcDefGh1234"))).asString
       info("http status code: " + response.code)
       info("body: " + response.body)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
@@ -238,7 +238,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
   // =============== Get Exchange Status ===============
   for (org <- ORGS) {
     test("GET /admin/status - " + org + "/" + AGBOT) {
-      val response = Http(URL + "/admin/status").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + AGBOT + ":" + "password"))).asString
+      val response = Http(URL + "/admin/status").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + AGBOT + ":" + "TokAbcDefGh1234"))).asString
       info("http status code: " + response.code)
       info("body: " + response.body)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
@@ -247,7 +247,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   for (org <- ORGS) {
     test("GET /admin/status - " + org + "/" + NODE) {
-      val response = Http(URL + "/admin/status").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + NODE + ":" + "password"))).asString
+      val response = Http(URL + "/admin/status").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + NODE + ":" + "TokAbcDefGh1234"))).asString
       info("http status code: " + response.code)
       info("body: " + response.body)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)

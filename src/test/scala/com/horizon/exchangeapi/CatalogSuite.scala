@@ -45,10 +45,10 @@ class CatalogSuite extends AnyFunSuite {
   val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
   // node and agbot in the 1st org
   val nodeId = "n1"     // the 1st node created, that i will use to run some rest methods
-  val nodeToken = nodeId+"tok"
+  val nodeToken = nodeId+"TokAbcDefGh1234"
   val NODEAUTH = ("Authorization","Basic "+ApiUtils.encode(orgid+"/"+nodeId+":"+nodeToken))
   val agbotId = "a1"
-  val agbotToken = agbotId+"tok"
+  val agbotToken = agbotId+"TokAbcDefGh1234"
   val AGBOTAUTH = ("Authorization","Basic "+ApiUtils.encode(orgid+"/"+agbotId+":"+agbotToken))
   // A public service in each org and a private one in the 1st org
   val svcUrl = "s1"

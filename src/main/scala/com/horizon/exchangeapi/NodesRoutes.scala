@@ -825,7 +825,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           })
           .flatMap({
             case Success(totalNodes) =>
-              // verify total nodes within org limit, then pass on success
+              // verify total nodes within org limit, then get numOwned
               logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + " total number of nodes in org: " + totalNodes)
               if (orgLimitMaxNodes == 0) NodesTQ.getNumOwned(owner).result.asTry // no limit set
               else if (totalNodes >= orgLimitMaxNodes) DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.org.max.limit.of.nodes", totalNodes, orgLimitMaxNodes))).asTry
@@ -984,7 +984,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               case Failure(t) => DBIO.failed(t).asTry
             }).flatMap({
               case Success(v) =>
-                // Check if referenced services exist, then pass on success for token validation step
+                // Check if referenced services exist, then get whether node is using policy
                 logger.debug("PATCH /orgs/" + orgid + "/nodes/" + id + " service validation: " + v)
                 var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
                 breakable {

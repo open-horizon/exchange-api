@@ -79,7 +79,7 @@ class UsersSuite extends AnyFunSuite {
   val ptUrl = "http://" + ptBase
   val pattern = ptBase + "_1.0.0_arm"
   val agbotId = "a1"
-  val agbotToken = agbotId + "tok"
+  val agbotToken = agbotId + "TokAbcDefGh1234"
   val iamKey = sys.env.getOrElse("EXCHANGE_IAM_KEY", "")
   val iamUIToken = sys.env.getOrElse("EXCHANGE_IAM_UI_TOKEN", "")
   val iamUser = sys.env.getOrElse("EXCHANGE_IAM_EMAIL", "")

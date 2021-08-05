@@ -182,6 +182,8 @@ object ExchMsg {
       case e: Exception => s"message key '$key' not found in the messages file: ${e.getMessage}"
     }
   }
+
+  def getLang: String = sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en"))
 }
 
 object NodeAgbotTokenValidation {
@@ -191,11 +193,13 @@ object NodeAgbotTokenValidation {
     // (?=.*[a-z]) lowercase letter must occur at least once
     // (?=.*[A-Z]) uppercase letter must occur at least once
     // .{15,} minimum 15 chars
-    val pwRegex: Regex = """^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z]).{15,}$""".r
-    val valid = token match {
-      case reg(_*) => return true
-      case _ => return false
+    val exchLang: String = sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en"))
+    val pwRegex: Regex = if (exchLang.contains("ja") || exchLang.contains("ko") || exchLang.contains("zh")) """^(?=.*[0-9]).{15,}$""".r else """^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z]).{15,}$""".r
+    val valid : Boolean = token match {
+      case pwRegex(_*) => true
+      case _ => false
     }
+    valid
   }
 }
 

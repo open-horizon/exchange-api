@@ -107,6 +107,10 @@ final case class PutNodesRequest(token: String,
     if (id == "iamapikey" || id == "iamtoken") return Some(ExchMsg.translate("node.id.not.iamapikey.or.iamtoken"))
     if (noheartbeat.isDefined && noheartbeat.get.toLowerCase != "true" && noheartbeat.get.toLowerCase != "false") return Some(ExchMsg.translate("bad.noheartbeat.param"))
     if (token == "") return Some(ExchMsg.translate("token.must.not.be.blank"))
+    if (!NodeAgbotTokenValidation.isValid(token)) {
+      if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
+      else return Some(ExchMsg.translate("invalid.password"))
+    }
     // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
     if (nodeType.isDefined && !NodeType.containsString(nodeType.get)) return Some(ExchMsg.translate("invalid.node.type", NodeType.valuesAsString))
     if (pattern != "" && """.*/.*""".r.findFirstIn(pattern).isEmpty) return Some(ExchMsg.translate("pattern.must.have.orgid.prepended"))
@@ -175,6 +179,10 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
 
   def getAnyProblem: Option[String] = {
     if (token.isDefined && token.get == "") Some(ExchMsg.translate("token.cannot.be.empty.string"))
+    if (token.isDefined && !NodeAgbotTokenValidation.isValid(token.get)) {
+      if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
+      else return Some(ExchMsg.translate("invalid.password"))
+    }
     //else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
     else None
   }
@@ -823,15 +831,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               else if (totalNodes >= orgLimitMaxNodes) DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.org.max.limit.of.nodes", totalNodes, orgLimitMaxNodes))).asTry
               else if ((orgLimitMaxNodes-totalNodes) <= orgLimitMaxNodes*.05) { // if we are within 5% of the limit
                 fivePercentWarning = true // used for warning later
-                DBIO.successful(1).asTry
-              } else DBIO.successful(1).asTry
-            case Failure(t) => DBIO.failed(t).asTry
-          })
-          .flatMap({
-            case Success(v) =>
-              // Check if token is valid, then get num nodes owned
-              if (NodeAgbotTokenValidation.isValid(reqBody.token)) NodesTQ.getNumOwned(owner).result.asTry
-              else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.password"))).asTry //pattern not valid
+                NodesTQ.getNumOwned(owner).result.asTry
+              } else NodesTQ.getNumOwned(owner).result.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })
           .flatMap({
@@ -994,20 +995,12 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                     }
                   }
                 }
-                if (invalidIndex < 0) DBIO.successful(1).asTry
+                if (invalidIndex < 0) NodesTQ.getNodeUsingPolicy(compositeId).result.asTry
                 else {
                   val errStr: String = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
                   else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
                   DBIO.failed(new Throwable(errStr)).asTry
                 }
-              case Failure(t) => DBIO.failed(t).asTry
-            }).flatMap({
-              case Success(v) =>
-                // Check if token is valid, then get whether node is using policy
-                if (reqBody.token.isDefined) {
-                  if (NodeAgbotTokenValidation.isValid(reqBody.token)) NodesTQ.getNodeUsingPolicy(compositeId).result.asTry
-                  else DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.password"))).asTry //pattern not valid
-                } else NodesTQ.getNodeUsingPolicy(compositeId).result.asTry // They aren't patching the token so nothing to check
               case Failure(t) => DBIO.failed(t).asTry
             }).flatMap({
               case Success(v) =>

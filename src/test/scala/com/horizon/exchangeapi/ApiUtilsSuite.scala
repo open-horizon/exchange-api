@@ -51,4 +51,29 @@ class ApiUtilsSuite extends AnyFunSuite{
     assert(ApiTime.beginningUTC == "1970-01-01T00:00:00.000Z[UTC]")
     assert(ApiTime.beginningUTC.length >= 29)
   }
+
+  test("NodeAgbotTokenValidation.isValid correctly identifies if password is too short, <15 chars"){
+    info("NodeAgbotTokenValidation.isValid(\"1Abbb\")"+ " , " + NodeAgbotTokenValidation.isValid("1Abbb").toString())
+    assert(NodeAgbotTokenValidation.isValid("1Abbb") == false)
+  }
+
+  test("NodeAgbotTokenValidation.isValid correctly identifies if password does not contain digit"){
+    info("NodeAgbotTokenValidation.isValid(\"aaaaaaaaaaaaaaaB\")"+ " , " + NodeAgbotTokenValidation.isValid("aaaaaaaaaaaaaaaB").toString())
+    assert(NodeAgbotTokenValidation.isValid("aaaaaaaaaaaaaaaB") == false)
+  }
+
+  test("NodeAgbotTokenValidation.isValid correctly identifies if password does not contain uppercase letter"){
+    info("NodeAgbotTokenValidation.isValid(\"aaaaaaaaaaaaaaa1\")"+ " , " + NodeAgbotTokenValidation.isValid("aaaaaaaaaaaaaaa1").toString())
+    assert(NodeAgbotTokenValidation.isValid("aaaaaaaaaaaaaaa1") == false)
+  }
+
+  test("NodeAgbotTokenValidation.isValid correctly identifies if password does not contain lowercase letter"){
+    info("NodeAgbotTokenValidation.isValid(\"AAAAAAAAAAAAAB1\")"+ " , " + NodeAgbotTokenValidation.isValid("AAAAAAAAAAAAAB1").toString())
+    assert(NodeAgbotTokenValidation.isValid("AAAAAAAAAAAAAB1") == false)
+  }
+
+  test("NodeAgbotTokenValidation.isValid correctly identifies valid password"){
+    info("NodeAgbotTokenValidation.isValid(\"AAAAAAAAAAAAaB1\")"+ " , " + NodeAgbotTokenValidation.isValid("AAAAAAAAAAAAaB1").toString())
+    assert(NodeAgbotTokenValidation.isValid("AAAAAAAAAAAAaB1") == true)
+  }
 }

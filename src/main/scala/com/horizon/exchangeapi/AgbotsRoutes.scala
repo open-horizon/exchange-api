@@ -36,6 +36,10 @@ final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Opti
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = {
     if (token == "") Option(ExchMsg.translate("token.specified.cannot.be.blank"))
+    if (!NodeAgbotTokenValidation.isValid(token)) {
+      if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
+      else return Some(ExchMsg.translate("invalid.password"))
+    }
     else None
   }
 
@@ -50,6 +54,10 @@ final case class PatchAgbotsRequest(token: Option[String], name: Option[String],
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = {
     if (token.isDefined && token.get == "") Option(ExchMsg.translate("token.cannot.be.empty.string"))
+    if (token.isDefined && !NodeAgbotTokenValidation.isValid(token.get)) {
+      if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
+      else return Some(ExchMsg.translate("invalid.password"))
+    }
     //else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
     else None
   }
@@ -363,9 +371,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val owner: String = ident match { case IUser(creds) => creds.id; case _ => "" }
-          var hashedTok: String = ""
-          if (NodeAgbotTokenValidation.isValid(reqBody.token)) hashedTok = Password.hash(reqBody.token)
-          else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.password")))
+          val hashedTok: String = Password.hash(reqBody.token)
           db.run(AgbotsTQ.getNumOwned(owner).result.flatMap({ xs =>
             logger.debug("PUT /orgs/"+orgid+"/agbots/"+id+" num owned: "+xs)
             val numOwned: Int = xs
@@ -433,11 +439,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          var hashedTok: String = "" 
-          if (reqBody.token.isDefined) {
-            if (NodeAgbotTokenValidation.isValid(reqBody.token.get)) hashedTok = Password.hash(reqBody.token.get) // hash the token if that is what is being updated and its valid
-            else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.password")))
-          }
+          val hashedTok: String = if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else "" // hash the token if that is what is being updated
           val (action, attrName) = reqBody.getDbUpdate(compositeId, orgid, hashedTok)
           if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attribute.specified")))
           else db.run(action.transactionally.asTry.flatMap({

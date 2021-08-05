@@ -60,11 +60,11 @@ class NodesSuite extends AnyFunSuite {
   val nodeId = "n1"     // the 1st node created, that i will use to run some rest methods
   val orgnodeId = authpref+nodeId
   val org2nodeId = authpref2+nodeId
-  val nodeToken = "mytok"
+  val nodeToken = "myTokAbcDefGhi12"
   val NODEAUTH = ("Authorization","Basic "+ApiUtils.encode(orgnodeId+":"+nodeToken))
   val nodeId2 = "n2"
   val orgnodeId2 = authpref+nodeId2
-  val nodeToken2 = "my tok"   // intentionally adding a space in the token
+  val nodeToken2 = "my TokAbcDefGhi12"   // intentionally adding a space in the token
   val NODE2AUTH = ("Authorization","Basic "+ApiUtils.encode(orgnodeId2+":"+nodeToken2))
   val nodeId3 = "n3"
   val orgnodeId3 = authpref+nodeId3
@@ -105,11 +105,11 @@ class NodesSuite extends AnyFunSuite {
   val ENCODEDAUTH = ("Authorization","Basic "+encodedCreds)
   val agbotId = "a1"      // need to use a different id than AgbotsSuite.scala, because all of the suites run concurrently
   val orgagbotId = authpref+agbotId
-  val agbotToken = agbotId+"tok"
+  val agbotToken = agbotId+"TokAbcDefGhi12"
   val AGBOTAUTH = ("Authorization","Basic "+ApiUtils.encode(orgagbotId+":"+agbotToken))
   val agbotId2 = "a2"      // need to use a different id than AgbotsSuite.scala, because all of the suites run concurrently
   val orgagbotId2 = authpref+agbotId2
-  val agbotToken2 = agbotId2+"tok"
+  val agbotToken2 = agbotId2+"TokAbcDefGhi12"
   val AGBOT2AUTH = ("Authorization","Basic "+ApiUtils.encode(orgagbotId2+":"+agbotToken2))
   val agProto = "ExchangeAutomatedTest"    // using this to avoid db entries from real users and predefined ones
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
@@ -270,6 +270,16 @@ class NodesSuite extends AnyFunSuite {
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
+  test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - with invalid token - should fail") {
+    val input = PutNodesRequest("bad token", "rpi"+nodeId+"-norm", None, "",
+      None,
+      None, None, None, nodePubKey, None, None)
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    if (ExchMsg.getLang.contains("en")) assert(response.body.contains("Tokens must be at least 15 characters in length and contain at least one digit, one uppercase English alphabet letter, and one lowercase English alphabet letter"))
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid+" so pattern can reference it") {
@@ -1149,6 +1159,13 @@ class NodesSuite extends AnyFunSuite {
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - userInput with an invalid svc ref") {
     val jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+SDRSPEC_URL+"""", "serviceArch": "fooarch", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
     val response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+  }
+
+  test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - with bad token -- should fail") {
+    var jsonInput = """{ "token": "bad token" }"""
+    var response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }

@@ -36,6 +36,10 @@ final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Opti
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = {
     if (token == "") Option(ExchMsg.translate("token.specified.cannot.be.blank"))
+    if (!NodeAgbotTokenValidation.isValid(token)) {
+      if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
+      else return Some(ExchMsg.translate("invalid.password"))
+    }
     else None
   }
 
@@ -50,6 +54,10 @@ final case class PatchAgbotsRequest(token: Option[String], name: Option[String],
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem: Option[String] = {
     if (token.isDefined && token.get == "") Option(ExchMsg.translate("token.cannot.be.empty.string"))
+    if (token.isDefined && !NodeAgbotTokenValidation.isValid(token.get)) {
+      if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
+      else return Some(ExchMsg.translate("invalid.password"))
+    }
     //else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
     else None
   }

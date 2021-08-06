@@ -49,15 +49,15 @@ class AgbotsSuite extends AnyFunSuite {
   val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
   val agbotId = "9930"
   val orgagbotId = authpref+agbotId
-  val agbotToken = agbotId+"tok"
+  val agbotToken = agbotId+"TokAbcDefGhi"
   val AGBOTAUTH = ("Authorization","Basic "+ApiUtils.encode(orgagbotId+":"+agbotToken))
   val agbot2Id = "9931"
   val orgagbot2Id = authpref+agbot2Id
-  val agbot2Token = agbot2Id+" tok"   // intentionally adding a space in the token
+  val agbot2Token = agbot2Id+" TokAbcDefGhi"   // intentionally adding a space in the token
   val AGBOT2AUTH = ("Authorization","Basic "+ApiUtils.encode(orgagbot2Id+":"+agbot2Token))
   val agbot3Id = "9932"
   val orgagbot3Id = authpref+agbot3Id
-  val agbot3Token = agbot3Id+"tok"
+  val agbot3Token = agbot3Id+"TokAbcDefGhi"
   val AGBOT3AUTH = ("Authorization","Basic "+ApiUtils.encode(orgagbot3Id+":"+agbot3Token))
   val agreementId = "9950"
   val pattern = "mypattern"
@@ -75,7 +75,7 @@ class AgbotsSuite extends AnyFunSuite {
   val svcarch = "amd64"
   val svcversion = "1.0.0"
   val nodeId = "mynode"
-  val nodeToken = nodeId+"tok"
+  val nodeToken = nodeId+"TokAbcDefGh1"
   val NODEAUTH = ("Authorization","Basic "+ApiUtils.encode(authpref+nodeId+":"+nodeToken))
   val maxRecords = 10000
   val secondsAgo = 120
@@ -157,6 +157,13 @@ class AgbotsSuite extends AnyFunSuite {
     val response = Http(URL2+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
+  }
+
+  test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - with bad token -- should fail") {
+    val input = PutAgbotsRequest("bad token", "agbot"+agbotId+"-norm", None, "ABC")
+    val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   /** Add a normal agbot */
@@ -275,6 +282,15 @@ class AgbotsSuite extends AnyFunSuite {
     val now: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
     val lastHb = ZonedDateTime.parse(agbot.lastHeartbeat).toEpochSecond
     assert(now - lastHb <= 3)    // should not now be more than 3 seconds from the time the heartbeat was done above
+  }
+
+  test("PATCH /orgs/"+orgid+"/agbots/"+agbotId+" - with bad token -- should fail") {
+    val jsonInput = """{
+      "token": "bad token"
+    }"""
+    val response = Http(URL+"/agbots/"+agbotId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   /** Update 1 attr of the agbot as the agbot */
@@ -428,6 +444,7 @@ class AgbotsSuite extends AnyFunSuite {
         val input = PutNodesRequest(nodeToken, "rpi" + nodeId + "-norm", None, orgid + "/" + pattern, None, None, None, None, "NODEABC", None, None)
         var response2 = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
         info("code: " + response2.code)
+        info("code: " + response2.code + ", response.body: " + response2.body)
         assert(response2.code === HttpCode.PUT_OK.intValue)
 
         val input2 = PostNodesMsgsRequest("{msg from IBM agbot to node in this org}", 300)

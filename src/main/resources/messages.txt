@@ -350,5 +350,6 @@ message.cleanup.scheduled=Scheduling Agreement Bot message and Node message clea
 changes.cleanup.cancel=Cancelled scheduled change record cleanup
 changes.cleanup.scheduled=Scheduling change record cleanup every {0}
 invalid.password=Tokens must be at least 15 characters in length and contain at least one digit, one uppercase English alphabet letter, and one lowercase English alphabet letter.
+invalid.password.i18n=Tokens must be at least 15 characters in length and contain at least one digit
 services.configstate.org.not.specified=Org attribute not detailed for specific url or version in request body.
 services.configstate.url.not.specified=Version cannot be found if url attribute is not specified.  

@@ -350,4 +350,6 @@ message.cleanup.scheduled=每 {0} 调度一次协议 bot 消息和节点消息�
 changes.cleanup.cancel=已取消调度的变更记录清除
 changes.cleanup.scheduled=每 {0} 调度一次变更记录清除
 invalid.password=令牌的长度必须至少为 15 个字符，并且至少包含一个数字、一个大写英语字母表字母和一个小写英语字母表字母。
-cannot.overwrite.regservs.version=如果设置了服务的配置状态的版本属性，不能使用空字符串将其覆盖。
+invalid.password.i18n=令牌的长度必须至少为 15 个字符，并且至少包含一个数字
+services.configstate.org.not.specified=组织属性对于请求主体中的特定 URL 或版本不够详细。
+services.configstate.url.not.specified=如果不指定 URL 属性，那么找不到版本。  

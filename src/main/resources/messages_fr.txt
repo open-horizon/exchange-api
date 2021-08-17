@@ -350,4 +350,6 @@ message.cleanup.scheduled=Planification du message de bot d''accord et du nettoy
 changes.cleanup.cancel=Nettoyage planifié des enregistrements de modification annulé
 changes.cleanup.scheduled=Planification du nettoyage des enregistrements de modification tous les {0}
 invalid.password=Les jetons doivent comporter au moins 15 caractères et au moins un chiffre, une lettre majuscule de l''alphabet anglais et une lettre minuscule de l''alphabet anglais.
-cannot.overwrite.regservs.version=Si l''attribut de version de l''état de configuration d''un service est défini, il ne peut pas être remplacé par la chaîne vide.
+invalid.password.i18n=Les jetons doivent contenir au moins 15 caractères et au moins un chiffre
+services.configstate.org.not.specified=Attribut Org non détaillé pour une URL ou une version spécifique dans le corps de la demande.
+services.configstate.url.not.specified=La version ne peut pas être trouvée si l''attribut url n''est pas spécifié.  

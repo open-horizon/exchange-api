@@ -301,6 +301,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 ## Changes in 2.83.0
 - Token validation requirements removed, pending redesign
+- Translation updates
 
 ## Changes in 2.82.0
 - Token validation requirements added

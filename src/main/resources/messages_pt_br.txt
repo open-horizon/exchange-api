@@ -350,4 +350,6 @@ message.cleanup.scheduled=Planejando limpeza de mensagem de nó e de mensagem de
 changes.cleanup.cancel=Limpeza de registro de mudança planejada cancelada
 changes.cleanup.scheduled=Planejando a limpeza de registro de mudança a cada {0}
 invalid.password=Os tokens devem ter pelo menos 15 caracteres de comprimento e conter pelo menos um dígito, uma letra maiúscula e uma letra minúscula do alfabeto em inglês.
-cannot.overwrite.regservs.version=Se o atributo de versão do estado de configuração de um serviço for configurado, ele não poderá ser sobrescrito pela sequência vazia.
+invalid.password.i18n=Os tokens devem ter pelo menos 15 caracteres de comprimento e conter pelo menos um dígito
+services.configstate.org.not.specified=Atributo da organização não detalhado para URL ou versão específica no corpo da solicitação.
+services.configstate.url.not.specified=A versão não poderá ser localizada se o atributo URL não for especificado.  

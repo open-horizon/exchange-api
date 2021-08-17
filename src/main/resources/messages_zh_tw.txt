@@ -350,4 +350,6 @@ message.cleanup.scheduled=將合約機器人訊息和節點訊息排定為每 {0
 changes.cleanup.cancel=已取消排定的變更記錄清理
 changes.cleanup.scheduled=將變更記錄排定為每 {0} 清理一次
 invalid.password=記號長度必須至少為 15 個字元，且至少包含一個數字、一個大寫英文字母以及一個小寫英文字母。
-cannot.overwrite.regservs.version=如果已設定服務的配置狀態的版本屬性，則不能以空字串改寫它。
+invalid.password.i18n=記號長度必須至少為 15 個字元，且至少包含一個數字
+services.configstate.org.not.specified=未針對要求內文中的特定 URL 或版本詳細說明組織屬性。
+services.configstate.url.not.specified=如果未指定 URL 屬性，則找不到版本。  

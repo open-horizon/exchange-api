@@ -350,4 +350,6 @@ message.cleanup.scheduled=Planificando limpieza de mensajes de bot de acuerdo y 
 changes.cleanup.cancel=Limpieza de registros de cambio planificada cancelada
 changes.cleanup.scheduled=Planificando limpieza de registros de cambio cada {0}
 invalid.password=Las señales deben tener al menos 15 caracteres de longitud y contener al menos un dígito, una letra del alfabeto inglés en mayúscula y una letra del alfabeto inglés en minúscula.
-cannot.overwrite.regservs.version=Si el atributo de versión del estado de configuración de un servicio está establecido, no se puede sobrescribir con la serie vacía.
+invalid.password.i18n=Las señales deben tener al menos 15 caracteres de longitud y contener al menos un dígito
+services.configstate.org.not.specified=Atributo org no detallado para url o versión específica en el cuerpo de la solicitud.
+services.configstate.url.not.specified=No se puede encontrar la versión si no se especifica el atributo de url.  

@@ -107,10 +107,10 @@ final case class PutNodesRequest(token: String,
     if (id == "iamapikey" || id == "iamtoken") return Some(ExchMsg.translate("node.id.not.iamapikey.or.iamtoken"))
     if (noheartbeat.isDefined && noheartbeat.get.toLowerCase != "true" && noheartbeat.get.toLowerCase != "false") return Some(ExchMsg.translate("bad.noheartbeat.param"))
     if (token == "") return Some(ExchMsg.translate("token.must.not.be.blank"))
-    if (!NodeAgbotTokenValidation.isValid(token)) {
-      if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
-      else return Some(ExchMsg.translate("invalid.password"))
-    }
+    // if (!NodeAgbotTokenValidation.isValid(token)) {
+    //   if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
+    //   else return Some(ExchMsg.translate("invalid.password"))
+    // }
     // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
     if (nodeType.isDefined && !NodeType.containsString(nodeType.get)) return Some(ExchMsg.translate("invalid.node.type", NodeType.valuesAsString))
     if (pattern != "" && """.*/.*""".r.findFirstIn(pattern).isEmpty) return Some(ExchMsg.translate("pattern.must.have.orgid.prepended"))
@@ -179,10 +179,10 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
 
   def getAnyProblem: Option[String] = {
     if (token.isDefined && token.get == "") Some(ExchMsg.translate("token.cannot.be.empty.string"))
-    if (token.isDefined && !NodeAgbotTokenValidation.isValid(token.get)) {
-      if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
-      else return Some(ExchMsg.translate("invalid.password"))
-    }
+    // if (token.isDefined && !NodeAgbotTokenValidation.isValid(token.get)) {
+    //   if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
+    //   else return Some(ExchMsg.translate("invalid.password"))
+    // }
     //else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
     else None
   }

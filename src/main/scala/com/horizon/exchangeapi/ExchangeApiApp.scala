@@ -237,10 +237,10 @@ object ExchangeApiApp extends App with OrgsRoutes with UsersRoutes with NodesRou
   catch {
     // Handle db problems
     case timeout: java.util.concurrent.TimeoutException =>
-      logger.error("Error: " + ExchMsg.translate("db.timeout.upgrading", timeout.getMessage))
+      logger.error("Error: DB timed out while upgrading it: "+ timeout.getMessage)
       system.terminate()
     case other: Throwable =>
-      logger.error("Error: " + ExchMsg.translate("db.exception.upgrading", other.getMessage))
+      logger.error("Error: while upgrading the DB, the DB threw exception: "+ other.getMessage)
       system.terminate()
   }
 

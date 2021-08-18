@@ -283,10 +283,10 @@ object ExchangeApiApp extends App
   catch {
     // Handle db problems
     case timeout: java.util.concurrent.TimeoutException =>
-      logger.error("Error: " + ExchMsg.translate("db.timeout.upgrading", timeout.getMessage))
+      logger.error("Error: DB timed out while upgrading it: "+ timeout.getMessage)
       system.terminate()
     case other: Throwable =>
-      logger.error("Error: " + ExchMsg.translate("db.exception.upgrading", other.getMessage))
+      logger.error("Error: while upgrading the DB, the DB threw exception: "+ other.getMessage)
       system.terminate()
   }
 
@@ -310,7 +310,7 @@ object ExchangeApiApp extends App
   class ChangesCleanupActor(timerInterval: Int = ExchConfig.getInt("api.resourceChanges.cleanupInterval")) extends Actor with Timers{
     override def preStart(): Unit = {
       timers.startPeriodicTimer(interval = timerInterval.seconds, key = "trimResourceChanges", msg = Cleanup)
-      logger.info(ExchMsg.translate("changes.cleanup.scheduled", timerInterval.seconds))
+      logger.info("Scheduling change record cleanup every "+ timerInterval.seconds + " seconds")
       super.preStart()
     }
     
@@ -340,7 +340,7 @@ object ExchangeApiApp extends App
     override def preStart(): Unit = {
       timers.startSingleTimer(key = "removeExpiredMsgsOnStart", msg = CleanupExpiredMessages, timeout = 0.seconds)
       timers.startPeriodicTimer(interval = timerInterval.seconds, key = "removeExpiredMsgs", msg = CleanupExpiredMessages)
-      logger.info(ExchMsg.translate("message.cleanup.scheduled", timerInterval.seconds))
+      logger.info("Scheduling Agreement Bot message and Node message cleanup every "+ timerInterval.seconds + " seconds")
       super.preStart()
     }
     
@@ -394,20 +394,20 @@ object ExchangeApiApp extends App
             .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
             .onComplete {
               case Success(binding) =>
-                logger.info(ExchMsg.translate("server.start", s"https://${ExchangeApi.serviceHost}:${binding.localAddress.getPort}/")) // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
+                logger.info("Server online at "+ s"https://${ExchangeApi.serviceHost}:${binding.localAddress.getPort}/") // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
                 serverBindingHttps = Option(binding)
               case Failure(e) =>
-                logger.error(ExchMsg.translate("server.start.failure.https"))
+                logger.error("HTTPS server could not start!")
                 e.printStackTrace()
                 system.terminate()
             }
     }
     catch {
       case pkcs12NotFound: java.io.FileNotFoundException =>
-        logger.error(ExchMsg.translate("pkcs12.not.found", pkcs12NotFound.getMessage))
+        logger.error("TLS PKCS #12 "+ pkcs12NotFound.getMessage+ " not found on the filesystem")
         system.terminate()
       case _: java.io.IOException =>
-        logger.error(ExchMsg.translate("pkcs12.password.incorrect"))
+        logger.error("TLS PKCS #12 password was incorrect")
         system.terminate()
     }
     
@@ -424,10 +424,10 @@ object ExchangeApiApp extends App
           .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
           .onComplete {
             case Success(binding) =>
-              logger.info(ExchMsg.translate("server.start", s"http://${ExchangeApi.serviceHost}:${binding.localAddress.getPort}/")) // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
+              logger.info("Server online at "+ s"http://${ExchangeApi.serviceHost}:${binding.localAddress.getPort}/") // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
               serverBindingHttp = Option(binding)
             case Failure(e) =>
-              logger.error(ExchMsg.translate("server.start.failure.http"))
+              logger.error("HTTP server could not start!")
               e.printStackTrace()
               system.terminate()
           }

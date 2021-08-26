@@ -351,5 +351,5 @@ changes.cleanup.cancel=スケジュールされた変更レコード・クリー
 changes.cleanup.scheduled=変更レコードの {0} ごとのクリーンアップをスケジュールしています
 invalid.password=トークンは、15 文字以上の長さでなければならず、少なくとも 1 つの数字、1 つの大文字の英字、および 1 つの小文字の英字を含んでいなければなりません。
 invalid.password.i18n=トークンは、15 文字以上の長さでなければならず、少なくとも 1 つの数字を含んでいなければなりません
-services.configstate.org.not.specified=要求ボディでは、特定の url またはバージョンの組織属性の詳細が不十分です。
+services.configstate.org.not.specified=要求ボディに指定された組織属性は、url またはバージョンについての情報が不十分です。
 services.configstate.url.not.specified=url 属性が指定されていない場合、バージョンを検出できません。

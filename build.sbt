@@ -55,7 +55,7 @@ lazy val root = (project in file("."))
   
           "javax.ws.rs" % "javax.ws.rs-api" % "[2.1.1,)",  // this is from 8/2014. Version 2.1.1 from 9/2018 gets an error loading
           //"org.glassfish.jersey.core" % "jersey-common" % "1.2.1",  // required at runtime by javax.ws.rs-api
-          "com.github.swagger-akka-http" %% "swagger-akka-http" % "[2.4.0,)",  // Version 2.0.5 now requires v10.1.11 Akka modules.
+          "com.github.swagger-akka-http" %% "swagger-akka-http" % "[2.4.2]",  // Version 2.5.0 now requires v10.2.6 Akka modules.
           "com.github.swagger-akka-http" %% "swagger-scala-module" % "[1.0.6,)",
           "io.swagger.core.v3" % "swagger-core" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-core
           "io.swagger.core.v3" % "swagger-annotations" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
@@ -97,8 +97,8 @@ lazy val root = (project in file("."))
         //javaOptions ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config", "-Djava.security.policy=src/main/resources/auth.policy")
 
         // These settings are for the Docker subplugin within sbt-native-packager. See: https://sbt-native-packager.readthedocs.io/en/stable/formats/docker.html
-        Docker / version        := versionFunc(), // overwrite this setting to build a test version of the exchange with a custom tag in docker, defaults to exchange version
-        Docker / packageName    := "openhorizon/" ++ name.value,
+        Docker / version        := "2.78.0-517-1", //versionFunc(), // overwrite this setting to build a test version of the exchange with a custom tag in docker, defaults to exchange version
+        Docker / packageName    := "hyc-edge-team-testing-docker-local.artifactory.swg-devops.com/naphelps/" ++ name.value,
         Docker / daemonUser     := "exchangeuser",
         Docker / daemonGroup    := "exchangegroup",
         Docker / daemonGroupGid := some("1001"),

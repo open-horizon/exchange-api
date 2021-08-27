@@ -300,6 +300,9 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.86.0
+- Lock the dependency `com.github.swagger-akka-http.swagger-akka-http` to version `2.4.2` to prevent pulling in Akka HTTP version `10.2.6` modules.
+
 ## Changes in 2.85.0
 - Translation updates
 

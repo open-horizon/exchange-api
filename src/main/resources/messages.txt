@@ -315,7 +315,7 @@ logging.level.set=Logging level set
 node.msg.nodeid.not.found=node ''{0}'' not found: {1}
 agbot.message.agbotid.not.found=agbot ''{0}'' not found: {1}
 no.version.specified.for.service2=no versions specified for service
-no.service.ref.specified.for.service=''name'', ''org'', and ''arch'' must all be specified for a service
+
 not.pattern.when.policy=can not set a pattern when the node is already using policy
 node.errors.added=node errors added or updated
 node.errors.not.inserted=errors for node ''{0}'' not inserted or updated: {1}
@@ -340,15 +340,7 @@ creating.updating.superuser.not.allowed=Creating or updating the root user is no
 cannot.delete.root.user=Cannot delete the exchange root user
 cannot.delete.root.org=Cannot delete the exchange root org
 node.id.not.iamapikey.or.iamtoken=Node id cannot be ''iamapikey'' or ''iamtoken''
-pkcs12.not.found=TLS PKCS #12 ''{0}'' not found on the filesystem
-pkcs12.password.incorrect=TLS PKCS #12 password was incorrect
-server.start=Server online at {0}
-server.start.failure.http=HTTP server could not start!
-server.start.failure.https=HTTPS server could not start!
-message.cleanup.cancel=Cancelled scheduled message cleanup
-message.cleanup.scheduled=Scheduling Agreement Bot message and Node message cleanup every {0}
-changes.cleanup.cancel=Cancelled scheduled change record cleanup
-changes.cleanup.scheduled=Scheduling change record cleanup every {0}
+
 invalid.password=Tokens must be at least 15 characters in length and contain at least one digit, one uppercase English alphabet letter, and one lowercase English alphabet letter.
 invalid.password.i18n=Tokens must be at least 15 characters in length and contain at least one digit
 services.configstate.org.not.specified=Org attribute not detailed for specific url or version in request body.

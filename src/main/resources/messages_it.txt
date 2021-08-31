@@ -350,4 +350,6 @@ message.cleanup.scheduled=Pianificazione della cancellazione dei messaggi di agb
 changes.cleanup.cancel=Annullata cancellazione record di modifica pianificata
 changes.cleanup.scheduled=Pianificazione della cancellazione dei record di modifica ogni {0}
 invalid.password=I token devono essere di almeno 15 caratteri di lunghezza e contenere almeno una cifra, una lettera maiuscola e una minuscola dell''alfabeto inglese.
-cannot.overwrite.regservs.version=Se viene impostato l''attributo versione dello stato di configurazione di un servizio, questo non potrà essere sovrascritto con la stringa vuota.
+invalid.password.i18n=I token devono essere composti da almeno 15 caratteri e contenere almeno una cifra.
+services.configstate.org.not.specified=Attributo org non dettagliato per la versione o l''url specifici nel corpo della richiesta.
+services.configstate.url.not.specified=Impossibile trovare la versione se l''attributo url non è specificato. 

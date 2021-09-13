@@ -298,6 +298,8 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if pattern contains 2 services that depend on the same exclusive MS
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+## Changes in 2.88.0
+- No changes, version bump for release.
 
 ## Changes in 2.87.0
 - Translation updates

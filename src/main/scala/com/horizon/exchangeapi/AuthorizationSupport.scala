@@ -53,6 +53,11 @@ object Access extends Enumeration {
   val READ_ALL_BUSINESS: exchangeapi.Access.Value = Value("READ_ALL_BUSINESS")
   val WRITE_ALL_BUSINESS: exchangeapi.Access.Value = Value("WRITE_ALL_BUSINESS")
   val CREATE_BUSINESS: exchangeapi.Access.Value = Value("CREATE_BUSINESS")
+  val READ_MY_MANAGEMENT_POLICY: exchangeapi.Access.Value = Value("READ_MY_MANAGEMENT_POLICY")
+  val WRITE_MY_MANAGEMENT_POLICY: exchangeapi.Access.Value = Value("WRITE_MY_MANAGEMENT_POLICY")
+  val READ_ALL_MANAGEMENT_POLICY: exchangeapi.Access.Value = Value("READ_ALL_MANAGEMENT_POLICY")
+  val WRITE_ALL_MANAGEMENT_POLICY: exchangeapi.Access.Value = Value("WRITE_ALL_MANAGEMENT_POLICY")
+  val CREATE_MANAGEMENT_POLICY: exchangeapi.Access.Value = Value("CREATE_MANAGEMENT_POLICY")
   val READ_MY_ORG: exchangeapi.Access.Value = Value("READ_MY_ORG")
   val WRITE_MY_ORG: exchangeapi.Access.Value = Value("WRITE_MY_ORG")
   val SET_IBM_ORG_TYPE: exchangeapi.Access.Value = Value("SET_IBM_ORG_TYPE")
@@ -375,6 +380,12 @@ case class IUser(creds: Creds) extends Identity {
             case Access.CREATE => Access.CREATE_BUSINESS
             case _ => access
           }
+          case TManagementPolicy(_) => access match { // a user accessing a business policy
+            case Access.READ => if (iOwnTarget(target)) Access.READ_MY_MANAGEMENT_POLICY else Access.READ_ALL_MANAGEMENT_POLICY
+            case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_MANAGEMENT_POLICY else Access.WRITE_ALL_MANAGEMENT_POLICY
+            case Access.CREATE => Access.CREATE_MANAGEMENT_POLICY
+            case _ => access
+          }
           case TOrg(_) => access match {    // a user accessing the org resource he is part of
             case Access.READ => Access.READ_MY_ORG
             case Access.READ_IBM_ORGS => Access.READ_IBM_ORGS
@@ -488,6 +499,12 @@ case class INode(creds: Creds) extends Identity {
             case Access.CREATE => Access.CREATE_BUSINESS
             case _ => access
           }
+          case TManagementPolicy(_) => access match { // a user accessing a business policy
+            case Access.READ => Access.READ_ALL_MANAGEMENT_POLICY
+            case Access.WRITE => Access.WRITE_ALL_MANAGEMENT_POLICY
+            case Access.CREATE => Access.CREATE_MANAGEMENT_POLICY
+            case _ => access
+          }
           case TOrg(_) => access match { // a node accessing his org resource
             case Access.READ => Access.READ_MY_ORG
             case Access.WRITE => Access.WRITE_MY_ORG
@@ -561,6 +578,12 @@ case class IAgbot(creds: Creds) extends Identity {
             case Access.CREATE => Access.CREATE_BUSINESS
             case _ => access
           }
+          case TManagementPolicy(_) => access match { // a user accessing a business policy
+            case Access.READ => Access.READ_ALL_MANAGEMENT_POLICY
+            case Access.WRITE => Access.WRITE_ALL_MANAGEMENT_POLICY
+            case Access.CREATE => Access.CREATE_MANAGEMENT_POLICY
+            case _ => access
+          }
           case TOrg(_) => access match { // a agbot accessing his org resource
             case Access.READ => Access.READ_MY_ORG
             case Access.WRITE => Access.WRITE_MY_ORG
@@ -632,6 +655,12 @@ case class IAnonymous(creds: Creds) extends Identity {
             case Access.READ => Access.READ_ALL_BUSINESS
             case Access.WRITE => Access.WRITE_ALL_BUSINESS
             case Access.CREATE => Access.CREATE_BUSINESS
+            case _ => access
+          }
+          case TManagementPolicy(_) => access match { // a user accessing a business policy
+            case Access.READ => Access.READ_ALL_MANAGEMENT_POLICY
+            case Access.WRITE => Access.WRITE_ALL_MANAGEMENT_POLICY
+            case Access.CREATE => Access.CREATE_MANAGEMENT_POLICY
             case _ => access
           }
           case TOrg(_) => access match { // a anonymous accessing his org resource
@@ -762,6 +791,18 @@ case class TBusiness(id: String) extends Target {      // for business policies 
   }
   // business policies can never be public, so no need to override isPublic
   override def isThere: Boolean = all || mine || AuthCache.getBusinessOwner(id).nonEmpty
+  override def label = "business policy"
+}
+
+case class TManagementPolicy(id: String) extends Target {      // for business policies only the user that created it can update/delete it
+  override def isOwner(user: IUser): Boolean = {
+    AuthCache.getManagementPolicyOwner(id) match {
+      case Some(owner) => if (owner == user.creds.id) true else false
+      case None => true    // if we did not find it, we consider that as owning it because we will create it
+    }
+  }
+  // business policies can never be public, so no need to override isPublic
+  override def isThere: Boolean = all || mine || AuthCache.getManagementPolicyOwner(id).nonEmpty
   override def label = "business policy"
 }
 

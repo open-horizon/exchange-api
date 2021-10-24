@@ -40,6 +40,7 @@ object ExchangeApiTables {
       ++ PatternKeysTQ.rows.schema
       ++ BusinessPoliciesTQ.rows.schema
       ++ SearchOffsetPolicyTQ.offsets.schema
+      ++ ManagementPoliciesTQ.rows.schema
     ).create,
     SchemaTQ.getSetVersionAction)
 
@@ -48,6 +49,7 @@ object ExchangeApiTables {
   //val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
   val dropDB = DBIO.seq(
     /* these are no longer used, but just in case they are still here */ sqlu"drop table if exists resourcekeys", sqlu"drop table if exists resourceauths", sqlu"drop table if exists resources",
+    sqlu"drop table if exists managementpolicies cascade",
     sqlu"drop table if exists search_offset_policy cascade",
     sqlu"drop table if exists businesspolicies cascade",
     sqlu"drop table if exists patternkeys cascade",

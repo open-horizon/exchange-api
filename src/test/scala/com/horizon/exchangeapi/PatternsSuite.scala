@@ -411,7 +411,7 @@ class PatternsSuite extends AnyFunSuite {
     val response = Http(URL+"/patterns/"+"  "+pattern+" ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     //assert(response.code === HttpCode.BAD_INPUT.intValue)
-    assert(response.code === StatusCodes.HTTPVersionNotSupported.intValue)
+    assert(response.code === StatusCodes.HttpVersionNotSupported.intValue)
   }
 
   /** This pattern sets up pattern5 used for testing functionality of public field in PUT and PATCH routes **/

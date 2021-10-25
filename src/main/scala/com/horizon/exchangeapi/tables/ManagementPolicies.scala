@@ -10,27 +10,6 @@ import scala.collection.mutable.ListBuffer
 
 /** Contains the object representations of the DB tables related to management policies. */
 
-/*
-{
-  "owner":"",                // The user that created this resource
-  "label": "",               // A short description of the policy
-  "description": "",         // (Optional) A much longer description of the policy
-  "constraints": [""],       // (Optional) Typical constraint expression used to select nodes
-  "properties": [{}],        // (Optional) Typical property expressions used by nodes to select policy 
-  "patterns": [""],          // (Optional) This policy applies to nodes using one of these patterns
-  "enabled": boolean,        // Is this policy enabled or disabled, default false == disabled
-  "agentUpgradePolicy": {},  // (Optional) Assertions on how the agent should update itself
-  "lastUpdated":"<time-stamp>"
-  "created":"<time-stamp>"
-}
-
-"agentUpgradePolicy": {
-      "atLeastVersion": "<version> | current", // Specify the minimum agent version these nodes should have, default "current"
-      "start": "<RFC3339 timestamp> | now",    // When to start an upgrade, default "now"
-      "duration": seconds                      // Enable agents to randomize upgrade start time within start + duration, default 0
-}
-*/
-
 final case class AgentUpgradePolicy(atLeastVersion: String, start: String, duration: Int)
 
 // This is the managementpolicies table minus the key - used as the data structure to return to the REST clients

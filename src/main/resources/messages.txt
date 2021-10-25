@@ -143,6 +143,7 @@ buspol.wrong.attribute=Business Policy attribute name ''{0}'' is not an attribut
 service.not.in.exchange.no.index=the following referenced service does not exist in the exchange: org= {0}, url= {1}, version= {2}, arch= {3}
 service.not.in.exchange.index=the {0} referenced service does not exist in the exchange
 over.max.limit.buspols=Access Denied: you are over the limit of {0} business policies
+over.max.limit.mgmtpols=Access Denied: you are over the limit of {0} management policies
 buspol.created=business policy ''{0}'' created
 buspol.not.created=business policy ''{0}'' not created: {1}
 buspol.already.exists=business policy ''{0}'' already exists: {1}
@@ -153,6 +154,19 @@ no.valid.buspol.attribute.specified=no valid business policy attribute specified
 buspol.attribute.updated=attribute ''{0}'' of business policy ''{1}'' updated
 business.policy.deleted=business policy deleted
 business.policy.not.deleted=business policy ''{0}'' not deleted: {1}
+
+mgmtpol.created=management policy ''{0}'' created
+mgmtpol.not.created=management policy ''{0}'' not created: {1}
+mgmtpol.already.exists=management policy ''{0}'' already exists: {1}
+mgmtpol.updated=management policy updated
+mgmtpol.constraints.or.patterns=you can not specify both constraints and patterns
+management.policy.not.found=management policy ''{0}'' not found
+mgmtpol.not.updated=management policy ''{0}'' not updated: {1}
+no.valid.mgmtpol.attribute.specified=no valid management policy attribute specified
+mgmtpol.attribute.updated=attribute ''{0}'' of management policy ''{1}'' updated
+management.policy.deleted=management policy deleted
+management.policy.not.deleted=management policy ''{0}'' not deleted: {1}
+
 db.timeout.upgrading=DB timed out while upgrading it: {0}
 db.exception.upgrading=while upgrading the DB, the DB threw exception: {0}
 db.upgrade.error=DB upgrade error: did not find a row in the schemas table

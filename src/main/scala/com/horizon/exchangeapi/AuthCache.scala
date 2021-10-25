@@ -260,6 +260,14 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
     override def removeOne(id: String): Try[Any] = Try(true)
   }
 
+  // Currently, management policies are never allowd to be public, so always return false
+  class CachePublicManagementPolicy() extends CacheBoolean("public", 1) {
+    def getDbAction(id: String): DBIO[Seq[Boolean]] = DBIO.successful(Seq())
+    override def getOne(id: String): Option[Boolean] = Some(false)
+    override def putOne(id: String, isValue: Boolean): Unit = {}
+    override def removeOne(id: String): Try[Any] = Try(true)
+  }
+
   /** Holds the owner for this resource */
   abstract class CacheOwner(val maxSize: Int) {
     // For this cache the key is the id (already prefixed with the org) and the value is the owner
@@ -341,6 +349,10 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
 
   class CacheOwnerBusiness() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = BusinessPoliciesTQ.getOwner(id).result
+  }
+
+  class CacheOwnerManagementPolicy() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
+    def getDbAction(id: String): DBIO[Seq[String]] = ManagementPoliciesTQ.getOwner(id).result
   }
 
   //perf: These methods were originally here to allow us to use either the new or old cache. We maybe can eliminate them now.
@@ -492,6 +504,30 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
     businessPublic.removeOne(id)
   }
 
+  def getManagementPolicyOwner(id: String): Option[String] = {
+    businessOwner.getOne(id)
+  }
+
+  def putManagementPolicyOwner(id: String, owner: String): Unit = {
+    businessOwner.putOne(id, owner)
+  }
+
+  def removeManagementPolicyOwner(id: String): Try[Any] = {
+    businessOwner.removeOne(id)
+  }
+
+  def getManagementPolicyIsPublic(id: String): Option[Boolean] = {
+    businessPublic.getOne(id)
+  }
+
+  def putManagementPolicyIsPublic(id: String, isPublic: Boolean): Unit = {
+    businessPublic.putOne(id, isPublic)
+  }
+
+  def removeManagementPolicyIsPublic(id: String): Try[Any] = {
+    businessPublic.removeOne(id)
+  }
+
   def clearAllCaches(includingIbmAuth: Boolean): Unit = {
     ids.clearCache()
     usersAdmin.clearCache()
@@ -532,7 +568,9 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
   val servicesOwner = new CacheOwnerService()
   val patternsOwner = new CacheOwnerPattern()
   val businessOwner = new CacheOwnerBusiness()
+  val managementPolicyOwner = new CacheOwnerManagementPolicy()
   val servicesPublic = new CachePublicService()
   val patternsPublic = new CachePublicPattern()
   val businessPublic = new CachePublicBusiness()
+  val managementPolicyPublic = new CachePublicManagementPolicy()
 }

@@ -22,6 +22,7 @@ object SwaggerDocService extends SwaggerHttpService {
       classOf[AgbotsRoutes], 
       classOf[BusinessRoutes], 
       classOf[CatalogRoutes], 
+      classOf[ManagementPoliciesRoutes],
       classOf[NodesRoutes], 
       classOf[OrgsRoutes], 
       classOf[PatternsRoutes], 

@@ -159,6 +159,7 @@ mgmtpol.created=management policy ''{0}'' created
 mgmtpol.not.created=management policy ''{0}'' not created: {1}
 mgmtpol.already.exists=management policy ''{0}'' already exists: {1}
 mgmtpol.updated=management policy updated
+mgmtpol.constraints.or.patterns=you can not specify both constraints and patterns
 management.policy.not.found=management policy ''{0}'' not found
 mgmtpol.not.updated=management policy ''{0}'' not updated: {1}
 no.valid.mgmtpol.attribute.specified=no valid management policy attribute specified

@@ -115,13 +115,21 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                       nodeId = "TestNodesGetDetails/n1",
                       label = "node policy label",
                       description = "node policy description",
-                      properties = """[{"name":"purpose","type":"list of strings","value":"testing"}]"""),
+                      properties = """[{"name":"purpose","type":"list of strings","value":"testing"}]""",
+                      deployment = "",   //todo: add real values
+                      management = "",
+                      nodePolicyVersion = ""
+                      ),
         NodePolicyRow(constraints = "",
                       lastUpdated = ApiTime.nowUTC,
                       nodeId = "TestNodesGetDetails/n2",
                       label = "node policy label",
                       description = "node policy description",
-                      properties = ""))
+                      properties = "",
+                      deployment = "",
+                      management = "",
+                      nodePolicyVersion = ""
+                      ))
   private val TESTNODESTATUSES: Seq[NodeStatusRow] =
     Seq(NodeStatusRow(connectivity = """{"images.horizon":true}""",
                       lastUpdated = ApiTime.nowUTC,

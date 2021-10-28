@@ -296,13 +296,19 @@ object NodeErrorTQ {
 
 final case class NodeError(errors: List[Any], lastUpdated: String)
 
-final case class NodePolicyRow(nodeId: String, label: String, description: String, properties: String, constraints: String, lastUpdated: String) {
+
+// Node Policy
+final case class PropertiesAndConstraints(properties: List[OneProperty], constraints: List[String])
+
+final case class NodePolicyRow(nodeId: String, label: String, description: String, properties: String, constraints: String, deployment: String, management: String, nodePolicyVersion: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNodePolicy: NodePolicy = {
     val prop: List[OneProperty] = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
     val con: List[String] = if (constraints != "") read[List[String]](constraints) else List[String]()
-    NodePolicy(label, description, prop, con, lastUpdated)
+    val dep: PropertiesAndConstraints = if (deployment != "") read[PropertiesAndConstraints](deployment) else PropertiesAndConstraints(List[OneProperty](), List[String]())
+    val mgmt: PropertiesAndConstraints = if (management != "") read[PropertiesAndConstraints](management) else PropertiesAndConstraints(List[OneProperty](), List[String]())
+    NodePolicy(label, description, prop, con, dep, mgmt, nodePolicyVersion, lastUpdated)
   }
 
   def upsert: DBIO[_] = NodePolicyTQ.rows.insertOrUpdate(this)
@@ -314,8 +320,11 @@ class NodePolicies(tag: Tag) extends Table[NodePolicyRow](tag, "nodepolicies") {
   def description = column[String]("description")
   def properties = column[String]("properties")
   def constraints = column[String]("constraints")
+  def deployment = column[String]("deployment")
+  def management = column[String]("management")
+  def nodePolicyVersion = column[String]("nodepolicyversion")
   def lastUpdated = column[String]("lastUpdated")
-  def * = (nodeId, label, description, properties, constraints, lastUpdated).<>(NodePolicyRow.tupled, NodePolicyRow.unapply)
+  def * = (nodeId, label, description, properties, constraints, deployment, management, nodePolicyVersion, lastUpdated).<>(NodePolicyRow.tupled, NodePolicyRow.unapply)
   def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
 }
 
@@ -324,7 +333,7 @@ object NodePolicyTQ {
   def getNodePolicy(nodeId: String): Query[NodePolicies, NodePolicyRow, Seq] = rows.filter(_.nodeId === nodeId)
 }
 
-final case class NodePolicy(label: String, description: String, properties: List[OneProperty], constraints: List[String], lastUpdated: String)
+final case class NodePolicy(label: String, description: String, properties: List[OneProperty], constraints: List[String], deployment: PropertiesAndConstraints, management: PropertiesAndConstraints, nodePolicyVersion: String, lastUpdated: String)
 
 
 // Agreement is a sub-resource of node

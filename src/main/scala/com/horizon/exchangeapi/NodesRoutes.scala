@@ -305,7 +305,7 @@ final case class PutNodeErrorRequest(errors: List[Any]) {
   def toNodeErrorRow(nodeId: String): NodeErrorRow = NodeErrorRow(nodeId, write(errors), ApiTime.nowUTC)
 }
 
-final case class PutNodePolicyRequest(label: Option[String], description: Option[String], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+final case class PutNodePolicyRequest(label: Option[String], description: Option[String], properties: Option[List[OneProperty]], constraints: Option[List[String]], deployment: Option[PropertiesAndConstraints], management: Option[PropertiesAndConstraints], nodePolicyVersion: Option[String]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def getAnyProblem(noheartbeat: Option[String]): Option[String] = {
     if (noheartbeat.isDefined && noheartbeat.get.toLowerCase != "true" && noheartbeat.get.toLowerCase != "false") return Some(ExchMsg.translate("bad.noheartbeat.param"))
@@ -315,10 +315,24 @@ final case class PutNodePolicyRequest(label: Option[String], description: Option
         return Some(ExchMsg.translate("property.type.must.be", p.`type`.get, validTypes.mkString(", ")))
       }
     }
+    if (deployment.isDefined) {
+      for (p <- deployment.get.properties) {
+        if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
+          return Some(ExchMsg.translate("property.type.must.be", p.`type`.get, validTypes.mkString(", ")))
+        }
+      }
+    }
+    if (management.isDefined) {
+      for (p <- management.get.properties) {
+        if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
+          return Some(ExchMsg.translate("property.type.must.be", p.`type`.get, validTypes.mkString(", ")))
+        }
+      }
+    }
     None
   }
 
-  def toNodePolicyRow(nodeId: String): NodePolicyRow = NodePolicyRow(nodeId, label.getOrElse(""), description.getOrElse(label.getOrElse("")), write(properties), write(constraints), ApiTime.nowUTC)
+  def toNodePolicyRow(nodeId: String): NodePolicyRow = NodePolicyRow(nodeId, label.getOrElse(""), description.getOrElse(label.getOrElse("")), write(properties), write(constraints), write(deployment), write(management), nodePolicyVersion.getOrElse(""), ApiTime.nowUTC)
 }
 
 
@@ -1645,14 +1659,38 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   "description": "descriptive text",
   "properties": [
     {
-      "name": "mypurpose",
+      "name": "mycommonprop",
       "value": "myservice-testing",
       "type": "string"
     }
   ],
   "constraints": [
     "a == b"
-  ]
+  ],
+  "deployment": {
+    "properties": [
+      {
+        "name": "mydeploymentprop",
+        "value": "value2",
+        "type": "string"
+      }
+    ],
+    "constraints": [
+      "c == d"
+    ]
+  },
+  "management": {
+    "properties": [
+      {
+        "name": "mymanagementprop",
+        "value": "value3",
+        "type": "string"
+      }
+    ],
+    "constraints": [
+      "e == f"
+    ]
+  }
 }
 """
             )

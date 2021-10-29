@@ -298,7 +298,7 @@ final case class NodeError(errors: List[Any], lastUpdated: String)
 
 
 // Node Policy
-final case class PropertiesAndConstraints(properties: List[OneProperty], constraints: List[String])
+final case class PropertiesAndConstraints(properties: Option[List[OneProperty]], constraints: Option[List[String]])
 
 final case class NodePolicyRow(nodeId: String, label: String, description: String, properties: String, constraints: String, deployment: String, management: String, nodePolicyVersion: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
@@ -306,8 +306,8 @@ final case class NodePolicyRow(nodeId: String, label: String, description: Strin
   def toNodePolicy: NodePolicy = {
     val prop: List[OneProperty] = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
     val con: List[String] = if (constraints != "") read[List[String]](constraints) else List[String]()
-    val dep: PropertiesAndConstraints = if (deployment != "") read[PropertiesAndConstraints](deployment) else PropertiesAndConstraints(List[OneProperty](), List[String]())
-    val mgmt: PropertiesAndConstraints = if (management != "") read[PropertiesAndConstraints](management) else PropertiesAndConstraints(List[OneProperty](), List[String]())
+    val dep: PropertiesAndConstraints = if (deployment != "") read[PropertiesAndConstraints](deployment) else PropertiesAndConstraints(None, None)
+    val mgmt: PropertiesAndConstraints = if (management != "") read[PropertiesAndConstraints](management) else PropertiesAndConstraints(None, None)
     NodePolicy(label, description, prop, con, dep, mgmt, nodePolicyVersion, lastUpdated)
   }
 

@@ -316,14 +316,14 @@ final case class PutNodePolicyRequest(label: Option[String], description: Option
       }
     }
     if (deployment.isDefined) {
-      for (p <- deployment.get.properties) {
+      for (p <- deployment.get.properties.getOrElse(List[OneProperty]())) {
         if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
           return Some(ExchMsg.translate("property.type.must.be", p.`type`.get, validTypes.mkString(", ")))
         }
       }
     }
     if (management.isDefined) {
-      for (p <- management.get.properties) {
+      for (p <- management.get.properties.getOrElse(List[OneProperty]())) {
         if (p.`type`.isDefined && !validTypes.contains(p.`type`.get)) {
           return Some(ExchMsg.translate("property.type.must.be", p.`type`.get, validTypes.mkString(", ")))
         }

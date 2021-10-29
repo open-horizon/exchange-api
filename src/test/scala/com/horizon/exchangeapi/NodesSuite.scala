@@ -1783,7 +1783,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node") {
-    val input = PutNodePolicyRequest(Some(nodeId+" policy"), Some(nodeId+" policy desc"), Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")), Some(PropertiesAndConstraints(List(OneProperty("depprop",None,"depval")), List("c == d"))), Some(PropertiesAndConstraints(List(OneProperty("mgmtprop",None,"mgmtval")), List("e == f"))), None)
+    val input = PutNodePolicyRequest(Some(nodeId+" policy"), Some(nodeId+" policy desc"), Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")), Some(PropertiesAndConstraints(Some(List(OneProperty("depprop",None,"depval"))), Some(List("c == d")))), Some(PropertiesAndConstraints(Some(List(OneProperty("mgmtprop",None,"mgmtval"))), Some(List("e == f")))), None)
     val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1810,11 +1810,11 @@ class NodesSuite extends AnyFunSuite {
     assert(getResp.properties.size === 1)
     assert(getResp.properties.head.name === "purpose")
     val dep = getResp.deployment
-    assert(dep.properties.size === 1)
-    assert(dep.properties.head.name === "depprop")
+    assert(dep.properties.get.size === 1)
+    assert(dep.properties.get.head.name === "depprop")
     val mgmt = getResp.management
-    assert(mgmt.properties.size === 1)
-    assert(mgmt.properties.head.name === "mgmtprop")
+    assert(mgmt.properties.get.size === 1)
+    assert(mgmt.properties.get.head.name === "mgmtprop")
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node") {

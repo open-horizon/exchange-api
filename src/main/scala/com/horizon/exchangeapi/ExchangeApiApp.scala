@@ -72,6 +72,7 @@ object ExchangeApiApp extends App
   with AgbotsRoutes
   with BusinessRoutes
   with CatalogRoutes
+  with ManagementPoliciesRoutes
   with NodesRoutes
   with OrgsRoutes
   with PatternsRoutes
@@ -210,6 +211,7 @@ object ExchangeApiApp extends App
               agbotsRoutes ~
               businessRoutes ~
               catalogRoutes ~
+              managementPoliciesRoutes ~
               nodesRoutes ~
               orgsRoutes ~
               patternsRoutes ~

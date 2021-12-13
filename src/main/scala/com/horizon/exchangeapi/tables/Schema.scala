@@ -182,13 +182,19 @@ object SchemaTQ {
         sqlu"alter table patterns add column secretbinding character varying not null default ''",
         sqlu"alter table businesspolicies add column secretbinding character varying not null default ''"
       )
+      case 42 => DBIO.seq(ManagementPoliciesTQ.rows.schema.create)    // v2.89.0
+      case 43 => DBIO.seq(   // version 2.57.0
+        sqlu"alter table nodepolicies add column deployment character varying not null default ''",
+        sqlu"alter table nodepolicies add column management character varying not null default ''",
+        sqlu"alter table nodepolicies add column nodepolicyversion character varying not null default ''"
+      )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
 
-  val latestSchemaVersion = 41    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
-  val latestSchemaDescription = "adding secretbinding column to businesspolicies table"
+  val latestSchemaVersion = 43    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaDescription = "adding deployment, management, nodepolicyversion columns to nodepolicies table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int): Boolean = fromSchemaVersion >= latestSchemaVersion

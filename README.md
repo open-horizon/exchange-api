@@ -300,8 +300,26 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
-## Changes in 2.86.0
+## Changes in 2.90.2
 - Issue 547: Updated Sbt to version `1.5.6`.
+
+## Changes in 2.90.1
+- Issue 544: error for node policy API when deployment or management attribute is empty
+
+## Changes in 2.90.0
+- Issue 538: New format for node policy APIs
+
+## Changes in 2.89.0
+- Issue 537: Add node management policy
+
+## Changes in 2.88.0
+- No changes, version bump for release.
+
+## Changes in 2.87.0
+- Translation updates
+
+## Changes in 2.86.0
+- Lock the dependency `com.github.swagger-akka-http.swagger-akka-http` to version `2.4.2` to prevent pulling in Akka HTTP version `10.2.6` modules.
 
 ## Changes in 2.85.0
 - Translation updates

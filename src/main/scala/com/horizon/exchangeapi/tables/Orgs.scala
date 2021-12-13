@@ -107,6 +107,7 @@ object ResChangeCategory extends Enumeration {
   val AGBOT: ResChangeCategory.Value = Value("agbot")
   val NODE: ResChangeCategory.Value = Value("node")
   val POLICY: ResChangeCategory.Value = Value("policy")
+  val MGMTPOLICY: ResChangeCategory.Value = Value("mgmtpolicy")
   val PATTERN: ResChangeCategory.Value = Value("pattern")
   val SERVICE: ResChangeCategory.Value = Value("service")
 }
@@ -128,6 +129,7 @@ object ResChangeResource extends Enumeration {
   val NODEAGREEMENTS: ResChangeResource.Value = Value("nodeagreements")
   val NODEMSGS: ResChangeResource.Value = Value("nodemsgs")
   val POLICY: ResChangeResource.Value = Value("policy")
+  val MGMTPOLICY: ResChangeResource.Value = Value("mgmtpolicy")
   val PATTERN: ResChangeResource.Value = Value("pattern")
   val PATTERNKEYS: ResChangeResource.Value = Value("patternkeys")
   val SERVICE: ResChangeResource.Value = Value("service")

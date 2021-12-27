@@ -302,6 +302,8 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 ## Changes in 2.90.4
 - Issue 549: Updated Sbt to version `1.6.0`.
+- Locked Slick to version `3.3.3`.
+- Locked Slick-PG to version `0.19.3`.
 
 ## Changes in 2.90.3
 - Issue 549: Updated Sbt to version `1.5.7`.

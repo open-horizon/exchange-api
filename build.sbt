@@ -62,8 +62,8 @@ lazy val root = (project in file("."))
           "io.swagger.core.v3" % "swagger-models" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-models
           "io.swagger.core.v3" % "swagger-jaxrs2" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-jaxrs2
   
-          "com.typesafe.slick" %% "slick" % "[3.3.3,)",
-          "com.typesafe.slick" %% "slick-hikaricp" % "[3.3.3,)",
+          "com.typesafe.slick" %% "slick" % "[3.3.3]",
+          "com.typesafe.slick" %% "slick-hikaricp" % "[3.3.3]",
           "com.github.tminglei" %% "slick-pg" % "[0.19.3,)",
           "com.github.tminglei" %% "slick-pg_json4s" % "[0.19.3,)",
           "org.postgresql" % "postgresql" % "42.2.19",  // Version number must be manually specified to prevent Maven from selecting a jre6/7 version of this dependency.

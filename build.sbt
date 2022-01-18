@@ -47,7 +47,7 @@ lazy val root = (project in file("."))
           "com.typesafe.akka" %% "akka-http-xml"        % "[10.2.4]",
           // "com.typesafe.akka" %% "akka-stream"          % "[2.6.14,)",
           // "com.typesafe.akka" %% "akka-http-spray-json" % "[10.2.1,)",
-          "de.heikoseeberger" %% "akka-http-jackson" % "[1.35.3,)",  // version 1.35.3 pulls in akka 2.6.10 and akkahttp 10.2.2
+          "de.heikoseeberger" %% "akka-http-jackson" % "[1.37.0]",  // version 1.35.3 pulls in akka 2.6.10 and akkahttp 10.2.2
           // "com.typesafe.akka" %% "akka-http-jackson" % "[10.2.1,)", //<- can not find any recent documentation on how to use this
           
           "org.json4s" %% "json4s-native" % "3.6.6",  // Version 3.7.0-M3 is incompatible.

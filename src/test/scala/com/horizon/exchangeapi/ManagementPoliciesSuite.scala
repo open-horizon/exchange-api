@@ -98,7 +98,11 @@ class ManagementPoliciesSuite extends AnyFunSuite {
       Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b")),
       None, true, None
     )
-    val response = Http(URL+"/managementpolicies/"+managementPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    var response = Http(URL+"/managementpolicies/"+managementPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+  
+    response = Http(URL+"/managementpolicies/"+managementPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
@@ -111,7 +115,11 @@ class ManagementPoliciesSuite extends AnyFunSuite {
       Some(List(OneProperty("purpose",None,"location2"))), Some(List("a == c")),
       None, true, None
     )
-    val response = Http(URL+"/managementpolicies/"+managementPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    var response = Http(URL+"/managementpolicies/"+managementPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+  
+    response = Http(URL+"/managementpolicies/"+managementPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
@@ -133,7 +141,7 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     var mp = respObj.managementPolicy(orgManagementPolicy)
     assert(mp.label === managementPolicy)
     assert(mp.description === "desc")
-    assert(mp.owner === orguser)
+    assert(mp.owner === rootuser)
     assert(mp.properties.head.name === "purpose")
     assert(mp.properties.head.value === "location2")
     assert(mp.constraints.head === "a == c")
@@ -151,7 +159,7 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     var mp = respObj.managementPolicy(orgManagementPolicy)
     assert(mp.label === managementPolicy)
     assert(mp.description === "desc")
-    assert(mp.owner === orguser)
+    assert(mp.owner === rootuser)
     assert(mp.properties.head.name === "purpose")
     assert(mp.properties.head.value === "location2")
     assert(mp.constraints.head === "a == c")

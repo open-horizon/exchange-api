@@ -487,19 +487,19 @@ case class INode(creds: Creds) extends Identity {
             case Access.CREATE => Access.CREATE_SERVICES
             case _ => access
           }
-          case TPattern(_) => access match { // a user accessing a pattern
+          case TPattern(_) => access match { // a node accessing a pattern
             case Access.READ => Access.READ_ALL_PATTERNS
             case Access.WRITE => Access.WRITE_ALL_PATTERNS
             case Access.CREATE => Access.CREATE_PATTERNS
             case _ => access
           }
-          case TBusiness(_) => access match { // a user accessing a business policy
+          case TBusiness(_) => access match { // a node accessing a business policy
             case Access.READ => Access.READ_ALL_BUSINESS
             case Access.WRITE => Access.WRITE_ALL_BUSINESS
             case Access.CREATE => Access.CREATE_BUSINESS
             case _ => access
           }
-          case TManagementPolicy(_) => access match { // a user accessing a business policy
+          case TManagementPolicy(_) => access match { // a node accessing a business policy
             case Access.READ => Access.READ_ALL_MANAGEMENT_POLICY
             case Access.WRITE => Access.WRITE_ALL_MANAGEMENT_POLICY
             case Access.CREATE => Access.CREATE_MANAGEMENT_POLICY
@@ -542,55 +542,55 @@ case class IAgbot(creds: Creds) extends Identity {
     val requiredAccess: Access =
       if (isMyOrg(target) || target.isPublic || isMultiTenantAgbot) {
         target match {
-          case TUser(id) => access match { // a agbot accessing a user
+          case TUser(id) => access match { // an agbot accessing a user
             case Access.READ => Access.READ_ALL_USERS
             case Access.WRITE => Access.WRITE_ALL_USERS
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-          case TNode(_) => access match { // a agbot accessing a node
+          case TNode(_) => access match { // an agbot accessing a node
             case Access.READ => Access.READ_ALL_NODES
             case Access.WRITE => Access.WRITE_ALL_NODES
             case Access.CREATE => Access.CREATE_NODE
             case _ => access
           }
-          case TAgbot(id) => access match { // a agbot accessing a agbot
+          case TAgbot(id) => access match { // an agbot accessing a agbot
             case Access.READ => if (id == creds.id) Access.READ_MYSELF else if (target.mine) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
             case Access.WRITE => if (id == creds.id) Access.WRITE_MYSELF else if (target.mine) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-          case TService(_) => access match { // a agbot accessing a service
+          case TService(_) => access match { // an agbot accessing a service
             case Access.READ => Access.READ_ALL_SERVICES
             case Access.WRITE => Access.WRITE_ALL_SERVICES
             case Access.CREATE => Access.CREATE_SERVICES
             case _ => access
           }
-          case TPattern(_) => access match { // a user accessing a pattern
+          case TPattern(_) => access match { // an agbot accessing a pattern
             case Access.READ => Access.READ_ALL_PATTERNS
             case Access.WRITE => Access.WRITE_ALL_PATTERNS
             case Access.CREATE => Access.CREATE_PATTERNS
             case _ => access
           }
-          case TBusiness(_) => access match { // a user accessing a business policy
+          case TBusiness(_) => access match { // an agbot accessing a business policy
             case Access.READ => Access.READ_ALL_BUSINESS
             case Access.WRITE => Access.WRITE_ALL_BUSINESS
             case Access.CREATE => Access.CREATE_BUSINESS
             case _ => access
           }
-          case TManagementPolicy(_) => access match { // a user accessing a business policy
+          case TManagementPolicy(_) => access match { // an agbot accessing a management policy
             case Access.READ => Access.READ_ALL_MANAGEMENT_POLICY
             case Access.WRITE => Access.WRITE_ALL_MANAGEMENT_POLICY
             case Access.CREATE => Access.CREATE_MANAGEMENT_POLICY
             case _ => access
           }
-          case TOrg(_) => access match { // a agbot accessing his org resource
+          case TOrg(_) => access match { // an agbot accessing his org resource
             case Access.READ => Access.READ_MY_ORG
             case Access.WRITE => Access.WRITE_MY_ORG
             case Access.CREATE => Access.CREATE_ORGS
             case _ => access
           }
-          case TAction(_) => access // a agbot running an action
+          case TAction(_) => access // an agbot running an action
         }
       } else if (!target.isThere && access == Access.READ) {  // not my org, not public, not there, and we are trying to read it
         Access.NOT_FOUND
@@ -621,55 +621,55 @@ case class IAnonymous(creds: Creds) extends Identity {
       //if (access == Access.RESET_USER_PW) Access.RESET_USER_PW else
       if (isMyOrg(target) || target.isPublic) {
         target match {
-          case TUser(id) => access match { // a anonymous accessing a user
+          case TUser(id) => access match { // an anonymous accessing a user
             case Access.READ => Access.READ_ALL_USERS
             case Access.WRITE => Access.WRITE_ALL_USERS
             case Access.CREATE => if (Role.isSuperUser(id)) Access.CREATE_SUPERUSER else Access.CREATE_USER
             case _ => access
           }
-          case TNode(_) => access match { // a anonymous accessing a node
+          case TNode(_) => access match { // an anonymous accessing a node
             case Access.READ => Access.READ_ALL_NODES
             case Access.WRITE => Access.WRITE_ALL_NODES
             case Access.CREATE => Access.CREATE_NODE
             case _ => access
           }
-          case TAgbot(_) => access match { // a anonymous accessing a agbot
+          case TAgbot(_) => access match { // an anonymous accessing a agbot
             case Access.READ => Access.READ_ALL_AGBOTS
             case Access.WRITE => Access.WRITE_ALL_AGBOTS
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-          case TService(_) => access match { // a anonymous accessing a service
+          case TService(_) => access match { // an anonymous accessing a service
             case Access.READ => Access.READ_ALL_SERVICES
             case Access.WRITE => Access.WRITE_ALL_SERVICES
             case Access.CREATE => Access.CREATE_SERVICES
             case _ => access
           }
-          case TPattern(_) => access match { // a user accessing a pattern
+          case TPattern(_) => access match { // an anonymous accessing a pattern
             case Access.READ => Access.READ_ALL_PATTERNS
             case Access.WRITE => Access.WRITE_ALL_PATTERNS
             case Access.CREATE => Access.CREATE_PATTERNS
             case _ => access
           }
-          case TBusiness(_) => access match { // a user accessing a business policy
+          case TBusiness(_) => access match { // an anonymous accessing a business policy
             case Access.READ => Access.READ_ALL_BUSINESS
             case Access.WRITE => Access.WRITE_ALL_BUSINESS
             case Access.CREATE => Access.CREATE_BUSINESS
             case _ => access
           }
-          case TManagementPolicy(_) => access match { // a user accessing a business policy
+          case TManagementPolicy(_) => access match { // an anonymous accessing a management policy
             case Access.READ => Access.READ_ALL_MANAGEMENT_POLICY
             case Access.WRITE => Access.WRITE_ALL_MANAGEMENT_POLICY
             case Access.CREATE => Access.CREATE_MANAGEMENT_POLICY
             case _ => access
           }
-          case TOrg(_) => access match { // a anonymous accessing his org resource
+          case TOrg(_) => access match { // an anonymous accessing his org resource
             case Access.READ => Access.READ_MY_ORG
             case Access.WRITE => Access.WRITE_MY_ORG
             case Access.CREATE => Access.CREATE_ORGS
             case _ => access
           }
-          case TAction(_) => access // a anonymous running an action
+          case TAction(_) => access // an anonymous running an action
         }
       } else if (!target.isThere && access == Access.READ) {  // not my org, not public, not there, and we are trying to read it
         Access.NOT_FOUND
@@ -794,16 +794,16 @@ case class TBusiness(id: String) extends Target {      // for business policies 
   override def label = "business policy"
 }
 
-case class TManagementPolicy(id: String) extends Target {      // for business policies only the user that created it can update/delete it
+case class TManagementPolicy(id: String) extends Target {      // for management policies only the user that created it can update/delete it
   override def isOwner(user: IUser): Boolean = {
     AuthCache.getManagementPolicyOwner(id) match {
       case Some(owner) => if (owner == user.creds.id) true else false
       case None => true    // if we did not find it, we consider that as owning it because we will create it
     }
   }
-  // business policies can never be public, so no need to override isPublic
+  // management policies can never be public, so no need to override isPublic
   override def isThere: Boolean = all || mine || AuthCache.getManagementPolicyOwner(id).nonEmpty
-  override def label = "business policy"
+  override def label = "management policy"
 }
 
 case class TAction(id: String = "") extends Target { // for post rest api methods that do not target any specific resource (e.g. admin operations)

@@ -1119,7 +1119,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
                     inequality statements. In postgresql 9 the difference was dramatic. In postgreql 12 the difference was less but still signficant. Logically, the only difference between these 2 lines
                     is that the latter will not get changes in patterns or deployment policies. But the node doesn't need these, because the agbots drive the response to those.
                 qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node") */
-                qFilter = qFilter.filter(u => (u.orgId === orgId) || u.public === "true") .filter(u => (u.category === "node" && u.id === ident.getIdentity) || (u.category === "service" || u.category === "org"))
+                qFilter = qFilter.filter(u => (u.orgId === orgId) || u.public === "true") .filter(u => (u.category === "mgmtpolicy") || (u.category === "node" && u.id === ident.getIdentity) || (u.category === "service" || u.category === "org"))
             case _: IAgbot =>
               val wildcard: Boolean = orgSet.contains("*") || orgSet.contains("")
               if (ident.isMultiTenantAgbot && !wildcard) { // its an IBM Agbot with no wildcard sent in, get all changes from orgs the agbot covers

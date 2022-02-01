@@ -351,7 +351,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
     } // end of exchAuth
   }
 
-  // =========== POST /orgs/{orgid}/managementpolicies/{policy} ===============================
+  // =========== PUT /orgs/{orgid}/managementpolicies/{policy} ===============================
   @PUT
   @Path("{policy}")
   @Operation(

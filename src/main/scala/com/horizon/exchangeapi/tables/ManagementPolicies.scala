@@ -94,3 +94,7 @@ object ManagementPoliciesTQ {
   /** Returns the actions to delete the managementPolicy and the blockchains that reference it */
   def getDeleteActions(managementPolicy: String): DBIO[_] = getManagementPolicy(managementPolicy).delete   // with the foreign keys set up correctly and onDelete=cascade, the db will automatically delete these associated blockchain rows
 }
+
+final case class MgmtPolCurrentVersionsRow()
+
+//class MgmtPolCurrentVersions(tag: Tag) extends Table[MgmtPolCurrentVersionsRow](tag, "management_policy_version_current")

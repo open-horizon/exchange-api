@@ -252,6 +252,8 @@ class NodesSuite extends AnyFunSuite {
     Http(URL + "/users/" + user).postData(write(PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     
     Http(URL + "/users/u2").postData(write(PostPutUsersRequest("u2pw", admin = false, Some(false), "u2@hotmail.com"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+  
+    Http(URL + "/users/u3").postData(write(PostPutUsersRequest("u3pw", admin = true, Some(false), "u3@hotmail.com"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     
     assert(true)
   }
@@ -2987,6 +2989,16 @@ class NodesSuite extends AnyFunSuite {
     assert(response.body.contains(nodeId))
     assert(response.body.contains(nodeId2))
   }
+  
+  test("POST /orgs/"+orgid+"/search/nodes/service - should find " + SDRSPEC_URL + " running on 2 nodes called by an admin") {
+    val input = PostServiceSearchRequest(orgid, SDRSPEC_URL, svcversion, svcarch)
+    val response = Http(URL+"/search/nodes/service").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode("NodesSuiteTests/u3:u3pw"))).asString
+    info("code: "+response.code+", response.body: "+response.body)
+    info("code: "+response.code)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.body.contains(nodeId))
+    assert(response.body.contains(nodeId2))
+  }
 
   test("POST /orgs/"+orgid+"/search/nodes/service - should find " + NETSPEEDSPEC_URL + " running on 2 nodes") {
     val input = PostServiceSearchRequest(orgid, NETSPEEDSPEC_URL, svcversion2, svcarch2)
@@ -3117,7 +3129,6 @@ class NodesSuite extends AnyFunSuite {
   }
 
   // Test PATCH Nodes all attributes but token
-
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - patch node w/o token") {
     val input = PatchNodesRequest(None, Some("rpi"+nodeId+"-update"), None, Some(""),
       Some(List(

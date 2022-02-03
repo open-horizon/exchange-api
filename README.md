@@ -300,6 +300,16 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+<<<<<<< HEAD
+=======
+## Changes in 2.93.0
+- Issue 560: Organization Administrators can now read all nodes organization wide from `orgs/{orgid}/search/nodes/service`
+
+## Changes in 2.92.0
+- Issue 555: Nodes are now able to read change transactions for Node Management Policies.
+- Updated Sbt to version `1.6.1`.
+
+>>>>>>> 2722eef (Issue 560: Organization Administrators can now read all nodes organization wide from orgs/{orgid}/search/nodes/service)
 ## Changes in 2.91.0
 - Issue 553: Users cannot create/modify/delete node management policies.
 - Locked `akka-http-jackson` to version `1.37.0`.

@@ -196,12 +196,11 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
         sqlu"ALTER TABLE managementpolicies ADD COLUMN IF NOT EXISTS startwindow BIGINT NOT NULL DEFAULT 0"
       )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
-      case 45 => DBIO.seq(NodeMgmtPolStatuses.schema.create)    // v2.95.0
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
 
-  val latestSchemaVersion = 45    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion = 44    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription = "adding deployment, management, nodepolicyversion columns to nodepolicies table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

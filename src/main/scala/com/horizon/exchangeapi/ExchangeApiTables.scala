@@ -17,31 +17,30 @@ object ExchangeApiTables {
   // Create all of the current version's tables - used in /admin/initdb
   val initDB = DBIO.seq(
     (
-      SchemaTQ.rows.schema
-      ++ OrgsTQ.rows.schema
-      ++ UsersTQ.rows.schema
-      ++ ResourceChangesTQ.rows.schema
-      ++ NodesTQ.rows.schema
-      ++ NodeAgreementsTQ.rows.schema
-      ++ NodeStatusTQ.rows.schema
-      ++ NodeErrorTQ.rows.schema
-      ++ NodePolicyTQ.rows.schema
-      ++ AgbotsTQ.rows.schema
-      ++ AgbotAgreementsTQ.rows.schema
-      ++ AgbotPatternsTQ.rows.schema
-      ++ AgbotBusinessPolsTQ.rows.schema
-      ++ NodeMsgsTQ.rows.schema
-      ++ AgbotMsgsTQ.rows.schema
-      ++ ServicesTQ.rows.schema
-      ++ ServiceKeysTQ.rows.schema
-      ++ ServiceDockAuthsTQ.rows.schema
-      ++ ServicePolicyTQ.rows.schema
-      ++ PatternsTQ.rows.schema
-      ++ PatternKeysTQ.rows.schema
-      ++ BusinessPoliciesTQ.rows.schema
-      ++ SearchOffsetPolicyTQ.offsets.schema
-      ++ ManagementPoliciesTQ.rows.schema
-      ++ NodeMgmtPolStatuses.schema
+      SchemaTQ.schema
+      ++ OrgsTQ.schema
+      ++ UsersTQ.schema
+      ++ ResourceChangesTQ.schema
+      ++ NodesTQ.schema
+      ++ NodeAgreementsTQ.schema
+      ++ NodeStatusTQ.schema
+      ++ NodeErrorTQ.schema
+      ++ NodePolicyTQ.schema
+      ++ AgbotsTQ.schema
+      ++ AgbotAgreementsTQ.schema
+      ++ AgbotPatternsTQ.schema
+      ++ AgbotBusinessPolsTQ.schema
+      ++ NodeMsgsTQ.schema
+      ++ AgbotMsgsTQ.schema
+      ++ ServicesTQ.schema
+      ++ ServiceKeysTQ.schema
+      ++ ServiceDockAuthsTQ.schema
+      ++ ServicePolicyTQ.schema
+      ++ PatternsTQ.schema
+      ++ PatternKeysTQ.schema
+      ++ BusinessPoliciesTQ.schema
+      ++ SearchOffsetPolicyTQ.schema
+      ++ ManagementPoliciesTQ.schema
     ).create,
     SchemaTQ.getSetVersionAction)
 
@@ -50,7 +49,6 @@ object ExchangeApiTables {
   //val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
   val dropDB = DBIO.seq(
     /* these are no longer used, but just in case they are still here */ sqlu"drop table if exists resourcekeys", sqlu"drop table if exists resourceauths", sqlu"drop table if exists resources",
-    sqlu"drop table if exists management_policy_status_node",
     sqlu"drop table if exists managementpolicies cascade",
     sqlu"drop table if exists search_offset_policy cascade",
     sqlu"drop table if exists businesspolicies cascade",

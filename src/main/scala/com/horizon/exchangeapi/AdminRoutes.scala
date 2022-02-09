@@ -282,29 +282,29 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
       complete({
         val statusResp = new AdminStatus()
         //perf: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
-        db.run(UsersTQ.rows.length.result.asTry.flatMap({
+        db.run(UsersTQ.length.result.asTry.flatMap({
           case Success(v) => statusResp.numberOfUsers = v
-            NodesTQ.rows.length.result.asTry
+            NodesTQ.length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfNodes = v
-            AgbotsTQ.rows.length.result.asTry
+            AgbotsTQ.length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfAgbots = v
-            NodeAgreementsTQ.rows.length.result.asTry
+            NodeAgreementsTQ.length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfNodeAgreements = v
-            AgbotAgreementsTQ.rows.length.result.asTry
+            AgbotAgreementsTQ.length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfAgbotAgreements = v
-            NodeMsgsTQ.rows.length.result.asTry
+            NodeMsgsTQ.length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfNodeMsgs = v
-            AgbotMsgsTQ.rows.length.result.asTry
+            AgbotMsgsTQ.length.result.asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) => statusResp.numberOfAgbotMsgs = v
@@ -340,7 +340,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
         val orgStatusResp = new AdminOrgStatus()
         //perf: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
         val q = for {
-          n <- NodesTQ.rows.groupBy(_.orgid)
+          n <- NodesTQ.groupBy(_.orgid)
         } yield (n._1, n._2.length) // this should returin [orgid, num of nodes in that orgid]
         db.run(q.result.asTry).map({
           case Success(nodes) =>
@@ -394,8 +394,8 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val resourcesSet: Set[String] = reqBody.resources.toSet
-          var action = ResourceChangesTQ.rows.filter(_.orgId === orgId).filter(_.id inSet resourcesSet).delete
-          if (reqBody.resources.isEmpty) action = ResourceChangesTQ.rows.filter(_.orgId === orgId).delete
+          var action = ResourceChangesTQ.filter(_.orgId === orgId).filter(_.id inSet resourcesSet).delete
+          if (reqBody.resources.isEmpty) action = ResourceChangesTQ.filter(_.orgId === orgId).delete
           db.run(action.transactionally.asTry).map({
             case Success(v) =>
               logger.debug(s"Deleted specified $orgId org entries in changes table ONLY FOR UNIT TESTS: $v")

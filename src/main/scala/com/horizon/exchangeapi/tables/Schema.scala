@@ -16,13 +16,13 @@ final case class SchemaRow(id: Int, schemaVersion: Int, description: String, las
   def toSchema: Schema = Schema(id, schemaVersion, description, lastUpdated)
 
   // update returns a DB action to update this row
-  def update: DBIO[_] = (for {m <- SchemaTQ.rows if m.id === 0 } yield m).update(this)
+  def update: DBIO[_] = (for {m <- SchemaTQ if m.id === 0 } yield m).update(this)
 
   // insert returns a DB action to insert this row
-  def insert: DBIO[_] = SchemaTQ.rows += this
+  def insert: DBIO[_] = SchemaTQ += this
 
   // Returns a DB action to insert or update this row
-  def upsert: DBIO[_] = SchemaTQ.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = SchemaTQ.insertOrUpdate(this)
 }
 
 /** Mapping of the schemas db table to a scala class */
@@ -36,17 +36,17 @@ class SchemaTable(tag: Tag) extends Table[SchemaRow](tag, "schema") {
 }
 
 // Instance to access the schemas table
-object SchemaTQ {
+object SchemaTQ  extends TableQuery(new SchemaTable(_)){
 
   // Returns the db actions necessary to get the schema from step-1 to step. The fromSchemaVersion arg is there because sometimes where you
   // originally came from affects how to get to the next step.
   def getUpgradeSchemaStep(fromSchemaVersion: Int, step: Int)(implicit logger: LoggingAdapter): DBIO[_] = {
     step match {
       case 0 => DBIO.seq()       // v1.35.0 - no changes needed to get to time zero
-      case 1 => DBIO.seq(NodeStatusTQ.rows.schema.create)    // v1.37.0
-      case 2 => DBIO.seq(sqlu"alter table agbots drop column patterns", AgbotPatternsTQ.rows.schema.create)   // v1.38.0
-      case 3 => DBIO.seq(ServicesTQ.rows.schema.create)   // v1.45.0
-      case 4 => DBIO.seq(/*WorkloadKeysTQ.rows.schema.create, MicroserviceKeysTQ.rows.schema.create, ServiceKeysTQ.rows.schema.create,*/ PatternKeysTQ.rows.schema.create)   // v1.46.0
+      case 1 => DBIO.seq(NodeStatusTQ.schema.create)    // v1.37.0
+      case 2 => DBIO.seq(sqlu"alter table agbots drop column patterns", AgbotPatternsTQ.schema.create)   // v1.38.0
+      case 3 => DBIO.seq(ServicesTQ.schema.create)   // v1.45.0
+      case 4 => DBIO.seq(/*WorkloadKeysTQ.schema.create, MicroserviceKeysTQ.schema.create, ServiceKeysTQ.schema.create,*/ PatternKeysTQ.schema.create)   // v1.46.0
       case 5 => DBIO.seq(sqlu"alter table patterns add column services character varying not null default ''")   // v1.47.0
       case 6 => DBIO.seq(sqlu"alter table nodes add column regservices character varying not null default ''")   // v1.47.0
       case 7 => DBIO.seq(   // v1.47.0
@@ -60,7 +60,7 @@ object SchemaTQ {
         // If in this current level of code we started upgrading from 2 or less, that means we created the services table with the correct schema, so no need to modify it
         if (fromSchemaVersion >= 3) actions ++ List(sqlu"alter table services rename column pkg to imagestore")
         DBIO.seq(actions: _*)      // convert the list of actions to a DBIO seq
-      case 9 => DBIO.seq(ServiceDockAuthsTQ.rows.schema.create)   // v1.52.0
+      case 9 => DBIO.seq(ServiceDockAuthsTQ.schema.create)   // v1.52.0
       case 10 => DBIO.seq(   // v1.56.0
         sqlu"alter table agbotpatterns add column nodeorgid character varying not null default ''"
       )
@@ -85,9 +85,9 @@ object SchemaTQ {
       )
       case 13 => DBIO.seq(   // v1.63.0
         sqlu"alter table services add column documentation character varying not null default ''",
-        //ResourcesTQ.rows.schema.create,
-        //ResourceKeysTQ.rows.schema.create,
-        //ResourceAuthsTQ.rows.schema.create,
+        //ResourcesTQ.schema.create,
+        //ResourceKeysTQ.schema.create,
+        //ResourceAuthsTQ.schema.create,
         sqlu"alter table services add column requiredResources character varying not null default ''"
       )
       case 14 => DBIO.seq(   // version 1.64.0
@@ -104,16 +104,16 @@ object SchemaTQ {
       case 17 => DBIO.seq(   // version 1.72.0
         sqlu"alter table orgs add column orgtype character varying not null default ''"
       )
-      case 18 => DBIO.seq(NodePolicyTQ.rows.schema.create)    // v1.77.0
-      case 19 => DBIO.seq(ServicePolicyTQ.rows.schema.create)    // v1.77.0
-      case 20 => DBIO.seq(BusinessPoliciesTQ.rows.schema.create)    // v1.78.0
+      case 18 => DBIO.seq(NodePolicyTQ.schema.create)    // v1.77.0
+      case 19 => DBIO.seq(ServicePolicyTQ.schema.create)    // v1.77.0
+      case 20 => DBIO.seq(BusinessPoliciesTQ.schema.create)    // v1.78.0
       case 21 => DBIO.seq(    // v1.82.0
         sqlu"alter table services drop column requiredresources",
         sqlu"drop table if exists resourcekeys",
         sqlu"drop table if exists resourceauths",
         sqlu"drop table if exists resources"
       )
-      case 22 => DBIO.seq(AgbotBusinessPolsTQ.rows.schema.create)    // v1.82.0
+      case 22 => DBIO.seq(AgbotBusinessPolsTQ.schema.create)    // v1.82.0
       case 23 => DBIO.seq(   // version 1.83.0
         sqlu"alter table nodes add column arch character varying not null default ''"
       )
@@ -127,11 +127,11 @@ object SchemaTQ {
       case 26 => DBIO.seq(   // version 1.92.0
         sqlu"alter table users add column updatedBy character varying not null default ''"
       )
-      case 27 => DBIO.seq(NodeErrorTQ.rows.schema.create)    // v1.102.0
+      case 27 => DBIO.seq(NodeErrorTQ.schema.create)    // v1.102.0
       case 28 => DBIO.seq(   // version 1.92.0
         sqlu"alter table nodestatus add column runningServices character varying not null default ''"
       )
-      case 29 => DBIO.seq(ResourceChangesTQ.rows.schema.create)   // v1.122.0
+      case 29 => DBIO.seq(ResourceChangesTQ.schema.create)   // v1.122.0
       case 30 => DBIO.seq(   // v2.1.0
         sqlu"alter table nodes add column heartbeatintervals character varying not null default ''",
         sqlu"alter table orgs add column heartbeatintervals character varying not null default ''"
@@ -164,7 +164,7 @@ object SchemaTQ {
       case 36 => DBIO.seq(   // v2.35.0
         sqlu"alter table nodes alter column lastheartbeat drop not null"
       )
-      case 37 => DBIO.seq(SearchOffsetPolicyTQ.offsets.schema.create)
+      case 37 => DBIO.seq(SearchOffsetPolicyTQ.schema.create)
       case 38 => DBIO.seq(   // v2.42.0
         sqlu"alter table users add column hubadmin boolean default false",
         sqlu"alter table orgs add column limits character varying not null default ''"
@@ -182,27 +182,32 @@ object SchemaTQ {
         sqlu"alter table patterns add column secretbinding character varying not null default ''",
         sqlu"alter table businesspolicies add column secretbinding character varying not null default ''"
       )
-      case 42 => DBIO.seq(ManagementPoliciesTQ.rows.schema.create)    // v2.89.0
+      case 42 => DBIO.seq(ManagementPoliciesTQ.schema.create)    // v2.89.0
       case 43 => DBIO.seq(   // version 2.57.0
         sqlu"alter table nodepolicies add column deployment character varying not null default ''",
         sqlu"alter table nodepolicies add column management character varying not null default ''",
         sqlu"alter table nodepolicies add column nodepolicyversion character varying not null default ''"
+      )
+      case 44 => DBIO.seq(
+        sqlu"ALTER TABLE managementpolicies DROP COLUMN IF EXISTS agentupgradepolicy",
+        sqlu"ALTER TABLE managementpolicies ADD COLUMN IF NOT EXISTS allowDowngrade BOOL NOT NULL DEFAULT FALSE",
+        sqlu"ALTER TABLE managementpolicies ADD COLUMN IF NOT EXISTS manifest CHARACTER VARYING NULL DEFAULT ''",
+        sqlu"ALTER TABLE managementpolicies ADD COLUMN IF NOT EXISTS start CHARACTER VARYING NOT NULL DEFAULT 'now'",
+        sqlu"ALTER TABLE managementpolicies ADD COLUMN IF NOT EXISTS startwindow BIGINT NOT NULL DEFAULT 0"
       )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
 
-  val latestSchemaVersion = 43    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion = 44    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription = "adding deployment, management, nodepolicyversion columns to nodepolicies table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 
   def isLatestSchemaVersion(fromSchemaVersion: Int): Boolean = fromSchemaVersion >= latestSchemaVersion
 
-  val rows = TableQuery[SchemaTable]
-
-  def getSchemaRow = rows.filter(_.id === 0)
-  def getSchemaVersion = rows.filter(_.id === 0).map(_.schemaversion)
+  def getSchemaRow = this.filter(_.id === 0)
+  def getSchemaVersion = this.filter(_.id === 0).map(_.schemaversion)
 
   // Returns a sequence of DBIOActions that will upgrade the DB schema from fromSchemaVersion to the latest schema version.
   // It is assumed that this sequence of DBIOActions will be run transactionally.

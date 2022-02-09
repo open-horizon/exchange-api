@@ -83,12 +83,12 @@ final case class PatchUsersRequest(password: Option[String], admin: Option[Boole
     password match {
       case Some(_) =>
         //val pw = if (Password.isHashed(password2)) password2 else Password.hash(password2)
-        return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username, u.password, u.lastUpdated, u.updatedBy)).update((username, hashedPw, lastUpdated, updatedBy)), "password")
+        return ((for { u <- UsersTQ if u.username === username } yield (u.username, u.password, u.lastUpdated, u.updatedBy)).update((username, hashedPw, lastUpdated, updatedBy)), "password")
       case _ => ;
     }
-    admin match { case Some(admin2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username, u.admin, u.lastUpdated, u.updatedBy)).update((username, admin2, lastUpdated, updatedBy)), "admin"); case _ => ; }
-    hubAdmin match { case Some(hubAdmin2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username, u.hubAdmin, u.lastUpdated, u.updatedBy)).update((username, hubAdmin2, lastUpdated, updatedBy)), "hubAdmin"); case _ => ; }
-    email match { case Some(email2) => return ((for { u <- UsersTQ.rows if u.username === username } yield (u.username, u.email, u.lastUpdated, u.updatedBy)).update((username, email2, lastUpdated, updatedBy)), "email"); case _ => ; }
+    admin match { case Some(admin2) => return ((for { u <- UsersTQ if u.username === username } yield (u.username, u.admin, u.lastUpdated, u.updatedBy)).update((username, admin2, lastUpdated, updatedBy)), "admin"); case _ => ; }
+    hubAdmin match { case Some(hubAdmin2) => return ((for { u <- UsersTQ if u.username === username } yield (u.username, u.hubAdmin, u.lastUpdated, u.updatedBy)).update((username, hubAdmin2, lastUpdated, updatedBy)), "hubAdmin"); case _ => ; }
+    email match { case Some(email2) => return ((for { u <- UsersTQ if u.username === username } yield (u.username, u.email, u.lastUpdated, u.updatedBy)).update((username, email2, lastUpdated, updatedBy)), "email"); case _ => ; }
     (null, null)
   }
 }
@@ -104,7 +104,7 @@ final case class ChangePwRequest(newPassword: String) {
   def getDbUpdate(username: String, orgid: String, hashedPw: String): DBIO[_] = {
     val lastUpdated: String = ApiTime.nowUTC
     //val pw = if (Password.isHashed(newPassword)) newPassword else Password.hash(newPassword)
-    (for { u <- UsersTQ.rows if u.username === username } yield (u.username, u.password, u.lastUpdated)).update((username, hashedPw, lastUpdated))
+    (for { u <- UsersTQ if u.username === username } yield (u.username, u.password, u.lastUpdated)).update((username, hashedPw, lastUpdated))
   }
 }
 

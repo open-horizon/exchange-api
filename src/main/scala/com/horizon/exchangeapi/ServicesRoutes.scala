@@ -117,20 +117,20 @@ final case class PatchServiceRequest(label: Option[String], description: Option[
   def getDbUpdate(service: String, orgid: String): (DBIO[_],String) = {
     val lastUpdated: String = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this service
-    label match { case Some(lab) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.label,d.lastUpdated)).update((service, lab, lastUpdated)), "label"); case _ => ; }
-    description match { case Some(desc) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.description,d.lastUpdated)).update((service, desc, lastUpdated)), "description"); case _ => ; }
-    public match { case Some(pub) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.public,d.lastUpdated)).update((service, pub, lastUpdated)), "public"); case _ => ; }
-    documentation match { case Some(doc) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.documentation,d.lastUpdated)).update((service, doc, lastUpdated)), "documentation"); case _ => ; }
-    url match { case Some(u) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.url,d.lastUpdated)).update((service, u, lastUpdated)), "url"); case _ => ; }
-    version match { case Some(ver) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.version,d.lastUpdated)).update((service, ver, lastUpdated)), "version"); case _ => ; }
-    arch match { case Some(ar) => return ((for { d <- ServicesTQ.rows if d.service === service } yield (d.service,d.arch,d.lastUpdated)).update((service, ar, lastUpdated)), "arch"); case _ => ; }
-    sharable match { case Some(share) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.sharable,d.lastUpdated)).update((service, share, lastUpdated)), "sharable"); case _ => ; }
-    matchHardware match { case Some(mh) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.matchHardware,d.lastUpdated)).update((service, write(mh), lastUpdated)), "matchHardware"); case _ => ; }
-    requiredServices match { case Some(rs) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.requiredServices,d.lastUpdated)).update((service, write(rs), lastUpdated)), "requiredServices"); case _ => ; }
-    userInput match { case Some(ui) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.userInput,d.lastUpdated)).update((service, write(ui), lastUpdated)), "userInput"); case _ => ; }
-    deployment match { case Some(dep) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.deployment,d.lastUpdated)).update((service, dep, lastUpdated)), "deployment"); case _ => ; }
-    deploymentSignature match { case Some(depsig) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.deploymentSignature,d.lastUpdated)).update((service, depsig, lastUpdated)), "deploymentSignature"); case _ => ; }
-    imageStore match { case Some(p) => return ((for {d <- ServicesTQ.rows if d.service === service } yield (d.service,d.imageStore,d.lastUpdated)).update((service, write(p), lastUpdated)), "imageStore"); case _ => ; }
+    label match { case Some(lab) => return ((for { d <- ServicesTQ if d.service === service } yield (d.service,d.label,d.lastUpdated)).update((service, lab, lastUpdated)), "label"); case _ => ; }
+    description match { case Some(desc) => return ((for { d <- ServicesTQ if d.service === service } yield (d.service,d.description,d.lastUpdated)).update((service, desc, lastUpdated)), "description"); case _ => ; }
+    public match { case Some(pub) => return ((for { d <- ServicesTQ if d.service === service } yield (d.service,d.public,d.lastUpdated)).update((service, pub, lastUpdated)), "public"); case _ => ; }
+    documentation match { case Some(doc) => return ((for {d <- ServicesTQ if d.service === service } yield (d.service,d.documentation,d.lastUpdated)).update((service, doc, lastUpdated)), "documentation"); case _ => ; }
+    url match { case Some(u) => return ((for {d <- ServicesTQ if d.service === service } yield (d.service,d.url,d.lastUpdated)).update((service, u, lastUpdated)), "url"); case _ => ; }
+    version match { case Some(ver) => return ((for { d <- ServicesTQ if d.service === service } yield (d.service,d.version,d.lastUpdated)).update((service, ver, lastUpdated)), "version"); case _ => ; }
+    arch match { case Some(ar) => return ((for { d <- ServicesTQ if d.service === service } yield (d.service,d.arch,d.lastUpdated)).update((service, ar, lastUpdated)), "arch"); case _ => ; }
+    sharable match { case Some(share) => return ((for {d <- ServicesTQ if d.service === service } yield (d.service,d.sharable,d.lastUpdated)).update((service, share, lastUpdated)), "sharable"); case _ => ; }
+    matchHardware match { case Some(mh) => return ((for {d <- ServicesTQ if d.service === service } yield (d.service,d.matchHardware,d.lastUpdated)).update((service, write(mh), lastUpdated)), "matchHardware"); case _ => ; }
+    requiredServices match { case Some(rs) => return ((for {d <- ServicesTQ if d.service === service } yield (d.service,d.requiredServices,d.lastUpdated)).update((service, write(rs), lastUpdated)), "requiredServices"); case _ => ; }
+    userInput match { case Some(ui) => return ((for {d <- ServicesTQ if d.service === service } yield (d.service,d.userInput,d.lastUpdated)).update((service, write(ui), lastUpdated)), "userInput"); case _ => ; }
+    deployment match { case Some(dep) => return ((for {d <- ServicesTQ if d.service === service } yield (d.service,d.deployment,d.lastUpdated)).update((service, dep, lastUpdated)), "deployment"); case _ => ; }
+    deploymentSignature match { case Some(depsig) => return ((for {d <- ServicesTQ if d.service === service } yield (d.service,d.deploymentSignature,d.lastUpdated)).update((service, depsig, lastUpdated)), "deploymentSignature"); case _ => ; }
+    imageStore match { case Some(p) => return ((for {d <- ServicesTQ if d.service === service } yield (d.service,d.imageStore,d.lastUpdated)).update((service, write(p), lastUpdated)), "imageStore"); case _ => ; }
     (null, null)
   }
 }
@@ -303,7 +303,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TService(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validateWithMsg(GetServicesUtils.getServicesProblem(public, version, nodetype)) {
         complete({
-          //var q = ServicesTQ.rows.subquery
+          //var q = ServicesTQ.subquery
           var q = ServicesTQ.getAllServices(orgid)
           // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
           owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
@@ -562,7 +562,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           val svcAction = if (svcIds.isEmpty) DBIO.successful(Vector())   // no services to look for
           else {
             // The inner map() and reduceLeft() OR together all of the likes to give to filter()
-            ServicesTQ.rows.filter(s => { svcIds.map(s.service like _).reduceLeft(_ || _) }).map(s => (s.orgid, s.url, s.version, s.arch)).result
+            ServicesTQ.filter(s => { svcIds.map(s.service like _).reduceLeft(_ || _) }).map(s => (s.orgid, s.url, s.version, s.arch)).result
           }
 
           db.run(svcAction.asTry.flatMap({
@@ -701,7 +701,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
           val svcAction = if (svcIds.isEmpty) DBIO.successful(Vector())   // no services to look for
           else {
             // The inner map() and reduceLeft() OR together all of the likes to give to filter()
-            ServicesTQ.rows.filter(s => { svcIds.map(s.service like _).reduceLeft(_ || _) }).map(s => (s.orgid, s.url, s.version, s.arch)).result
+            ServicesTQ.filter(s => { svcIds.map(s.service like _).reduceLeft(_ || _) }).map(s => (s.orgid, s.url, s.version, s.arch)).result
           }
 
           db.run(svcAction.asTry.flatMap({
@@ -839,7 +839,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             val svcAction = if (svcIds.isEmpty) DBIO.successful(Vector()) // no services to look for
             else {
               // The inner map() and reduceLeft() OR together all of the likes to give to filter()
-              ServicesTQ.rows.filter(s => {
+              ServicesTQ.filter(s => {
                 svcIds.map(s.service like _).reduceLeft(_ || _)
               }).map(s => (s.orgid, s.url, s.version, s.arch)).result
             }

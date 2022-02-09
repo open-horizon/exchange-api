@@ -108,13 +108,13 @@ final case class PatchPatternRequest(label: Option[String], description: Option[
   def getDbUpdate(pattern: String, orgid: String): (DBIO[_],String) = {
     val lastUpdated: String = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this pattern
-    label match { case Some(lab) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.label,d.lastUpdated)).update((pattern, lab, lastUpdated)), "label"); case _ => ; }
-    description match { case Some(desc) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.description,d.lastUpdated)).update((pattern, desc, lastUpdated)), "description"); case _ => ; }
-    public match { case Some(pub) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.public,d.lastUpdated)).update((pattern, pub, lastUpdated)), "public"); case _ => ; }
-    services match { case Some(svc) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.services,d.lastUpdated)).update((pattern, write(svc), lastUpdated)), "services"); case _ => ; }
-    userInput match { case Some(input) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.userInput,d.lastUpdated)).update((pattern, write(input), lastUpdated)), "userInput"); case _ => ; }
-    secretBinding match {case Some(bind) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.secretBinding,d.lastUpdated)).update((pattern, write(bind), lastUpdated)), "secretBinding"); case _ => ; }
-    agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ.rows if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "agreementProtocols"); case _ => ; }
+    label match { case Some(lab) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.label,d.lastUpdated)).update((pattern, lab, lastUpdated)), "label"); case _ => ; }
+    description match { case Some(desc) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.description,d.lastUpdated)).update((pattern, desc, lastUpdated)), "description"); case _ => ; }
+    public match { case Some(pub) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.public,d.lastUpdated)).update((pattern, pub, lastUpdated)), "public"); case _ => ; }
+    services match { case Some(svc) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.services,d.lastUpdated)).update((pattern, write(svc), lastUpdated)), "services"); case _ => ; }
+    userInput match { case Some(input) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.userInput,d.lastUpdated)).update((pattern, write(input), lastUpdated)), "userInput"); case _ => ; }
+    secretBinding match {case Some(bind) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.secretBinding,d.lastUpdated)).update((pattern, write(bind), lastUpdated)), "secretBinding"); case _ => ; }
+    agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "agreementProtocols"); case _ => ; }
     (null, null)
   }
 
@@ -233,7 +233,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TPattern(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
         complete({
-          //var q = PatternsTQ.rows.subquery
+          //var q = PatternsTQ.subquery
           var q = PatternsTQ.getAllPatterns(orgid)
           // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
           idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.pattern like id) else q = q.filter(_.pattern === id) })
@@ -1151,7 +1151,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                   else
                     Some(archSet)
                 
-                NodesTQ.rows
+                NodesTQ
                   .filterOpt(optArchSet)((node, archs) => node.arch inSet(archs))
                   .filterOpt(secondsStaleOpt)((node, secondsStale) => !(node.lastHeartbeat < ApiTime.pastUTC(secondsStale)))
                   .filter(_.lastHeartbeat.isDefined)
@@ -1159,7 +1159,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                   .filter(_.pattern === compositeId)
                   .filter(_.publicKey =!= "")
                   .map(node => (node.id, node.nodeType, node.publicKey))
-                .joinLeft(NodeAgreementsTQ.rows
+                .joinLeft(NodeAgreementsTQ
                             .filter(_.agrSvcUrl === searchSvcUrl)
                              .map(agreement => (agreement.agrSvcUrl, agreement.nodeId, agreement.state)))
                   .on((node, agreement) => node._1 === agreement._2)
@@ -1298,7 +1298,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
           */
           val lastTime: String = if (reqBody.lastTime != "") reqBody.lastTime else ApiTime.beginningUTC
           val q = for {
-            (n, a) <- NodesTQ.rows.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+            (n, a) <- NodesTQ.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ on (_.id === _.nodeId)
           } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
 
           db.run(q.result).map({ list =>

@@ -95,16 +95,16 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   
   // Begin building testing harness.
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ.rows += TESTORGANIZATION) andThen
-                                       (UsersTQ.rows += TESTUSER) andThen
-                                       (AgbotsTQ.rows += TESTAGBOT) andThen
-                                       (ServicesTQ.rows ++= TESTSERVICES)), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run((OrgsTQ += TESTORGANIZATION) andThen
+                                       (UsersTQ += TESTUSER) andThen
+                                       (AgbotsTQ += TESTAGBOT) andThen
+                                       (ServicesTQ ++= TESTSERVICES)), AWAITDURATION)
   }
   
   // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.rows.filter(_.orgId startsWith "TestPolicySearchPost").delete andThen
-                                       OrgsTQ.rows.filter(_.orgid startsWith "TestPolicySearchPost").delete), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPolicySearchPost").delete andThen
+                                       OrgsTQ.filter(_.orgid startsWith "TestPolicySearchPost").delete), AWAITDURATION)
     
     DBCONNECTION.getDb.close()
   }
@@ -118,38 +118,38 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   def fixtureNodeAgreements(testCode: Seq[NodeAgreementRow] => Any, testData: Seq[NodeAgreementRow]): Any = {
     // Create resources and continue.
     try {
-      Await.result(DBCONNECTION.getDb.run(NodeAgreementsTQ.rows ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(NodeAgreementsTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     // Teardown created resources.
     finally
-      Await.result(DBCONNECTION.getDb.run(NodeAgreementsTQ.rows.filter(_.agId inSet testData.map(_.agId)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(NodeAgreementsTQ.filter(_.agId inSet testData.map(_.agId)).delete), AWAITDURATION)
   }
   
   // Nodes that are dynamically needed, specific to the test case.
   def fixtureNodes(testCode: Seq[NodeRow] => Any, testData: Seq[NodeRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(NodesTQ.rows ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(NodesTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(NodesTQ.rows.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
   }
   
   // Organizations that are dynamically needed, specific to the test case.
   def fixtureOrganizations(testCode: Seq[OrgRow] => Any, testData: Seq[OrgRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(OrgsTQ.rows ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(OrgsTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(OrgsTQ.rows.filter(_.orgid inSet testData.map(_.orgId)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid inSet testData.map(_.orgId)).delete), AWAITDURATION)
   }
   
   // Offsets/Sessions that are dynamically needed, specific to the test case.
   def fixturePagination(testCode: Seq[SearchOffsetPolicyAttributes] => Any, testData: Seq[SearchOffsetPolicyAttributes]): Any = {
     try{
-      Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.offsets ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
@@ -159,11 +159,11 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   // Policies that are dynamically needed, specific to the test case.
   def fixturePolicies(testCode: Seq[BusinessPolicyRow] => Any, testData: Seq[BusinessPolicyRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(BusinessPoliciesTQ.rows ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(BusinessPoliciesTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(BusinessPoliciesTQ.rows.filter(_.businessPolicy inSet testData.map(_.businessPolicy)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(BusinessPoliciesTQ.filter(_.businessPolicy inSet testData.map(_.businessPolicy)).delete), AWAITDURATION)
   }
   
   

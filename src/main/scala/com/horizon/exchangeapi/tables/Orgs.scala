@@ -30,13 +30,13 @@ final case class OrgRow(orgId: String, orgType: String, label: String, descripti
   }
 
   // update returns a DB action to update this row
-  def update: DBIO[_] = (for { m <- OrgsTQ.rows if m.orgid === orgId } yield m).update(this)
+  def update: DBIO[_] = (for { m <- OrgsTQ if m.orgid === orgId } yield m).update(this)
 
   // insert returns a DB action to insert this row
-  def insert: DBIO[_] = OrgsTQ.rows += this
+  def insert: DBIO[_] = OrgsTQ += this
 
   // Returns a DB action to insert or update this row
-  def upsert: DBIO[_] = OrgsTQ.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = OrgsTQ.insertOrUpdate(this)
 }
 
 /** Mapping of the orgs db table to a scala class */
@@ -54,23 +54,22 @@ class Orgs(tag: Tag) extends Table[OrgRow](tag, "orgs") {
 }
 
 // Instance to access the orgs table
-object OrgsTQ {
+object OrgsTQ  extends TableQuery(new Orgs(_)){
   protected implicit val jsonFormats: Formats = DefaultFormats
-  val rows = TableQuery[Orgs]
-
-  def getOrgid(orgid: String): Query[Orgs, OrgRow, Seq] = rows.filter(_.orgid === orgid)
-  def getOrgType(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.orgType)
-  def getLabel(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.label)
-  def getDescription(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.description)
-  def getLastUpdated(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.lastUpdated)
-  def getTag(orgid: String, tag: String): Query[Rep[Option[String]], Option[String], Seq] = rows.filter(_.orgid === orgid).map(_.tags.map(tags => tags +>> tag))
-  def getLimits(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.limits)
-  def getHeartbeatIntervals(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.heartbeatIntervals)
-  def getOrgidsOfType(orgType: String): Query[Rep[String], String, Seq] = rows.filter(_.orgType === orgType).map(_.orgid)
+  
+  def getOrgid(orgid: String): Query[Orgs, OrgRow, Seq] = this.filter(_.orgid === orgid)
+  def getOrgType(orgid: String): Query[Rep[String], String, Seq] = this.filter(_.orgid === orgid).map(_.orgType)
+  def getLabel(orgid: String): Query[Rep[String], String, Seq] = this.filter(_.orgid === orgid).map(_.label)
+  def getDescription(orgid: String): Query[Rep[String], String, Seq] = this.filter(_.orgid === orgid).map(_.description)
+  def getLastUpdated(orgid: String): Query[Rep[String], String, Seq] = this.filter(_.orgid === orgid).map(_.lastUpdated)
+  def getTag(orgid: String, tag: String): Query[Rep[Option[String]], Option[String], Seq] = this.filter(_.orgid === orgid).map(_.tags.map(tags => tags +>> tag))
+  def getLimits(orgid: String): Query[Rep[String], String, Seq] = this.filter(_.orgid === orgid).map(_.limits)
+  def getHeartbeatIntervals(orgid: String): Query[Rep[String], String, Seq] = this.filter(_.orgid === orgid).map(_.heartbeatIntervals)
+  def getOrgidsOfType(orgType: String): Query[Rep[String], String, Seq] = this.filter(_.orgType === orgType).map(_.orgid)
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(orgid: String, attrName: String): Query[_,_,Seq] = {
-    val filter = rows.filter(_.orgid === orgid)
+    val filter = this.filter(_.orgid === orgid)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
     attrName match {
       case "orgType" => filter.map(_.orgType)
@@ -154,13 +153,13 @@ final case class ResourceChangeRow(changeId: Long, orgId: String, id: String, ca
   //def toResourceChange: ResourceChange = ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)
 
   // update returns a DB action to update this row
-  //def update: DBIO[_] = (for { m <- ResourceChangesTQ.rows if m.changeId === changeId} yield m).update(this)
+  //def update: DBIO[_] = (for { m <- ResourceChangesTQ if m.changeId === changeId} yield m).update(this)
 
   // insert returns a DB action to insert this row
-  def insert: DBIO[_] = ResourceChangesTQ.rows += this
+  def insert: DBIO[_] = ResourceChangesTQ += this
 
   // Returns a DB action to insert or update this row
-  //def upsert: DBIO[_] = ResourceChangesTQ.rows.insertOrUpdate(this)
+  //def upsert: DBIO[_] = ResourceChangesTQ.insertOrUpdate(this)
 }
 
 /** Mapping of the resourcechanges db table to a scala class */
@@ -184,22 +183,20 @@ class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcec
 }
 
 // Instance to access the ResourceChanges table
-object ResourceChangesTQ {
-  val rows = TableQuery[ResourceChanges]
-
-  def getChangeId(changeid: Long): Query[Rep[Long], Long, Seq] = rows.filter(_.changeId === changeid).map(_.changeId)
-  def getOrgid(changeid: Long): Query[Rep[String], String, Seq] = rows.filter(_.changeId === changeid).map(_.orgId)
-  def getId(changeid: Long): Query[Rep[String], String, Seq] = rows.filter(_.changeId === changeid).map(_.id)
-  def getCategory(changeid: Long): Query[Rep[String], String, Seq] = rows.filter(_.changeId === changeid).map(_.category)
-  def getPublic(changeid: Long): Query[Rep[String], String, Seq] = rows.filter(_.changeId === changeid).map(_.public)
-  def getResource(changeid: Long): Query[Rep[String], String, Seq] = rows.filter(_.changeId === changeid).map(_.resource)
-  def getOperation(changeid: Long): Query[Rep[String], String, Seq] = rows.filter(_.changeId === changeid).map(_.operation)
-  def getLastUpdated(changeid: Long): Query[Rep[Timestamp], Timestamp, Seq] = rows.filter(_.changeId === changeid).map(_.lastUpdated)
-  def getRowsExpired(timeExpired: java.sql.Timestamp): Query[ResourceChanges, ResourceChangeRow, Seq] = rows.filter(_.lastUpdated < timeExpired)
+object ResourceChangesTQ  extends TableQuery(new ResourceChanges(_)){
+  def getChangeId(changeid: Long): Query[Rep[Long], Long, Seq] = this.filter(_.changeId === changeid).map(_.changeId)
+  def getOrgid(changeid: Long): Query[Rep[String], String, Seq] = this.filter(_.changeId === changeid).map(_.orgId)
+  def getId(changeid: Long): Query[Rep[String], String, Seq] = this.filter(_.changeId === changeid).map(_.id)
+  def getCategory(changeid: Long): Query[Rep[String], String, Seq] = this.filter(_.changeId === changeid).map(_.category)
+  def getPublic(changeid: Long): Query[Rep[String], String, Seq] = this.filter(_.changeId === changeid).map(_.public)
+  def getResource(changeid: Long): Query[Rep[String], String, Seq] = this.filter(_.changeId === changeid).map(_.resource)
+  def getOperation(changeid: Long): Query[Rep[String], String, Seq] = this.filter(_.changeId === changeid).map(_.operation)
+  def getLastUpdated(changeid: Long): Query[Rep[Timestamp], Timestamp, Seq] = this.filter(_.changeId === changeid).map(_.lastUpdated)
+  def getRowsExpired(timeExpired: java.sql.Timestamp): Query[ResourceChanges, ResourceChangeRow, Seq] = this.filter(_.lastUpdated < timeExpired)
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(changeid: Long, attrName: String): Query[_,_,Seq] = {
-    val filter = rows.filter(_.changeId === changeid)
+    val filter = this.filter(_.changeId === changeid)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
     attrName match {
       case "changeId" => filter.map(_.changeId)
@@ -215,7 +212,7 @@ object ResourceChangesTQ {
   }
   
   def dropAllChanges(): FixedSqlAction[Int, NoStream, Effect.Write] =
-    rows.delete
+    this.delete
 }
 
 final case class ResourceChange(changeId: Long, orgId: String, id: String, category: ResChangeCategory, public: Boolean, resource: ResChangeResource, operation: ResChangeOperation) {

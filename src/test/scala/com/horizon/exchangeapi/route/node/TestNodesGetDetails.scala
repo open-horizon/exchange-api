@@ -186,19 +186,19 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
   
   // Build test harness.
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ.rows ++= TESTORGANIZATIONS) andThen
-                                       (UsersTQ.rows ++= TESTUSERS) andThen
-                                       (AgbotsTQ.rows += TESTAGBOT) andThen
-                                       (NodesTQ.rows ++= TESTNODES) andThen
-                                       (NodeErrorTQ.rows ++= TESTNODEERRORS) andThen
-                                       (NodePolicyTQ.rows ++= TESTNODEPOLICIES) andThen
-                                       (NodeStatusTQ.rows ++= TESTNODESTATUSES)), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
+                                       (UsersTQ ++= TESTUSERS) andThen
+                                       (AgbotsTQ += TESTAGBOT) andThen
+                                       (NodesTQ ++= TESTNODES) andThen
+                                       (NodeErrorTQ ++= TESTNODEERRORS) andThen
+                                       (NodePolicyTQ ++= TESTNODEPOLICIES) andThen
+                                       (NodeStatusTQ ++= TESTNODESTATUSES)), AWAITDURATION)
   }
   
   // Teardown test harness.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.rows.filter(_.orgId startsWith "TestNodesGetDetails").delete andThen
-                                       OrgsTQ.rows.filter(_.orgid startsWith "TestNodesGetDetails").delete), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodesGetDetails").delete andThen
+                                       OrgsTQ.filter(_.orgid startsWith "TestNodesGetDetails").delete), AWAITDURATION)
   
     DBCONNECTION.getDb.close()
   }

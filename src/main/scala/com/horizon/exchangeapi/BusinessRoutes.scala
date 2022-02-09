@@ -91,13 +91,13 @@ final case class PatchBusinessPolicyRequest(label: Option[String], description: 
   def getDbUpdate(businessPolicy: String, orgid: String): (DBIO[_],String) = {
     val lastUpdated: String = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this businessPolicy
-    label match { case Some(lab) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.label,d.lastUpdated)).update((businessPolicy, lab, lastUpdated)), "label"); case _ => ; }
-    description match { case Some(desc) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.description,d.lastUpdated)).update((businessPolicy, desc, lastUpdated)), "description"); case _ => ; }
-    service match { case Some(svc) => return ((for {d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.service,d.lastUpdated)).update((businessPolicy, write(svc), lastUpdated)), "service"); case _ => ; }
-    userInput match { case Some(input) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.userInput,d.lastUpdated)).update((businessPolicy, write(input), lastUpdated)), "userInput"); case _ => ; }
-    secretBinding match {case Some(bind) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.secretBinding,d.lastUpdated)).update((businessPolicy, write(bind), lastUpdated)), "secretBinding"); case _ => ; }
-    properties match { case Some(prop) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.properties,d.lastUpdated)).update((businessPolicy, write(prop), lastUpdated)), "properties"); case _ => ; }
-    constraints match { case Some(con) => return ((for { d <- BusinessPoliciesTQ.rows if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.constraints,d.lastUpdated)).update((businessPolicy, write(con), lastUpdated)), "constraints"); case _ => ; }
+    label match { case Some(lab) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.label,d.lastUpdated)).update((businessPolicy, lab, lastUpdated)), "label"); case _ => ; }
+    description match { case Some(desc) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.description,d.lastUpdated)).update((businessPolicy, desc, lastUpdated)), "description"); case _ => ; }
+    service match { case Some(svc) => return ((for {d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.service,d.lastUpdated)).update((businessPolicy, write(svc), lastUpdated)), "service"); case _ => ; }
+    userInput match { case Some(input) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.userInput,d.lastUpdated)).update((businessPolicy, write(input), lastUpdated)), "userInput"); case _ => ; }
+    secretBinding match {case Some(bind) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.secretBinding,d.lastUpdated)).update((businessPolicy, write(bind), lastUpdated)), "secretBinding"); case _ => ; }
+    properties match { case Some(prop) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.properties,d.lastUpdated)).update((businessPolicy, write(prop), lastUpdated)), "properties"); case _ => ; }
+    constraints match { case Some(con) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.constraints,d.lastUpdated)).update((businessPolicy, write(con), lastUpdated)), "constraints"); case _ => ; }
     (null, null)
   }
 }
@@ -983,7 +983,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                       - Live-lock will occur if the resulting number of nodes with the same lastUpdated is greater than the size of the page being returned. In that case we have no choice
                         but to keep having the agbots call us with the same offset until that is no longer the case (because the agbots have processed some nodes and made agreements with them)
                   */
-                  nodes = NodesTQ.rows
+                  nodes = NodesTQ
                                  .filterOpt(optArch)((node, arch) => node.arch === arch)
                                  .filter(_.lastHeartbeat.isDefined) // do not return pre-created nodes from which the agent has never communicated to us yet
                                  // Note: since the timestamp for lastUpdated/changedSince/offset is an inexact boundary (i.e. there can be multiple nodes with the same lastlastUpdated value,
@@ -1001,7 +1001,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                                     - if there is no agreement for searchSvcUrl for a node, the 3 agreement fields will be None
                                     - if there are multiple agreements for searchSvcUrl for a node (not supposed to be, but could be), the node will be repeated in the output, but will be filtered out later on
                                  */
-                                 .joinLeft(NodeAgreementsTQ.rows
+                                 .joinLeft(NodeAgreementsTQ
                                                            .filter(_.agrSvcUrl === searchSvcUrl) // only join with agreements that are for this service, so we can filter those out below
                                                            .map(agreement => (agreement.agrSvcUrl, agreement.nodeId, agreement.state)))
                                  .on((node, agreement) => node._1 === agreement._2) // (node.id === agreements.nodeId)

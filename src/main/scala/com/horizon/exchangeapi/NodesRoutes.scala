@@ -200,31 +200,31 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
     var dbAction: (DBIO[_], String) = (null, null)
     // nodeType intentionally missing from this 1st list of attributes, because we will default it if it is the only 1 not specified
     if(token.isEmpty && softwareVersions.isDefined && registeredServices.isDefined && name.isDefined && pattern.isDefined && userInput.isDefined && msgEndPoint.isDefined && publicKey.isDefined && arch.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions, d.regServices, d.name, d.nodeType, d.pattern, d.userInput, d.msgEndPoint, d.publicKey, d.arch, d.lastHeartbeat, d.lastUpdated)).update((id, write(softwareVersions), write(registeredServices), name.get, nodeType.getOrElse(NodeType.DEVICE.toString), pattern.get, write(userInput), msgEndPoint.get, publicKey.get, arch.get, Some(currentTime), currentTime)), "update all but token")
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.softwareVersions, d.regServices, d.name, d.nodeType, d.pattern, d.userInput, d.msgEndPoint, d.publicKey, d.arch, d.lastHeartbeat, d.lastUpdated)).update((id, write(softwareVersions), write(registeredServices), name.get, nodeType.getOrElse(NodeType.DEVICE.toString), pattern.get, write(userInput), msgEndPoint.get, publicKey.get, arch.get, Some(currentTime), currentTime)), "update all but token")
     } else if (token.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.token,d.lastHeartbeat, d.lastUpdated)).update((id, hashedPw, Some(currentTime), currentTime)), "token")
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.token,d.lastHeartbeat, d.lastUpdated)).update((id, hashedPw, Some(currentTime), currentTime)), "token")
     } else if (softwareVersions.isDefined){
       val swVersions: String = if (softwareVersions.nonEmpty) write(softwareVersions) else ""
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat, d.lastUpdated)).update((id, swVersions, Some(currentTime), currentTime)), "softwareVersions")
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat, d.lastUpdated)).update((id, swVersions, Some(currentTime), currentTime)), "softwareVersions")
     } else if (registeredServices.isDefined){
       val regSvc: String = if (registeredServices.nonEmpty) write(registeredServices) else ""
-      dbAction =  ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat, d.lastUpdated)).update((id, regSvc, Some(currentTime), currentTime)), "registeredServices")
+      dbAction =  ((for { d <- NodesTQ if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat, d.lastUpdated)).update((id, regSvc, Some(currentTime), currentTime)), "registeredServices")
     } else if (name.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.name,d.lastHeartbeat, d.lastUpdated)).update((id, name.get, Some(currentTime), currentTime)), "name")
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.name,d.lastHeartbeat, d.lastUpdated)).update((id, name.get, Some(currentTime), currentTime)), "name")
     } else if (nodeType.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.nodeType,d.lastHeartbeat, d.lastUpdated)).update((id, nodeType.get, Some(currentTime), currentTime)), "nodeType")
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.nodeType,d.lastHeartbeat, d.lastUpdated)).update((id, nodeType.get, Some(currentTime), currentTime)), "nodeType")
     } else if (pattern.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat, d.lastUpdated)).update((id, pattern.get, Some(currentTime), currentTime)), "pattern")
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat, d.lastUpdated)).update((id, pattern.get, Some(currentTime), currentTime)), "pattern")
     } else if (userInput.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.userInput,d.lastHeartbeat, d.lastUpdated)).update((id, write(userInput), Some(currentTime), currentTime)), "userInput")
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.userInput,d.lastHeartbeat, d.lastUpdated)).update((id, write(userInput), Some(currentTime), currentTime)), "userInput")
     } else if (msgEndPoint.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat, d.lastUpdated)).update((id, msgEndPoint.get, Some(currentTime), currentTime)), "msgEndPoint")
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat, d.lastUpdated)).update((id, msgEndPoint.get, Some(currentTime), currentTime)), "msgEndPoint")
     } else if (publicKey.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat, d.lastUpdated)).update((id, publicKey.get, Some(currentTime), currentTime)), "publicKey")
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat, d.lastUpdated)).update((id, publicKey.get, Some(currentTime), currentTime)), "publicKey")
     } else if (arch.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.arch,d.lastHeartbeat, d.lastUpdated)).update((id, arch.get, Some(currentTime), currentTime)), "arch")
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.arch,d.lastHeartbeat, d.lastUpdated)).update((id, arch.get, Some(currentTime), currentTime)), "arch")
     } else if (heartbeatIntervals.isDefined){
-      dbAction = ((for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.heartbeatIntervals,d.lastHeartbeat, d.lastUpdated)).update((id, write(heartbeatIntervals), Some(currentTime), currentTime)), "heartbeatIntervals")
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.heartbeatIntervals,d.lastHeartbeat, d.lastUpdated)).update((id, write(heartbeatIntervals), Some(currentTime), currentTime)), "heartbeatIntervals")
     }
     dbAction
   }
@@ -286,7 +286,7 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
     // Convert from struct back to string and return db action to update that
     val newRegSvcsString: String = write(newRegSvcs)
     val nowTime = ApiTime.nowUTC
-    (for { d <- NodesTQ.rows if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat,d.lastUpdated)).update((id, newRegSvcsString, Some(nowTime), nowTime))
+    (for { d <- NodesTQ if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat,d.lastUpdated)).update((id, newRegSvcsString, Some(nowTime), nowTime))
   }
 }
 
@@ -2589,7 +2589,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                 
                 val getNodes =
                   for {
-                    nodes <- NodesTQ.rows
+                    nodes <- NodesTQ
                                    .filterOpt(arch)((node, arch) => node.arch like arch)
                                    .filterOpt(id)((node, id) => node.id like id)
                                    .filterOpt(name)((node, name) => node.name like name)
@@ -2600,11 +2600,11 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                      }) // "" === ""
                                    .filter(_.orgid === orgid)
                                    .filterOpt(ownerFilter)((node, ownerFilter) => node.owner like ownerFilter)
-                                   .joinLeft(NodeErrorTQ.rows.filterOpt(id)((nodeErrors, id) => nodeErrors.nodeId like id))
+                                   .joinLeft(NodeErrorTQ.filterOpt(id)((nodeErrors, id) => nodeErrors.nodeId like id))
                                      .on(_.id === _.nodeId)
-                                   .joinLeft(NodePolicyTQ.rows.filterOpt(id)((nodePolicy, id) => nodePolicy.nodeId like id))
+                                   .joinLeft(NodePolicyTQ.filterOpt(id)((nodePolicy, id) => nodePolicy.nodeId like id))
                                      .on(_._1.id === _.nodeId)
-                                   .joinLeft(NodeStatusTQ.rows.filterOpt(id)((nodeStatuses, id) => nodeStatuses.nodeId like id))
+                                   .joinLeft(NodeStatusTQ.filterOpt(id)((nodeStatuses, id) => nodeStatuses.nodeId like id))
                                      .on(_._1._1.id === _.nodeId) // node.id === nodeStatus.nodeid
                                    .sortBy(_._1._1._1.id.asc)     // node.id ASC
                                    // (((Nodes, Node Errors), Node Policy), Node Statuses)

@@ -139,7 +139,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TService(OrgAndId("*","*").toString),Access.READ_ALL_SERVICES) { _ =>
         complete({
           val svcQuery = for {
-            (_, svc) <- OrgsTQ.getOrgidsOfType(orgType.getOrElse("IBM")) join ServicesTQ.rows on ((o, s) => {o === s.orgid && s.public})
+            (_, svc) <- OrgsTQ.getOrgidsOfType(orgType.getOrElse("IBM")) join ServicesTQ on ((o, s) => {o === s.orgid && s.public})
           } yield svc
 
           db.run(svcQuery.result).map({ list =>
@@ -239,7 +239,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TPattern(OrgAndId("*","*").toString),Access.READ_ALL_PATTERNS) { _ =>
       complete({
         val svcQuery = for {
-          (_, svc) <- OrgsTQ.getOrgidsOfType(orgType.getOrElse("IBM")) join PatternsTQ.rows on ((o, s) => {o === s.orgid && s.public})
+          (_, svc) <- OrgsTQ.getOrgidsOfType(orgType.getOrElse("IBM")) join PatternsTQ on ((o, s) => {o === s.orgid && s.public})
         } yield svc
 
         db.run(svcQuery.result).map({ list =>
@@ -381,7 +381,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
           })
 
           val svcQuery = for {
-            (_, svc) <- OrgsTQ.getOrgidsOfType("IBM") join ServicesTQ.rows on ((o, s) => {o === s.orgid && s.public})
+            (_, svc) <- OrgsTQ.getOrgidsOfType("IBM") join ServicesTQ on ((o, s) => {o === s.orgid && s.public})
           } yield svc
 
           var allServices : Map[String, Service] = null
@@ -493,7 +493,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
       validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
         complete({
           logger.debug("ORGID: "+ orgid)
-          //var q = PatternsTQ.rows.subquery
+          //var q = PatternsTQ.subquery
           var q = PatternsTQ.getAllPatterns(orgid)
           // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
           idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.pattern like id) else q = q.filter(_.pattern === id) })
@@ -503,7 +503,7 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
           description.foreach(desc => { if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc) })
 
           val svcQuery = for {
-            (_, svc) <- OrgsTQ.getOrgidsOfType("IBM") join PatternsTQ.rows on ((o, s) => {o === s.orgid && s.public})
+            (_, svc) <- OrgsTQ.getOrgidsOfType("IBM") join PatternsTQ on ((o, s) => {o === s.orgid && s.public})
           } yield svc
 
           var allPatterns : Map[String, Pattern] = null
